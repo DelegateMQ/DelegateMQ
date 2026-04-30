@@ -16,7 +16,7 @@
 // - State machine inheritance support
 // - Minimal heap/RAM footprint
 // 
-// @see https://github.com/DelegateMQ/DelegateMQ
+// @see https://github.com/DelegateMQ/active-fsm
 // @author David Lafreniere (2000-2026)
 
 #include <cstdint>

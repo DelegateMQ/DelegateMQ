@@ -315,7 +315,7 @@ auto conn2 = dmq::databus::DataBus::Subscribe<int>("status", [](int s) {
 }, nullptr, qos);
 ```
 
-**Distributed Example**: See [Cellutron](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/cellutron) for a comprehensive distributed medical instrument example showcasing multi-OS interoperability (Desktop ↔ RTOS), safety interlocks, and distributed hardware logging using the DataBus.
+**Distributed Example**: See [Cellutron](example/cellutron/README.md) for a comprehensive distributed medical instrument example showcasing multi-OS interoperability (Desktop ↔ RTOS), safety interlocks, and distributed hardware logging using the DataBus.
 
 # DelegateMQ Tools
 

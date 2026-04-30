@@ -11,6 +11,9 @@
 // PROPAGATE_TO_PARENT in a transition map causes the event lookup to retry
 // against the parent state's transition table entry, walking up the hierarchy
 // until a state handles it or the top is reached (treated as EVENT_IGNORED).
+//
+// @see https://github.com/DelegateMQ/active-fsm
+// @author David Lafreniere (2000-2026)
 
 #include "StateMachine.h"
 

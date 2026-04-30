@@ -2,7 +2,7 @@
 
 **Cellutron** (located in `DelegateMQ/example/cellutron`) is a comprehensive demonstration project representing a hypothetical **medical, safety-critical instrument**. It showcases how **DelegateMQ** enables the design of distributed systems that require high reliability, independent hardware interlocks, and rigorous audit trails.
 
-<img src="cellutron.png" width="800">
+<img src="cellutron.png" width="1280">
 
 ---
 
