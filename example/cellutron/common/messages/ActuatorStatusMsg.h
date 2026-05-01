@@ -1,12 +1,13 @@
 #ifndef ACTUATOR_STATUS_MSG_H
 #define ACTUATOR_STATUS_MSG_H
 
-#include "DelegateMQ.h"
-#include <string>
+#include "MessageBase.h"
+
+namespace cellutron {
 
 enum class ActuatorType { VALVE, PUMP };
 
-struct ActuatorStatusMsg : public serialize::I
+struct ActuatorStatusMsg : public MessageBase
 {
     ActuatorType type = ActuatorType::VALVE;
     uint8_t id = 0;
@@ -16,6 +17,7 @@ struct ActuatorStatusMsg : public serialize::I
     ActuatorStatusMsg(ActuatorType t, uint8_t i, int16_t v) : type(t), id(i), value(v) {}
 
     virtual std::istream& read(serialize& ms, std::istream& is) override {
+        MessageBase::read(ms, is);
         uint8_t t;
         ms.read(is, t);
         type = static_cast<ActuatorType>(t);
@@ -25,6 +27,7 @@ struct ActuatorStatusMsg : public serialize::I
     }
 
     virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+        MessageBase::write(ms, os);
         uint8_t t = static_cast<uint8_t>(type);
         ms.write(os, t);
         ms.write(os, id);
@@ -32,5 +35,7 @@ struct ActuatorStatusMsg : public serialize::I
         return os;
     }
 };
+
+} // namespace cellutron
 
 #endif

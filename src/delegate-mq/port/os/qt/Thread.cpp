@@ -19,10 +19,11 @@ static int registerId = qRegisterMetaType<std::shared_ptr<dmq::DelegateMsg>>();
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
     : m_threadName(threadName)
     , m_maxQueueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
     , m_fullPolicy(fullPolicy)
+    , m_dispatchTimeout(dispatchTimeout)
 {
 }
 
@@ -177,7 +178,7 @@ void Thread::Sleep(dmq::Duration timeout) {
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Safety check: Don't emit if thread is tearing down
     if (m_thread && m_thread->isRunning()) 
@@ -188,7 +189,7 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             if (m_fullPolicy == FullPolicy::DROP)
             {
                 m_mutex.unlock();
-                return; // silently discard
+                return false; // silently discard
             }
 
             if (m_fullPolicy == FullPolicy::FAULT)
@@ -196,13 +197,22 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
                 m_mutex.unlock();
                 printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", m_threadName.c_str());
                 ASSERT_TRUE(m_queueSize < m_maxQueueSize);
-                return;
+                return false;
             }
 
-            // BLOCK: wait while queue is full
-            while (m_queueSize >= m_maxQueueSize && m_thread->isRunning())
+            if (m_fullPolicy == FullPolicy::TIMEOUT)
             {
-                m_cvNotFull.wait(&m_mutex);
+                auto ms = static_cast<unsigned long>(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
+                while (m_queueSize >= m_maxQueueSize && m_thread->isRunning())
+                {
+                    if (!m_cvNotFull.wait(&m_mutex, ms))
+                    {
+                        m_mutex.unlock();
+                        printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", m_threadName.c_str());
+                        return false;
+                    }
+                }
             }
         }
 
@@ -211,9 +221,12 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         {
             m_queueSize++;
             emit SignalDispatch(msg);
+            m_mutex.unlock();
+            return true;
         }
         m_mutex.unlock();
     }
+    return false;
 }
 
 } // namespace dmq::os

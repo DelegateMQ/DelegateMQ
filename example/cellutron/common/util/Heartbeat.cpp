@@ -43,11 +43,7 @@ void Heartbeat::MonitorNode(const char* remoteTopic, FaultCode faultCode, const 
 
 void Heartbeat::Tick(uint32_t ms)
 {
-    m_msAccumulator += ms;
-    if (m_msAccumulator >= 1000) {
-        m_secondsElapsed++;
-        m_msAccumulator -= 1000;
-    }
+    m_msElapsed += ms;
 }
 
 void Heartbeat::OnTimerExpired()
@@ -58,7 +54,7 @@ void Heartbeat::OnTimerExpired()
 void Heartbeat::OnMonitorTimeout(const std::string& nodeName, FaultCode faultCode)
 {
     // Ignore timeouts during the warmup period to allow all nodes to boot
-    if (m_secondsElapsed.load() < HEARTBEAT_WARMUP.count()) {
+    if (m_msElapsed.load() < HEARTBEAT_WARMUP.count()) {
         return;
     }
 

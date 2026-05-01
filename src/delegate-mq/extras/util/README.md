@@ -26,7 +26,12 @@ These classes provide transport-layer reliability (ACKs and Retries) over unreli
 * **`dmq::util::NetworkConnect.h`**: Platform-specific socket initialization helpers (e.g., `dmq::util::NetworkContext`) to handle networking boilerplate like `WSAStartup`.
 * **`dmq::util::RemoteEndpoint.h`**: Base class for `dmq::DelegateMemberRemote` used to register receive-side endpoints with `dmq::util::NetworkEngine`.
 
-### 5. System Utilities
+### 5. Monotonic Messaging and Time
+These utilities help handle message ordering and timestamping in distributed systems.
+* **`dmq::util::ClockHelper.h`**: Simplified functions to get monotonic timestamps (`TimestampMs()`, `TimestampUs()`) across all supported platforms.
+* **`dmq::util::MonotonicGuard.h`**: A generic template class to filter out-of-order or stale messages. Handles 32-bit rollover logic automatically and provides simple 64-bit monotonic checks.
+
+### 6. System Utilities
 * **`dmq::util::Fault.h`**: Assertions and fault trapping macros (`ASSERT_TRUE`, `FAULT_Handler`) used throughout the library examples.
 * **`dmq::util::crc16.h`**: Checksum utility for data integrity in serial/UDP headers.
 

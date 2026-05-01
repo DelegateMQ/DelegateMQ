@@ -4,6 +4,7 @@
 #include "DelegateMQ.h"
 #include "messages/HeartbeatMsg.h"
 #include "messages/FaultMsg.h"
+#include "util/MessageGuard.h"
 #include "extras/databus/DeadlineSubscription.h"
 #include <string>
 #include <memory>
@@ -48,6 +49,8 @@ private:
     dmq::ScopedConnection m_alarmGraceConn;
     std::unique_ptr<dmq::databus::DeadlineSubscription<HeartbeatMsg>> m_safetyWatchdog;
     std::unique_ptr<dmq::databus::DeadlineSubscription<HeartbeatMsg>> m_controllerWatchdog;
+
+    MessageGuard m_statusGuard;
 
     std::string m_currentMessage = "No Alarm";
     bool m_alarmActive = false;

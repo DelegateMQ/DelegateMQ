@@ -1,20 +1,24 @@
 #ifndef STOP_PROCESS_MSG_H
 #define STOP_PROCESS_MSG_H
 
-#include "DelegateMQ.h"
+#include "MessageBase.h"
 
-/// @brief Message to stop/abort the cell process.
-struct StopProcessMsg : public serialize::I
+namespace cellutron {
+
+/// @brief Message to command the abort of the cell process.
+struct StopProcessMsg : public MessageBase
 {
-    uint8_t dummy = 0xBB;
+    StopProcessMsg() = default;
 
     virtual std::istream& read(serialize& ms, std::istream& is) override {
-        return ms.read(is, dummy);
+        return MessageBase::read(ms, is);
     }
 
     virtual std::ostream& write(serialize& ms, std::ostream& os) override {
-        return ms.write(os, dummy);
+        return MessageBase::write(ms, os);
     }
 };
+
+} // namespace cellutron
 
 #endif

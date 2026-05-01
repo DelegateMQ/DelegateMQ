@@ -57,8 +57,7 @@ private:
     };
     std::vector<Monitor> m_monitors;
 
-    std::atomic<uint32_t> m_secondsElapsed{0};
-    uint32_t m_msAccumulator = 0;
+    std::atomic<uint32_t> m_msElapsed{0};
     bool     m_faultTriggered = false;
 };
 

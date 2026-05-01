@@ -16,9 +16,9 @@
 /// **Key Features:**
 /// * **Priority Queue:** Uses `std::priority_queue` to ensure high-priority delegate
 ///   messages (e.g., system signals) are processed before lower-priority ones.
-/// * **Queue Full Policy:** Configurable `FullPolicy` (BLOCK or DROP) when `maxQueueSize > 0`.
-///   BLOCK applies back pressure to the caller; DROP silently discards the message so the
-///   caller is never stalled. Default is BLOCK.
+/// * **Queue Full Policy:** Configurable `FullPolicy` (DROP, FAULT, or TIMEOUT) when `maxQueueSize > 0`.
+///   TIMEOUT waits up to `dispatchTimeout` for the consumer before logging and dropping;
+///   DROP silently discards immediately. FAULT (the default) triggers a system fault.
 /// * **Watchdog Integration:** Includes a built-in heartbeat mechanism. If the thread loop
 ///   stalls (deadlock or infinite loop), the watchdog timer detects the failure.
 /// * **Synchronized Start:** Uses a Win32 manual-reset event to ensure the thread
@@ -52,14 +52,15 @@ struct ThreadMsgComparator {
 
 /// @brief Policy applied when the thread message queue is full.
 /// @details Only meaningful when maxQueueSize > 0.
-///   - BLOCK: DispatchDelegate() blocks the caller until space is available (back pressure).
-///   - DROP:  DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT: DispatchDelegate() triggers a system fault if the queue is full.
+///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
+///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
+///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
 ///
 /// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. Use BLOCK for critical topics
-/// (commands, state transitions) where no message may be lost. FAULT is the default.
-enum class FullPolicy { BLOCK, DROP, FAULT };
+/// a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics
+/// (commands, state transitions) where every message should be delivered if possible.
+/// FAULT is the default.
+enum class FullPolicy { DROP, FAULT, TIMEOUT };
 
 /// @brief Windows-native thread for systems using the Win32 API.
 /// @details The Thread class creates a worker thread capable of dispatching and
@@ -71,9 +72,11 @@ public:
     /// @param threadName The name of the thread for debugging.
     /// @param maxQueueSize The maximum number of messages allowed in the queue.
     ///                     0 means unlimited (no back pressure).
-    /// @param fullPolicy When the queue is full: FAULT (default), BLOCK or DROP.
+    /// @param fullPolicy When the queue is full: FAULT (default), DROP, or TIMEOUT.
     ///                   Only meaningful when maxQueueSize > 0.
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT);
+    /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
+    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT);
 
     /// Destructor
     virtual ~Thread();
@@ -109,7 +112,7 @@ public:
     /// Dispatch and invoke a delegate target on the destination thread.
     /// @param[in] msg - Delegate message containing target function
     /// arguments.
-    virtual void DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
+    virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
 private:
     Thread(const Thread&) = delete;
@@ -158,6 +161,9 @@ private:
 
     // Policy applied when the thread message queue is full.
     const FullPolicy FULL_POLICY;
+
+    // Timeout duration for TIMEOUT policy
+    const dmq::Duration m_dispatchTimeout;
 
     std::atomic<bool> m_exit;
 

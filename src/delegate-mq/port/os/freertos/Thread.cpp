@@ -19,9 +19,10 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
     : THREAD_NAME(threadName)
     , FULL_POLICY(fullPolicy)
+    , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
     m_queueSize = (maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize;
@@ -221,11 +222,11 @@ void Thread::SetThreadPriority(int priority) {
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     if (!m_queue) {
         printf("[Thread] Error: Dispatch called but queue is null (%s)\n", THREAD_NAME.c_str());
-        return; 
+        return false; 
     }
 
     // DEBUG: Print attempt
@@ -237,16 +238,17 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     if (threadMsg == nullptr) {
         printf("[Thread] CRITICAL: 'new ThreadMsg' returned NULL! System Heap full? (%s)\n", THREAD_NAME.c_str());
-        return;
+        return false;
     }
 
-    // DROP: non-blocking — discard if queue is full, caller is never stalled.
-    // BLOCK: wait indefinitely — guarantees delivery, caller blocks until space is available.
-    // FAULT: non-blocking - trigger fault if queue full.
-    TickType_t timeout = (FULL_POLICY == FullPolicy::BLOCK) ? portMAX_DELAY : 0;
+    // Compute send timeout based on policy.
+    TickType_t timeout;
+    if (FULL_POLICY == FullPolicy::TIMEOUT)
+        timeout = pdMS_TO_TICKS(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
+    else
+        timeout = 0;  // DROP and FAULT: non-blocking
 
-    // Option #2: Implement High priority using xQueueSendToFront. 
-    // All other priorities use default FIFO (SendToBack).
+    // High priority uses xQueueSendToFront; all others use FIFO SendToBack.
     BaseType_t status;
     if (msg->GetPriority() == Priority::HIGH)
         status = xQueueSendToFront(m_queue, &threadMsg, timeout);
@@ -257,9 +259,13 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
             ASSERT_TRUE(status == pdPASS);
+        } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
+            printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
-        delete threadMsg;  // queue full, message dropped per DROP/FAULT policy
+        delete threadMsg;
+        return false;
     }
+    return true;
 }
 
 //----------------------------------------------------------------------------
@@ -310,12 +316,24 @@ void Thread::Run()
     ThreadMsg* msg = nullptr;
     while (!m_exit.load())
     {
+        dmq::Duration timeout;
         {
             std::lock_guard<dmq::RecursiveMutex> lock(m_watchdogMtx);
             m_lastAliveTime = Timer::GetNow();
+            timeout = m_watchdogTimeout;
         }
 
-        if (xQueueReceive(m_queue, &msg, portMAX_DELAY) == pdPASS)
+        // If watchdog active, use a finite timeout so we can periodically update 
+        // m_lastAliveTime while idle. Otherwise, block forever to save power.
+        TickType_t waitTicks = portMAX_DELAY;
+        if (timeout.count() > 0)
+        {
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
+            waitTicks = pdMS_TO_TICKS(ms / 4);
+            if (waitTicks == 0) waitTicks = 1;
+        }
+
+        if (xQueueReceive(m_queue, &msg, waitTicks) == pdPASS)
         {
             if (!msg) continue;
 

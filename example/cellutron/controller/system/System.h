@@ -3,6 +3,7 @@
 
 #include "DelegateMQ.h"
 #include "util/Heartbeat.h"
+#include "util/MessageGuard.h"
 #include <memory>
 
 namespace cellutron {
@@ -39,12 +40,16 @@ private:
     void SetupNetwork();
     void SetupWatchdog();
 
-    dmq::os::Thread m_thread{"SystemThread", 200, dmq::os::FullPolicy::BLOCK};
+    dmq::os::Thread m_thread{"SystemThread", 200, dmq::os::FullPolicy::TIMEOUT};
 
     // Connections to the local DataBus
     dmq::ScopedConnection m_startConn;
     dmq::ScopedConnection m_stopConn;
     dmq::ScopedConnection m_faultConn;
+
+    // Guards for incoming commands
+    MessageGuard m_startGuard;
+    MessageGuard m_stopGuard;
 
     // Heartbeat component
     util::Heartbeat m_heartbeat;

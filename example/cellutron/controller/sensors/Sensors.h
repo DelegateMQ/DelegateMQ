@@ -33,7 +33,7 @@ private:
     int InternalGetPressure();
     bool InternalIsAirInLine();
 
-    dmq::os::Thread m_thread{"SensorsThread", 50, dmq::os::FullPolicy::BLOCK};
+    dmq::os::Thread m_thread{"SensorsThread", 50, dmq::os::FullPolicy::TIMEOUT};
 };
 
 } // namespace sensors

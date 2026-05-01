@@ -35,7 +35,8 @@ public:
 	///
 	/// @param[in] msg A shared pointer to the delegate message. This pointer must remain valid
 	/// until the target thread finishes execution.
-	virtual void DispatchDelegate(std::shared_ptr<DelegateMsg> msg) = 0;
+	/// @return true if the message was successfully enqueued, false otherwise.
+	virtual bool DispatchDelegate(std::shared_ptr<DelegateMsg> msg) = 0;
 
 	/// @brief Returns true if the calling thread is this thread.
 	/// Used to decide whether to marshal an event or execute inline.

@@ -6,38 +6,49 @@
 
 ## Table of Contents
 
-- [Core Concepts](#core-concepts)
-- [Pub/Sub vs. RPC](#pubsub-vs-rpc)
-- [Features](#features)
-- [Threading Model](#threading-model)
-- [Thread Priority and Dispatch Latency](#thread-priority-and-dispatch-latency)
-  - [Subscriber Thread Priority](#subscriber-thread-priority)
-  - [Dispatch Latency — Local Inter-Thread](#dispatch-latency--local-inter-thread)
-  - [Polling Thread Priority — Remote Distribution](#polling-thread-priority--remote-distribution)
-  - [Polling Frequency and Transport Timeout](#polling-frequency-and-transport-timeout)
-  - [Dispatch Latency Breakdown — Remote Distribution](#dispatch-latency-breakdown--remote-distribution)
-  - [Thread Queue Full Policy](#thread-queue-full-policy)
-- [DataBus Spy](#databus-spy)
-- [Quality of Service (QoS)](#quality-of-service-qos)
-  - [Last Value Cache (LVC)](#last-value-cache-lvc)
-  - [Lifespan](#lifespan)
-  - [Min Separation](#min-separation)
-- [Deadline Monitoring — `dmq::databus::DeadlineSubscription<T>`](#deadline-monitoring--deadlinesubscriptiont)
-  - [Behaviour](#behaviour)
-  - [`dmq::util::Timer::ProcessTimers()` requirement](#timerprocesstimers-requirement)
-  - [Composing with QoS](#composing-with-qos)
-- [Example: Local Pub/Sub](#example-local-pubsub)
-- [Example: Last Value Cache (LVC)](#example-last-value-cache-lvc)
-- [Remote Distribution](#remote-distribution)
-  - [Unicast (Point-to-Point)](#unicast-point-to-point)
-  - [Multicast (One-to-Many)](#multicast-one-to-many)
-  - [Comparison Table](#comparison-table)
-- [Example: Remote Distribution](#example-remote-distribution)
-- [Example: Multi-Node Topology](#example-multi-node-topology)
-  - [CPU-A Setup](#cpu-a-setup)
-  - [CPU-B Setup (Bridge Node)](#cpu-b-setup-bridge-node)
-  - [MCU-C / MCU-D Setup](#mcu-c--mcu-d-setup)
-  - [Reliability Summary for This Topology](#reliability-summary-for-this-topology)
+- [DataBus](#databus)
+  - [Table of Contents](#table-of-contents)
+  - [Core Concepts](#core-concepts)
+  - [Design Philosophy](#design-philosophy)
+  - [Pub/Sub vs. RPC](#pubsub-vs-rpc)
+  - [Features](#features)
+  - [Threading Model](#threading-model)
+  - [Thread Priority and Dispatch Latency](#thread-priority-and-dispatch-latency)
+    - [Subscriber Thread Priority](#subscriber-thread-priority)
+    - [Dispatch Latency — Local Inter-Thread](#dispatch-latency--local-inter-thread)
+    - [Polling Thread Priority — Remote Distribution](#polling-thread-priority--remote-distribution)
+    - [Polling Frequency and Transport Timeout](#polling-frequency-and-transport-timeout)
+    - [Dispatch Latency Breakdown — Remote Distribution](#dispatch-latency-breakdown--remote-distribution)
+    - [Thread Queue Full Policy](#thread-queue-full-policy)
+  - [Ordering and Guarantees](#ordering-and-guarantees)
+    - [Plain Async Delegates and Signals](#plain-async-delegates-and-signals)
+    - [DataBus Ordering (Multi-Publisher)](#databus-ordering-multi-publisher)
+    - [Transport Impact](#transport-impact)
+    - [Stale vs. Sequence Requirements](#stale-vs-sequence-requirements)
+    - [Why ordering is not automatic](#why-ordering-is-not-automatic)
+  - [DataBus Spy](#databus-spy)
+  - [Quality of Service (QoS)](#quality-of-service-qos)
+    - [Last Value Cache (LVC)](#last-value-cache-lvc)
+    - [Lifespan](#lifespan)
+    - [Min Separation](#min-separation)
+  - [Deadline Monitoring — `dmq::databus::DeadlineSubscription<T>`](#deadline-monitoring--dmqdatabusdeadlinesubscriptiont)
+    - [Behaviour](#behaviour)
+    - [`dmq::util::Timer::ProcessTimers()` requirement](#dmqutiltimerprocesstimers-requirement)
+    - [Composing with QoS](#composing-with-qos)
+  - [Example: Local Pub/Sub](#example-local-pubsub)
+  - [Example: Last Value Cache (LVC)](#example-last-value-cache-lvc)
+  - [Remote Distribution](#remote-distribution)
+    - [Setup Checklist — Silent Failure Hazards](#setup-checklist--silent-failure-hazards)
+    - [Unicast (Point-to-Point)](#unicast-point-to-point)
+    - [Multicast (One-to-Many)](#multicast-one-to-many)
+    - [Duplicate Packet Protection](#duplicate-packet-protection)
+    - [Comparison Table](#comparison-table)
+  - [Example: Remote Distribution](#example-remote-distribution)
+  - [Example: Multi-Node Topology](#example-multi-node-topology)
+    - [CPU-A Setup](#cpu-a-setup)
+    - [CPU-B Setup (Bridge Node)](#cpu-b-setup-bridge-node)
+    - [MCU-C / MCU-D Setup](#mcu-c--mcu-d-setup)
+    - [Reliability Summary for This Topology](#reliability-summary-for-this-topology)
 
 ---
 
@@ -47,6 +58,17 @@
 - **Participant**: Represents a node in the network. Manages remote topic mappings and transport integration. See `dmq::databus::Participant`.
 - **QoS (Quality of Service)**: Per-subscription configuration for topic behavior — see [Quality of Service (QoS)](#quality-of-service-qos). See `dmq::databus::QoS`.
 - **Data Model**: Each topic carries exactly one typed value — `void(T)`. A topic represents the *current state* of something; a publish is one snapshot of that state. All fields travel inside `T`.
+
+---
+
+## Design Philosophy
+
+The `dmq::databus::DataBus` is built on a **"zero-cost abstraction"** and **"zero-internal threads"** philosophy. This makes it suitable for everything from high-performance desktop applications to resource-constrained bare-metal microcontrollers.
+
+1. **Zero Internal Threads**: Unlike standard DDS implementations that may spawn 10–15 internal threads for discovery and maintenance, the DataBus spawns **none**. All work (serialization, delivery, polling) happens on application-provided threads. This gives the developer absolute control over CPU utilization and priority management.
+2. **Zero-Cost Safety**: Utilities like `dmq::util::MonotonicGuard` are intentionally non-thread-safe. By design, DelegateMQ encourages assigning subscribers to specific threads (Active Objects). Because the subscriber lambda is guaranteed to run on a single thread, the guard does not need internal mutexes. You only "pay" for synchronization at the application level if you choose a multi-threaded design.
+3. **Optional Metadata**: The DataBus does not force an internal header or timestamp on your data. While this means the application is responsible for adding fields like `uint64_t timestamp` if ordering is required, it ensures that low-bandwidth transports (like CAN or slow Serial) are not burdened by "middleware bloat."
+4. **Data-Centricity**: The bus is focused on the **State** of the system. Each topic represents a single piece of information. By decoupling the *producer* of data from the *consumer*, the system remains modular and easy to test.
 
 ---
 
@@ -184,8 +206,8 @@ When a subscriber is registered with a worker thread, `dmq::databus::DataBus::Pu
 | Policy | Behavior when full | Publisher stalled? |
 |:---|:---|:---|
 | `dmq::os::FullPolicy::FAULT` (default) | `DispatchDelegate()` triggers a system fault and terminates the application | No (Crash) |
-| `dmq::os::FullPolicy::BLOCK` | `DispatchDelegate()` blocks the caller until the consumer drains a slot | Yes |
 | `dmq::os::FullPolicy::DROP` | `DispatchDelegate()` discards the message and returns immediately | No |
+| `dmq::os::FullPolicy::TIMEOUT` | `DispatchDelegate()` waits up to `dispatchTimeout` (default 2 s), logs a warning, then drops | Yes (briefly) |
 
 **Choosing a policy**
 
@@ -193,16 +215,21 @@ Use `FAULT` (the default) for safety-critical systems where an overfilled queue 
 
 Use `DROP` for topics where losing an occasional sample is acceptable and stalling the publisher is not. High-rate sensor telemetry, display updates, and best-effort multicast data are natural fits — a missed reading is superseded by the next one.
 
-Use `BLOCK` for topics where every message must be delivered but application termination is not desired. Commands, configuration updates, and state transitions fall into this category. BLOCK ensures the publisher waits until the consumer has capacity, providing back pressure that naturally limits the rate to what the consumer can sustain.
+Use `TIMEOUT` for topics where every message should be delivered if at all possible, but unbounded stalling is not acceptable. The publisher waits up to `dispatchTimeout` (default `dmq::DEFAULT_DISPATCH_TIMEOUT` = 2 s) for the consumer to drain a slot, then logs a warning and drops the message. Commands, configuration updates, and state transitions are natural fits — the 2 s window absorbs transient bursts while protecting the system from indefinite stalls.
 
 ```cpp
 // Sensor thread: drop stale readings rather than stall the publisher
 dmq::os::Thread sensorThread("SensorThread", /*maxQueueSize=*/10, dmq::os::FullPolicy::DROP);
 sensorThread.CreateThread();
 
-// Command thread: never drop, apply back pressure to the publisher
-dmq::os::Thread cmdThread("CmdThread", /*maxQueueSize=*/50, dmq::os::FullPolicy::BLOCK);
+// Command thread: wait up to 2 s for the consumer before logging and dropping
+dmq::os::Thread cmdThread("CmdThread", /*maxQueueSize=*/50, dmq::os::FullPolicy::TIMEOUT);
 cmdThread.CreateThread();
+
+// Custom timeout: wait up to 500 ms instead of the default 2 s
+dmq::os::Thread fastCmdThread("FastCmdThread", /*maxQueueSize=*/50,
+    dmq::os::FullPolicy::TIMEOUT, std::chrono::milliseconds(500));
+fastCmdThread.CreateThread();
 
 auto connSensor = dmq::databus::DataBus::Subscribe<ImuData>("sensor/imu",
     [](const ImuData& d) { /* update display */ },
@@ -216,9 +243,58 @@ auto connCmd = dmq::databus::DataBus::Subscribe<ActuatorCmd>("cmd/actuator",
 **Trade-offs**
 
 - `FullPolicy` is a thread-level setting, not per-subscription. All subscribers on the same `dmq::os::Thread` instance share the same policy. If a single thread serves both drop-tolerant and drop-intolerant topics, split them across two threads.
-- With `BLOCK`, a backed-up subscriber thread stalls the publishing thread. If the publisher also drives other topics or dispatches to other threads, that stall propagates. Isolate publishers with strong back-pressure requirements onto a dedicated polling or dispatch thread.
+- With `TIMEOUT`, a backed-up subscriber thread stalls the publishing thread for up to `dispatchTimeout`. Choose a timeout that is shorter than the system watchdog timeout so that a stalled consumer is detected and reported rather than silently waiting forever.
 - With `DROP`, a fast publisher and slow subscriber can result in the subscriber seeing only a fraction of publishes. Pair `DROP` with `minSeparation` QoS on the subscriber to proactively rate-limit delivery before the queue ever fills — this keeps delivery uniform rather than bursty-then-silent.
 - Setting `maxQueueSize = 0` disables the limit entirely; `FullPolicy` has no effect and all messages are queued regardless of consumer speed.
+
+---
+
+## Ordering and Guarantees
+
+Understanding the ordering guarantees of DelegateMQ is critical for safety-related logic (e.g., Alarms). Guarantees vary depending on the feature being used.
+
+### Plain Async Delegates and Signals
+
+Plain `dmq::Signal` and asynchronous delegates (outside the DataBus) provide **strict ordering** for a single producer-consumer pair:
+
+- **Async Delegates**: Messages are pushed directly to a locked OS queue. If you call `delegate(SET)` then `delegate(CLEAR)`, they are guaranteed to be queued and executed in that order.
+- **Signals**: `dmq::Signal` (and `dmq::MulticastDelegateSafe`) perform dispatch inside an internal lock. This ensures that the entire set of subscribers is notified atomically relative to other publishers.
+
+### DataBus Ordering (Multi-Publisher)
+
+The `dmq::databus::DataBus` prioritizes deadlock prevention and concurrency, which introduces a narrow reordering risk when **multiple threads publish to the same topic**:
+
+1. **The Multi-Publisher Race**: The DataBus updates its internal state (LVC) under a lock, but releases that lock before firing the local signal. If Thread A (SET) and Thread B (CLEAR) publish simultaneously, it is possible for the final LVC state to be CLEAR while the last signal delivered was SET.
+2. **The LVC Race**: When a new subscriber joins, it receives the cached LVC value. If a live `Publish()` occurs at the exact same instant, the subscriber's worker thread may receive the fresh "live" value followed by the slightly older "cached" value.
+
+**Mitigation Strategies:**
+- **Single Publisher Thread**: Ensure only one thread in the system publishes to a specific topic (e.g., an "Alarm Manager" thread).
+- **Monotonic Data**: Include a `uint64_t timestamp` or sequence number in your data struct. The receiver should ignore any update with a timestamp older than the one it last processed.
+  - **Single Thread Publisher**: A simple `uint32_t m_counter++` is sufficient.
+  - **Multi-Thread Publisher**: Use `std::atomic<uint32_t>` to ensure a perfectly increasing sequence across threads on the same node.
+  - **Cross-Node Publishers**: Atomics do not work across different CPUs. Use timestamps (`dmq::Clock`) for "good enough" ordering, or designate a single node as the master publisher for that topic.
+
+### Transport Impact
+
+The underlying network transport significantly affects ordering for **Remote Distribution**:
+
+- **UDP / Serial**: These are unordered. If the Reliability Layer retransmits a lost packet, it may arrive at the receiver *after* subsequent packets. **Application logic must be robust against out-of-order remote updates.**
+- **TCP / ZeroMQ**: These protocols provide stream-level ordering. Switching to `dmq::transport::Win32TcpTransport` or `dmq::transport::ZeroMqTransport` ensures that remote messages arrive and are processed in the order they were sent.
+
+### Stale vs. Sequence Requirements
+
+When choosing a transport and ordering strategy, distinguish between two different application requirements:
+
+1. **State Consistency (Discarding Stale Data)**: Most pub/sub data represents the "Current State" (e.g., Temperature, Speed). If updates 1, 3, 2 arrive, it is safe to process 1, process 3, and discard 2 as "stale" because 3 is the newer truth. **UDP + `dmq::util::MonotonicGuard`** is the ideal high-performance solution for this requirement.
+2. **Step Consistency (Preserving Every Step)**: Some data represents a required sequence of operations (e.g., Unlock Door → Open Door). If update 2 is discarded because 3 arrived first, the sequence is broken and the operation may fail. If your application cannot tolerate skipping any message in a stream, you must use an ordered transport like **TCP** or **ZeroMQ**.
+
+### Why ordering is not automatic
+
+High-end DDS implementations often handle message ordering and "late-arriver" filtering automatically in the middleware. DelegateMQ leaves this responsibility to the application for several reasons:
+
+1. **Memory**: Storing a "last timestamp" or "highest sequence number" for every topic on every subscriber would consume significant RAM in a header-only library designed for small embedded systems.
+2. **Logic**: Not all data needs strict ordering. Some telemetry (like "Total Energy Used") is fine to process out of order, whereas command state (like "Stop Motor") is critical. Application-level handling allows for surgical application of safety checks only where needed.
+3. **Duplicate Protection**: DelegateMQ's `dmq::databus::Participant` **already handles duplicate filtering** automatically at the network layer. Since duplicates are removed before reaching the subscriber, the application only needs to perform a simple "Greater Than" check on a timestamp or counter to ensure strict ordering.
 
 ---
 
@@ -386,6 +462,26 @@ auto conn = dmq::databus::DataBus::Subscribe<float>("sensor/temp", [](float v) {
 ## Remote Distribution
 
 The `dmq::databus::DataBus` supports two primary patterns for network distribution: **Unicast** and **Multicast**.
+
+### Setup Checklist — Silent Failure Hazards
+
+Remote distribution requires several manual wiring calls. Each omission silently disables delivery with no compile-time or runtime error. This is the most common source of "why isn't my topic arriving?" bugs.
+
+**Outgoing (this node → remote node)** — all three calls are required:
+
+| Step | Call | Omission effect |
+|:---|:---|:---|
+| 1 | `participant->AddRemoteTopic(topic, remoteId)` | Topic never serialized or sent — `Publish()` succeeds locally only |
+| 2 | `DataBus::AddParticipant(participant)` | Participant never sees `Publish()` events |
+| 3 | `DataBus::RegisterSerializer<T>(topic, serializer)` | Topic found but serialization fails silently at runtime |
+
+**Incoming (remote node → this node)** — one combined call:
+
+| Step | Call | Omission effect |
+|:---|:---|:---|
+| 1 | `DataBus::AddIncomingTopic<T>(topic, remoteId, participant, serializer)` | Arriving packets deserialized but never re-published to the local bus |
+
+> **Tip:** If a topic is silently dead, verify the checklist above in order. Step 1 (`AddRemoteTopic`) is the most commonly missed because it lives on the `Participant` object rather than on `DataBus` itself.
 
 ### Unicast (Point-to-Point)
 - **Transport**: `dmq::transport::Win32UdpTransport`, `dmq::transport::Win32TcpTransport`, `dmq::transport::ZeroMqTransport`, etc.

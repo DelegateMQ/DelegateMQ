@@ -19,7 +19,7 @@
 /// **Key Features:**
 /// * **Task Integration:** Wraps a FreeRTOS `xTaskCreate` call to establish a
 ///   dedicated worker loop.
-/// * **FullPolicy Support:** Configurable back-pressure (BLOCK or DROP) when the
+/// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
 /// * **Priority Support:** Normal and High priorities (uses `xQueueSendToFront`).
 /// * **Queue-Based Dispatch:** Uses a FreeRTOS `QueueHandle_t` to receive and
@@ -50,14 +50,13 @@ class ThreadMsg;
 
 /// @brief Policy applied when the FreeRTOS task queue is full.
 /// @details Controls the behavior of DispatchDelegate() when the queue has no space.
-///   - DROP:  xQueueSend() with timeout 0 — returns immediately, message discarded.
-///   - BLOCK: xQueueSend() with portMAX_DELAY — caller blocks until space is available.
-///   - FAULT: xQueueSend() with timeout 0 - returns immediately, triggers a system fault if queue full.
+///   - DROP:    xQueueSend() with timeout 0 — returns immediately, message discarded.
+///   - FAULT:   xQueueSend() with timeout 0 — returns immediately, triggers a system fault if queue full.
+///   - TIMEOUT: xQueueSend() with a finite timeout — logs and drops if space is not available in time.
 ///
-/// FAULT is the default. For embedded targets where the
-/// caller may be an ISR or high-priority task, consider using DROP to avoid
-/// priority inversion or blocking at an unsafe context.
-enum class FullPolicy { BLOCK, DROP, FAULT };
+/// FAULT is the default. For embedded targets where the caller may be an ISR or
+/// high-priority task, consider DROP to avoid blocking at an unsafe context.
+enum class FullPolicy { DROP, FAULT, TIMEOUT };
 
 class Thread : public dmq::IThread
 {
@@ -68,8 +67,10 @@ public:
     /// Constructor
     /// @param threadName Name for the FreeRTOS task
     /// @param maxQueueSize Max number of messages in queue (0 = Default 20)
-    /// @param fullPolicy Action when queue is full: FAULT (default), BLOCK or DROP.
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT);
+    /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
+    /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
+    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT);
 
     /// Destructor
     ~Thread();
@@ -116,7 +117,7 @@ public:
     void SetStackMem(StackType_t* stackBuffer, uint32_t stackSizeInWords);
 
     // IThread Interface Implementation
-    virtual void DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
+    virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
     /// Update the last alive time for the watchdog. 
     /// @details Normally called automatically by internal timers. For threads with 
@@ -138,6 +139,7 @@ private:
 
     const std::string THREAD_NAME;
     const FullPolicy FULL_POLICY;
+    const dmq::Duration m_dispatchTimeout;
     size_t m_queueSize;
     int m_priority;
 

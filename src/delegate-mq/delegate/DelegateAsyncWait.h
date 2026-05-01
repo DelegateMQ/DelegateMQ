@@ -342,14 +342,14 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
-                thread->DispatchDelegate(msg);
-
-                // Wait for destination thread to execute the delegate function and get return value
-                if (msg->GetSema().Wait(m_timeout)) {
-                    // Wait succeeded. Now acquire lock to safely read the value.
-                    const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                    m_success = true;
-                    m_retVal = delegate->m_retVal;
+                if (thread->DispatchDelegate(msg)) {
+                    // Wait for destination thread to execute the delegate function and get return value
+                    if (msg->GetSema().Wait(m_timeout)) {
+                        // Wait succeeded. Now acquire lock to safely read the value.
+                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
+                        m_success = true;
+                        m_retVal = delegate->m_retVal;
+                    }
                 }
             }
 
@@ -778,14 +778,14 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
-                thread->DispatchDelegate(msg);
-
-                // Wait for destination thread to execute the delegate function and get return value
-                if (msg->GetSema().Wait(m_timeout)) {
-                    // Wait succeeded. Now acquire lock to safely read the value.
-                    const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                    m_success = true;
-                    m_retVal = delegate->m_retVal;
+                if (thread->DispatchDelegate(msg)) {
+                    // Wait for destination thread to execute the delegate function and get return value
+                    if (msg->GetSema().Wait(m_timeout)) {
+                        // Wait succeeded. Now acquire lock to safely read the value.
+                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
+                        m_success = true;
+                        m_retVal = delegate->m_retVal;
+                    }
                 }
             }
 
@@ -1131,14 +1131,14 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
-                thread->DispatchDelegate(msg);
-
-                // Wait for destination thread to execute the delegate function and get return value
-                if (msg->GetSema().Wait(m_timeout)) {
-                    // Wait succeeded. Now acquire lock to safely read the value.
-                    const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                    m_success = true;
-                    m_retVal = delegate->m_retVal;
+                if (thread->DispatchDelegate(msg)) {
+                    // Wait for destination thread to execute the delegate function and get return value
+                    if (msg->GetSema().Wait(m_timeout)) {
+                        // Wait succeeded. Now acquire lock to safely read the value.
+                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
+                        m_success = true;
+                        m_retVal = delegate->m_retVal;
+                    }
                 }
             }
 
@@ -1486,14 +1486,14 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
-                thread->DispatchDelegate(msg);
-
-                // Wait for destination thread to execute the delegate function and get return value
-                if (msg->GetSema().Wait(m_timeout)) {
-                    // Wait succeeded. Now acquire lock to safely read the value.
-                    const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                    m_success = true;
-                    m_retVal = delegate->m_retVal;
+                if (thread->DispatchDelegate(msg)) {
+                    // Wait for destination thread to execute the delegate function and get return value
+                    if (msg->GetSema().Wait(m_timeout)) {
+                        // Wait succeeded. Now acquire lock to safely read the value.
+                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
+                        m_success = true;
+                        m_retVal = delegate->m_retVal;
+                    }
                 }
             }
 

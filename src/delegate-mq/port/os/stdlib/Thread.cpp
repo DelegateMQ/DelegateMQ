@@ -21,12 +21,13 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
     : m_thread(std::nullopt)
     , m_exit(false)
     , THREAD_NAME(threadName)
     , MAX_QUEUE_SIZE(maxQueueSize)
     , FULL_POLICY(fullPolicy)
+    , m_dispatchTimeout(dispatchTimeout)
 {
 }
 
@@ -210,34 +211,42 @@ void Thread::ExitThread()
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Early check, though we re-check inside lock for safety
     if (m_exit.load())
-        return;
+        return false;
 
     if (!m_thread.has_value())
         throw std::invalid_argument("Thread pointer is null");
 
     std::unique_lock<std::mutex> lk(m_mutex);
 
-    // [BACK PRESSURE / DROP / FAULT LOGIC]
+    // [BACK PRESSURE / DROP / FAULT / TIMEOUT LOGIC]
     if (MAX_QUEUE_SIZE > 0 && m_queue.size() >= MAX_QUEUE_SIZE)
     {
         if (FULL_POLICY == FullPolicy::DROP)
-            return;  // silently discard — caller is not stalled, no allocation wasted
+            return false;  // silently discard — caller is not stalled, no allocation wasted
 
         if (FULL_POLICY == FullPolicy::FAULT)
         {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
             ASSERT_TRUE(false);
-            return;
+            return false;
         }
 
-        // BLOCK: wait until the consumer drains a slot or the thread exits
-        m_cvNotFull.wait(lk, [this]() {
-            return m_queue.size() < MAX_QUEUE_SIZE || m_exit.load();
+        if (FULL_POLICY == FullPolicy::TIMEOUT)
+        {
+            bool hasSpace = m_cvNotFull.wait_for(lk, m_dispatchTimeout, [this]() {
+                return m_queue.size() < MAX_QUEUE_SIZE || m_exit.load();
             });
+            if (!hasSpace) {
+                printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+                return false;
+            }
+            // space found — fall through to push
+        }
+
     }
 
     // If using XALLOCATOR explicit operator new required. See xallocator.h.
@@ -245,7 +254,7 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     // If we woke up because of exit (or exit happened while waiting), abort
     if (m_exit.load())
-        return;
+        return false;
 
     m_queue.push(threadMsg);
     m_cv.notify_one();
@@ -253,6 +262,8 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     LOG_INFO("Thread::DispatchDelegate\n   thread={}\n   target={}",
         THREAD_NAME,
         typeid(*threadMsg->GetData()->GetInvoker()).name());
+
+    return true;
 }
 
 //----------------------------------------------------------------------------
@@ -296,22 +307,30 @@ void Thread::Process()
 
     while (1)
     {
-        m_lastAliveTime.store(Timer::GetNow());
+        dmq::Duration watchdogTimeout;
+        {
+            m_lastAliveTime.store(Timer::GetNow());
+            watchdogTimeout = m_watchdogTimeout.load();
+        }
 
         std::shared_ptr<ThreadMsg> msg;
         {
             std::unique_lock<std::mutex> lk(m_mutex);
 
             // Wait for message to be added to the queue.
-            // Check m_exit in predicate to avoid hanging if shutdown happens 
-            // but queue push failed (unlikely) or logic diverges.
-            m_cv.wait(lk, [this]() {
-                return !m_queue.empty() || m_exit.load();
-                });
+            // If watchdog active, use a finite timeout so we can periodically update 
+            // m_lastAliveTime while idle. Otherwise, block forever.
+            auto predicate = [this]() { return !m_queue.empty() || m_exit.load(); };
+            if (watchdogTimeout.count() > 0)
+            {
+                m_cv.wait_for(lk, watchdogTimeout / 4, predicate);
+            }
+            else
+            {
+                m_cv.wait(lk, predicate);
+            }
 
             // If empty and exit is true, we should exit.
-            // However, we usually process the remaining MSG_EXIT_THREAD from the queue.
-            // This check handles the edge case where the queue is empty but exit is set.
             if (m_queue.empty())
             {
                 if (m_exit.load()) return;

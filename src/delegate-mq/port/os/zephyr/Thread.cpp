@@ -20,10 +20,11 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy) 
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
     : THREAD_NAME(threadName)
     , m_queueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
     , FULL_POLICY(fullPolicy)
+    , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
     m_priority = K_PRIO_PREEMPT(5); // Default priority
@@ -208,29 +209,35 @@ void Thread::Sleep(dmq::Duration timeout) {
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     ASSERT_TRUE(m_stackMemory != nullptr);
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
-    if (!threadMsg) return;
+    if (!threadMsg) return false;
 
     // 2. Send pointer to queue
-    // Set timeout based on FullPolicy: K_FOREVER for BLOCK, K_NO_WAIT for DROP/FAULT.
-    k_timeout_t timeout = (FULL_POLICY == FullPolicy::BLOCK) ? K_FOREVER : K_NO_WAIT;
+    k_timeout_t timeout;
+    if (FULL_POLICY == FullPolicy::TIMEOUT)
+        timeout = K_MSEC(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
+    else
+        timeout = K_NO_WAIT;  // DROP and FAULT: non-blocking
 
     int ret = k_msgq_put(&m_msgq, &threadMsg, timeout);
     if (ret != 0)
     {
-        if (FULL_POLICY == FullPolicy::FAULT)
-        {
+        if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
             ASSERT_TRUE(ret == 0);
+        } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
+            printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
-        // Failed to enqueue (queue full)
+        // Failed to enqueue (queue full or timed out)
         delete threadMsg;
+        return false;
     }
+    return true;
 }
 
 //----------------------------------------------------------------------------
@@ -276,10 +283,24 @@ void Thread::Run()
     ThreadMsg* msg = nullptr;
     while (!m_exit.load())
     {
-        m_lastAliveTime.store(Timer::GetNow());
+        dmq::Duration watchdogTimeout;
+        {
+            m_lastAliveTime.store(Timer::GetNow());
+            watchdogTimeout = m_watchdogTimeout.load();
+        }
 
-        // Block forever waiting for a message
-        if (k_msgq_get(&m_msgq, &msg, K_FOREVER) == 0)
+        // If watchdog active, use a finite timeout so we can periodically update 
+        // m_lastAliveTime while idle. Otherwise, block forever to save power.
+        k_timeout_t waitOption = K_FOREVER;
+        if (watchdogTimeout.count() > 0)
+        {
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
+            waitOption = K_MSEC(ms / 4);
+            if (K_TIMEOUT_EQ(waitOption, K_NO_WAIT)) waitOption = K_MSEC(1);
+        }
+
+        // Block for a message or timeout
+        if (k_msgq_get(&m_msgq, &msg, waitOption) == 0)
         {
             if (!msg) continue;
 

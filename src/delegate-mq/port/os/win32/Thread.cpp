@@ -12,10 +12,11 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
     : THREAD_NAME(threadName)
     , MAX_QUEUE_SIZE(maxQueueSize)
     , FULL_POLICY(fullPolicy)
+    , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
     InitializeCriticalSection(&m_cs);
@@ -92,19 +93,19 @@ DWORD WINAPI Thread::ThreadProc(LPVOID lpParam)
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
-    if (m_exit.load() || m_hThread == NULL) return;
+    if (m_exit.load() || m_hThread == NULL) return false;
 
     EnterCriticalSection(&m_cs);
 
-    // [BACK PRESSURE / DROP / FAULT LOGIC]
+    // [BACK PRESSURE / DROP / FAULT / TIMEOUT LOGIC]
     if (MAX_QUEUE_SIZE > 0 && m_queue.size() >= MAX_QUEUE_SIZE)
     {
         if (FULL_POLICY == FullPolicy::DROP)
         {
             LeaveCriticalSection(&m_cs);
-            return; // silently discard
+            return false; // silently discard
         }
 
         if (FULL_POLICY == FullPolicy::FAULT)
@@ -112,13 +113,22 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             LeaveCriticalSection(&m_cs);
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
             ASSERT_TRUE(false);
-            return;
+            return false;
         }
 
-        // BLOCK: wait while queue is full, BUT stop waiting if m_exit is true.
-        while (m_queue.size() >= MAX_QUEUE_SIZE && !m_exit.load())
+        if (FULL_POLICY == FullPolicy::TIMEOUT)
         {
-            SleepConditionVariableCS(&m_cvNotFull, &m_cs, INFINITE);
+            DWORD dwTimeout = static_cast<DWORD>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
+            while (m_queue.size() >= MAX_QUEUE_SIZE && !m_exit.load())
+            {
+                if (!SleepConditionVariableCS(&m_cvNotFull, &m_cs, dwTimeout))
+                {
+                    LeaveCriticalSection(&m_cs);
+                    printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+                    return false;
+                }
+            }
         }
     }
 
@@ -131,6 +141,11 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         m_queue.push(threadMsg);
         WakeConditionVariable(&m_cvNotEmpty);
     }
+    else
+    {
+        LeaveCriticalSection(&m_cs);
+        return false;
+    }
 
     LeaveCriticalSection(&m_cs);
 
@@ -140,6 +155,7 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             THREAD_NAME,
             typeid(*threadMsg->GetData()->GetInvoker()).name());
     }
+    return true;
 }
 
 //----------------------------------------------------------------------------
@@ -154,15 +170,34 @@ void Thread::Process()
 
     while (true)
     {
-        m_lastAliveTime.store(Timer::GetNow());
+        dmq::Duration watchdogTimeout;
+        {
+            m_lastAliveTime.store(Timer::GetNow());
+            watchdogTimeout = m_watchdogTimeout.load();
+        }
+
         std::shared_ptr<ThreadMsg> msg;
 
         EnterCriticalSection(&m_cs);
 
         // Wait for message to be added to the queue.
+        // If watchdog active, use a finite timeout so we can periodically update 
+        // m_lastAliveTime while idle. Otherwise, block forever.
+        DWORD dwTimeout = INFINITE;
+        if (watchdogTimeout.count() > 0)
+        {
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
+            dwTimeout = static_cast<DWORD>(ms / 4);
+            if (dwTimeout == 0) dwTimeout = 1;
+        }
+
         while (m_queue.empty() && !m_exit.load())
         {
-            SleepConditionVariableCS(&m_cvNotEmpty, &m_cs, INFINITE);
+            if (!SleepConditionVariableCS(&m_cvNotEmpty, &m_cs, dwTimeout))
+            {
+                if (GetLastError() == ERROR_TIMEOUT)
+                    break; // Timeout reached, break inner while to update m_lastAliveTime
+            }
         }
 
         // If empty and exit is true, we should exit.
@@ -170,6 +205,13 @@ void Thread::Process()
         {
             LeaveCriticalSection(&m_cs);
             break;
+        }
+
+        // If queue still empty, it means we timed out. Loop again to update m_lastAliveTime.
+        if (m_queue.empty())
+        {
+            LeaveCriticalSection(&m_cs);
+            continue;
         }
 
         // Get highest priority message within queue

@@ -139,6 +139,10 @@ namespace dmq
     using Duration = typename Clock::duration;
     using TimePoint = typename Clock::time_point;
 
+    /// @brief Default timeout for the TIMEOUT queue-full policy across all Thread ports.
+    /// Override per-thread at construction or project-wide before including this header.
+    inline constexpr std::chrono::seconds DEFAULT_DISPATCH_TIMEOUT{2};
+
     // --- MUTEX / LOCK SELECTION ---
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
     // Windows / Linux / macOS / Qt

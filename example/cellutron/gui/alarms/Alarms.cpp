@@ -35,6 +35,9 @@ void Alarms::Initialize() {
 
     // 1. Subscribe to system faults
     m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [this, canOverrideActiveAlarm](FaultMsg msg) {
+        // NOTE: IsNewer() guard intentionally omitted for faults. Prioritize safety
+        // over ordering; a "nuisance trip" from an old fault is safer than missing 
+        // a trip due to a timestamp race.
         if (m_alarmActive && !canOverrideActiveAlarm(msg.faultCode)) {
             return;
         }
@@ -55,8 +58,10 @@ void Alarms::Initialize() {
     // This demonstrates the dmq::databus::DataBus::SubscribeFilter feature.
     m_runStatusConn = dmq::databus::DataBus::SubscribeFilter<RunStatusMsg>(
         topics::STATUS_RUN, 
-        [this](RunStatusMsg) {
-            SetAlarm("ALARM: System-wide Fault Detected", true);
+        [this](RunStatusMsg msg) {
+            if (m_statusGuard.IsNewer(msg.seq)) {
+                SetAlarm("ALARM: System-wide Fault Detected", true);
+            }
         }, 
         [](const RunStatusMsg& msg) {
             return msg.status == RunStatus::FAULT;

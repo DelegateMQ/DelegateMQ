@@ -60,6 +60,7 @@ namespace cellutron {
         FAULT_GUI_LOST = 6,
         FAULT_HEARTBEAT_LOST = 7
     };
+
 }
 
 #endif

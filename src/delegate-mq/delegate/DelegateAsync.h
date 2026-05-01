@@ -280,7 +280,8 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
-                thread->DispatchDelegate(msg);
+                bool success = thread->DispatchDelegate(msg);
+                (void)success;
             }
 
             // Do not wait for destination thread return value from async function call
@@ -593,7 +594,8 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
-                thread->DispatchDelegate(msg);
+                bool success = thread->DispatchDelegate(msg);
+                (void)success;
             }
 
             // Do not wait for destination thread return value from async function call
@@ -835,7 +837,8 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
-                thread->DispatchDelegate(msg);
+                bool success = thread->DispatchDelegate(msg);
+                (void)success;
             }
 
             // Do not wait for destination thread return value from async function call
@@ -1089,7 +1092,8 @@ public:
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
-                thread->DispatchDelegate(msg);
+                bool success = thread->DispatchDelegate(msg);
+                (void)success;
             }
 
             // Do not wait for destination thread return value from async function call

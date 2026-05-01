@@ -12,7 +12,7 @@
 /// **Key Features:**
 /// * **QThread Integration:** Wraps `QThread` and uses a Worker object to execute
 ///   delegates in the target thread's event loop.
-/// * **FullPolicy Support:** Configurable back-pressure (BLOCK or DROP) using
+/// * **FullPolicy Support:** Configurable back-pressure (DROP, FAULT, or TIMEOUT) using
 ///   `QMutex` and `QWaitCondition`.
 /// * **Signal/Slot Dispatch:** Uses Qt's meta-object system to bridge delegate
 ///   execution across thread boundaries.
@@ -40,14 +40,15 @@ class Worker;
 
 /// @brief Policy applied when the thread message queue is full.
 /// @details Only meaningful when maxQueueSize > 0.
-///   - BLOCK: DispatchDelegate() blocks the caller until space is available (back pressure).
-///   - DROP:  DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT: DispatchDelegate() triggers a system fault if the queue is full.
+///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
+///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
+///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
 ///
 /// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. Use BLOCK for critical topics
-/// (commands, state transitions) where no message may be lost. FAULT is the default.
-enum class FullPolicy { BLOCK, DROP, FAULT };
+/// a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics
+/// (commands, state transitions) where every message should be delivered if possible.
+/// FAULT is the default.
+enum class FullPolicy { DROP, FAULT, TIMEOUT };
 
 class Thread : public QObject, public dmq::IThread
 {
@@ -60,8 +61,10 @@ public:
     /// Constructor
     /// @param threadName Name for debugging (QObject::objectName)
     /// @param maxQueueSize Max number of messages in queue (0 = Default 20)
-    /// @param fullPolicy Action when queue is full: FAULT (default), BLOCK or DROP.
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT);
+    /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
+    /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
+    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT);
 
     /// Destructor
     ~Thread();
@@ -94,7 +97,7 @@ public:
     static void Sleep(dmq::Duration timeout);
 
     // IThread Interface Implementation
-    virtual void DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
+    virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
 signals:
     // Internal signal to bridge threads
@@ -119,6 +122,7 @@ private:
     const std::string m_threadName;
     const size_t m_maxQueueSize;
     const FullPolicy m_fullPolicy;
+    const dmq::Duration m_dispatchTimeout;
     QThread* m_thread = nullptr;
     Worker* m_worker = nullptr;
     std::atomic<size_t> m_queueSize{0};

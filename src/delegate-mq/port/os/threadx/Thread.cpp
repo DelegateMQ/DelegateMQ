@@ -22,10 +22,11 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
     : THREAD_NAME(threadName)
     , m_queueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
     , FULL_POLICY(fullPolicy)
+    , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
     // Zero out control blocks for safety
@@ -263,22 +264,25 @@ void Thread::Sleep(dmq::Duration timeout) {
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Safety check if queue is valid
-    if (m_queue.tx_queue_id == 0) return;
+    if (m_queue.tx_queue_id == 0) return false;
 
     // Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
     if (!threadMsg)
     {
         // OOM: drop the message
-        return;
+        return false;
     }
 
-    // Send pointer to queue
-    // Set wait option based on FullPolicy: TX_WAIT_FOREVER for BLOCK, TX_NO_WAIT for DROP/FAULT.
-    UINT wait_option = (FULL_POLICY == FullPolicy::BLOCK) ? TX_WAIT_FOREVER : TX_NO_WAIT;
+    // Compute wait option based on policy.
+    ULONG wait_option;
+    if (FULL_POLICY == FullPolicy::TIMEOUT)
+        wait_option = (static_cast<ULONG>(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count()) * TX_TIMER_TICKS_PER_SECOND) / 1000;
+    else
+        wait_option = TX_NO_WAIT;  // DROP and FAULT: non-blocking
 
     // Option #2: Implement High priority using tx_queue_front_send.
     UINT ret;
@@ -289,13 +293,16 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     if (ret != TX_SUCCESS)
     {
-        if (FULL_POLICY == FullPolicy::FAULT)
-        {
+        if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
             ASSERT_TRUE(ret == TX_SUCCESS);
+        } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
+            printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
         delete threadMsg; // Failed to enqueue, prevent leak
+        return false;
     }
+    return true;
 }
 
 //----------------------------------------------------------------------------
@@ -342,11 +349,24 @@ void Thread::Run()
     ThreadMsg* msg = nullptr;
     while (!m_exit.load())
     {
-        m_lastAliveTime.store(Timer::GetNow());
+        dmq::Duration watchdogTimeout;
+        {
+            m_lastAliveTime.store(Timer::GetNow());
+            watchdogTimeout = m_watchdogTimeout.load();
+        }
 
-        // Block forever waiting for a message
-        UINT ret = tx_queue_receive(&m_queue, &msg, TX_WAIT_FOREVER);
-        if (ret != TX_SUCCESS) continue;
+        // If watchdog active, use a finite timeout so we can periodically update 
+        // m_lastAliveTime while idle. Otherwise, block forever to save power.
+        ULONG waitOption = TX_WAIT_FOREVER;
+        if (watchdogTimeout.count() > 0)
+        {
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
+            waitOption = (static_cast<ULONG>(ms / 4) * TX_TIMER_TICKS_PER_SECOND) / 1000;
+            if (waitOption == 0) waitOption = 1;
+        }
+
+        UINT ret = tx_queue_receive(&m_queue, &msg, waitOption);
+        if (ret != TX_SUCCESS) continue; // Timeout or other failure
         if (!msg) continue;
 
         int msgId = msg->GetId();

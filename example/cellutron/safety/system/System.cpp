@@ -37,6 +37,10 @@ void System::SetupLocalSubscriptions() {
     // Recovery requires a deliberate operator action (system restart). This prevents
     // the safety node from silently resuming enforcement after a fault event.
     m_speedConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, [this](CentrifugeSpeedMsg msg) {
+        if (!m_speedGuard.IsNewer(msg.seq)) {
+            return;
+        }
+
         if (msg.rpm > MAX_CENTRIFUGE_RPM) {
             if (!m_faulted) {
                 m_faulted = true;
@@ -49,6 +53,9 @@ void System::SetupLocalSubscriptions() {
     }, &m_thread);
 
     m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [this](FaultMsg) {
+        // NOTE: IsNewer() guard intentionally omitted for faults. Prioritize safety
+        // over ordering; a "nuisance trip" from an old fault is safer than missing 
+        // a trip due to a sequencing race.
         m_faulted = true;
     }, &m_thread);
 }

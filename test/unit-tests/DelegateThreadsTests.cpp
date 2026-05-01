@@ -345,30 +345,30 @@ static void FullPolicy_Drop_DeliversAllWhenBelowLimit()
     std::cout << "FullPolicy_Drop_DeliversAllWhenBelowLimit() complete!" << std::endl;
 }
 
-// BLOCK policy (default): all messages are delivered even when the queue is flooded.
-static void FullPolicy_Block_DeliversAll()
+// TIMEOUT policy: all messages are delivered even when the queue is flooded (within timeout).
+static void FullPolicy_Timeout_DeliversAll()
 {
-    Thread blockThread("BlockThread", 3, FullPolicy::BLOCK);
-    blockThread.CreateThread();
+    Thread timeoutThread("TimeoutThread", 3, FullPolicy::TIMEOUT);
+    timeoutThread.CreateThread();
 
     std::atomic<int> deliveredCount{ 0 };
     const int SEND_COUNT = 10;
 
-    // Fire sends on a background thread so blocking doesn't stall this test thread.
+    // Fire sends on a background thread so waiting doesn't stall this test thread.
     std::thread sender([&]() {
         for (int i = 0; i < SEND_COUNT; i++)
-            MakeDelegate([&deliveredCount]() { deliveredCount++; }, blockThread)();
+            MakeDelegate([&deliveredCount]() { deliveredCount++; }, timeoutThread)();
     });
     sender.join();
 
-    while (blockThread.GetQueueSize() != 0)
+    while (timeoutThread.GetQueueSize() != 0)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
-    blockThread.ExitThread();
-    std::cout << "FullPolicy_Block_DeliversAll() complete!" << std::endl;
+    timeoutThread.ExitThread();
+    std::cout << "FullPolicy_Timeout_DeliversAll() complete!" << std::endl;
 }
 
 // Default constructor (no policy arg) behaves as FAULT.
@@ -443,7 +443,7 @@ static void ThreadFullPolicyTests()
 {
     FullPolicy_Drop_DropsWhenFull();
     FullPolicy_Drop_DeliversAllWhenBelowLimit();
-    FullPolicy_Block_DeliversAll();
+    FullPolicy_Timeout_DeliversAll();
     FullPolicy_DefaultIsFault();
     FullPolicy_Fault_WorksWhenNotFull();
     FullPolicy_UnlimitedQueue_DeliversAll();

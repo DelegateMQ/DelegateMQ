@@ -233,6 +233,7 @@
 #endif
 
 #include "extras/util/Fault.h"
+#include "extras/util/ClockHelper.h"
 
 // Only include Timer and AsyncInvoke if threads exist
 #if !defined(DMQ_THREAD_NONE)

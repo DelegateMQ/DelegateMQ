@@ -3,6 +3,7 @@
 
 #include "DelegateMQ.h"
 #include "util/Heartbeat.h"
+#include "util/MessageGuard.h"
 
 namespace cellutron {
 
@@ -30,10 +31,12 @@ private:
     void SetupNetwork();
     void SetupWatchdog();
 
-    dmq::os::Thread m_thread{"SystemThread", 50, dmq::os::FullPolicy::BLOCK};
+    dmq::os::Thread m_thread{"SystemThread", 50, dmq::os::FullPolicy::TIMEOUT};
 
     dmq::ScopedConnection m_speedConn;
     dmq::ScopedConnection m_faultConn;
+
+    MessageGuard m_speedGuard;
 
     util::Heartbeat m_heartbeat;
     bool      m_faulted = false;

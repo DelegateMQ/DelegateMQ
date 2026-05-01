@@ -142,7 +142,7 @@ public:
     XALLOCATOR
 
     StressSubscriber(int id)
-        : m_id(id), m_thread("SubThread_" + std::to_string(id), MAX_QUEUE_SIZE, FullPolicy::BLOCK)
+        : m_id(id), m_thread("SubThread_" + std::to_string(id), MAX_QUEUE_SIZE, FullPolicy::TIMEOUT)
     {
         m_thread.CreateThread();
     }

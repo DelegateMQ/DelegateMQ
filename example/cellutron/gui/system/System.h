@@ -37,7 +37,7 @@ private:
     dmq::os::Thread m_thread{"SystemThread", 200, dmq::os::FullPolicy::DROP};
     
     std::atomic<bool> m_timerRunning{false};
-    dmq::os::Thread m_backgroundTimer{"BackgroundTimerThread", 10, dmq::os::FullPolicy::BLOCK};
+    dmq::os::Thread m_backgroundTimer{"BackgroundTimerThread", 10, dmq::os::FullPolicy::TIMEOUT};
 
     util::Heartbeat m_heartbeat;
 };

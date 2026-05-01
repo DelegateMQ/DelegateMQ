@@ -2581,6 +2581,7 @@ extern void ContainersTests();
 extern void RemoteChannelTests();
 extern void SerializeTests();
 extern void DispatcherTests();
+extern void MonotonicGuardTests();
 #ifdef DMQ_ALLOCATOR
 extern void AllocatorTests();
 #endif
@@ -2600,6 +2601,7 @@ void RunDelegateUnitTests()
 		RemoteChannelTests();
 		SerializeTests();
 		DispatcherTests();
+		MonotonicGuardTests();
 #ifdef DMQ_ALLOCATOR
 		AllocatorTests();
 #endif

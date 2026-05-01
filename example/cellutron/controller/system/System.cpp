@@ -50,17 +50,24 @@ void System::Tick(uint32_t ms) {
 }
 
 void System::SetupLocalSubscriptions() {
-    m_startConn = dmq::databus::DataBus::Subscribe<StartProcessMsg>(topics::CMD_RUN, [](StartProcessMsg msg) {
-        printf("Controller: >>>> RECEIVED START COMMAND <<<<\n");
-        process::Process::GetInstance().Start();
+    m_startConn = dmq::databus::DataBus::Subscribe<StartProcessMsg>(topics::CMD_RUN, [this](StartProcessMsg msg) {
+        if (m_startGuard.IsNewer(msg.seq)) {
+            printf("Controller: >>>> RECEIVED START COMMAND <<<<\n");
+            process::Process::GetInstance().Start();
+        }
     }, &m_thread);
 
-    m_stopConn = dmq::databus::DataBus::Subscribe<StopProcessMsg>(topics::CMD_ABORT, [](StopProcessMsg msg) {
-        printf("Controller: >>>> RECEIVED ABORT COMMAND <<<<\n");
-        process::Process::GetInstance().Abort();
+    m_stopConn = dmq::databus::DataBus::Subscribe<StopProcessMsg>(topics::CMD_ABORT, [this](StopProcessMsg msg) {
+        if (m_stopGuard.IsNewer(msg.seq)) {
+            printf("Controller: >>>> RECEIVED ABORT COMMAND <<<<\n");
+            process::Process::GetInstance().Abort();
+        }
     }, &m_thread);
 
-    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [](FaultMsg msg) {
+    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [this](FaultMsg msg) {
+        // NOTE: IsNewer() guard intentionally omitted for faults. Prioritize safety
+        // over ordering; a "nuisance trip" from an old fault is safer than missing 
+        // a trip due to a sequencing race.
         if (process::Process::GetInstance().GetCellProcess().GetCurrentState() != process::CellProcess::ST_FAULT) {
             printf("Controller: >>>> CRITICAL FAULT RECEIVED (Code: %d) <<<<\n", msg.faultCode);
             process::Process::GetInstance().Fault();
