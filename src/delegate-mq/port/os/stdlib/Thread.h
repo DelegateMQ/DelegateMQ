@@ -63,6 +63,22 @@ enum class FullPolicy { DROP, FAULT, TIMEOUT };
 class Thread : public dmq::IThread
 {
 public:
+#if defined(DMQ_DATABUS_TOOLS)
+    /// @brief Statistics captured for thread monitoring.
+    struct ThreadStats {
+        std::string cpu_name;
+        std::string thread_name;
+        size_t queue_depth;           // Current depth
+        size_t queue_depth_max_window;// Max depth since last snapshot
+        size_t queue_depth_max_all;   // All-time max depth
+        size_t queue_size_limit;      // Max allowed
+        float latency_avg_ms;        // Avg wait in window
+        float latency_max_window_ms; // Max wait since last snapshot
+        float latency_max_all_ms;    // All-time max wait
+        uint64_t dispatch_count;      // Total dispatches (all-time)
+    };
+#endif
+
     /// Constructor
     /// @param threadName The name of the thread for debugging.
     /// @param maxQueueSize The maximum number of messages allowed in the queue.
@@ -70,8 +86,9 @@ public:
     /// @param fullPolicy When the queue is full: FAULT (default), DROP, or TIMEOUT.
     ///                   Only meaningful when maxQueueSize > 0.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
+    /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
     Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
-           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT);
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "");
 
     /// Destructor
     ~Thread();
@@ -115,6 +132,11 @@ public:
     /// alarm when a handler legitimately takes longer than watchdogTimeout.
     void ThreadCheck();
 
+#if defined(DMQ_DATABUS_TOOLS)
+    /// @brief Capture and reset windowed statistics.
+    ThreadStats SnapshotStats();
+#endif
+
 private:
     Thread(const Thread&) = delete;
     Thread& operator=(const Thread&) = delete;
@@ -149,6 +171,7 @@ private:
     std::condition_variable m_cvNotFull;
 
     const std::string THREAD_NAME;
+    const std::string CPU_NAME;
 
     // Max queue size (0 = unlimited)
     const size_t MAX_QUEUE_SIZE;
@@ -168,6 +191,18 @@ private:
     std::unique_ptr<dmq::util::Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
+
+#if defined(DMQ_DATABUS_TOOLS)
+    // Monitoring statistics members
+    size_t m_queueDepthMaxWindow = 0;
+    size_t m_queueDepthMaxAll = 0;
+    
+    dmq::Duration m_latencyTotalWindow = dmq::Duration(0);
+    uint32_t m_latencyCountWindow = 0;
+    dmq::Duration m_latencyMaxWindow = dmq::Duration(0);
+    dmq::Duration m_latencyMaxAll = dmq::Duration(0);
+    uint64_t m_dispatchCountAll = 0;
+#endif
 };
 
 } // namespace dmq::os

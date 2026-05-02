@@ -320,12 +320,13 @@ auto conn2 = dmq::databus::DataBus::Subscribe<int>("status", [](int s) {
 
 # DelegateMQ Tools
 
-DelegateMQ includes built-in diagnostic tools for monitoring and inspecting DataBus traffic and network topology in real-time. Two TUI (Terminal User Interface) consoles are provided:
+DelegateMQ includes built-in diagnostic tools for monitoring and inspecting DataBus traffic and network topology in real-time. Three TUI (Terminal User Interface) consoles are provided:
 
 | Tool | Purpose |
 |------|---------|
 | **`dmq-spy`** | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
 | **`dmq-monitor`** | Live network topology view — shows all active nodes, status, uptime, and published topics |
+| **`dmq-thread`** | Performance dashboard — monitors thread health, queue depths, and dispatch latency (Avg/Max) |
 
 <img src="docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;">
 
@@ -333,6 +334,7 @@ DelegateMQ includes built-in diagnostic tools for monitoring and inspecting Data
 - **Live Traffic Feed**: Real-time display of all messages published to the DataBus.
 - **Regex Filtering**: Instantly filter topics using regular expressions to focus on specific data streams.
 - **Node Topology**: See every node on the network — hostname, IP, uptime, message count, and health status.
+- **Thread Performance**: Monitor per-thread health, queue depths, and dispatch latency across all nodes.
 - **Zero Impact**: Uses an asynchronous bridge to ensure monitoring never blocks or slows your application.
 - **Cross-Platform**: Built with [FTXUI](https://github.com/ArthurSonzogni/FTXUI), providing a responsive dashboard in any terminal.
 

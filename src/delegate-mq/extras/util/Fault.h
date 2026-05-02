@@ -14,6 +14,7 @@ namespace dmq::util {
 extern "C" {
 #endif
 	void FaultHandler(const char* file, unsigned short line);
+	void WatchdogHandler(const char* threadName);
 #ifdef __cplusplus
 }
 #endif

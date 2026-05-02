@@ -22,6 +22,9 @@ public:
     /// Initialize the entire controller system.
     void Initialize();
 
+    /// Shutdown the entire controller system.
+    void Shutdown();
+
     /// Process periodic system maintenance.
     /// @param ms Milliseconds since last tick.
     void Tick(uint32_t ms);
@@ -30,7 +33,7 @@ public:
     dmq::os::Thread& GetThread() { return m_thread; }
 
 private:
-    System() : m_heartbeat("Controller", topics::CONTROLLER_HEARTBEAT, m_thread) {}
+    System();
     ~System() = default;
 
     System(const System&) = delete;
@@ -40,7 +43,7 @@ private:
     void SetupNetwork();
     void SetupWatchdog();
 
-    dmq::os::Thread m_thread{"SystemThread", 200, dmq::os::FullPolicy::TIMEOUT};
+    dmq::os::Thread m_thread;
 
     // Connections to the local DataBus
     dmq::ScopedConnection m_startConn;

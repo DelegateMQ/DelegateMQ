@@ -133,6 +133,14 @@ public:
 #endif
     }
 
+    std::string GetRemoteAddress() const {
+        char buf[INET_ADDRSTRLEN];
+        if (inet_ntop(AF_INET, &m_remoteAddr.sin_addr, buf, sizeof(buf))) {
+            return std::string(buf);
+        }
+        return "0.0.0.0";
+    }
+
 #ifdef _WIN32
     SOCKET GetSocket() const { return m_socket; }
 #else

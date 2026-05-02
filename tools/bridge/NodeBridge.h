@@ -18,6 +18,7 @@
 
 #include "extras/databus/DataBus.h"
 #include "NodeInfoPacket.h"
+#include "../src/UdpSocket.h"
 #include <string>
 #include <thread>
 #include <atomic>
@@ -54,6 +55,7 @@ private:
     enum class TransportType { UNICAST, MULTICAST };
 
     static void Worker();
+    static void InitTelemetry(const std::string& address, uint16_t port, bool isMulticast, const std::string& localInterface = "");
 
     struct Instance {
         std::thread thread;
@@ -71,6 +73,9 @@ private:
         std::atomic<uint32_t> totalMsgCount{0};
         std::set<std::string> topics;
         dmq::ScopedConnection monitorConn;
+        dmq::ScopedConnection threadStatsConn;
+        UdpSocket telemetrySocket;
+        bool isMulticast = false;
 
         std::chrono::steady_clock::time_point startTime;
     };

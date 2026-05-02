@@ -23,7 +23,7 @@ public:
     dmq::os::Thread& GetThread() { return m_thread; }
 
 private:
-    System() : m_heartbeat("GUI", topics::GUI_HEARTBEAT, m_thread) {}
+    System();
     ~System();
 
     System(const System&) = delete;
@@ -34,10 +34,10 @@ private:
     void StartTimerThread();
     void TimerTick();
 
-    dmq::os::Thread m_thread{"SystemThread", 200, dmq::os::FullPolicy::DROP};
+    dmq::os::Thread m_thread;
     
     std::atomic<bool> m_timerRunning{false};
-    dmq::os::Thread m_backgroundTimer{"BackgroundTimerThread", 10, dmq::os::FullPolicy::TIMEOUT};
+    dmq::os::Thread m_backgroundTimer;
 
     util::Heartbeat m_heartbeat;
 };

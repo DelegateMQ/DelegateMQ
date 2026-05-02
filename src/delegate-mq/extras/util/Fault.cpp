@@ -49,3 +49,12 @@ extern "C" void FaultHandler(const char* file, unsigned short line)
 {
     dmq::util::FaultHandler(file, line);
 }
+
+extern "C" void WatchdogHandler(const char* threadName)
+{
+#if defined(_WIN32) || defined(__linux__)
+    std::cout << "\n************************************************" << std::endl;
+    std::cout << "WATCHDOG EXPIRED: " << threadName << std::endl;
+    std::cout << "************************************************\n" << std::endl;
+#endif
+}

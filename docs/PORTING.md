@@ -395,3 +395,48 @@ xTaskCreate(WatchdogTask, "Watchdog", 512, nullptr, configMAX_PRIORITIES - 1, nu
 
 **3. Priority requirement on single-core RTOS (see table above).**  
 For CPU-spinning runaways, `ProcessTimers()` must run at a higher priority than the watched thread. A deadlocked or idle thread does not require elevated priority because it yields the CPU voluntarily.
+
+### Performance Monitoring
+
+Every `dmq::os::Thread` port supports high-resolution performance monitoring. This requires three pieces of instrumentation in the port layer:
+
+1. **Enqueue Timestamp**: The `ThreadMsg` class must capture a `dmq::TimePoint` (steady clock) the moment a message is created.
+2. **Latency Calculation**: In the thread's `Run()` loop, calculate the "Queue Latency" (Dispatch Time - Enqueue Time) just before invoking the delegate.
+3. **`SnapshotStats()` Implementation**: Implement the `SnapshotStats()` method to return an atomic snapshot of windowed and all-time statistics.
+
+```cpp
+#if defined(DMQ_DATABUS_TOOLS)
+Thread::ThreadStats Thread::SnapshotStats()
+{
+    ThreadStats stats;
+    stats.cpu_name = CPU_NAME;
+    stats.thread_name = THREAD_NAME;
+
+    std::unique_lock<std::mutex> lk(m_mutex);
+    stats.queue_depth = m_queue.size();
+    stats.queue_depth_max_window = m_queueDepthMaxWindow;
+    stats.queue_depth_max_all = m_queueDepthMaxAll;
+    stats.queue_size_limit = MAX_QUEUE_SIZE;
+
+    // Windowed average and max latency
+    if (m_latencyCountWindow > 0)
+        stats.latency_avg_ms = (float)m_latencyTotalWindow.count() / m_latencyCountWindow;
+    else
+        stats.latency_avg_ms = 0;
+
+    stats.latency_max_window_ms = (float)m_latencyMaxWindow.count();
+    stats.latency_max_all_ms = (float)m_latencyMaxAll.count();
+    stats.dispatch_count = m_dispatchCountAll;
+
+    // Reset windowed counters
+    m_queueDepthMaxWindow = stats.queue_depth;
+    m_latencyTotalWindow = dmq::Duration(0);
+    m_latencyCountWindow = 0;
+    m_latencyMaxWindow = dmq::Duration(0);
+
+    return stats;
+}
+#endif
+```
+
+The windowed counters (`m_queueDepthMaxWindow`, `m_latencyMaxWindow`, etc.) must be updated during every `DispatchDelegate()` and message processing iteration under the same internal lock used by `SnapshotStats()`.

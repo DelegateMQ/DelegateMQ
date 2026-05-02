@@ -13,6 +13,7 @@
 #include "DelegateMQ.h"
 #include "state-machine/StateMachine.h"
 #include "actuators/Centrifuge.h"
+#include <chrono>
 
 namespace cellutron {
 namespace process {
@@ -111,6 +112,7 @@ private:
 
     dmq::util::Timer m_timer;
     bool  m_newChange = false;
+    std::chrono::steady_clock::time_point m_processStartTime;
 };
 
 } // namespace process

@@ -1,5 +1,6 @@
 #include "Network.h"
 #include "Constants.h"
+#include "extras/util/ThreadMonitor.h"
 #include <iostream>
 #include <vector>
 
@@ -14,7 +15,7 @@ Network::~Network() {
     Shutdown();
 }
 
-void Network::Initialize(uint16_t subPort, const std::string& nodeName) {
+void Network::Initialize(uint16_t subPort, const std::string& nodeName, const std::string& cpuName) {
     if (m_running) return;
 
     m_nodeName = nodeName;
@@ -30,21 +31,25 @@ void Network::Initialize(uint16_t subPort, const std::string& nodeName) {
     // Set a short receive timeout so the ReceiverThread can check m_running periodically
     m_subTransport.SetRecvTimeout(std::chrono::milliseconds(100));
 
+    // Initialize thread with CPU name and register for monitoring
+    m_thread = std::make_unique<Thread>(m_nodeName + "_NetworkThread", 100, FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, cpuName);
+    ThreadMonitor::Register(m_thread.get());
+
 #ifndef DMQ_THREAD_STDLIB
-    m_thread.SetThreadPriority(PRIORITY_NETWORK);
+    m_thread->SetThreadPriority(PRIORITY_NETWORK);
 #endif
 
     m_running = true;
     
     // Enable watchdog for this thread. ProcessIncoming() timeout ensures periodic check-ins.
-    m_thread.CreateThread(WATCHDOG_TIMEOUT);
+    m_thread->CreateThread(WATCHDOG_TIMEOUT);
 
     // Initialize Bridges for dmq-spy and dmq-monitor
     SpyBridge::Start("127.0.0.1", 9999);
     NodeBridge::StartMulticast(m_nodeName, "239.1.1.1", 9998);
 
     // Post the receiver loop to the standardized worker thread
-    (void)dmq::MakeDelegate(this, &Network::ReceiverThread, m_thread).AsyncInvoke();
+    (void)dmq::MakeDelegate(this, &Network::ReceiverThread, *m_thread).AsyncInvoke();
     
     std::cout << "Network: Receiver thread started on port " << subPort << std::endl;
 }
@@ -55,7 +60,9 @@ void Network::Shutdown() {
     std::cout << "Network: Shutting down..." << std::endl;
     m_running = false;
     m_subTransport.Close();
-    m_thread.ExitThread();
+    if (m_thread) {
+        m_thread->ExitThread();
+    }
 
     m_remoteNodes.clear();
 }
@@ -137,7 +144,7 @@ void Network::ReceiverThread() {
     // The "loop" speed is governed by the transport receive timeout (100ms).
     if (m_running) {
         Thread::Sleep(std::chrono::milliseconds(10));
-        (void)dmq::MakeDelegate(this, &Network::ReceiverThread, m_thread).AsyncInvoke();
+        (void)dmq::MakeDelegate(this, &Network::ReceiverThread, *m_thread).AsyncInvoke();
     }
 }
 

@@ -307,6 +307,18 @@ To enable spy support in a sample project, build with `-DDMQ_DATABUS_TOOLS=ON`. 
 
 ---
 
+## Thread Monitoring
+
+**[DelegateMQ Thread Monitor](../tools/TOOLS.md#dmq-thread--thread-monitor-console)** is a performance diagnostic tool that visualizes per-thread queue health and dispatch latency. It operates as a standard DataBus participant.
+
+1.  **Publisher**: The `dmq::util::ThreadMonitor` class (enabled via `dmq::util::ThreadMonitor::Enable()`) publishes a `dmq::util::ThreadStatsPacket` every second on the `"ThreadStats"` topic.
+2.  **Subscriber**: The `dmq-thread` TUI console subscribes to this topic across the network to display real-time performance metrics (Avg/Max latency, queue depth) for all monitored nodes.
+3.  **Transport**: Like all DataBus topics, these packets are distributed automatically over any configured `NodeBridge` or unicast/multicast transport.
+
+See [Performance Monitoring](DETAILS.md#performance-monitoring) for a deep dive into the metrics.
+
+---
+
 ## Quality of Service (QoS)
 
 QoS options are set per-subscription via the `dmq::databus::QoS` struct and passed as the last argument to `dmq::databus::DataBus::Subscribe`. Options compose freely — any combination of the fields below is valid.

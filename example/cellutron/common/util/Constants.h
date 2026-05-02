@@ -11,12 +11,12 @@ namespace cellutron {
     static constexpr uint16_t MAX_CENTRIFUGE_RPM = 1000;
 
     // Watchdog constants
-    static constexpr dmq::Duration WATCHDOG_TIMEOUT = 5s;
+    static constexpr dmq::Duration WATCHDOG_TIMEOUT = 10s;
     static constexpr dmq::Duration SYNC_INVOKE_TIMEOUT = 2s;
 
     // Heartbeat constants
-    static constexpr dmq::Duration HEARTBEAT_PERIOD = 500ms;
-    static constexpr dmq::Duration HEARTBEAT_TIMEOUT = 5s;
+    static constexpr dmq::Duration HEARTBEAT_PERIOD = 1s;
+    static constexpr dmq::Duration HEARTBEAT_TIMEOUT = 10s;
     static constexpr dmq::Duration HEARTBEAT_WARMUP = 10s;
 
     // Thread Priorities (FreeRTOS levels - range 0 to configMAX_PRIORITIES-1)

@@ -19,24 +19,18 @@
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
 ///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   — typically a hardware timer ISR or the highest-priority task in the system.
+///   -- typically a hardware timer ISR or the highest-priority task in the system.
 ///
+
 #include "delegate/IThread.h"
-#include "extras/util/Timer.h"
 #include <QThread>
 #include <QObject>
 #include <QMutex>
 #include <QWaitCondition>
 #include <memory>
-#include <string>
-#include <optional>
-
-// Ensure DelegateMsg is known to Qt MetaType system
-Q_DECLARE_METATYPE(std::shared_ptr<dmq::DelegateMsg>)
+#include <atomic>
 
 namespace dmq::os {
-
-class Worker;
 
 /// @brief Policy applied when the thread message queue is full.
 /// @details Only meaningful when maxQueueSize > 0.
@@ -50,11 +44,48 @@ class Worker;
 /// FAULT is the default.
 enum class FullPolicy { DROP, FAULT, TIMEOUT };
 
+// ----------------------------------------------------------------------------
+// Worker Object
+// Lives on the target QThread and executes the slots
+// ----------------------------------------------------------------------------
+class Worker : public QObject
+{
+    Q_OBJECT
+public slots:
+    void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
+        if (msg) {
+            auto invoker = msg->GetInvoker();
+            if (invoker) {
+                invoker->Invoke(msg);
+            }
+        }
+        emit MessageProcessed();
+    }
+signals:
+    void MessageProcessed();
+};
+
 class Thread : public QObject, public dmq::IThread
 {
     Q_OBJECT
 
 public:
+#if defined(DMQ_DATABUS_TOOLS)
+    /// @brief Statistics captured for thread monitoring.
+    struct ThreadStats {
+        std::string cpu_name;
+        std::string thread_name;
+        size_t queue_depth;           // Current depth
+        size_t queue_depth_max_window;// Max depth since last snapshot
+        size_t queue_depth_max_all;   // All-time max depth
+        size_t queue_size_limit;      // Max allowed
+        float latency_avg_ms;        // Avg wait in window
+        float latency_max_window_ms; // Max wait since last snapshot
+        float latency_max_all_ms;    // All-time max wait
+        uint64_t dispatch_count;      // Total dispatches (all-time)
+    };
+#endif
+
     /// Default queue size if 0 is passed
     static const size_t DEFAULT_QUEUE_SIZE = 20;
 
@@ -63,8 +94,9 @@ public:
     /// @param maxQueueSize Max number of messages in queue (0 = Default 20)
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
+    /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
     Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
-           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT);
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "");
 
     /// Destructor
     ~Thread();
@@ -99,6 +131,11 @@ public:
     // IThread Interface Implementation
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
+#if defined(DMQ_DATABUS_TOOLS)
+    /// @brief Capture and reset windowed statistics.
+    ThreadStats SnapshotStats();
+#endif
+
 signals:
     // Internal signal to bridge threads
     void SignalDispatch(std::shared_ptr<dmq::DelegateMsg> msg);
@@ -123,6 +160,7 @@ private:
     void ThreadCheck();
 
     const std::string m_threadName;
+    const std::string m_cpuName;
     const size_t m_maxQueueSize;
     const FullPolicy m_fullPolicy;
     const dmq::Duration m_dispatchTimeout;
@@ -134,32 +172,21 @@ private:
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::unique_ptr<Timer> m_watchdogTimer;
+    std::unique_ptr<dmq::util::Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
-};
 
-// ----------------------------------------------------------------------------
-// Worker Object
-// Lives on the target QThread and executes the slots
-// ----------------------------------------------------------------------------
-class Worker : public QObject
-{
-    Q_OBJECT
-signals:
-    void MessageProcessed();
+#if defined(DMQ_DATABUS_TOOLS)
+    // Monitoring statistics members
+    size_t m_queueDepthMaxWindow = 0;
+    size_t m_queueDepthMaxAll = 0;
 
-public slots:
-    void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg)
-    {
-        if (msg) {
-            auto invoker = msg->GetInvoker();
-            if (invoker) {
-                invoker->Invoke(msg);
-            }
-        }
-        emit MessageProcessed();
-    }
+    dmq::Duration m_latencyTotalWindow = dmq::Duration(0);
+    uint32_t m_latencyCountWindow = 0;
+    dmq::Duration m_latencyMaxWindow = dmq::Duration(0);
+    dmq::Duration m_latencyMaxAll = dmq::Duration(0);
+    uint64_t m_dispatchCountAll = 0;
+#endif
 };
 
 } // namespace dmq::os

@@ -5,6 +5,8 @@
 #include "alarms/Alarms.h"
 #include "RemoteConfig.h"
 #include "Constants.h"
+#include "extras/util/ThreadMonitor.h"
+#include "extras/util/ThreadMonitorSer.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -12,6 +14,13 @@ using namespace dmq::os;
 using namespace dmq::util;
 
 namespace cellutron {
+
+System::System()
+    : m_thread("GUI_SystemThread", 100, FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI")
+    , m_backgroundTimer("GUI_TimerThread", 0, FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI")
+    , m_heartbeat("GUI", topics::GUI_HEARTBEAT, m_thread)
+{
+}
 
 System::~System() {
     Shutdown();
@@ -23,6 +32,11 @@ void System::Initialize() {
     cellutron::RegisterSerializers();
     cellutron::RegisterStringifiers();
     
+    // Register threads for monitoring
+    ThreadMonitor::Register(&m_thread);
+    ThreadMonitor::Register(&m_backgroundTimer);
+    ThreadMonitor::Enable();
+
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 
     SetupNetwork();
@@ -55,8 +69,7 @@ void System::Tick(uint32_t ms) {
 }
 
 void System::SetupNetwork() {
-    util::Network::GetInstance().Initialize(5010, "GUI");
-
+    util::Network::GetInstance().Initialize(5010, "GUI", "GUI"); 
     // Incoming Topics
     util::Network::GetInstance().RegisterIncomingTopic<RunStatusMsg>(topics::STATUS_RUN, RID_RUN_STATUS, serRun);
     util::Network::GetInstance().RegisterIncomingTopic<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);

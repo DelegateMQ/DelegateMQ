@@ -8,8 +8,8 @@
 /// @brief ThreadX implementation of the DelegateMQ IThread interface.
 ///
 /// @details
-/// This class provides a concrete implementation of the `IThread` interface using 
-/// Azure RTOS ThreadX primitives. It enables DelegateMQ to dispatch asynchronous 
+/// This class provides a concrete implementation of the `IThread` interface using
+/// Azure RTOS ThreadX primitives. It enables DelegateMQ to dispatch asynchronous
 /// delegates to a dedicated ThreadX thread.
 ///
 /// @note This implementation is a basic port. For reference, the stdlib and win32
@@ -30,20 +30,19 @@
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
 ///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   — typically a hardware timer ISR or the highest-priority task in the system.
+///   -- typically a hardware timer ISR or the highest-priority task in the system.
 
 #include "delegate/IThread.h"
+#include "ThreadMsg.h"
 #include "extras/util/Timer.h"
-#include "tx_api.h"
-#include <string>
+#include <tx_api.h>
 #include <memory>
-#include <vector>
 #include <atomic>
-#include <optional>
+#include <string>
 
 namespace dmq::os {
 
-class ThreadMsg;
+using namespace dmq::util;
 
 /// @brief Policy applied when the thread message queue is full.
 /// @details Only meaningful when maxQueueSize > 0.
@@ -55,9 +54,28 @@ class ThreadMsg;
 /// a stale sample is preferable to stalling the publisher. FAULT is the default.
 enum class FullPolicy { DROP, FAULT, TIMEOUT };
 
+// Comparator for priority (ThreadX priority is 0 to N-1, where 0 is highest)
+// This is used for the priority queue if we had one, but ThreadX uses tx_queue_send/tx_queue_front_send.
+
 class Thread : public dmq::IThread
 {
 public:
+#if defined(DMQ_DATABUS_TOOLS)
+    /// @brief Statistics captured for thread monitoring.
+    struct ThreadStats {
+        std::string cpu_name;
+        std::string thread_name;
+        size_t queue_depth;           // Current depth
+        size_t queue_depth_max_window;// Max depth since last snapshot
+        size_t queue_depth_max_all;   // All-time max depth
+        size_t queue_size_limit;      // Max allowed
+        float latency_avg_ms;        // Avg wait in window
+        float latency_max_window_ms; // Max wait since last snapshot
+        float latency_max_all_ms;    // All-time max wait
+        uint64_t dispatch_count;      // Total dispatches (all-time)
+    };
+#endif
+
     /// Default queue size if 0 is passed
     static const ULONG DEFAULT_QUEUE_SIZE = 20;
 
@@ -66,8 +84,9 @@ public:
     /// @param maxQueueSize Max number of messages in queue (0 = Default 20)
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
+    /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
     Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
-           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT);
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "");
 
     /// Destructor
     ~Thread();
@@ -110,6 +129,11 @@ public:
     // IThread Interface Implementation
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
+#if defined(DMQ_DATABUS_TOOLS)
+    /// @brief Capture and reset windowed statistics.
+    ThreadStats SnapshotStats();
+#endif
+
 private:
     Thread(const Thread&) = delete;
     Thread& operator=(const Thread&) = delete;
@@ -130,6 +154,7 @@ private:
     void ThreadCheck();
 
     const std::string THREAD_NAME;
+    const std::string CPU_NAME;
     const size_t m_queueSize; // Stored queue size
     const FullPolicy FULL_POLICY;
     const dmq::Duration m_dispatchTimeout;
@@ -154,6 +179,19 @@ private:
     std::unique_ptr<Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
+
+#if defined(DMQ_DATABUS_TOOLS)
+    TX_MUTEX m_statMutex; // Mutex to protect statistics
+    // Monitoring statistics members
+    size_t m_queueDepthMaxWindow = 0;
+    size_t m_queueDepthMaxAll = 0;
+
+    dmq::Duration m_latencyTotalWindow = dmq::Duration(0);
+    uint32_t m_latencyCountWindow = 0;
+    dmq::Duration m_latencyMaxWindow = dmq::Duration(0);
+    dmq::Duration m_latencyMaxAll = dmq::Duration(0);
+    uint64_t m_dispatchCountAll = 0;
+#endif
 };
 
 } // namespace dmq::os

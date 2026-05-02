@@ -5,6 +5,7 @@
 #include "DelegateMQ.h"
 #include "Thread.h"
 #include "ThreadMsg.h"
+#include "extras/util/Fault.h"
 #include <cstdio>
 
 #ifndef ASSERT_TRUE
@@ -19,8 +20,9 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
     : THREAD_NAME(threadName)
+    , CPU_NAME(cpuName)
     , FULL_POLICY(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
@@ -218,17 +220,16 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         return false; 
     }
 
-    // DEBUG: Print attempt
-    //printf("[Thread] Dispatching to %s...\n", THREAD_NAME.c_str());
-
-    // C++ 'new' uses System Heap (not FreeRTOS heap).
-    // If this fails, increase Heap_Size in linker script.
+    // If using XALLOCATOR explicit operator new required. See xallocator.h.
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
 
     if (threadMsg == nullptr) {
         printf("[Thread] CRITICAL: 'new ThreadMsg' returned NULL! System Heap full? (%s)\n", THREAD_NAME.c_str());
         return false;
     }
+#if defined(DMQ_DATABUS_TOOLS)
+    threadMsg->SetEnqueueTime(Timer::GetNow());
+#endif
 
     // Compute send timeout based on policy.
     TickType_t timeout;
@@ -254,6 +255,17 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         delete threadMsg;
         return false;
     }
+
+#if defined(DMQ_DATABUS_TOOLS)
+    // Update monitoring stats
+    {
+        std::lock_guard<dmq::RecursiveMutex> lock(m_watchdogMtx);
+        size_t currentDepth = GetQueueSize();
+        if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
+        if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
+    }
+#endif
+
     return true;
 }
 
@@ -286,8 +298,7 @@ void Thread::WatchdogCheck()
     auto delta = now - lastAlive;
     if (delta > watchdogTimeout)
     {
-        printf("[Thread] Watchdog detected unresponsive thread: %s\n", THREAD_NAME.c_str());
-        // @TODO trigger recovery or fault handler
+        WatchdogHandler(THREAD_NAME.c_str());
     }
 }
 
@@ -305,19 +316,19 @@ void Thread::Run()
     ThreadMsg* msg = nullptr;
     while (!m_exit.load())
     {
-        dmq::Duration timeout;
+        dmq::Duration watchdogTimeout;
         {
             std::lock_guard<dmq::RecursiveMutex> lock(m_watchdogMtx);
             m_lastAliveTime = Timer::GetNow();
-            timeout = m_watchdogTimeout;
+            watchdogTimeout = m_watchdogTimeout;
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 
         // m_lastAliveTime while idle. Otherwise, block forever to save power.
         TickType_t waitTicks = portMAX_DELAY;
-        if (timeout.count() > 0)
+        if (watchdogTimeout.count() > 0)
         {
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
             waitTicks = pdMS_TO_TICKS(ms / 4);
             if (waitTicks == 0) waitTicks = 1;
         }
@@ -329,13 +340,25 @@ void Thread::Run()
             int msgId = msg->GetId();
             if (msgId == MSG_DISPATCH_DELEGATE)
             {
-                auto delegateMsg = msg->GetData();
-                if (delegateMsg) {
-                    auto invoker = delegateMsg->GetInvoker();
-                    if (invoker) {
-                        invoker->Invoke(delegateMsg);
-                    }
+#if defined(DMQ_DATABUS_TOOLS)
+                // Update latency stats before invoking
+                dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
+                {
+                    std::lock_guard<dmq::RecursiveMutex> lock(m_watchdogMtx);
+                    m_latencyTotalWindow += latency;
+                    m_latencyCountWindow++;
+                    if (latency > m_latencyMaxWindow) m_latencyMaxWindow = latency;
+                    if (latency > m_latencyMaxAll) m_latencyMaxAll = latency;
+                    m_dispatchCountAll++;
                 }
+#endif
+
+                auto delegateMsg = msg->GetData();
+                ASSERT_TRUE(delegateMsg);
+                auto invoker = delegateMsg->GetInvoker();
+                ASSERT_TRUE(invoker);
+                bool success = invoker->Invoke(delegateMsg);
+                ASSERT_TRUE(success);
             }
             
             delete msg;
@@ -351,5 +374,39 @@ void Thread::Run()
     }
 }
 
-} // namespace dmq::os
+#if defined(DMQ_DATABUS_TOOLS)
+//----------------------------------------------------------------------------
+// SnapshotStats
+//----------------------------------------------------------------------------
+Thread::ThreadStats Thread::SnapshotStats()
+{
+    std::lock_guard<dmq::RecursiveMutex> lock(m_watchdogMtx);
+    ThreadStats stats;
+    stats.cpu_name = CPU_NAME;
+    stats.thread_name = THREAD_NAME;
+    stats.queue_depth = GetQueueSize();
+    stats.queue_depth_max_window = m_queueDepthMaxWindow;
+    stats.queue_depth_max_all = m_queueDepthMaxAll;
+    stats.queue_size_limit = m_queueSize;
+    
+    if (m_latencyCountWindow > 0) {
+        stats.latency_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count() / (m_latencyCountWindow * 1000.0f);
+    } else {
+        stats.latency_avg_ms = 0.0f;
+    }
 
+    stats.latency_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count() / 1000.0f;
+    stats.latency_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count() / 1000.0f;
+    stats.dispatch_count = m_dispatchCountAll;
+
+    // Reset windowed stats
+    m_queueDepthMaxWindow = stats.queue_depth;
+    m_latencyTotalWindow = dmq::Duration(0);
+    m_latencyCountWindow = 0;
+    m_latencyMaxWindow = dmq::Duration(0);
+
+    return stats;
+}
+#endif
+
+} // namespace dmq::os

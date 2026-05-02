@@ -2,6 +2,9 @@
 #include "Network.h"
 #include "RemoteConfig.h"
 #include "Constants.h"
+#include "messages/CentrifugeSpeedMsg.h"
+#include "messages/FaultMsg.h"
+#include "extras/util/ThreadMonitor.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -10,13 +13,25 @@ using namespace dmq::util;
 
 namespace cellutron {
 
+System::System()
+    : m_thread("Safety_SystemThread", 50, FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Safety")
+    , m_heartbeat("Safety", topics::SAFETY_HEARTBEAT, m_thread)
+{
+}
+
 void System::Initialize() {
     printf("Safety: System initializing...\n");
 
     cellutron::RegisterSerializers();
     cellutron::RegisterStringifiers();
     
+    // Register thread for monitoring
+    ThreadMonitor::Register(&m_thread);
+    ThreadMonitor::Enable();
+
+#ifndef DMQ_THREAD_STDLIB
     m_thread.SetThreadPriority(PRIORITY_PROCESS);
+#endif
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 
     SetupLocalSubscriptions();
@@ -26,6 +41,11 @@ void System::Initialize() {
     m_heartbeat.Start();
 
     printf("Safety: System ready.\n");
+}
+
+void System::Shutdown() {
+    m_thread.ExitThread();
+    util::Network::GetInstance().Shutdown();
 }
 
 void System::Tick(uint32_t ms) {
@@ -61,7 +81,7 @@ void System::SetupLocalSubscriptions() {
 }
 
 void System::SetupNetwork() {
-    util::Network::GetInstance().Initialize(5013, "Safety"); 
+    util::Network::GetInstance().Initialize(5013, "Safety", "Safety"); 
     util::Network::GetInstance().RegisterIncomingTopic<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
     util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::CONTROLLER_HEARTBEAT, RID_CONTROLLER_HB, serHeartbeat);
     util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::GUI_HEARTBEAT, RID_GUI_HB, serHeartbeat);

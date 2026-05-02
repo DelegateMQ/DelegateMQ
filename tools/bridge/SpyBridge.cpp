@@ -18,35 +18,27 @@ void SpyBridge::Start(const std::string& address, uint16_t port) {
     auto& instance = GetInstance();
     if (instance.running) return;
 
-    instance.address = address;
-    instance.port = port;
-    instance.type = TransportType::UNICAST;
-    instance.running = true;
+    Init(address, port, TransportType::UNICAST);
 
     std::cout << "[SpyBridge] Starting Unicast bridge to " << address << ":" << port << std::endl;
-
-    instance.thread = std::thread(Worker);
-
-    instance.monitorConn = dmq::databus::DataBus::Monitor([](const dmq::databus::SpyPacket& packet) {
-        auto& inst = GetInstance();
-        std::lock_guard<std::mutex> lock(inst.mutex);
-        inst.queue.push(packet);
-        if (inst.queue.size() > 1000) inst.queue.pop();
-        inst.cv.notify_one();
-    });
 }
 
 void SpyBridge::StartMulticast(const std::string& groupAddr, uint16_t port, const std::string& localInterface) {
     auto& instance = GetInstance();
     if (instance.running) return;
 
-    instance.address = groupAddr;
-    instance.port = port;
-    instance.localInterface = localInterface;
-    instance.type = TransportType::MULTICAST;
-    instance.running = true;
+    Init(groupAddr, port, TransportType::MULTICAST, localInterface);
 
     std::cout << "[SpyBridge] Starting Multicast bridge to " << groupAddr << ":" << port << " using interface " << localInterface << std::endl;
+}
+
+void SpyBridge::Init(const std::string& address, uint16_t port, TransportType type, const std::string& localInterface) {
+    auto& instance = GetInstance();
+    instance.address = address;
+    instance.port = port;
+    instance.localInterface = localInterface;
+    instance.type = type;
+    instance.running = true;
 
     instance.thread = std::thread(Worker);
 
@@ -91,12 +83,12 @@ void SpyBridge::Worker() {
         in_addr localAddr;
         inet_pton(AF_INET, instance.localInterface.c_str(), &localAddr);
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_IF, (const char*)&localAddr, sizeof(localAddr));
-        int loop = 1;
+        int loop = 0; // Disable loopback to prevent the host from receiving its own transmissions
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_LOOP, (const char*)&loop, sizeof(loop));
         int ttl = 3;
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_TTL, (const char*)&ttl, sizeof(ttl));
 #else
-        int loop = 1;
+        int loop = 0; // Disable loopback to prevent the host from receiving its own transmissions
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
         int ttl = 3;
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));

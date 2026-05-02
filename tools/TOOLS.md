@@ -8,6 +8,66 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 |------|------------|---------|
 | **Spy Console** | `dmq-spy` | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
 | **Node Monitor** | `dmq-monitor` | Live network topology view — shows all active nodes, their status, uptime, and published topics |
+| **Thread Monitor**| `dmq-thread` | Real-time per-thread metrics — shows queue depths and dispatch latency across the system |
+
+---
+
+## dmq-thread — Thread Monitor Console
+
+**DelegateMQ Thread Monitor** is a performance diagnostics dashboard. It provides real-time visibility into the health of every instrumented thread in a distributed system, displaying queue depths and dispatch latency (avg/max).
+
+<img src="dmq-thread-screenshot.png" alt="DelegateMQ Thread Monitor Screenshot" style="max-width: 800px; width: 100%;">
+
+### Key Features
+
+*   **Per-Thread Metrics**: Tracks current, window-max, and all-time max queue depths.
+*   **Latency Analysis**: Measures how long messages wait in the queue before being dispatched (Average and Max).
+*   **CPU Grouping**: Threads are grouped by their logical CPU name (e.g. GUI, Controller, Safety).
+*   **Real-Time 1Hz Updates**: Per-node telemetry is pushed to the dashboard every second.
+*   **Multi-Node Aggregation**: Automatically aggregates and sorts threads from multiple physical machines or processes.
+*   **Zero-Impact Design**: Statistics are captured atomically and transmitted via a dedicated background bridge to ensure no interference with application timing.
+
+### How it Works
+
+1.  **Instrumentation**: The `dmq::os::Thread` class tracks queue stats and message timestamps during normal operation.
+2.  **Telemetry Service** (`ThreadMonitor`): A service within the application that polls registered threads and publishes `ThreadStatsPacket` to the local DataBus.
+3.  **The Node Bridge** (`bridge/NodeBridge.cpp/.h`): Reuses the existing node bridge to automatically pick up `ThreadStatsPacket` topics and broadcast them over UDP.
+4.  **The Thread Monitor Console** (`thread/thread_main.cpp`): The standalone `dmq-thread` application that receives and visualizes the aggregated telemetry.
+
+### Integrating Thread Monitoring into Your App
+
+#### 1. Register Threads
+In your application initialization, register the threads you want to monitor:
+
+```cpp
+#include "extras/util/ThreadMonitor.h"
+
+// ... create your threads ...
+dmq::util::ThreadMonitor::Register(&mySystemThread);
+dmq::util::ThreadMonitor::Register(&myNetworkThread);
+```
+
+#### 2. Start the Monitor
+Enable the 1Hz telemetry polling:
+
+```cpp
+dmq::util::ThreadMonitor::Enable();
+```
+
+#### 3. Start NodeBridge
+Ensure `NodeBridge` is started (see Node Monitor section above). It will automatically discover and broadcast the thread statistics.
+
+### Usage
+
+```bash
+./dmq-thread [port] [options]
+
+# Basic unicast (default port 9998)
+./dmq-thread
+
+# Join a multicast group (auto-detects local interface)
+./dmq-thread 9998 --multicast 239.1.1.1
+```
 
 ---
 

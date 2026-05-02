@@ -21,10 +21,11 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
     : m_thread(std::nullopt)
     , m_exit(false)
     , THREAD_NAME(threadName)
+    , CPU_NAME(cpuName)
     , MAX_QUEUE_SIZE(maxQueueSize)
     , FULL_POLICY(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)
@@ -73,8 +74,6 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             m_watchdogTimerConn = m_watchdogTimer->OnExpired.Connect(MakeDelegate(this, &Thread::WatchdogCheck));
             m_watchdogTimer->Start(m_watchdogTimeout.load() / 2);
         }
-
-        LOG_INFO("Thread::CreateThread {}", THREAD_NAME);
     }
     return true;
 }
@@ -195,8 +194,6 @@ void Thread::ExitThread()
         // Final cleanup notification
         m_cvNotFull.notify_all();
     }
-
-    LOG_INFO("Thread::ExitThread {}", THREAD_NAME);
 }
 
 //----------------------------------------------------------------------------
@@ -242,17 +239,24 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     // If using XALLOCATOR explicit operator new required. See xallocator.h.
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_DISPATCH_DELEGATE, msg);
+#if defined(DMQ_DATABUS_TOOLS)
+    threadMsg->SetEnqueueTime(Timer::GetNow());
+#endif
 
     // If we woke up because of exit (or exit happened while waiting), abort
     if (m_exit.load())
         return false;
 
     m_queue.push(threadMsg);
-    m_cv.notify_one();
 
-    LOG_INFO("Thread::DispatchDelegate\n   thread={}\n   target={}",
-        THREAD_NAME,
-        typeid(*threadMsg->GetData()->GetInvoker()).name());
+#if defined(DMQ_DATABUS_TOOLS)
+    // Update monitoring stats
+    size_t currentDepth = m_queue.size();
+    if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
+    if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
+#endif
+
+    m_cv.notify_one();
 
     return true;
 }
@@ -270,11 +274,7 @@ void Thread::WatchdogCheck()
     // Watchdog expired?
     if (delta > m_watchdogTimeout.load())
     {
-        printf("[Thread] Watchdog detected unresponsive thread: %s\n", THREAD_NAME.c_str());
-        LOG_ERROR("Watchdog detected unresponsive thread: {}", THREAD_NAME);
-
-        // @TODO Optionally trigger recovery, restart, or further actions here
-        // For example, throw or notify external system
+        WatchdogHandler(THREAD_NAME.c_str());
     }
 }
 
@@ -294,8 +294,6 @@ void Thread::Process()
     // Signal that the thread has started processing to notify CreateThread
     m_threadStartPromise->set_value();
 
-    LOG_INFO("Thread::Process Start {}", THREAD_NAME);
-
     while (1)
     {
         dmq::Duration watchdogTimeout;
@@ -314,12 +312,16 @@ void Thread::Process()
             auto predicate = [this]() { return !m_queue.empty() || m_exit.load(); };
             if (watchdogTimeout.count() > 0)
             {
-                m_cv.wait_for(lk, watchdogTimeout / 4, predicate);
+                // Wake up frequently to ensure heartbeat is updated while idle
+                m_cv.wait_for(lk, watchdogTimeout / 10, predicate);
             }
             else
             {
                 m_cv.wait(lk, predicate);
             }
+
+            // Always update alive time immediately after waking up
+            m_lastAliveTime.store(Timer::GetNow());
 
             // If empty and exit is true, we should exit.
             if (m_queue.empty())
@@ -343,34 +345,75 @@ void Thread::Process()
         {
             case MSG_DISPATCH_DELEGATE:
             {
-                // @TODO: Update error handling below if necessary 
+#if defined(DMQ_DATABUS_TOOLS)
+                // Update latency stats before invoking
+                dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
+                {
+                    lock_guard<mutex> lock(m_mutex);
+                    m_latencyTotalWindow += latency;
+                    m_latencyCountWindow++;
+                    if (latency > m_latencyMaxWindow) m_latencyMaxWindow = latency;
+                    if (latency > m_latencyMaxAll) m_latencyMaxAll = latency;
+                    m_dispatchCountAll++;
+                }
+#endif
 
                 auto delegateMsg = msg->GetData();
-                ASSERT_TRUE(delegateMsg);
-
-                auto invoker = delegateMsg->GetInvoker();
-                ASSERT_TRUE(invoker);
-
-                // Invoke the delegate destination target function
-                bool success = invoker->Invoke(delegateMsg);
-                ASSERT_TRUE(success);
+                if (delegateMsg) {
+                    auto invoker = delegateMsg->GetInvoker();
+                    if (invoker) {
+                        invoker->Invoke(delegateMsg);
+                    }
+                }
                 break;
             }
 
             case MSG_EXIT_THREAD:
             {
-                LOG_INFO("Thread::Process Exit Thread {}", THREAD_NAME);
                 return;
             }
 
             default:
             {
-                LOG_INFO("Thread::Process Invalid Message {}", THREAD_NAME);
                 throw std::invalid_argument("Invalid message ID");
             }
         }
     }
 }
 
-} // namespace dmq::os
+#if defined(DMQ_DATABUS_TOOLS)
+//----------------------------------------------------------------------------
+// SnapshotStats
+//----------------------------------------------------------------------------
+Thread::ThreadStats Thread::SnapshotStats()
+{
+    lock_guard<mutex> lock(m_mutex);
+    ThreadStats stats;
+    stats.cpu_name = CPU_NAME;
+    stats.thread_name = THREAD_NAME;
+    stats.queue_depth = m_queue.size();
+    stats.queue_depth_max_window = m_queueDepthMaxWindow;
+    stats.queue_depth_max_all = m_queueDepthMaxAll;
+    stats.queue_size_limit = MAX_QUEUE_SIZE;
+    
+    if (m_latencyCountWindow > 0) {
+        stats.latency_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count() / (m_latencyCountWindow * 1000.0f);
+    } else {
+        stats.latency_avg_ms = 0.0f;
+    }
 
+    stats.latency_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count() / 1000.0f;
+    stats.latency_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count() / 1000.0f;
+    stats.dispatch_count = m_dispatchCountAll;
+
+    // Reset windowed stats
+    m_queueDepthMaxWindow = stats.queue_depth;
+    m_latencyTotalWindow = dmq::Duration(0);
+    m_latencyCountWindow = 0;
+    m_latencyMaxWindow = dmq::Duration(0);
+
+    return stats;
+}
+#endif
+
+} // namespace dmq::os

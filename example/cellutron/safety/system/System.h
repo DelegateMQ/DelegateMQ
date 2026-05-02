@@ -16,12 +16,13 @@ public:
     }
 
     void Initialize();
+    void Shutdown();
     void Tick(uint32_t ms);
 
     dmq::os::Thread& GetThread() { return m_thread; }
 
 private:
-    System() : m_heartbeat("Safety", topics::SAFETY_HEARTBEAT, m_thread) {}
+    System();
     ~System() = default;
 
     System(const System&) = delete;
@@ -31,7 +32,7 @@ private:
     void SetupNetwork();
     void SetupWatchdog();
 
-    dmq::os::Thread m_thread{"SystemThread", 50, dmq::os::FullPolicy::TIMEOUT};
+    dmq::os::Thread m_thread;
 
     dmq::ScopedConnection m_speedConn;
     dmq::ScopedConnection m_faultConn;

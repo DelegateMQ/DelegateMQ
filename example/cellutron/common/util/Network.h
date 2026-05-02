@@ -34,7 +34,7 @@ public:
     }
 
     /// Initialize network and start receiving.
-    void Initialize(uint16_t subPort, const std::string& nodeName = "Unknown");
+    void Initialize(uint16_t subPort, const std::string& nodeName = "Unknown", const std::string& cpuName = "");
 
     /// Stop network.
     void Shutdown();
@@ -77,7 +77,7 @@ private:
     std::shared_ptr<dmq::databus::Participant> m_subParticipant;
     
     // Standardized thread name for Active Object subsystem. 
-    dmq::os::Thread m_thread{"NetworkThread", 100, dmq::os::FullPolicy::FAULT};
+    std::unique_ptr<dmq::os::Thread> m_thread;
 
     struct RemoteNode {
         std::unique_ptr<UdpTransport> rawTransport;

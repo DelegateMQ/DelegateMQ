@@ -15,6 +15,11 @@ def main():
             "args": ["9998", "--multicast", "239.1.1.1"]
         },
         {
+            "name": "DMQ Thread", 
+            "path": "../../tools/build/Release/dmq-thread.exe",
+            "args": ["9998", "--multicast", "239.1.1.1"]
+        },
+        {
             "name": "DMQ Spy", 
             "path": "../../tools/build/Release/dmq-spy.exe",
             "args": ["9999", "--log", "spy_logs.txt"]

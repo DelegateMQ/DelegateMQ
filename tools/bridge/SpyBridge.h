@@ -37,6 +37,7 @@ private:
     enum class TransportType { UNICAST, MULTICAST };
 
     static void Worker();
+    static void Init(const std::string& address, uint16_t port, TransportType type, const std::string& localInterface = "");
 
     struct Instance {
         std::thread thread;

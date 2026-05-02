@@ -31,12 +31,16 @@ private:
 
     void WriteToFile(const std::string& msg);
     std::string GetTimestamp();
+    void LogHeartbeat();
 
     std::ofstream m_file;
-    dmq::Mutex m_mutex;
+    size_t m_writeCount = 0;
     
     // Use standardized thread name for Active Object subsystem
-    dmq::os::Thread m_thread{"LogsThread", 100, dmq::os::FullPolicy::DROP};
+    dmq::os::Thread m_thread{"LogsThread", 100, dmq::os::FullPolicy::DROP, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI"};
+
+    std::unique_ptr<dmq::util::Timer> m_heartbeatTimer;
+    dmq::ScopedConnection m_heartbeatConn;
 
     // Scoped connections for DataBus
     dmq::ScopedConnection m_startConn;

@@ -5,6 +5,7 @@
 #include "Network.h"
 #include "RemoteConfig.h"
 #include "Constants.h"
+#include "extras/util/ThreadMonitor.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -13,14 +14,26 @@ using namespace dmq::util;
 
 namespace cellutron {
 
+System::System()
+    : m_thread("Controller_SystemThread", 200, FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller")
+    , m_heartbeat("Controller", topics::CONTROLLER_HEARTBEAT, m_thread)
+{
+}
+
 void System::Initialize() {
     printf("Controller: System initializing...\n");
 
     cellutron::RegisterSerializers();
     cellutron::RegisterStringifiers();
 
+    // Register thread for monitoring
+    ThreadMonitor::Register(&m_thread);
+    ThreadMonitor::Enable();
+
     // 1. Create System Thread
+#ifndef DMQ_THREAD_STDLIB
     m_thread.SetThreadPriority(PRIORITY_SYSTEM);
+#endif
     if (!m_thread.CreateThread(WATCHDOG_TIMEOUT)) {
         printf("Controller: ERROR - Failed to create system thread!\n");
         return;
@@ -43,6 +56,11 @@ void System::Initialize() {
     m_heartbeat.Start();
 
     printf("Controller: System ready.\n");
+}
+
+void System::Shutdown() {
+    m_thread.ExitThread();
+    util::Network::GetInstance().Shutdown();
 }
 
 void System::Tick(uint32_t ms) {
@@ -76,7 +94,7 @@ void System::SetupLocalSubscriptions() {
 }
 
 void System::SetupNetwork() {
-    util::Network::GetInstance().Initialize(5011, "Controller"); 
+    util::Network::GetInstance().Initialize(5011, "Controller", "Controller"); 
     
     // Incoming from Network
     util::Network::GetInstance().RegisterIncomingTopic<StartProcessMsg>(topics::CMD_RUN, RID_START_PROCESS, serStart);

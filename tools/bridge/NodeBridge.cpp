@@ -6,6 +6,7 @@
 #include "../src/UdpSocket.h"
 #include "port/serialize/serialize/msg_serialize.h"
 #include "extras/util/NetworkConnect.h"
+#include "extras/util/ThreadMonitorSer.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -45,13 +46,7 @@ void NodeBridge::Start(const std::string& nodeId, const std::string& address, ui
     std::cout << "[NodeBridge] Starting Unicast heartbeats to " << address << ":" << port
               << " as node \"" << nodeId << "\"" << std::endl;
 
-    // Subscribe to DataBus::Monitor to auto-discover topics and count messages.
-    instance.monitorConn = dmq::databus::DataBus::Monitor([](const dmq::databus::SpyPacket& packet) {
-        auto& inst = GetInstance();
-        inst.totalMsgCount++;
-        std::lock_guard<std::mutex> lock(inst.mutex);
-        inst.topics.insert(packet.topic);
-    });
+    InitTelemetry(address, port, false);
 
     instance.thread = std::thread(Worker);
 }
@@ -78,6 +73,14 @@ void NodeBridge::StartMulticast(const std::string& nodeId, const std::string& gr
               << " as node \"" << nodeId << "\" on interface " 
               << (localInterface.empty() ? "DEFAULT" : localInterface) << std::endl;
 
+    InitTelemetry(groupAddr, port, true, localInterface);
+
+    instance.thread = std::thread(Worker);
+}
+
+void NodeBridge::InitTelemetry(const std::string& address, uint16_t port, bool isMulticast, const std::string& localInterface) {
+    auto& instance = GetInstance();
+
     // Subscribe to DataBus::Monitor to auto-discover topics and count messages.
     instance.monitorConn = dmq::databus::DataBus::Monitor([](const dmq::databus::SpyPacket& packet) {
         auto& inst = GetInstance();
@@ -86,14 +89,48 @@ void NodeBridge::StartMulticast(const std::string& nodeId, const std::string& gr
         inst.topics.insert(packet.topic);
     });
 
-    instance.thread = std::thread(Worker);
+    static dmq::util::ThreadStatsPacketSerializer serializer;
+    dmq::databus::DataBus::RegisterSerializer<dmq::util::ThreadStatsPacket>("ThreadStats", serializer);
+    dmq::databus::DataBus::RegisterStringifier<dmq::util::ThreadStatsPacket>("ThreadStats", dmq::util::ThreadStatsPacketToString);
+
+    instance.telemetrySocket.Create();
+
+    if (isMulticast && !localInterface.empty() && localInterface != "0.0.0.0") {
+#ifdef _WIN32
+        in_addr ifAddr;
+        inet_pton(AF_INET, localInterface.c_str(), &ifAddr);
+        setsockopt(instance.telemetrySocket.GetSocket(), IPPROTO_IP, IP_MULTICAST_IF, (const char*)&ifAddr, sizeof(ifAddr));
+#else
+        in_addr ifAddr;
+        inet_pton(AF_INET, localInterface.c_str(), &ifAddr);
+        setsockopt(instance.telemetrySocket.GetSocket(), IPPROTO_IP, IP_MULTICAST_IF, &ifAddr, sizeof(ifAddr));
+#endif
+    }
+
+    instance.telemetrySocket.Connect(address, port);
+    instance.isMulticast = isMulticast;
+
+    instance.threadStatsConn = dmq::databus::DataBus::Subscribe<dmq::util::ThreadStatsPacket>("ThreadStats", [](const dmq::util::ThreadStatsPacket& packet) {
+        auto& inst = GetInstance();
+        std::ostringstream oss(std::ios::binary);
+        serializer.Write(oss, packet);
+        if (oss.good()) {
+            std::string buf = oss.str();
+            std::lock_guard<std::mutex> lock(inst.mutex);
+            if (inst.running) {
+                inst.telemetrySocket.Send(buf.data(), buf.size());
+            }
+        }
+    });
 }
+
 
 void NodeBridge::Stop() {
     auto& instance = GetInstance();
     if (!instance.running) return;
 
     instance.monitorConn.Disconnect();
+    instance.threadStatsConn.Disconnect();
     instance.running = false;
 
     if (instance.thread.joinable()) {
@@ -121,14 +158,14 @@ void NodeBridge::Worker() {
         inet_pton(AF_INET, instance.localInterface.c_str(), &localAddr);
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_IF,
                    (const char*)&localAddr, sizeof(localAddr));
-        int loop = 1;
+        int loop = 0; // Disable loopback to prevent the host from receiving its own transmissions
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_LOOP,
                    (const char*)&loop, sizeof(loop));
         int ttl = 3;
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_TTL,
                    (const char*)&ttl, sizeof(ttl));
 #else
-        int loop = 1;
+        int loop = 0; // Disable loopback to prevent the host from receiving its own transmissions
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
         int ttl = 3;
         setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));

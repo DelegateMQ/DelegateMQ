@@ -241,6 +241,7 @@
     #include "extras/util/TimerDelegate.h"
     #include "extras/util/AsyncInvoke.h"
     #include "extras/util/TransportMonitor.h"
+    #include "extras/util/ThreadMonitor.h"
 #endif
 
 // Only include NetworkEngine if a transport that uses it is active

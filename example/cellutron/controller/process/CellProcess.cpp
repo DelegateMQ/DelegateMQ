@@ -18,7 +18,8 @@ CellProcess::CellProcess(actuators::Centrifuge& centrifuge, PumpProcess& pumpPro
     StateMachine(ST_MAX_STATES),
     m_centrifuge(centrifuge),
     m_pumpProcess(pumpProcess),
-    m_newChange(true)
+    m_newChange(true),
+    m_processStartTime(std::chrono::steady_clock::now() - std::chrono::hours(1))
 {
 }
 
@@ -76,6 +77,16 @@ void CellProcess::FaultEvent()
 
 void CellProcess::AbortProcess()
 {
+    // Debounce: Ignore aborts that happen within 1000ms of starting.
+    // This prevents simulation "echoes" or race conditions from halting the system immediately.
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_processStartTime).count();
+
+    if (elapsed < 1000) {
+        printf("CellProcess: ABORT IGNORED (Debounce Active, Elapsed: %lld ms)\n", elapsed);
+        return;
+    }
+
     BEGIN_TRANSITION_MAP(cellutron::process::CellProcess, AbortProcess)
         TRANSITION_MAP_ENTRY(EVENT_IGNORED)      // ST_IDLE
         TRANSITION_MAP_ENTRY(ST_ABORTING)        // ST_FILL_SOLUTION_A
@@ -223,6 +234,7 @@ STATE_DEFINE(cellutron::process::CellProcess, Idle, NoEventData)
 
 STATE_DEFINE(cellutron::process::CellProcess, FillSolutionA, NoEventData)
 {
+    m_processStartTime = std::chrono::steady_clock::now();
     printf("CellProcess: ST_FILL_SOLUTION_A\n");
     dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::PROCESSING });
     // Use Pump ID 1, Valve 1, Forward

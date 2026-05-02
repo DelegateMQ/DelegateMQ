@@ -4,9 +4,13 @@
 
 #include "DelegateMQ.h"
 #include "Thread.h"
+#include "extras/util/Fault.h"
 #include <QDebug>
 
 namespace dmq::os {
+
+using namespace dmq;
+using namespace dmq::util;
 
 // Define ASSERT_TRUE if not already defined
 #ifndef ASSERT_TRUE
@@ -19,8 +23,9 @@ static int registerId = qRegisterMetaType<std::shared_ptr<dmq::DelegateMsg>>();
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout)
+Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
     : m_threadName(threadName)
+    , m_cpuName(cpuName)
     , m_maxQueueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
     , m_fullPolicy(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)
@@ -93,7 +98,7 @@ void Thread::WatchdogCheck()
     auto delta = now - lastAlive;
     if (delta > m_watchdogTimeout.load())
     {
-        // @TODO trigger recovery or fault handler
+        WatchdogHandler(m_threadName.c_str());
     }
 }
 
@@ -209,6 +214,15 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         if (m_thread->isRunning())
         {
             m_queueSize++;
+            
+#if defined(DMQ_DATABUS_TOOLS)
+            // Update monitoring stats
+            size_t currentDepth = m_queueSize.load();
+            if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
+            if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
+            m_dispatchCountAll++;
+#endif
+
             emit SignalDispatch(msg);
             m_mutex.unlock();
             return true;
@@ -217,5 +231,37 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     }
     return false;
 }
+
+#if defined(DMQ_DATABUS_TOOLS)
+//----------------------------------------------------------------------------
+// SnapshotStats
+//----------------------------------------------------------------------------
+Thread::ThreadStats Thread::SnapshotStats()
+{
+    m_mutex.lock();
+    ThreadStats stats;
+    stats.cpu_name = m_cpuName;
+    stats.thread_name = m_threadName;
+    stats.queue_depth = m_queueSize.load();
+    stats.queue_depth_max_window = m_queueDepthMaxWindow;
+    stats.queue_depth_max_all = m_queueDepthMaxAll;
+    stats.queue_size_limit = m_maxQueueSize;
+    
+    // Qt port doesn't implement latency yet due to Signal/Slot bridge limitations
+    stats.latency_avg_ms = 0.0f;
+    stats.latency_max_window_ms = 0.0f;
+    stats.latency_max_all_ms = 0.0f;
+    stats.dispatch_count = m_dispatchCountAll;
+
+    // Reset windowed stats
+    m_queueDepthMaxWindow = stats.queue_depth;
+    m_latencyTotalWindow = Duration(0);
+    m_latencyCountWindow = 0;
+    m_latencyMaxWindow = Duration(0);
+
+    m_mutex.unlock();
+    return stats;
+}
+#endif
 
 } // namespace dmq::os

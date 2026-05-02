@@ -471,6 +471,32 @@ See [DATABUS.md](DATABUS.md) for the full API reference, threading model, QoS op
 
 ---
 
+## Performance Monitoring
+
+DelegateMQ includes high-resolution performance monitoring built directly into the `dmq::os::Thread` port layer. This instrumentation tracks how long every delegate message waits in a thread's queue before being processed, enabling real-time detection of thread contention, jitter, and system bottlenecks.
+
+### Key Metrics
+
+*   **LAvg (Latency Average)**: The average time (in milliseconds) messages spent in the queue during the last 1-second window. This reflects the thread's current load.
+*   **LWin (Latency Window Max)**: The worst-case latency recorded during the last 1-second window. Ideal for catching momentary "stutters" or long-running handlers.
+*   **LMax (Latency All-Time Max)**: The absolute worst-case latency seen since the application started. This value never resets and represents the system's lifetime "Worst Case Execution Time" (WCET) overhead.
+
+### dmq-thread Dashboard
+
+The metrics are visualized in the `dmq-thread` dashboard, which aggregates telemetry from all nodes on the network.
+
+<img src="../tools/dmq-thread-screenshot.png" alt="DelegateMQ Thread Monitor Screenshot" style="max-width: 800px; width: 100%;">
+
+### How it Works
+
+1.  **Source Instrumentation**: Every `dmq::os::Thread` port (Win32, FreeRTOS, etc.) captures an enqueue timestamp and calculates wait time during dispatch.
+2.  **Telemetry Service** (`dmq::util::ThreadMonitor`): A service within the application that polls registered threads at 1Hz, captures atomic snapshots of their metrics, and publishes them as a `ThreadStatsPacket` to the local DataBus.
+3.  **Distributed Visualization**: The standard `NodeBridge` automatically picks up these packets and broadcasts them to any listening `dmq-thread` console on the network.
+
+See [tools/TOOLS.md](../tools/TOOLS.md) for detailed integration steps.
+
+---
+
 ## Async Public API Pattern
 
 A common pattern in active-object classes: a public method that is safe to call from any thread by re-invoking itself on the object's internal thread if needed.

@@ -73,6 +73,22 @@ target_link_libraries(dmq-monitor PRIVATE
     ftxui::component
 )
 
+# --- dmq-thread ---
+add_executable(dmq-thread
+    thread/thread_main.cpp
+    ${DMQ_LIB_SOURCES}
+    ${DMQ_PORT_SOURCES}
+)
+target_include_directories(dmq-thread PRIVATE
+    ${COMMON_INCLUDES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/bridge"
+)
+target_link_libraries(dmq-thread PRIVATE
+    ftxui::screen
+    ftxui::dom
+    ftxui::component
+)
+
 # --- dmq-target (test source app) ---
 add_executable(dmq-target
     target/TargetApp.cpp
@@ -94,6 +110,9 @@ if(WIN32)
 
     target_compile_definitions(dmq-monitor PRIVATE _WIN32_WINNT=0x0601)
     target_link_libraries(dmq-monitor      PRIVATE ws2_32)
+
+    target_compile_definitions(dmq-thread  PRIVATE _WIN32_WINNT=0x0601)
+    target_link_libraries(dmq-thread       PRIVATE ws2_32)
 
     target_compile_definitions(dmq-target  PRIVATE _WIN32_WINNT=0x0601)
     target_link_libraries(dmq-target       PRIVATE ws2_32)
