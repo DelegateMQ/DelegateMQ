@@ -39,6 +39,7 @@
   - [Example: Last Value Cache (LVC)](#example-last-value-cache-lvc)
   - [Remote Distribution](#remote-distribution)
     - [Setup Checklist — Silent Failure Hazards](#setup-checklist--silent-failure-hazards)
+    - [Relay Loop Hazard](#relay-loop-hazard)
     - [Unicast (Point-to-Point)](#unicast-point-to-point)
     - [Multicast (One-to-Many)](#multicast-one-to-many)
     - [Duplicate Packet Protection](#duplicate-packet-protection)
@@ -475,13 +476,54 @@ Remote distribution requires several manual wiring calls. Each omission silently
 | 2 | `DataBus::AddParticipant(participant)` | Participant never sees `Publish()` events |
 | 3 | `DataBus::RegisterSerializer<T>(topic, serializer)` | Topic found but serialization fails silently at runtime |
 
-**Incoming (remote node → this node)** — one combined call:
+**Incoming (remote node → this node)** — choose one of two combined calls:
 
-| Step | Call | Omission effect |
+| Step | Call | Behavior |
 |:---|:---|:---|
-| 1 | `DataBus::AddIncomingTopic<T>(topic, remoteId, participant, serializer)` | Arriving packets deserialized but never re-published to the local bus |
+| 1a | `DataBus::AddIncomingTopic<T>(topic, remoteId, participant, serializer)` | Delivers to local subscribers and LVC only — does **not** forward to remote participants. Use for subscriber nodes. |
+| 1b | `DataBus::AddRelayTopic<T>(topic, remoteId, participant, serializer)` | Delivers locally **and** forwards to all registered remote participants. Use only on explicit bridge/relay nodes. |
 
 > **Tip:** If a topic is silently dead, verify the checklist above in order. Step 1 (`AddRemoteTopic`) is the most commonly missed because it lives on the `Participant` object rather than on `DataBus` itself.
+
+### Relay Loop Hazard
+
+A **relay loop** occurs when the same topic is registered as both incoming and outgoing on a node, and the incoming path triggers re-broadcast to remote participants. Each node bounces the message to its peers indefinitely.
+
+```
+Safety publishes FAULT ──▶ GUI receives FAULT
+                               │
+                               ▼ (re-broadcasts via outgoing)
+Safety receives FAULT ◀── GUI sends FAULT back
+    │
+    ▼ (re-broadcasts via outgoing)
+GUI receives FAULT ◀── Safety sends FAULT back
+    ...  (infinite, ~network round-trip interval)
+```
+
+**Root cause:** `DataBus::Publish` triggers both local subscribers and all registered remote participants. If a message arrives from the network and is re-published with `Publish`, any outgoing serializer on the same topic sends it back out — creating a loop.
+
+**Prevention:** `AddIncomingTopic` uses `DataBus::PublishLocal` internally. This dispatches to local subscribers, the spy, and the LVC, but skips remote participants — breaking the loop. Only use `AddRelayTopic` on nodes whose **sole purpose** is forwarding (bridge nodes with no loop path back to the originator).
+
+**Danger pattern** — both sides have the same topic as incoming AND outgoing:
+```cpp
+// Node A and Node B — both do this for "sys/fault":
+DataBus::AddIncomingTopic<FaultMsg>("sys/fault", ...);       // receives from peers
+DataBus::RegisterOutgoingTopic<FaultMsg>("sys/fault", ...);  // sends to peers
+// Result: every fault bounces A→B→A→B→... indefinitely
+```
+
+**Safe pattern** — use `AddIncomingTopic` (local only) for subscriber nodes:
+```cpp
+// Each node that consumes but does not need to relay:
+DataBus::AddIncomingTopic<FaultMsg>("sys/fault", ...);  // local delivery only, no loop
+```
+
+**Safe pattern** — bridge node with no loop path:
+```cpp
+// CPU-B: receives sensor data from MCU-C, forwards to CPU-A.
+// CPU-A never sends sensor data back, so there is no loop.
+DataBus::AddRelayTopic<TempData>("sensor/temp", ...);  // local + forward to CPU-A
+```
 
 ### Unicast (Point-to-Point)
 - **Transport**: `dmq::transport::Win32UdpTransport`, `dmq::transport::Win32TcpTransport`, `dmq::transport::ZeroMqTransport`, etc.
@@ -546,7 +588,7 @@ This example uses a realistic mixed-platform hierarchy spanning three tiers.
 | CPU-B | FreeRTOS + lwIP | `port/os/freertos` | `port/transport/arm-lwip-udp` (UDP), `port/transport/stm32-uart` (serial) |
 | MCU-C, MCU-D | Bare metal (no OS) | `port/os/bare-metal` (clock only) | Custom `dmq::transport::ITransport` over UART |
 
-The `dmq::databus::DataBus::Publish`, `dmq::databus::DataBus::Subscribe`, and `AddIncomingTopic` calls are identical on all three tiers. The only differences are the port headers included and, on bare metal, the absence of an RTOS thread. Platform-specific notes appear in each subsection below.
+The `dmq::databus::DataBus::Publish`, `dmq::databus::DataBus::Subscribe`, and `AddIncomingTopic` calls are identical on all three tiers. Bridge nodes (CPU-B) use `AddRelayTopic` instead of `AddIncomingTopic` so that incoming data is forwarded to remote participants on the outgoing leg. The only other differences are the port headers included and, on bare metal, the absence of an RTOS thread. Platform-specific notes appear in each subsection below.
 
 This example shows a fully bidirectional three-node system. CPU-A sends actuator commands down to MCU-C and MCU-D via CPU-B. The MCUs publish sensor data back up through CPU-B to CPU-A. CPU-B acts as a bridge between the Ethernet and serial transports in both directions.
 
@@ -626,14 +668,14 @@ dmq::MakeDelegate(this, &CpuA::PollSensor, m_pollSensor).AsyncInvoke();
 
 > **`Stm32UartTransport` single-channel constraint.** The current implementation routes all UART ISR bytes through a single global pointer (`g_uartTransportInstance`). Each `Create()` call overwrites that pointer, so only the last transport to call `Create()` receives ISR bytes. For a two-MCU bridge you need two separate globals and two separate `HAL_UART_RxCpltCallback` dispatchers — one per UART peripheral. The snippets below assume that extension is in place. Alternatively, a single-MCU variant of CPU-B (one serial link) avoids the issue entirely.
 
-CPU-B is purely a bridge — it does not originate or consume any topics itself. It receives on three incoming transports (one Ethernet, two serial) and forwards in both directions. `AddIncomingTopic` handles the re-publish in one line per topic per transport. The serializer can differ per leg; CPU-B always works with plain C++ objects between the two legs. Each polling thread is a named `dmq::os::Thread` instance whose priority can be set independently — for example, the serial MCU threads could be raised above the Ethernet thread if sensor latency is more critical than command latency on a given target.
+CPU-B is purely a bridge — it does not originate or consume any topics itself. It receives on three incoming transports (one Ethernet, two serial) and forwards in both directions. `AddRelayTopic` handles the re-publish in one line per topic per transport; the full `Publish` path is used so the data is forwarded to all registered remote participants on the outgoing leg. The serializer can differ per leg; CPU-B always works with plain C++ objects between the two legs. Each polling thread is a named `dmq::os::Thread` instance whose priority can be set independently — for example, the serial MCU threads could be raised above the Ethernet thread if sensor latency is more critical than command latency on a given target.
 
 ```cpp
 // ── Inbound from CPU-A: actuator commands ──────────────────────────────
 dmq::transport::ArmLwipUdpTransport cmdRecv;
 cmdRecv.Create(dmq::transport::ArmLwipUdpTransport::Type::SUB, "0.0.0.0", 5000);
 auto fromA = std::make_shared<dmq::databus::Participant>(cmdRecv);
-dmq::databus::DataBus::AddIncomingTopic<ActuatorCmd>(
+dmq::databus::DataBus::AddRelayTopic<ActuatorCmd>(
     "cmd/actuator", ids::CMD_ACTUATOR_ID, *fromA, cmdEthSerializer);
 
 // ── Serial links to MCU-C and MCU-D (one transport per physical UART) ─────
@@ -656,9 +698,9 @@ dmq::databus::DataBus::RegisterSerializer<ActuatorCmd>("cmd/actuator", cmdSerial
 // Inbound: sensor data from each MCU — same transport object, separate dmq::databus::Participant
 auto fromMcuC = std::make_shared<dmq::databus::Participant>(serialC);
 auto fromMcuD = std::make_shared<dmq::databus::Participant>(serialD);
-dmq::databus::DataBus::AddIncomingTopic<TempData>(
+dmq::databus::DataBus::AddRelayTopic<TempData>(
     "sensor/temp", ids::MCU_TEMP_ID, *fromMcuC, sensorSerialSerializer);
-dmq::databus::DataBus::AddIncomingTopic<TempData>(
+dmq::databus::DataBus::AddRelayTopic<TempData>(
     "sensor/temp", ids::MCU_TEMP_ID, *fromMcuD, sensorSerialSerializer);
 
 // ── Outbound to CPU-A: forward sensor data via multicast ───────────────
@@ -686,7 +728,7 @@ dmq::MakeDelegate(this, &Bridge::PollFromMcuD, m_pollFromD).AsyncInvoke();
 // void Bridge::PollFromMcuD() { while (running) fromMcuD->ProcessIncoming(); }
 ```
 
-When `cmd/actuator` arrives from CPU-A, `AddIncomingTopic` re-publishes it locally and the bus fans it out to both `toMcuC` and `toMcuD` automatically. When `sensor/temp` arrives from either MCU, it is re-published locally and forwarded to CPU-A via multicast — both MCUs feed the same topic, so CPU-A receives a single stream of temperature readings.
+When `cmd/actuator` arrives from CPU-A, `AddRelayTopic` re-publishes it via `Publish` and the bus fans it out to both `toMcuC` and `toMcuD` automatically. When `sensor/temp` arrives from either MCU, it is likewise relayed via `Publish` and forwarded to CPU-A via multicast — both MCUs feed the same topic, so CPU-A receives a single stream of temperature readings.
 
 ---
 

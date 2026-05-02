@@ -124,16 +124,11 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             m_watchdogTimeout = watchdogTimeout.value();
         }
 
-        m_threadTimer = std::unique_ptr<Timer>(new Timer());
-        m_threadTimerConn = m_threadTimer->OnExpired.Connect(
-            MakeDelegate(this, &Thread::ThreadCheck, *this));
-        
         dmq::Duration timeout;
         {
             std::lock_guard<dmq::RecursiveMutex> lock(m_watchdogMtx);
             timeout = m_watchdogTimeout;
         }
-        m_threadTimer->Start(timeout / 4);
 
         m_watchdogTimer = std::unique_ptr<Timer>(new Timer());
         m_watchdogTimerConn = m_watchdogTimer->OnExpired.Connect(
@@ -155,12 +150,6 @@ void Thread::ExitThread()
             m_watchdogTimer->Stop();
             m_watchdogTimerConn.Disconnect();
         }
-        if (m_threadTimer)
-        {
-            m_threadTimer->Stop();
-            m_threadTimerConn.Disconnect();
-        }
-
         m_exit.store(true);
 
         ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);

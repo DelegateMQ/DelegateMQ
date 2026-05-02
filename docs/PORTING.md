@@ -322,21 +322,23 @@ All `dmq::os::Thread` port implementations (stdlib, Win32, FreeRTOS, CMSIS-RTOS2
 thread.CreateThread(std::chrono::seconds(2));  // fault if thread stalls > 2s
 ```
 
-The mechanism uses two `dmq::util::Timer` objects — no additional OS threads are created:
+The mechanism uses a single `dmq::util::Timer` object — no additional OS threads are created:
 
-- **`m_threadTimer`** (fires every `timeout/4`): dispatches `ThreadCheck()` to the worker thread via `dmq::MakeDelegate`. When the worker processes it, `m_lastAliveTime` is updated. This also wakes an idle sleeping thread so it does not false-alarm.
-- **`m_watchdogTimer`** (fires every `timeout/2`): calls `WatchdogCheck()` synchronously on the `dmq::util::Timer::ProcessTimers()` caller. If `now − m_lastAliveTime > timeout`, a fault is triggered.
+- **`m_watchdogTimer`** (fires every `timeout/2`): calls `WatchdogCheck()` synchronously in the `dmq::util::Timer::ProcessTimers()` caller context. `WatchdogCheck()` reads `m_lastAliveTime` atomically. If `now − m_lastAliveTime > timeout`, a fault is triggered.
+
+The worker thread's `Run()` loop updates `m_lastAliveTime` directly at the top of every iteration. When a watchdog timeout is configured, the queue-receive call uses a finite wait of `timeout/4`, so the loop cycles and refreshes the timestamp even when the thread is completely idle. No queue messages are needed to maintain liveness — there is no cross-thread dispatch involved in the watchdog path.
 
 ```
 ProcessTimers() caller (ISR or high-priority task)
    │
-   ├─ m_threadTimer fires (timeout/4)
-   │    └─ posts ThreadCheck() → worker thread queue
-   │                                   └─ worker updates m_lastAliveTime ✓
-   │
    └─ m_watchdogTimer fires (timeout/2)
-        └─ WatchdogCheck() runs inline — compares now vs m_lastAliveTime
-             └─ gap > timeout → @TODO: trigger fault/recovery
+        └─ WatchdogCheck() runs inline — reads m_lastAliveTime atomically
+             └─ gap > timeout → trigger fault/recovery
+
+worker Run() loop
+   top-of-loop: m_lastAliveTime = now           ← refreshed every iteration
+   queue receive (blocks at most timeout/4)      ← finite wait; loops even when idle
+   process message (or wake on timeout, loop back)
 ```
 
 #### Priority Requirement — Critical on Single-Core RTOS
@@ -346,7 +348,7 @@ The watchdog **only catches CPU-spinning runaway threads** if `dmq::util::Timer:
 | Failure mode | ProcessTimers() priority requirement |
 |:---|:---|
 | Deadlocked thread (blocked on mutex/semaphore) | Any — blocked threads don't consume CPU |
-| Idle thread (waiting for messages) | Any — `ThreadCheck` wakes it when scheduled |
+| Idle thread (waiting for messages) | Any — `Run()` loops every `timeout/4` even with no messages |
 | CPU-spinning runaway (infinite loop in callback) | **Must be higher** than the watched thread |
 
 Two acceptable approaches for embedded targets:
@@ -379,4 +381,17 @@ void WatchdogTask(void*)
 xTaskCreate(WatchdogTask, "Watchdog", 512, nullptr, configMAX_PRIORITIES - 1, nullptr);
 ```
 
-Note: if user callbacks in the worker thread legitimately take longer than the watchdog timeout, the watchdog will false-alarm. Set the timeout to comfortably exceed the maximum expected callback duration.
+#### Watchdog Limitations
+
+**1. Long-running message handlers.**  
+`Run()` updates `m_lastAliveTime` only at the top of each iteration, before blocking on the queue receive. If a message handler runs longer than `watchdogTimeout`, the watchdog fires — this is the correct behavior (the thread is unresponsive to new messages during that time). If a handler is legitimately long (e.g., a blocking flash write or a slow I/O call), either:
+- Call `ThreadCheck()` periodically inside the handler to reset the alive timestamp, or
+- Set `watchdogTimeout` large enough to cover the worst-case handler duration.
+
+**2. `ProcessTimers()` context must remain alive.**  
+`WatchdogCheck()` runs in whichever context calls `dmq::util::Timer::ProcessTimers()`. If that context itself deadlocks, starves, or is never scheduled, the watchdog timer never fires and no fault is detected. Mitigations:
+- Call `ProcessTimers()` from a hardware timer ISR (e.g., SysTick) so it preempts all tasks unconditionally.
+- For a final backstop against total system freeze, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) kicked inside `WatchdogCheck()`. The software watchdog detects soft stalls; the hardware watchdog catches a completely frozen `ProcessTimers()` context.
+
+**3. Priority requirement on single-core RTOS (see table above).**  
+For CPU-spinning runaways, `ProcessTimers()` must run at a higher priority than the watched thread. A deadlocked or idle thread does not require elevated priority because it yields the CPU voluntarily.

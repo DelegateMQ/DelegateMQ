@@ -109,9 +109,10 @@ public:
     /// arguments.
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
-    /// Update the last alive time for the watchdog. 
-    /// @details Normally called automatically by internal timers. For threads with 
-    /// blocking loops (e.g. Network receiver), call this manually to prevent timeouts.
+    /// @brief Manually update the watchdog alive timestamp.
+    /// @details The Process() loop refreshes the timestamp automatically on every iteration.
+    /// Call this from inside long-running message handlers to prevent a false watchdog
+    /// alarm when a handler legitimately takes longer than watchdogTimeout.
     void ThreadCheck();
 
 private:
@@ -166,8 +167,6 @@ private:
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::unique_ptr<dmq::util::Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
-    std::unique_ptr<dmq::util::Timer> m_threadTimer;
-    dmq::ScopedConnection m_threadTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
 };
 

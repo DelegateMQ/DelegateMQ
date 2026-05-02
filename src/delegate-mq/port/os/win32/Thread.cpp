@@ -65,11 +65,6 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             // Create watchdog timer
             m_watchdogTimeout = watchdogTimeout.value();
 
-            // Timer to ensure the Thread instance runs periodically.
-            m_threadTimer = std::unique_ptr<Timer>(new Timer());
-            m_threadTimerConn = m_threadTimer->OnExpired.Connect(MakeDelegate(this, &Thread::ThreadCheck, *this));
-            m_threadTimer->Start(m_watchdogTimeout.load() / 4);
-
             // Timer to check that this Thread instance runs.
             m_watchdogTimer = std::unique_ptr<Timer>(new Timer());
             m_watchdogTimerConn = m_watchdogTimer->OnExpired.Connect(MakeDelegate(this, &Thread::WatchdogCheck));
@@ -269,12 +264,6 @@ void Thread::ExitThread()
     {
         m_watchdogTimer->Stop();
         m_watchdogTimerConn.Disconnect();
-    }
-
-    if (m_threadTimer)
-    {
-        m_threadTimer->Stop();
-        m_threadTimerConn.Disconnect();
     }
 
     EnterCriticalSection(&m_cs);

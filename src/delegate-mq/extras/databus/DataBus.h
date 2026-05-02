@@ -53,7 +53,15 @@ public:
     // Publish data to a topic.
     template <typename T>
     static void Publish(const std::string& topic, const T& data) {
-        GetInstance().InternalPublish<T>(topic, data);
+        GetInstance().InternalPublish<T>(topic, data, false);
+    }
+
+    // Publish data to local subscribers only — does NOT forward to remote participants.
+    // Used by AddIncomingTopic to prevent relay loops when a topic is both incoming
+    // and outgoing on the same node.
+    template <typename T>
+    static void PublishLocal(const std::string& topic, const T& data) {
+        GetInstance().InternalPublish<T>(topic, data, true);
     }
 
     // Add a remote participant to the bus.
@@ -67,13 +75,29 @@ public:
         GetInstance().InternalRegisterSerializer<T>(topic, serializer);
     }
 
-    // Register an incoming remote topic and automatically republish received data to the local bus.
-    // Replaces the boilerplate RegisterHandler lambda pattern:
-    //   participant.RegisterHandler<T>(remoteId, serializer, [topic](T msg) {
-    //       DataBus::Publish<T>(topic, std::move(msg));
-    //   });
+    // Register an incoming remote topic and republish received data to the local bus only.
+    // Uses PublishLocal — the message reaches local subscribers, the spy, and the LVC, but is
+    // NOT re-forwarded to remote participants. This prevents relay loops when the same topic
+    // is registered as both incoming and outgoing on the same node.
+    //
+    // For bridge/relay nodes that must forward incoming data to other remote participants,
+    // use AddRelayTopic instead.
     template <typename T>
     static void AddIncomingTopic(const std::string& topic, dmq::DelegateRemoteId remoteId, Participant& participant, dmq::ISerializer<void(T)>& serializer) {
+        participant.RegisterHandler<T>(remoteId, serializer, [topic](const T& msg) {
+            DataBus::PublishLocal<T>(topic, msg);
+        });
+    }
+
+    // Register an incoming remote topic and re-publish received data to ALL local subscribers
+    // AND all registered remote participants (full Publish). Use this only on bridge/relay nodes
+    // where the explicit intent is to forward incoming data to other remote nodes.
+    //
+    // WARNING: Using AddRelayTopic on a node that also has the same topic as an outgoing
+    // (RegisterSerializer + AddParticipant) AND receives from a node that also relays will
+    // create an infinite relay loop. Use AddIncomingTopic instead for subscriber-only nodes.
+    template <typename T>
+    static void AddRelayTopic(const std::string& topic, dmq::DelegateRemoteId remoteId, Participant& participant, dmq::ISerializer<void(T)>& serializer) {
         participant.RegisterHandler<T>(remoteId, serializer, [topic](const T& msg) {
             DataBus::Publish<T>(topic, msg);
         });
@@ -225,7 +249,7 @@ private:
     }
 
     template <typename T>
-    void InternalPublish(const std::string& topic, const T& data) {
+    void InternalPublish(const std::string& topic, const T& data, bool localOnly) {
         // Capture timestamp before lock acquisition for maximum accuracy and 
         // monotonic ordering using dmq::Clock.
         auto now = dmq::Clock::now();
@@ -298,7 +322,7 @@ private:
         }
 
         // 8. Remote distribution using the snapshot
-        if (serializer) {
+        if (!localOnly && serializer) {
             for (auto& participant : participantsSnapshot) {
                 participant->Send<T>(topic, data, *serializer);
                 handled = true;

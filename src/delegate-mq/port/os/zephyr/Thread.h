@@ -99,7 +99,10 @@ private:
     /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
     void WatchdogCheck();
 
-    /// Timer expiration function dispatched to this thread to update m_lastAliveTime.
+    /// @brief Manually update the watchdog alive timestamp.
+    /// @details The Run() loop refreshes the timestamp automatically on every iteration.
+    /// Call this from inside long-running message handlers to prevent a false watchdog
+    /// alarm when a handler legitimately takes longer than watchdogTimeout.
     void ThreadCheck();
 
     const std::string THREAD_NAME;
@@ -134,8 +137,6 @@ private:
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::unique_ptr<dmq::util::Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
-    std::unique_ptr<dmq::util::Timer> m_threadTimer;
-    dmq::ScopedConnection m_threadTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
 };
 

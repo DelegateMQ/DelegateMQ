@@ -130,10 +130,10 @@ private:
     /// priority task in the system.
     void WatchdogCheck();
 
-    /// Timer expiration function used to check that thread loop is running.
-    /// This function is called by this thread context (m_hThread). The
-    /// Thread::Process() function must be called periodically even if no
-    /// other user delegate events are to be handled.
+    /// @brief Manually update the watchdog alive timestamp.
+    /// @details The Run() loop refreshes the timestamp automatically on every iteration.
+    /// Call this from inside long-running message handlers to prevent a false watchdog
+    /// alarm when a handler legitimately takes longer than watchdogTimeout.
     void ThreadCheck();
 
     HANDLE m_hThread = NULL;
@@ -171,8 +171,6 @@ private:
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::unique_ptr<dmq::util::Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
-    std::unique_ptr<dmq::util::Timer> m_threadTimer;
-    dmq::ScopedConnection m_threadTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
 };
 
