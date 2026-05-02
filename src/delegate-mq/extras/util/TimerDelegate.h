@@ -97,11 +97,11 @@ class TimerDelegate
 {
 public:
     template <typename F>
-    TimerDelegate(F&& fn, dmq::IThread& thread,
-                  std::function<void()> onStuck = {},
+    TimerDelegate(F&& func, dmq::IThread& thr,
+                  std::function<void()> onStuck = std::function<void()>(),
                   dmq::Duration stuckTimeout = dmq::Duration(0))
-        : m_fn(std::forward<F>(fn))
-        , m_thread(&thread)
+        : m_fn(std::forward<F>(func))
+        , m_thread(&thr)
         , m_stuckTimeout(stuckTimeout)
     {
         m_gate.OnStuck = std::move(onStuck);
@@ -133,23 +133,23 @@ private:
 ///       MakeTimerDelegate(&OnTick, m_thread));
 /// @endcode
 inline auto MakeTimerDelegate(
-    void(*fn)(),
-    dmq::IThread& thread,
-    std::function<void()> onStuck = {},
+    void(*func)(),
+    dmq::IThread& thr,
+    std::function<void()> onStuck = std::function<void()>(),
     dmq::Duration stuckTimeout = dmq::Duration(0))
 {
-    return dmq::MakeDelegate(TimerDelegate(fn, thread, std::move(onStuck), stuckTimeout));
+    return dmq::MakeDelegate(TimerDelegate(func, thr, std::move(onStuck), stuckTimeout));
 }
 
 /// @brief Create a timer-safe async delegate for a lambda or other callable.
 template <typename F>
 auto MakeTimerDelegate(
     F&& func,
-    dmq::IThread& thread,
-    std::function<void()> onStuck = {},
+    dmq::IThread& thr,
+    std::function<void()> onStuck = std::function<void()>(),
     dmq::Duration stuckTimeout = dmq::Duration(0))
 {
-    return dmq::MakeDelegate(TimerDelegate(std::forward<F>(func), thread, std::move(onStuck), stuckTimeout));
+    return dmq::MakeDelegate(TimerDelegate(std::forward<F>(func), thr, std::move(onStuck), stuckTimeout));
 }
 
 /// @brief Create a timer-safe async delegate for a non-const member function.
@@ -161,7 +161,7 @@ auto MakeTimerDelegate(
 ///
 /// @param obj            Raw pointer to the target object. Must outlive the delegate.
 /// @param method         void() non-const member function to invoke.
-/// @param thread         Thread on which method is dispatched. Must use FullPolicy::FAULT
+/// @param thr            Thread on which method is dispatched. Must use FullPolicy::FAULT
 ///                       or FullPolicy::DROP, not TIMEOUT (see Timer.h).
 /// @param onStuck        Optional. Called from ProcessTimers() when stuck is detected.
 /// @param stuckTimeout   Duration after which a non-expiring in-flight token triggers
@@ -180,13 +180,13 @@ template <typename TClass>
 auto MakeTimerDelegate(
     TClass* obj,
     void (TClass::*method)(),
-    dmq::IThread& thread,
-    std::function<void()> onStuck = {},
+    dmq::IThread& thr,
+    std::function<void()> onStuck = std::function<void()>(),
     dmq::Duration stuckTimeout = dmq::Duration(0))
 {
     return dmq::MakeDelegate(TimerDelegate(
         [obj, method]() { (obj->*method)(); },
-        thread, std::move(onStuck), stuckTimeout));
+        thr, std::move(onStuck), stuckTimeout));
 }
 
 /// @brief Create a timer-safe async delegate for a const member function.
@@ -194,13 +194,13 @@ template <typename TClass>
 auto MakeTimerDelegate(
     const TClass* obj,
     void (TClass::*method)() const,
-    dmq::IThread& thread,
-    std::function<void()> onStuck = {},
+    dmq::IThread& thr,
+    std::function<void()> onStuck = std::function<void()>(),
     dmq::Duration stuckTimeout = dmq::Duration(0))
 {
     return dmq::MakeDelegate(TimerDelegate(
         [obj, method]() { (obj->*method)(); },
-        thread, std::move(onStuck), stuckTimeout));
+        thr, std::move(onStuck), stuckTimeout));
 }
 
 /// @brief Create a timer-safe async delegate for a non-const member function (shared_ptr owner).
@@ -211,8 +211,8 @@ template <typename TClass>
 auto MakeTimerDelegate(
     std::shared_ptr<TClass> obj,
     void (TClass::*method)(),
-    dmq::IThread& thread,
-    std::function<void()> onStuck = {},
+    dmq::IThread& thr,
+    std::function<void()> onStuck = std::function<void()>(),
     dmq::Duration stuckTimeout = dmq::Duration(0))
 {
     std::weak_ptr<TClass> weak = obj;
@@ -221,7 +221,7 @@ auto MakeTimerDelegate(
             if (auto p = weak.lock())
                 (p.get()->*method)();
         },
-        thread, std::move(onStuck), stuckTimeout));
+        thr, std::move(onStuck), stuckTimeout));
 }
 
 /// @brief Create a timer-safe async delegate for a const member function (shared_ptr owner).
@@ -229,8 +229,8 @@ template <typename TClass>
 auto MakeTimerDelegate(
     std::shared_ptr<TClass> obj,
     void (TClass::*method)() const,
-    dmq::IThread& thread,
-    std::function<void()> onStuck = {},
+    dmq::IThread& thr,
+    std::function<void()> onStuck = std::function<void()>(),
     dmq::Duration stuckTimeout = dmq::Duration(0))
 {
     std::weak_ptr<TClass> weak = obj;
@@ -239,7 +239,7 @@ auto MakeTimerDelegate(
             if (auto p = weak.lock())
                 (p.get()->*method)();
         },
-        thread, std::move(onStuck), stuckTimeout));
+        thr, std::move(onStuck), stuckTimeout));
 }
 
 } // namespace dmq::util
