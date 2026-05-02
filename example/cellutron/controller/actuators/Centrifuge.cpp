@@ -25,7 +25,7 @@ Centrifuge::~Centrifuge()
 void Centrifuge::SetThread(dmq::IThread& thread)
 {
     StateMachine::SetThread(thread);
-    m_pollTimerConn = m_pollTimer.OnExpired.Connect(dmq::MakeDelegate(this, &Centrifuge::Poll, thread));
+    m_pollTimerConn = m_pollTimer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &Centrifuge::Poll, thread));
 }
 
 void Centrifuge::StartRamp(std::shared_ptr<const cellutron::actuators::Centrifuge::RampData> data)

@@ -238,6 +238,7 @@
 // Only include Timer and AsyncInvoke if threads exist
 #if !defined(DMQ_THREAD_NONE)
     #include "extras/util/Timer.h"
+    #include "extras/util/TimerDelegate.h"
     #include "extras/util/AsyncInvoke.h"
     #include "extras/util/TransportMonitor.h"
 #endif

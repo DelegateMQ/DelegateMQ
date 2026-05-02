@@ -14,6 +14,7 @@ While the core library (`namespace dmq`) provides the fundamental mechanism for 
 
 ### 2. Timing & Scheduling
 * **`dmq::util::Timer.h`**: A complete software timer system capable of one-shot and periodic callbacks via delegates. Supports millisecond and microsecond precision depending on the platform clock.
+* **`dmq::util::TimerDelegate.h`**: A stateful delegate wrapper that prevents thread queue flooding. It ensures at most one timer message is in the target thread's queue at any time, providing safe backpressure for high-frequency timers.
 
 ### 3. Reliability Layer (QoS)
 These classes provide transport-layer reliability (ACKs and Retries) over unreliable media (like UDP or Serial).

@@ -62,7 +62,7 @@ void StartSimpleTests() {
     safeMulticast(300);
 
     // --------------------------------------------------------
-    // 4. Timer (Asynchronous via Timer Task)
+    // 4. Timer (Synchronous via Timer Task)
     // --------------------------------------------------------
     printf("\n[4] Timer (Wait 200ms)\n");
     Timer myTimer;

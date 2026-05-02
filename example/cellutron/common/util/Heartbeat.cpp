@@ -22,7 +22,7 @@ Heartbeat::~Heartbeat()
 
 void Heartbeat::Start()
 {
-    m_timerConn = m_timer.OnExpired.Connect(dmq::MakeDelegate(this, &Heartbeat::OnTimerExpired, m_thread));
+    m_timerConn = m_timer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &Heartbeat::OnTimerExpired, m_thread));
     m_timer.Start(HEARTBEAT_PERIOD);
 }
 

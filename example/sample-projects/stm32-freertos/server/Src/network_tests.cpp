@@ -110,7 +110,7 @@ private:
         m_consecutiveErrors = 0;
 
         if (!m_pollTimerConn.IsConnected()) {
-            m_pollTimerConn = m_pollTimer.OnExpired.Connect(MakeDelegate(this, &ServerApp::PollData, m_thread));
+            m_pollTimerConn = m_pollTimer.OnExpired.Connect(MakeTimerDelegate(this, &ServerApp::PollData, m_thread));
             m_pollTimer.Start(std::chrono::milliseconds(pollTime));
             BSP_LED_On(LED4); // Green LED ON = Polling
             printf("[ServerApp] Polling Started (%lu ms)\n", pollTime);

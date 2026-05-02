@@ -91,6 +91,7 @@ Asynchronous delegates simplify multithreaded programming by allowing you to inv
 **Key Features:**
 
 * **Thread Marshalling:** Transfers execution and arguments from a caller thread to a target thread.
+* **Queue Pacing:** Built-in backpressure (via `dmq::util::TimerDelegate`) prevents thread queue flooding by ensuring at most one timer message is in-flight at a time.
 * **Smart Pointer Safety:** Prevents callbacks on destroyed objects using weak pointers, ensuring fail-safe async execution.
 * **Invocation Modes:** 
   * **Non-Blocking:** Fire-and-forget execution.

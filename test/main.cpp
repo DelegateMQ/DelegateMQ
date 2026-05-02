@@ -116,7 +116,7 @@ int main(void)
 
     // Create a timer that expires every 1S and calls
     // TimerExpiredCb on workerThread1 upon expiration
-    dmq::ScopedConnection timerConn = GetTimer().OnExpired.Connect(MakeDelegate(&TimerExpiredCb, workerThread1));
+    dmq::ScopedConnection timerConn = GetTimer().OnExpired.Connect(MakeTimerDelegate(&TimerExpiredCb, workerThread1));
     GetTimer().Start(std::chrono::seconds(1));
 
     // Start the thread that will run ProcessTimers

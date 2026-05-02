@@ -1635,14 +1635,37 @@ The library provides a thread-safe `dmq::util::Timer` that uses `dmq::Signal` an
 dmq::ScopedConnection m_conn;
 
 void Init() {
-    // 2. Connect using the RAII pattern
+    // 2. Connect using the RAII pattern with Pacing
     // If 'this' is destroyed, m_conn destructor automatically disconnects the timer.
-    m_conn = m_timer.OnExpired.Connect(dmq::MakeDelegate(this, &MyClass::OnTimer, m_thread));
+    // MakeTimerDelegate ensures at most one message is in the thread queue.
+    m_conn = m_timer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &MyClass::OnTimer, m_thread));
     m_timer.Start(std::chrono::milliseconds(250));
 }
 ```
 
 See example `SafeTimer.cpp` to prevent a latent callback on a dead object and [Object Lifetime and Async Delegates](#object-lifetime-and-async-delegates) for an explanation.
+
+### Paced Timer Delegate
+Standard async delegates accumulate in the target thread's queue if the thread is busy. For high-frequency timers, this can cause "queue flooding" where thousands of stale timer messages pile up.
+
+`dmq::util::TimerDelegate` provides built-in backpressure. It ensures that **at most one** timer message is in the target thread's queue at any time.
+
+*   **Busy Thread:** If the target thread is still processing a previous tick, new ticks are deferred.
+*   **Self-Healing:** If a tick is missed because the thread was busy, it will fire as soon as possible (on the next `ProcessTimers()` poll after the thread becomes free) rather than waiting for the next full period.
+*   **No Flooding:** The queue depth never grows beyond 1, regardless of how long the thread is blocked.
+
+```cpp
+#include "extras/util/TimerDelegate.h"
+
+// 1. Create a paced delegate using MakeTimerDelegate
+// 2. Connect to the timer
+m_conn = m_timer.OnExpired.Connect(
+    dmq::util::MakeTimerDelegate(this, &MyClass::OnTimer, m_thread)
+);
+m_timer.Start(std::chrono::milliseconds(10)); // High frequency
+```
+
+Use `TimerDelegate` for periodic tasks like sensor polling, UI updates, or heartbeats where stale data is better skipped than backlogged.
 
 ## `std::async` Thread Targeting Example
 

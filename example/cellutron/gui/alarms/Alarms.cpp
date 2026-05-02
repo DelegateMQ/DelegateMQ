@@ -18,7 +18,7 @@ void Alarms::Initialize() {
     if (!m_alarmGraceTimer) {
         m_alarmGraceTimer = std::make_unique<Timer>();
     }
-    m_alarmGraceConn = m_alarmGraceTimer->OnExpired.Connect(dmq::MakeDelegate([this]() {
+    m_alarmGraceConn = m_alarmGraceTimer->OnExpired.Connect(dmq::util::MakeTimerDelegate([this]() {
         m_ticksWaited++;
     }, m_thread));
     m_alarmGraceTimer->Start(std::chrono::milliseconds(1000));

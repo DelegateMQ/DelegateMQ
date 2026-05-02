@@ -29,10 +29,12 @@ namespace Example
             m_thread.CreateThread();
 
             // Bind the callback using Connect().
-            // We use shared_from_this() to ensure the object stays alive if the callback is queued.
+            // We use MakeTimerDelegate with shared_from_this() to ensure:
+            // 1. Object lifetime safety (via weak pointer capture)
+            // 2. Queue flood prevention (at most one message in the queue)
             // We store the connection in m_timerConn so it automatically disconnects on destruction.
             m_timerConn = m_timer.OnExpired.Connect(
-                MakeDelegate(shared_from_this(), &SafeTimer::OnTimer, m_thread)
+                MakeTimerDelegate(shared_from_this(), &SafeTimer::OnTimer, m_thread)
             );
 
             m_timer.Start(std::chrono::milliseconds(100));

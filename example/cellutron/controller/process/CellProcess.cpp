@@ -32,7 +32,7 @@ void CellProcess::SetThread(dmq::IThread& thread)
     m_centrifugeConn = m_centrifuge.OnTargetReached.Connect(dmq::MakeDelegate(this, &CellProcess::OnCentrifugeTargetReached, thread));
     m_valveConn = actuators::Actuators::GetInstance().OnValveChanged.Connect(dmq::MakeDelegate(this, &CellProcess::OnValveChanged, thread));
     m_pumpConn = actuators::Actuators::GetInstance().OnPumpChanged.Connect(dmq::MakeDelegate(this, &CellProcess::OnPumpChanged, thread));
-    m_timerConn = m_timer.OnExpired.Connect(dmq::MakeDelegate(this, &CellProcess::OnTimerExpired, thread));
+    m_timerConn = m_timer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &CellProcess::OnTimerExpired, thread));
     m_pumpCompleteConn = m_pumpProcess.OnComplete.Connect(dmq::MakeDelegate(this, &CellProcess::OnPumpComplete, thread));
     m_transitionConn = this->OnTransition.Connect(dmq::MakeDelegate([this](uint8_t, uint8_t) { m_newChange = true; }));
 }
