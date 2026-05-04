@@ -350,3 +350,14 @@ org.eclipse.ui.prefs
 # Keil build output directories
 **/Listings/
 **/Objects/
+
+# Claude settings
+.claude/
+
+# Native binaries
+*.dll
+*.exe
+*.so
+*.dylib
+*.a
+*.lib

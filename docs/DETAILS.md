@@ -33,6 +33,10 @@ The DelegateMQ C++ library enables function invocations on any callable, either 
   - [Publish / Subscribe with Signal](#publish--subscribe-with-signal)
   - [Remote Delegate](#remote-delegate)
   - [DataBus](#databus)
+  - [Performance Monitoring](#performance-monitoring)
+    - [Key Metrics](#key-metrics)
+    - [dmq-thread Dashboard](#dmq-thread-dashboard)
+    - [How it Works](#how-it-works)
   - [Async Public API Pattern](#async-public-api-pattern)
   - [Delegate Invocation Semantics](#delegate-invocation-semantics)
 - [Porting Guide](#porting-guide)
@@ -70,8 +74,9 @@ The DelegateMQ C++ library enables function invocations on any callable, either 
     - [Bypassing Argument Heap Copy](#bypassing-argument-heap-copy)
     - [Array Argument Heap Copy](#array-argument-heap-copy)
 - [Interfaces](#interfaces)
-- [Python Interoperability](#python-interoperability)
-  - [Other Topologies](#other-topologies)
+- [Cross-Language Interoperability](#cross-language-interoperability)
+    - [Key Features:](#key-features)
+    - [Synchronization](#synchronization)
 - [Examples](#examples)
   - [Callback Example](#callback-example)
   - [Register Callback Example](#register-callback-example)
@@ -81,6 +86,7 @@ The DelegateMQ C++ library enables function invocations on any callable, either 
     - [Blocking Reinvoke](#blocking-reinvoke)
   - [Timer Example](#timer-example)
     - [Safe Timer (RAII)](#safe-timer-raii)
+    - [Paced Timer Delegate](#paced-timer-delegate)
   - [`std::async` Thread Targeting Example](#stdasync-thread-targeting-example)
   - [More Examples](#more-examples)
   - [Sample Projects](#sample-projects)
@@ -1362,32 +1368,31 @@ There is no way to asynchronously pass a C-style array by value. Avoid C-style a
 
 The `dmq::IThread`, `dmq::ISerializer`, and `dmq::IDispatcher` interface classes allow customizing the library's runtime behavior for new platforms or transports. See [PORTING.md](PORTING.md#interfaces) for full interface definitions and implementation examples.
 
-# Python Interoperability
+# Cross-Language Interoperability
 
-While DelegateMQ is a C++ library, Python applications can easily communicate with C++ remote delegates using dmq::transport::ZeroMqTransport transport and MessagePack serialization. This allows complex data structures to be exchanged between languages, opening up flexible new system topology possibilities.
+DelegateMQ supports first-class interoperability between C++, **C#**, and **Python** using a **Shared Native Core** architecture. This ensures that scripting-language clients benefit from the same high-performance networking and reliability logic (ACKs/timeouts) as the C++ core.
 
-See the `README.md` in [system-architecture-python](../example/sample-projects/system-architecture-python/) for more.
+> Full documentation: **[INTEROP.md](INTEROP.md)**
 
-## Other Topologies
+### Key Features:
+- **Shared Native Core**: A C++ DLL (`DmqInterop`) handles UDP sockets, protocol framing, and reliability.
+- **Language Wrappers**: Thin, language-friendly libraries for C# (`P/Invoke`) and Python (`ctypes`).
+- **Binary Serialization**: Efficient data exchange using MessagePack.
+- **Location Transparency**: Remote topics look the same to the application whether they are local or on a remote node.
 
-DelegateMQ remote delegates messages contain a simple 6-byte header followed by the serialized message data. 
+### Synchronization
+Data structures stay in sync between languages using a **Field Order Convention**. C++ uses the `MSGPACK_DEFINE` macro, while C# uses `[Key(n)]` attributes to ensure fields match exactly.
 
-```cpp
-uint16_t m_marker = MARKER;          // Static marker value
-uint16_t m_id = 0;                   // DelegateRemoteId (id)
-uint16_t m_seqNum = 0;               // Sequence number
+```csharp
+// C# example matching C++ struct
+[MessagePackObject]
+public class SensorData {
+    [Key(0)] public int Id { get; set; }
+    [Key(1)] public float Value { get; set; }
+}
 ```
 
-Since MessagePack and ZeroMQ are supported by numerous languages, this architecture can be extended to include:
-
-- C#
-- Go
-- Python
-- Java
-- JavaScript / Node.js
-- Ruby
-- Rust
-- ...and many others.
+See [INTEROP.md](INTEROP.md) for architecture details, C-API definitions, and setup instructions. A complete 3-language demonstration is available in the **[sample-interop](../example/sample-interop/README.md)** example.
 
 # Examples
 

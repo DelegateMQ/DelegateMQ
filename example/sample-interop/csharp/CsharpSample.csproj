@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../interop/csharp/DelegateMQ.Interop.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../../interop/native/build/bin/Release/DmqInterop.dll" Condition="Exists('../../../interop/native/build/bin/Release/DmqInterop.dll')">
+      <Link>DmqInterop.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../../interop/native/build/bin/Debug/DmqInterop.dll" Condition="Exists('../../../interop/native/build/bin/Debug/DmqInterop.dll')">
+      <Link>DmqInterop.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

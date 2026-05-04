@@ -1,254 +1,163 @@
-// DmqDataBus.cs — DataBus participant client for DelegateMQ interop over UDP.
+// DmqDataBus.cs — C# library for DelegateMQ cross-language interop.
 //
-// Wire protocol (DmqHeader, 8 bytes, Network Byte Order / Big Endian):
+// This module provides a high-level .NET interface for communicating with C++ 
+// DelegateMQ applications. It uses a "Shared Native Core" architecture, wrapping 
+// the native DmqInterop.dll via P/Invoke.
 //
-//   Offset  Size  Field
-//   0       2     Marker   (always 0xAA55)
-//   2       2     ID       (DelegateRemoteId)
-//   4       2     SeqNum   (sequence number, wraps at 65536)
-//   6       2     Length   (payload length in bytes)
+// Key Features:
+// - Native Performance: Network handling and reliability logic run on a native thread.
+// - Thread Safety: Callbacks are invoked on a native background thread.
+// - Consistency: Shares the same wire-protocol and reliability layer as the C++ core.
 //
-// The header is immediately followed by Length bytes of serialized payload
-// (MessagePack by convention; see Serializer.cs).
+// Requirements:
+// - DmqInterop.dll must be built and accessible in the application's output directory.
+// - MessagePack NuGet package.
 //
-// ACK packet: header only (Length=0), ID=0, SeqNum echoes the received SeqNum.
-// Sent automatically after every non-ACK message received.
-//
-// See ../README.md for the full protocol specification.
+// Architecture Details: docs/INTEROP.md
 
 using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Net.Sockets;
-using System.Threading;
+using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
+using MessagePack;
 
 namespace DelegateMQ.Interop
 {
     /// <summary>
-    /// Generic UDP client for DelegateMQ DataBus.
-    ///
-    /// Manages two UDP sockets:
-    ///   recv socket — bound to local recvPort, receives incoming messages.
-    ///   send socket — sends outgoing messages and ACKs to remoteHost:sendPort.
-    ///
-    /// Registered callbacks are invoked on the background receive thread with
-    /// signature: Action&lt;ushort remoteId, byte[] payload&gt;.
+    /// DmqDataBus — A thin C# wrapper around the native DmqInterop.dll.
+    /// Manages the lifecycle of the transport and provides a high-level API for 
+    /// sending and receiving MessagePack-serialized data.
     /// </summary>
     public sealed class DmqDataBus : IDisposable
     {
-        private const ushort DmqMarker = 0xAA55;
-        private const ushort AckId     = 0;
-        private const int    HeaderSize = 8;
+        private const string DllName = "DmqInterop.dll";
 
-        private readonly string _remoteHost;
-        private readonly int    _recvPort;
-        private readonly int    _sendPort;
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate void InternalMessageCallback(ushort remoteId, IntPtr data, uint len);
 
-        private UdpClient?  _recvClient;
-        private UdpClient?  _sendClient;
-        private IPEndPoint? _sendEndPoint;
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate void InternalErrorCallback([MarshalAs(UnmanagedType.LPStr)] string msg);
 
-        private ushort         _seqNum;
-        private readonly object _seqLock = new();
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        private static extern int DmqInterop_Start(string remoteHost, int recvPort, int sendPort);
 
-        private readonly Dictionary<ushort, Action<ushort, byte[]>> _callbacks = new();
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        private static extern void DmqInterop_RegisterCallback(ushort remoteId, InternalMessageCallback cb);
 
-        private Thread?         _recvThread;
-        private volatile bool   _running;
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        private static extern void DmqInterop_RegisterErrorCallback(InternalErrorCallback cb);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        private static extern int DmqInterop_Send(ushort remoteId, byte[] data, uint len);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        private static extern void DmqInterop_Stop();
+
+        // Keep callback delegate alive to prevent GC collection
+        private readonly InternalMessageCallback _internalCallback;
+        private readonly InternalErrorCallback _internalErrorCallback;
+        private readonly ConcurrentDictionary<ushort, Action<byte[]>> _callbacks = new();
+        private Action<string>? _onError;
+        private bool _disposed;
+
+        public DmqDataBus()
+        {
+            _internalCallback = OnMessageReceived;
+            _internalErrorCallback = OnErrorReceived;
+        }
 
         /// <summary>
-        /// Create a new DmqDataBus.
+        /// Start the native transport.
         /// </summary>
-        /// <param name="remoteHost">IP address of the C++ DataBus server.</param>
-        /// <param name="recvPort">Local port to bind for incoming messages (C++ PUB port).</param>
-        /// <param name="sendPort">Remote port to send messages and ACKs (C++ SUB port).</param>
-        public DmqDataBus(string remoteHost, int recvPort, int sendPort)
+        public void Start(string remoteHost, int recvPort, int sendPort)
         {
-            _remoteHost = remoteHost;
-            _recvPort   = recvPort;
-            _sendPort   = sendPort;
+            int result = DmqInterop_Start(remoteHost, recvPort, sendPort);
+            if (result != 0)
+                throw new Exception($"Failed to start DmqInterop DLL (Error: {result})");
         }
 
-        // ------------------------------------------------------------------
-        // Lifecycle
-        // ------------------------------------------------------------------
-
-        /// <summary>Open sockets and start the background receive thread.</summary>
-        public void Start()
-        {
-            _recvClient   = new UdpClient(_recvPort);
-            _sendClient   = new UdpClient();
-            _sendEndPoint = new IPEndPoint(IPAddress.Parse(_remoteHost), _sendPort);
-
-            _running    = true;
-            _recvThread = new Thread(RecvLoop)
-            {
-                IsBackground = true,
-                Name         = "DmqRecv",
-            };
-            _recvThread.Start();
-        }
-
-        /// <summary>Stop the receive thread and close sockets.</summary>
+        /// <summary>
+        /// Stop the native transport and release all native resources.
+        /// This must be called (directly or via Dispose) to ensure a clean shutdown.
+        /// Note: This method blocks until the native receive thread has exited.
+        /// </summary>
         public void Stop()
         {
-            _running = false;
-            _recvClient?.Close();   // Unblocks UdpClient.Receive()
-            _sendClient?.Close();
-            _recvThread?.Join(2000);
-            _recvClient = null;
-            _sendClient = null;
+            if (!_disposed)
+            {
+                DmqInterop_Stop();
+                _disposed = true;
+                GC.SuppressFinalize(this);
+            }
         }
 
-        /// <inheritdoc/>
-        public void Dispose() => Stop();
-
-        // ------------------------------------------------------------------
-        // Registration
-        // ------------------------------------------------------------------
+        /// <summary>
+        /// Register a callback for internal library errors.
+        /// </summary>
+        public void RegisterErrorCallback(Action<string> onError)
+        {
+            _onError = onError;
+            DmqInterop_RegisterErrorCallback(_internalErrorCallback);
+        }
 
         /// <summary>
-        /// Register a callback for an incoming remote ID.
+        /// Register a callback for a specific Remote ID.
+        /// The payload is automatically unpacked into a byte array.
         /// </summary>
-        /// <param name="remoteId">DelegateRemoteId value declared in C++ SystemIds.h.</param>
-        /// <param name="callback">
-        ///   Invoked as callback(remoteId, payloadBytes) on the receive thread
-        ///   whenever a matching message arrives.
-        /// </param>
-        public void RegisterCallback(ushort remoteId, Action<ushort, byte[]> callback)
+        public void RegisterCallback(ushort remoteId, Action<byte[]> callback)
         {
             _callbacks[remoteId] = callback;
+            DmqInterop_RegisterCallback(remoteId, _internalCallback);
         }
-
-        // ------------------------------------------------------------------
-        // Send
-        // ------------------------------------------------------------------
 
         /// <summary>
-        /// Send a serialized message to the remote DataBus server.
+        /// Register a callback and automatically deserialize the MessagePack payload.
         /// </summary>
-        /// <param name="remoteId">DelegateRemoteId matching the C++ subscriber.</param>
-        /// <param name="payload">MessagePack-serialized bytes (use Serializer.Pack()).</param>
-        public void Send(ushort remoteId, byte[] payload)
+        public void RegisterCallback<T>(ushort remoteId, Action<T> callback)
         {
-            if (_sendClient == null)
-                return;
-
-            ushort seq;
-            lock (_seqLock)
-                seq = _seqNum++;
-
-            byte[] packet = BuildPacket(remoteId, seq, payload);
-            try
+            RegisterCallback(remoteId, (data) =>
             {
-                _sendClient.Send(packet, packet.Length, _sendEndPoint);
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[DmqDataBus] Send error: {ex.Message}");
-            }
+                var obj = MessagePackSerializer.Deserialize<T>(data);
+                callback(obj);
+            });
         }
 
-        // ------------------------------------------------------------------
-        // Internal receive loop
-        // ------------------------------------------------------------------
-
-        private void RecvLoop()
+        /// <summary>
+        /// Send an object to a Remote ID using MessagePack serialization.
+        /// </summary>
+        public void Send<T>(ushort remoteId, T data)
         {
-            var ep = new IPEndPoint(IPAddress.Any, _recvPort);
-            while (_running)
+            // Note: Our Serializer.Pack in the original code wrapped items in a List.
+            // For better interop, we can pack directly or keep the list convention.
+            // Here we use the direct MessagePack serialization.
+            byte[] bytes = MessagePackSerializer.Serialize(data);
+            int result = DmqInterop_Send(remoteId, bytes, (uint)bytes.Length);
+            if (result != 0)
+                throw new Exception($"Failed to send message via DmqInterop DLL (Error: {result})");
+        }
+
+        private void OnMessageReceived(ushort remoteId, IntPtr data, uint len)
+        {
+            if (_callbacks.TryGetValue(remoteId, out var callback))
             {
-                try
-                {
-                    byte[] data = _recvClient!.Receive(ref ep);
-                    ProcessPacket(data);
-                }
-                catch (SocketException)
-                {
-                    // Socket closed during Stop() — exit cleanly
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    if (_running)
-                        Console.Error.WriteLine($"[DmqDataBus] Recv error: {ex.Message}");
-                }
+                byte[] managedArray = new byte[len];
+                Marshal.Copy(data, managedArray, 0, (int)len);
+                callback(managedArray);
             }
         }
 
-        private void ProcessPacket(byte[] data)
+        private void OnErrorReceived(string msg)
         {
-            if (data.Length < HeaderSize)
-                return;
-
-            ushort marker   = ReadUInt16BE(data, 0);
-            ushort remoteId = ReadUInt16BE(data, 2);
-            ushort seq      = ReadUInt16BE(data, 4);
-            ushort length   = ReadUInt16BE(data, 6);
-
-            if (marker != DmqMarker)
-            {
-                Console.Error.WriteLine($"[DmqDataBus] Invalid marker: 0x{marker:X4} — packet discarded");
-                return;
-            }
-
-            // Incoming ACK for a message we sent — no action needed in this client
-            if (remoteId == AckId)
-                return;
-
-            byte[] payload = new byte[length];
-            if (length > 0 && data.Length >= HeaderSize + length)
-                Array.Copy(data, HeaderSize, payload, 0, length);
-
-            // Send ACK back before invoking the callback
-            SendAck(seq);
-
-            if (_callbacks.TryGetValue(remoteId, out var cb))
-            {
-                try
-                {
-                    cb(remoteId, payload);
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine(
-                        $"[DmqDataBus] Callback error for id={remoteId}: {ex.Message}");
-                }
-            }
+            _onError?.Invoke(msg);
         }
 
-        private void SendAck(ushort seq)
+        /// <summary>
+        /// Disposes the transport resources. 
+        /// User must call this to ensure native threads are joined safely.
+        /// </summary>
+        public void Dispose()
         {
-            if (_sendClient == null)
-                return;
-            byte[] ack = BuildPacket(AckId, seq, Array.Empty<byte>());
-            try { _sendClient.Send(ack, ack.Length, _sendEndPoint); }
-            catch { /* ignore */ }
-        }
-
-        // ------------------------------------------------------------------
-        // Packet builder and Big-Endian helpers (Network Byte Order)
-        // ------------------------------------------------------------------
-
-        private static byte[] BuildPacket(ushort id, ushort seq, byte[] payload)
-        {
-            byte[] packet = new byte[HeaderSize + payload.Length];
-            WriteUInt16BE(packet, 0, DmqMarker);
-            WriteUInt16BE(packet, 2, id);
-            WriteUInt16BE(packet, 4, seq);
-            WriteUInt16BE(packet, 6, (ushort)payload.Length);
-            if (payload.Length > 0)
-                Array.Copy(payload, 0, packet, HeaderSize, payload.Length);
-            return packet;
-        }
-
-        private static ushort ReadUInt16BE(byte[] buf, int offset) =>
-            (ushort)((buf[offset] << 8) | buf[offset + 1]);
-
-        private static void WriteUInt16BE(byte[] buf, int offset, ushort value)
-        {
-            buf[offset]     = (byte)(value >> 8);
-            buf[offset + 1] = (byte)(value & 0xFF);
+            Stop();
         }
     }
 }

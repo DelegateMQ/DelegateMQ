@@ -1,231 +1,98 @@
 """
-dmq_databus.py — DataBus participant client for DelegateMQ interop over UDP.
+dmq_databus.py — Python library for DelegateMQ cross-language interop.
 
-Wire protocol (DmqHeader, 8 bytes, Big Endian / Network Byte Order):
+This module provides a high-level Python interface for communicating with C++ 
+DelegateMQ applications. It uses a "Shared Native Core" architecture, wrapping 
+the native DmqInterop DLL/SO via ctypes.
 
-    Offset  Size  Field
-    0       2     Marker   (always 0xAA55)
-    2       2     ID       (DelegateRemoteId)
-    4       2     SeqNum   (sequence number, wraps at 65536)
-    6       2     Length   (payload length in bytes)
+Key Features:
+- Native Performance: Network handling and reliability logic run on a native thread.
+- Thread Safety: Callbacks are invoked on a native background thread.
+- Consistency: Shares the same wire-protocol and reliability layer as the C++ core.
 
-The header is immediately followed by Length bytes of serialized payload
-(MessagePack by convention; see serializer.py).
+Requirements:
+- DmqInterop.dll (Windows) or libDmqInterop.so (Linux) must be built and accessible.
+- pip install msgpack
 
-ACK packet: header only (Length=0), ID=0, SeqNum echoes the received SeqNum.
-Sent automatically by the receiver after every non-ACK message.
-
-See ../README.md for the full protocol specification.
+Architecture Details: docs/INTEROP.md
 """
 
-import select
-import socket
-import struct
-import threading
-from typing import Callable, Dict, Optional
-
-DMQ_MARKER  = 0xAA55
-ACK_ID      = 0
-HEADER_FMT  = "!HHHH"                        # Big-endian: marker, id, seq, length
-HEADER_SIZE = struct.calcsize(HEADER_FMT)    # 8 bytes
-
+import ctypes
+import os
+import sys
+import msgpack
 
 class DmqDataBus:
     """
-    Generic UDP client for DelegateMQ DataBus.
-
-    Manages two UDP sockets:
-      recv_socket — bound to local recv_port, receives incoming messages.
-      send_socket — sends outgoing messages and ACKs to remote send_port.
-
-    Registered callbacks are invoked on the background polling thread with
-    signature: callback(remote_id: int, payload: bytes).
-
-    Usage:
-        client = DmqDataBus("127.0.0.1", recv_port=8000, send_port=8001)
-        client.register_callback(100, my_handler)
-        client.start()
-        client.send(101, payload_bytes)
-        ...
-        client.stop()
-
-    Alternatively, call process_incoming() in your own loop instead of
-    start()/stop() for explicit polling control.
+    Python wrapper for the native DmqInterop DLL.
     """
+    def __init__(self, dll_path=None):
+        if dll_path is None:
+            # Default to looking in the same directory as the script
+            dll_name = "DmqInterop.dll" if sys.platform == "win32" else "libDmqInterop.so"
+            dll_path = os.path.join(os.path.dirname(__file__), dll_name)
+        
+        if not os.path.exists(dll_path):
+            raise FileNotFoundError(f"Could not find native library at {dll_path}")
 
-    def __init__(
-        self,
-        remote_host: str,
-        recv_port: int,
-        send_port: int,
-        recv_timeout: float = 0.1,
-    ):
-        """
-        Args:
-            remote_host:   IP address of the C++ DataBus server.
-            recv_port:     Local port to bind for incoming messages (C++ PUB port).
-            send_port:     Remote port to send messages and ACKs (C++ SUB port).
-            recv_timeout:  select() timeout in seconds — controls polling latency.
-        """
-        self._remote_host  = remote_host
-        self._recv_port    = recv_port
-        self._send_port    = send_port
-        self._recv_timeout = recv_timeout
+        self._dll = ctypes.CDLL(dll_path)
+        
+        # Define C-API signatures
+        self._dll.DmqInterop_Start.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+        self._dll.DmqInterop_Start.restype = ctypes.c_int
+        
+        self._CALLBACK_TYPE = ctypes.WINFUNCTYPE(None, ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32) if sys.platform == "win32" else \
+                             ctypes.CFUNCTYPE(None, ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32)
+        
+        self._dll.DmqInterop_RegisterCallback.argtypes = [ctypes.c_uint16, self._CALLBACK_TYPE]
+        self._dll.DmqInterop_RegisterCallback.restype = None
+        
+        self._ERROR_CALLBACK_TYPE = ctypes.WINFUNCTYPE(None, ctypes.c_char_p) if sys.platform == "win32" else \
+                                   ctypes.CFUNCTYPE(None, ctypes.c_char_p)
+        
+        self._dll.DmqInterop_RegisterErrorCallback.argtypes = [self._ERROR_CALLBACK_TYPE]
+        self._dll.DmqInterop_RegisterErrorCallback.restype = None
 
-        self._recv_socket: Optional[socket.socket] = None
-        self._send_socket: Optional[socket.socket] = None
+        self._dll.DmqInterop_Send.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32]
+        self._dll.DmqInterop_Send.restype = ctypes.c_int
+        
+        self._dll.DmqInterop_Stop.argtypes = []
+        self._dll.DmqInterop_Stop.restype = None
 
-        self._seq_num  = 0
-        self._seq_lock = threading.Lock()
+        self._callbacks = {}
+        # Keep references to the wrapper functions to prevent GC
+        self._native_callbacks = {}
+        self._native_error_callback = None
 
-        self._callbacks: Dict[int, Callable[[int, bytes], None]] = {}
+    def start(self, remote_host, recv_port, send_port):
+        res = self._dll.DmqInterop_Start(remote_host.encode('utf-8'), recv_port, send_port)
+        if res != 0:
+            raise RuntimeError(f"DmqInterop_Start failed with error {res}")
 
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
+    def register_error_callback(self, callback):
+        def wrapper(msg):
+            callback(msg.decode('utf-8'))
+        
+        native_cb = self._ERROR_CALLBACK_TYPE(wrapper)
+        self._native_error_callback = native_cb
+        self._dll.DmqInterop_RegisterErrorCallback(native_cb)
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
+    def register_callback(self, remote_id, callback):
+        def wrapper(rid, data_ptr, length):
+            # Convert raw pointer to bytes
+            data = ctypes.string_at(data_ptr, length)
+            callback(data)
 
-    def start(self):
-        """Open sockets and start the background receive thread."""
-        self._recv_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._recv_socket.bind(("", self._recv_port))
+        native_cb = self._CALLBACK_TYPE(wrapper)
+        self._native_callbacks[remote_id] = native_cb
+        self._dll.DmqInterop_RegisterCallback(remote_id, native_cb)
 
-        self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-        self._running = True
-        self._thread  = threading.Thread(target=self._recv_loop, daemon=True,
-                                          name="DmqRecv")
-        self._thread.start()
+    def send(self, remote_id, obj):
+        payload = msgpack.packb(obj)
+        ptr = (ctypes.c_uint8 * len(payload))(*payload)
+        res = self._dll.DmqInterop_Send(remote_id, ptr, len(payload))
+        if res != 0:
+            raise RuntimeError(f"DmqInterop_Send failed with error {res}")
 
     def stop(self):
-        """Stop the receive thread and close sockets."""
-        self._running = False
-
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
-
-        if self._recv_socket:
-            self._recv_socket.close()
-            self._recv_socket = None
-
-        if self._send_socket:
-            self._send_socket.close()
-            self._send_socket = None
-
-    # ------------------------------------------------------------------
-    # Registration
-    # ------------------------------------------------------------------
-
-    def register_callback(self, remote_id: int,
-                          callback: Callable[[int, bytes], None]):
-        """
-        Register a callback for an incoming remote ID.
-
-        Args:
-            remote_id: DelegateRemoteId value declared in C++ SystemIds.h.
-            callback:  Called as callback(remote_id, payload_bytes) on the
-                       receive thread whenever a matching message arrives.
-        """
-        self._callbacks[remote_id] = callback
-
-    # ------------------------------------------------------------------
-    # Send
-    # ------------------------------------------------------------------
-
-    def send(self, remote_id: int, payload: bytes):
-        """
-        Send a serialized message to the remote DataBus server.
-
-        Args:
-            remote_id: DelegateRemoteId matching the C++ subscriber.
-            payload:   Serialized bytes (use serializer.pack() for MessagePack).
-        """
-        if not self._send_socket:
-            return
-
-        with self._seq_lock:
-            seq = self._seq_num
-            self._seq_num = (self._seq_num + 1) % 65536
-
-        packet = struct.pack(HEADER_FMT, DMQ_MARKER, remote_id, seq, len(payload))
-        packet += payload
-
-        try:
-            self._send_socket.sendto(packet, (self._remote_host, self._send_port))
-        except OSError as exc:
-            print(f"[DmqDataBus] Send error: {exc}")
-
-    # ------------------------------------------------------------------
-    # Manual poll (alternative to start/stop)
-    # ------------------------------------------------------------------
-
-    def process_incoming(self) -> bool:
-        """
-        Poll once for an incoming packet. Non-blocking (uses select with timeout).
-
-        Returns:
-            True if a packet was received and dispatched, False otherwise.
-
-        Use this in your own event loop instead of start()/stop() when you
-        need explicit control over the polling thread.
-        """
-        return self._recv_once()
-
-    # ------------------------------------------------------------------
-    # Internal receive loop
-    # ------------------------------------------------------------------
-
-    def _recv_loop(self):
-        while self._running:
-            self._recv_once()
-
-    def _recv_once(self) -> bool:
-        if not self._recv_socket:
-            return False
-
-        ready, _, _ = select.select([self._recv_socket], [], [], self._recv_timeout)
-        if not ready:
-            return False
-
-        try:
-            data, _ = self._recv_socket.recvfrom(65536)
-        except OSError:
-            return False
-
-        if len(data) < HEADER_SIZE:
-            return False
-
-        marker, remote_id, seq, length = struct.unpack(HEADER_FMT, data[:HEADER_SIZE])
-
-        if marker != DMQ_MARKER:
-            print(f"[DmqDataBus] Invalid marker: 0x{marker:04X} — packet discarded")
-            return False
-
-        # Incoming ACK for a message we sent — no action needed in this client
-        if remote_id == ACK_ID:
-            return True
-
-        payload = data[HEADER_SIZE:HEADER_SIZE + length]
-
-        # Send ACK back to the server before invoking the callback
-        self._send_ack(seq)
-
-        cb = self._callbacks.get(remote_id)
-        if cb:
-            try:
-                cb(remote_id, payload)
-            except Exception as exc:
-                print(f"[DmqDataBus] Callback error for id={remote_id}: {exc}")
-
-        return True
-
-    def _send_ack(self, seq: int):
-        if not self._send_socket:
-            return
-        ack = struct.pack(HEADER_FMT, DMQ_MARKER, ACK_ID, seq, 0)
-        try:
-            self._send_socket.sendto(ack, (self._remote_host, self._send_port))
-        except OSError:
-            pass
+        self._dll.DmqInterop_Stop()
