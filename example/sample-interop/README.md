@@ -25,7 +25,10 @@ For architecture details and synchronization strategies, see:
     cd example/sample-interop/cpp-server
     cmake -B build .
     cmake --build build --config Release
+    # Windows:
     .\build\Release\InteropServer.exe
+    # Linux:
+    ./build/InteropServer
     ```
 
 3.  **Start the C# Client**:

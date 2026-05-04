@@ -8,12 +8,19 @@
 /// from C# and Python clients using the DelegateMQ DataBus.
 
 #include "extras/databus/DataBus.h"
-#include "port/transport/win32-udp/Win32UdpTransport.h"
 #include "port/serialize/msgpack/Serializer.h"
 #include "extras/util/NetworkConnect.h"
 #include <iostream>
 #include <thread>
 #include <chrono>
+
+#ifdef _WIN32
+#include "port/transport/win32-udp/Win32UdpTransport.h"
+using TransportType = dmq::transport::Win32UdpTransport;
+#else
+#include "port/transport/linux-udp/LinuxUdpTransport.h"
+using TransportType = dmq::transport::LinuxUdpTransport;
+#endif
 
 using namespace dmq::databus;
 using namespace dmq::transport;
@@ -41,11 +48,11 @@ int main() {
     std::cout << "Starting C++ Interop Server..." << std::endl;
 
     // 3. Setup Transport (PUB on 8000, SUB on 8001)
-    auto pubTransport = std::make_unique<Win32UdpTransport>();
-    auto subTransport = std::make_unique<Win32UdpTransport>();
+    auto pubTransport = std::make_unique<TransportType>();
+    auto subTransport = std::make_unique<TransportType>();
 
-    if (pubTransport->Create(Win32UdpTransport::Type::PUB, "127.0.0.1", 8000) != 0 ||
-        subTransport->Create(Win32UdpTransport::Type::SUB, "", 8001) != 0) {
+    if (pubTransport->Create(TransportType::Type::PUB, "127.0.0.1", 8000) != 0 ||
+        subTransport->Create(TransportType::Type::SUB, "", 8001) != 0) {
         std::cerr << "Failed to create transports" << std::endl;
         return -1;
     }
