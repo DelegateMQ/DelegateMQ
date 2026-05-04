@@ -38,9 +38,11 @@ def find_dll():
         ]
     else:
         # Check standard Linux build location
+        # Shared libraries (.so) usually go to ARCHIVE/LIBRARY_OUTPUT_DIRECTORY (lib)
+        lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../interop/native/build/lib"))
         paths = [
-            os.path.join(base_dir, "libDmqInterop.so"),
-            os.path.join(base_dir, "Debug/libDmqInterop.so") # In case it's in a subfolder
+            os.path.join(lib_dir, "libDmqInterop.so"),
+            os.path.join(lib_dir, "Debug/libDmqInterop.so")
         ]
 
     for p in paths:
