@@ -16,13 +16,12 @@
 #ifndef NODE_BRIDGE_H
 #define NODE_BRIDGE_H
 
-#include "extras/databus/DataBus.h"
+#include "DelegateMQ.h"
 #include "NodeInfoPacket.h"
 #include "../src/UdpSocket.h"
 #include <string>
-#include <thread>
+#include <memory>
 #include <atomic>
-#include <mutex>
 #include <set>
 #include <chrono>
 
@@ -54,13 +53,12 @@ private:
 
     enum class TransportType { UNICAST, MULTICAST };
 
-    static void Worker();
     static void InitTelemetry(const std::string& address, uint16_t port, bool isMulticast, const std::string& localInterface = "");
+    static void SendHeartbeat();
 
     struct Instance {
-        std::thread thread;
-        std::atomic<bool> running{false};
-
+        std::unique_ptr<dmq::os::Thread> thread;
+        
         std::string nodeId;
         std::string hostname;
         std::string ipAddress;
@@ -69,11 +67,13 @@ private:
         uint16_t port = 0;
         TransportType type = TransportType::UNICAST;
 
-        std::mutex mutex;
         std::atomic<uint32_t> totalMsgCount{0};
         std::set<std::string> topics;
+
         dmq::ScopedConnection monitorConn;
         dmq::ScopedConnection threadStatsConn;
+        dmq::ScopedConnection timerConn;
+        dmq::util::Timer heartbeatTimer;
         UdpSocket telemetrySocket;
         bool isMulticast = false;
 

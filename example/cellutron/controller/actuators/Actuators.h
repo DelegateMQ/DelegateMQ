@@ -25,11 +25,11 @@ public:
     void Initialize();
     void Shutdown();
 
-    /// Set a valve state (Synchronous Blocking call)
-    int SetValve(int id, bool open);
+    /// Set a valve state (Asynchronous non-blocking call)
+    void SetValve(int id, bool open);
 
-    /// Set a pump speed (Synchronous Blocking call)
-    int SetPump(int id, int speed);
+    /// Set a pump speed (Asynchronous non-blocking call)
+    void SetPump(int id, int speed);
 
     /// Get the centrifuge actuator.
     Centrifuge& GetCentrifuge() { return m_centrifuge; }
@@ -50,14 +50,14 @@ private:
     Actuators(const Actuators&) = delete;
     Actuators& operator=(const Actuators&) = delete;
 
-    int InternalSetValve(int id, bool open);
-    int InternalSetPump(int id, int speed);
+    void InternalSetValve(int id, bool open);
+    void InternalSetPump(int id, int speed);
 
     void HandleValveChanged(int id, bool open);
     void HandlePumpChanged(int id, int speed);
 
     // Use standardized thread name for Active Object subsystem
-    dmq::os::Thread m_thread{"ActuatorsThread", 50, dmq::os::FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
+    dmq::os::Thread m_thread{"ActuatorsThread", 50, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
     Centrifuge m_centrifuge;
 
     std::map<int, Valve> m_valves;

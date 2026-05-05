@@ -50,48 +50,46 @@ void Actuators::Initialize() {
 
 void Actuators::HandleValveChanged(int id, bool open) {
     OnValveChanged(id, open);
+    //(void)dmq::MakeDelegate(&OnValveChanged, &dmq::Signal<void(int id, bool open)>::operator(), m_thread).AsyncInvoke(id, open);
 }
 
 void Actuators::HandlePumpChanged(int id, int speed) {
     OnPumpChanged(id, speed);
+    //(void)dmq::MakeDelegate(&OnPumpChanged, &dmq::Signal<void(int id, int speed)>::operator(), m_thread).AsyncInvoke(id, speed);
 }
 
 void Actuators::Shutdown() {
     m_thread.ExitThread();
 }
 
-int Actuators::SetValve(int id, bool open) {
-    auto result = dmq::MakeDelegate(this, &Actuators::InternalSetValve, m_thread, SYNC_INVOKE_TIMEOUT).AsyncInvoke(id, open);
-    return result.has_value() ? result.value() : -1;
+void Actuators::SetValve(int id, bool open) {
+    dmq::MakeDelegate(this, &Actuators::InternalSetValve, m_thread).AsyncInvoke(id, open);
 }
 
-int Actuators::SetPump(int id, int speed) {
-    auto result = dmq::MakeDelegate(this, &Actuators::InternalSetPump, m_thread, SYNC_INVOKE_TIMEOUT).AsyncInvoke(id, speed);
-    return result.has_value() ? result.value() : -1;
+void Actuators::SetPump(int id, int speed) {
+    dmq::MakeDelegate(this, &Actuators::InternalSetPump, m_thread).AsyncInvoke(id, speed);
 }
 
-int Actuators::InternalSetValve(int id, bool open) {
+void Actuators::InternalSetValve(int id, bool open) {
     try {
         m_valves.at(id).SetState(open);
     } catch (const std::out_of_range&) {
         printf("Actuators: ERROR - Valve ID %d not found!\n", id);
-        return -1;
+        return;
     }
     
     Thread::Sleep(std::chrono::milliseconds(100));
-    return 0; 
 }
 
-int Actuators::InternalSetPump(int id, int speed) {
+void Actuators::InternalSetPump(int id, int speed) {
     try {
         m_pumps.at(id).SetSpeed(speed);
     } catch (const std::out_of_range&) {
         printf("Actuators: ERROR - Pump ID %d not found!\n", id);
-        return -1;
+        return;
     }
     
     Thread::Sleep(std::chrono::milliseconds(100));
-    return 0;
 }
 
 } // namespace actuators

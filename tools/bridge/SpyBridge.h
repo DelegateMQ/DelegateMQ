@@ -5,14 +5,10 @@
 #ifndef SPY_BRIDGE_H
 #define SPY_BRIDGE_H
 
-#include "extras/databus/DataBus.h"
-#include "extras/databus/SpyPacket.h"
+#include "DelegateMQ.h"
+#include "../src/UdpSocket.h"
 #include <string>
-#include <thread>
-#include <atomic>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
+#include <memory>
 
 class SpyBridge {
 public:
@@ -36,19 +32,15 @@ private:
 
     enum class TransportType { UNICAST, MULTICAST };
 
-    static void Worker();
     static void Init(const std::string& address, uint16_t port, TransportType type, const std::string& localInterface = "");
 
     struct Instance {
-        std::thread thread;
-        std::atomic<bool> running{false};
-        std::queue<dmq::databus::SpyPacket> queue;
-        std::mutex mutex;
-        std::condition_variable cv;
+        std::unique_ptr<dmq::os::Thread> thread;
         dmq::ScopedConnection monitorConn;
+        UdpSocket telemetrySocket;
         std::string address;
         std::string localInterface;
-        uint16_t port;
+        uint16_t port = 0;
         TransportType type = TransportType::UNICAST;
     };
 

@@ -81,7 +81,7 @@ public:
         // Connect onMissed to the timer expiry signal, dispatching to thread if provided
         if (thread) {
             m_timerConn = m_timer.OnExpired.Connect(
-                dmq::MakeDelegate(std::move(onMissed), *thread));
+                dmq::util::MakeTimerDelegate(std::move(onMissed), *thread));
         } else {
             m_timerConn = m_timer.OnExpired.Connect(
                 dmq::MakeDelegate(std::move(onMissed)));

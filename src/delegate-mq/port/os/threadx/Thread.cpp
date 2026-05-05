@@ -51,6 +51,19 @@ Thread::~Thread()
 {
     ExitThread();
 
+    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    Thread** pp = &GetWatchdogHead();
+    while (*pp != nullptr)
+    {
+        if (*pp == this)
+        {
+            *pp = this->m_watchdogNext;
+            this->m_watchdogNext = nullptr;
+            break;
+        }
+        pp = &((*pp)->m_watchdogNext);
+    }
+
 #if defined(DMQ_DATABUS_TOOLS)
     tx_mutex_delete(&m_statMutex);
 #endif
@@ -134,6 +147,27 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             m_watchdogTimerConn = m_watchdogTimer->OnExpired.Connect(
                 MakeDelegate(this, &Thread::WatchdogCheck));
             m_watchdogTimer->Start(m_watchdogTimeout.load() / 2);
+
+            const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+
+            // Add to watchdog registry if not already present
+            bool found = false;
+            Thread* p = GetWatchdogHead();
+            while (p != nullptr)
+            {
+                if (p == this)
+                {
+                    found = true;
+                    break;
+                }
+                p = p->m_watchdogNext;
+            }
+
+            if (!found)
+            {
+                m_watchdogNext = GetWatchdogHead();
+                GetWatchdogHead() = this;
+            }
         }
     }
     return true;
@@ -351,6 +385,40 @@ void Thread::WatchdogCheck()
 void Thread::ThreadCheck()
 {
     m_lastAliveTime.store(Timer::GetNow());
+}
+
+//----------------------------------------------------------------------------
+// WatchdogCheckAll
+//----------------------------------------------------------------------------
+void Thread::WatchdogCheckAll()
+{
+    // Note: No lock acquired here for maximum reliability. 
+    // Traversing the list while a thread is added/removed is a race, 
+    // but in a steady state (system running) this is safe.
+    Thread* p = GetWatchdogHead();
+    while (p != nullptr)
+    {
+        p->WatchdogCheck();
+        p = p->m_watchdogNext;
+    }
+}
+
+//----------------------------------------------------------------------------
+// GetWatchdogHead
+//----------------------------------------------------------------------------
+Thread*& Thread::GetWatchdogHead()
+{
+    static Thread* head = nullptr;
+    return head;
+}
+
+//----------------------------------------------------------------------------
+// GetWatchdogLock
+//----------------------------------------------------------------------------
+dmq::RecursiveMutex& Thread::GetWatchdogLock()
+{
+    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    return *lock;
 }
 
 //----------------------------------------------------------------------------

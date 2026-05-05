@@ -70,12 +70,21 @@ public:
     /// param[in] seqNum - the delegate message sequence number
     virtual void Remove(uint16_t seqNum) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
-        auto it = m_pending.find(seqNum);
-        if (it != m_pending.end())
+        bool found = false;
+        TimeoutData d;
         {
-            TimeoutData d = it->second;
-            m_pending.erase(it);
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+            auto it = m_pending.find(seqNum);
+            if (it != m_pending.end())
+            {
+                d = it->second;
+                m_pending.erase(it);
+                found = true;
+            }
+        }
+
+        if (found)
+        {
             OnSendStatus(d.remoteId, seqNum, Status::SUCCESS);
         }
     }
@@ -91,9 +100,15 @@ public:
             // Lock ONLY while reading/modifying the map
             const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
 
+            if (m_pending.empty())
+                return;
+
             auto now = dmq::Clock::now();
             auto it = m_pending.begin();
 
+            // Optimization: Since we are using a map and potentially high volume,
+            // we want to limit the time spent holding this lock if there are many items.
+            // However, we must ensure all expired items are caught.
             while (it != m_pending.end())
             {
                 // Ensure consistent duration types
@@ -106,14 +121,14 @@ public:
                 }
                 else
                 {
+                    // If items are added in chronological order, we could break here,
+                    // but map is sorted by seqNum, not time. So we must continue.
                     ++it;
                 }
             }
         } // Lock is RELEASED here
 
         // 2. Fire callbacks without holding the lock
-        // This prevents the deadlock: Process(Lock A) -> Callback -> Send -> Transport(Wait for Thread B)
-        // Meanwhile Thread B -> Send -> Add(Wait for Lock A)
         for (const auto& item : expiredItems)
         {
             OnSendStatus(item.data.remoteId, item.seq, Status::TIMEOUT);

@@ -132,6 +132,9 @@ public:
     /// alarm when a handler legitimately takes longer than watchdogTimeout.
     void ThreadCheck();
 
+    /// @brief Static method to check all registered threads for watchdog expiration.
+    static void WatchdogCheckAll();
+
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Capture and reset windowed statistics.
     ThreadStats SnapshotStats();
@@ -151,6 +154,12 @@ private:
     /// In a real-time OS, Timer::ProcessTimers() typically is called by the highest
     /// priority task in the system.
     void WatchdogCheck();
+
+    /// @brief Returns the head of the watchdog linked list.
+    static Thread*& GetWatchdogHead();
+
+    /// @brief Returns the recursive mutex for protecting the watchdog list.
+    static dmq::RecursiveMutex& GetWatchdogLock();
 
     std::optional<std::thread> m_thread;
     std::atomic<bool> m_exit;
@@ -191,6 +200,7 @@ private:
     std::unique_ptr<dmq::util::Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
+    Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Monitoring statistics members

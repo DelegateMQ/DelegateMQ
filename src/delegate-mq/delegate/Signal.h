@@ -184,15 +184,35 @@ public:
 
     /// @brief Invoke all connected delegates.
     void operator()(Args... args) {
-        // Snapshot the list under the lock; invoke outside the lock to avoid
-        // deadlocks when a callback itself connects or disconnects.
-        xlist<std::shared_ptr<DelegateType>> snapshot;
+        // Snapshot the list to invoke outside the lock.
+        // Use a small-buffer optimization to avoid heap allocation in the common case.
+        std::shared_ptr<DelegateType> small_buf[SIGNAL_SBO_COUNT];
+        xlist<std::shared_ptr<DelegateType>> large_buf;
+        size_t count = 0;
+
         {
             dmq::LockGuard<RecursiveMutex> lock(m_state->mtx);
-            snapshot = m_state->delegates;
+            count = m_state->delegates.size();
+            if (count <= SIGNAL_SBO_COUNT) {
+                size_t i = 0;
+                for (auto& d : m_state->delegates) {
+                    small_buf[i++] = d;
+                }
+            } else {
+                large_buf = m_state->delegates;
+            }
         }
-        for (auto& d : snapshot)
-            (*d)(args...);
+
+        if (count <= SIGNAL_SBO_COUNT) {
+            for (size_t i = 0; i < count; ++i) {
+                (*small_buf[i])(args...);
+                small_buf[i].reset(); // Clear to release shared_ptr immediately
+            }
+        } else {
+            for (auto& d : large_buf) {
+                (*d)(args...);
+            }
+        }
     }
 
     /// @brief Number of currently connected subscribers.

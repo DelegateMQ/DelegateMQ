@@ -131,6 +131,15 @@ public:
     /// arguments.
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
+    /// @brief Manually update the watchdog alive timestamp.
+    /// @details The Run() loop refreshes the timestamp automatically on every iteration.
+    /// Call this from inside long-running message handlers to prevent a false watchdog
+    /// alarm when a handler legitimately takes longer than watchdogTimeout.
+    void ThreadCheck();
+
+    /// @brief Static method to check all registered threads for watchdog expiration.
+    static void WatchdogCheckAll();
+
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Capture and reset windowed statistics.
     ThreadStats SnapshotStats();
@@ -151,6 +160,12 @@ private:
     /// In a real-time OS, dmq::util::Timer::ProcessTimers() typically is called by the highest
     /// priority task in the system.
     void WatchdogCheck();
+
+    /// Get registry head using the "Immortal" Pattern
+    static Thread*& GetWatchdogHead();
+
+    /// Get registry lock using the "Immortal" Pattern
+    static dmq::RecursiveMutex& GetWatchdogLock();
 
     /// @brief Manually update the watchdog alive timestamp.
     /// @details The Run() loop refreshes the timestamp automatically on every iteration.

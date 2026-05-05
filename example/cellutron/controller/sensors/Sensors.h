@@ -17,11 +17,11 @@ public:
     void Initialize();
     void Shutdown();
 
-    /// Get current pressure (Blocking call)
-    int GetPressure();
+    /// Request current pressure (Non-blocking)
+    void GetPressure();
 
-    /// Check if air is detected in the line (Blocking call)
-    bool IsAirInLine();
+    /// Request air detection status (Non-blocking)
+    void IsAirInLine();
 
 private:
     Sensors() = default;
@@ -30,10 +30,10 @@ private:
     Sensors(const Sensors&) = delete;
     Sensors& operator=(const Sensors&) = delete;
 
-    int InternalGetPressure();
-    bool InternalIsAirInLine();
+    void InternalGetPressure();
+    void InternalIsAirInLine();
 
-    dmq::os::Thread m_thread{"SensorsThread", 50, dmq::os::FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
+    dmq::os::Thread m_thread{"SensorsThread", 50, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
 };
 
 } // namespace sensors

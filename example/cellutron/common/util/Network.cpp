@@ -125,11 +125,18 @@ void Network::ReceiverThread() {
         }
     }
 
-    // Periodically process reliable transport monitors for timeouts/retries
-    for (auto& [name, node] : m_remoteNodes) {
-        if (node.transportMonitor) {
-            node.transportMonitor->Process();
+    // Periodically process reliable transport monitors for timeouts/retries.
+    // We throttle this to once every ~500ms to reduce CPU load and lock contention
+    // on the NetworkThread.
+    static auto lastTimeoutCheck = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    if (now - lastTimeoutCheck >= std::chrono::milliseconds(500)) {
+        for (auto& [name, node] : m_remoteNodes) {
+            if (node.transportMonitor) {
+                node.transportMonitor->Process();
+            }
         }
+        lastTimeoutCheck = now;
     }
 
     // Yield and re-dispatch self to the standardized worker thread. 

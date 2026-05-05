@@ -62,11 +62,11 @@ public:
 #endif
 
     /// Default queue size if 0 is passed
-    static const size_t DEFAULT_QUEUE_SIZE = 20;
+    static const size_t DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
 
     /// Constructor
     /// @param threadName Name for the Zephyr thread
-    /// @param maxQueueSize Max number of messages in queue (0 = Default 20)
+    /// @param maxQueueSize Max number of messages in queue (0 = Default dmq::DEFAULT_QUEUE_SIZE)
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
@@ -103,6 +103,15 @@ public:
 
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
+    /// @brief Manually update the watchdog alive timestamp.
+    /// @details The Run() loop refreshes the timestamp automatically on every iteration.
+    /// Call this from inside long-running message handlers to prevent a false watchdog
+    /// alarm when a handler legitimately takes longer than watchdogTimeout.
+    void ThreadCheck();
+
+    /// @brief Static method to check all registered threads for watchdog expiration.
+    static void WatchdogCheckAll();
+
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Capture and reset windowed statistics.
     ThreadStats SnapshotStats();
@@ -119,11 +128,11 @@ private:
     /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
     void WatchdogCheck();
 
-    /// @brief Manually update the watchdog alive timestamp.
-    /// @details The Run() loop refreshes the timestamp automatically on every iteration.
-    /// Call this from inside long-running message handlers to prevent a false watchdog
-    /// alarm when a handler legitimately takes longer than watchdogTimeout.
-    void ThreadCheck();
+    /// Get registry head using the "Immortal" Pattern
+    static Thread*& GetWatchdogHead();
+
+    /// Get registry lock using the "Immortal" Pattern
+    static dmq::RecursiveMutex& GetWatchdogLock();
 
     const std::string THREAD_NAME;
     const std::string CPU_NAME;
@@ -159,6 +168,7 @@ private:
     std::unique_ptr<dmq::util::Timer> m_watchdogTimer;
     dmq::ScopedConnection m_watchdogTimerConn;
     std::atomic<dmq::Duration> m_watchdogTimeout;
+    Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
     struct k_mutex m_statMutex; // Mutex to protect statistics
@@ -170,6 +180,14 @@ private:
     uint32_t m_latencyCountWindow = 0;
     dmq::Duration m_latencyMaxWindow = dmq::Duration(0);
     dmq::Duration m_latencyMaxAll = dmq::Duration(0);
+    uint64_t m_dispatchCountAll = 0;
+#endif
+};
+
+} // namespace dmq::os
+
+#endif // _THREAD_ZEPHYR_H
+ m_latencyMaxAll = dmq::Duration(0);
     uint64_t m_dispatchCountAll = 0;
 #endif
 };

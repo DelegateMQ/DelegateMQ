@@ -36,6 +36,20 @@ Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fu
 Thread::~Thread()
 {
     ExitThread();
+
+    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    Thread** pp = &GetWatchdogHead();
+    while (*pp != nullptr)
+    {
+        if (*pp == this)
+        {
+            *pp = this->m_watchdogNext;
+            this->m_watchdogNext = nullptr;
+            break;
+        }
+        pp = &((*pp)->m_watchdogNext);
+    }
+
     DeleteCriticalSection(&m_cs);
 }
 
@@ -75,6 +89,13 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             m_watchdogTimer = std::unique_ptr<Timer>(new Timer());
             m_watchdogTimerConn = m_watchdogTimer->OnExpired.Connect(MakeDelegate(this, &Thread::WatchdogCheck));
             m_watchdogTimer->Start(m_watchdogTimeout.load() / 2);
+
+            // Add this thread to the watchdog list
+            {
+                dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+                m_watchdogNext = GetWatchdogHead();
+                GetWatchdogHead() = this;
+            }
         }
     }
     return true;
@@ -338,6 +359,22 @@ void Thread::Sleep(dmq::Duration timeout) {
 }
 
 //----------------------------------------------------------------------------
+// WatchdogCheckAll
+//----------------------------------------------------------------------------
+void Thread::WatchdogCheckAll()
+{
+    // Note: No lock acquired here for maximum reliability. 
+    // Traversing the list while a thread is added/removed is a race, 
+    // but in a steady state (system running) this is safe.
+    Thread* p = GetWatchdogHead();
+    while (p != nullptr)
+    {
+        p->WatchdogCheck();
+        p = p->m_watchdogNext;
+    }
+}
+
+//----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
 void Thread::WatchdogCheck()
@@ -360,6 +397,24 @@ void Thread::WatchdogCheck()
 void Thread::ThreadCheck()
 {
     m_lastAliveTime.store(Timer::GetNow());
+}
+
+//----------------------------------------------------------------------------
+// GetWatchdogHead
+//----------------------------------------------------------------------------
+Thread*& Thread::GetWatchdogHead()
+{
+    static Thread* head = nullptr;
+    return head;
+}
+
+//----------------------------------------------------------------------------
+// GetWatchdogLock
+//----------------------------------------------------------------------------
+dmq::RecursiveMutex& Thread::GetWatchdogLock()
+{
+    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    return *lock;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

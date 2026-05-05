@@ -93,17 +93,15 @@ private:
     Timer& operator=(const Timer&);
 
     /// Called to check for expired timers and callback registered clients.
-    void CheckExpired();
+    bool CheckExpired();
 
-    typedef xlist<Timer*>::iterator TimersIterator;
-
-    /// Get list using the "Immortal" Pattern
-    static xlist<Timer*>& GetTimers()
+    /// Get list head using the "Immortal" Pattern
+    static Timer*& GetTimersHead()
     {
-        // Allocate on heap and NEVER delete. Prevents lock from being destroyed 
+        // Static head pointer. NEVER delete. Prevents lock from being destroyed 
         // before the last Timer destructor runs at app shutdown.
-        static xlist<Timer*>* instance = new xlist<Timer*>();
-        return *instance;
+        static Timer* head = nullptr;
+        return head;
     }
 
     /// Get lock using the "Immortal" Pattern
@@ -119,6 +117,7 @@ private:
     dmq::TimePoint m_expireTime;
     bool m_enabled = false;
     bool m_once = false;
+    Timer* m_next = nullptr;
     static bool m_timerStopped;
 };
 

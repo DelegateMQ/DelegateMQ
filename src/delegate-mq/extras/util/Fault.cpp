@@ -56,5 +56,6 @@ extern "C" void WatchdogHandler(const char* threadName)
     std::cout << "\n************************************************" << std::endl;
     std::cout << "WATCHDOG EXPIRED: " << threadName << std::endl;
     std::cout << "************************************************\n" << std::endl;
+    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
 #endif
 }

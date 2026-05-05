@@ -29,26 +29,22 @@ void Sensors::Shutdown() {
     m_thread.ExitThread();
 }
 
-int Sensors::GetPressure() {
-    auto result = dmq::MakeDelegate(this, &Sensors::InternalGetPressure, m_thread, SYNC_INVOKE_TIMEOUT).AsyncInvoke();
-    return result.has_value() ? result.value() : -1; // Return -1 on failure
+void Sensors::GetPressure() {
+    dmq::MakeDelegate(this, &Sensors::InternalGetPressure, m_thread).AsyncInvoke();
 }
 
-bool Sensors::IsAirInLine() {
-    auto result = dmq::MakeDelegate(this, &Sensors::InternalIsAirInLine, m_thread, SYNC_INVOKE_TIMEOUT).AsyncInvoke();
-    return result.has_value() ? result.value() : true; // Fail safe: assume air if call fails
+void Sensors::IsAirInLine() {
+    dmq::MakeDelegate(this, &Sensors::InternalIsAirInLine, m_thread).AsyncInvoke();
 }
 
-int Sensors::InternalGetPressure() {
+void Sensors::InternalGetPressure() {
     int pressure = 0;
     dmq::databus::DataBus::Publish<SensorStatusMsg>(topics::STATUS_SENSOR, { SensorType::PRESSURE, (int16_t)pressure });
-    return pressure; 
 }
 
-bool Sensors::InternalIsAirInLine() {
+void Sensors::InternalIsAirInLine() {
     bool air = false;
     dmq::databus::DataBus::Publish<SensorStatusMsg>(topics::STATUS_SENSOR, { SensorType::AIR_IN_LINE, (int16_t)(air ? 1 : 0) });
-    return air;
 }
 
 } // namespace sensors

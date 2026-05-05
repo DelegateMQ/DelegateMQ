@@ -1,4 +1,5 @@
 #include "NetworkEngine.h"
+#include "extras/util/TimerDelegate.h"
 
 // Only compile implementation if a compatible transport is selected
 #if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_WIN32_UDP) || defined(DMQ_TRANSPORT_LINUX_UDP) || defined(DMQ_TRANSPORT_STM32_UART) || defined(DMQ_TRANSPORT_SERIAL_PORT)
@@ -197,7 +198,7 @@ void NetworkEngine::Start()
         dmq::MakeDelegate(this, &NetworkEngine::RecvThread, m_recvThread).AsyncInvoke();
     }
 
-    m_timeoutTimerConn = m_timeoutTimer.OnExpired.Connect(dmq::MakeDelegate(this, &NetworkEngine::Timeout, m_thread));
+    m_timeoutTimerConn = m_timeoutTimer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &NetworkEngine::Timeout, m_thread));
     m_timeoutTimer.Start(std::chrono::milliseconds(100));
 }
 

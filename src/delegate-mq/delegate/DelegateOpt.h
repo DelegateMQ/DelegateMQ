@@ -143,6 +143,21 @@ namespace dmq
     /// Override per-thread at construction or project-wide before including this header.
     inline constexpr std::chrono::seconds DEFAULT_DISPATCH_TIMEOUT{2};
 
+    // --- RESOURCE LIMITS & SBO CONFIGURATION ---
+    
+    /// @brief Max timers processed in one tick without heap allocation.
+    inline constexpr size_t MAX_TIMER_EXPIRED = 16;
+
+    /// @brief Signal Small-Buffer Optimization (SBO) count. 
+    /// Signals with <= this many subscribers are invoked heap-free.
+    inline constexpr size_t SIGNAL_SBO_COUNT = 8;
+
+    /// @brief Default internal queue size for all dmq::os::Thread ports.
+    inline constexpr size_t DEFAULT_QUEUE_SIZE = 20;
+
+    /// @brief Max number of threads that can be monitored by the watchdog.
+    inline constexpr size_t MAX_WATCHDOG_THREADS = 16;
+
     // --- MUTEX / LOCK SELECTION ---
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
     // Windows / Linux / macOS / Qt
