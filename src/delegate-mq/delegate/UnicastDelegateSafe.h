@@ -50,15 +50,24 @@ public:
     /// @param[in] args The arguments used when invoking the target function
     /// @return The target function return value. 
     RetType operator()(Args... args) {
-        const dmq::LockGuard<RecursiveMutex> lock(m_lock);
-        return BaseType::operator ()(args...);
+        std::shared_ptr<DelegateType> delegate;
+        {
+            // Lock only to fetch the delegate pointer. Release lock before 
+            // invoking the delegate to prevent circular lock dependencies 
+            // and deadlocks.
+            const dmq::LockGuard<RecursiveMutex> lock(m_lock);
+            delegate = this->m_delegate;
+        }
+
+        if (delegate)
+            return (*delegate)(args...);
+        return RetType();
     }
 
     /// Invoke the bound target functions. 
     /// @param[in] args The arguments used when invoking the target function
     void Broadcast(Args... args) {
-        const dmq::LockGuard<RecursiveMutex> lock(m_lock);
-        BaseType::Broadcast(args...);
+        operator()(args...);
     }
 
     /// Assign a delegate to the container.

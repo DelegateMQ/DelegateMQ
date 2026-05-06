@@ -128,7 +128,7 @@ public:
     /// @return `true` if the container is not empty, `false` if the container is empty.
     explicit operator bool() const { return !Empty(); }
 
-private:
+protected:
     /// Registered delegate.
     std::shared_ptr<DelegateType> m_delegate = nullptr;
 };

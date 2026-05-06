@@ -123,8 +123,11 @@ public:
             ::FaultHandler(__FILE__, (unsigned short)__LINE__);
             return {};
         }
+
         DataBus& instance = GetInstance();
-        std::lock_guard<dmq::RecursiveMutex> lock(instance.m_mutex);
+
+        // Establish connection OUTSIDE the global DataBus lock to prevent 
+        // lock inversion deadlocks. Signal::Connect() is already thread-safe.
         if (thread) {
             auto del = dmq::MakeDelegate(std::move(func), *thread);
             del.SetPriority(priority);

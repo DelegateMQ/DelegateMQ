@@ -129,22 +129,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    if not processes:
-        print("ERROR: No processes were started.")
-        sys.exit(1)
-
-    print("\nAll applications started.")
-    print("Close the console windows or terminate this script to stop.")
-
-    try:
-        # Keep the script alive while processes are running
-        while any(p.poll() is None for p in processes):
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-        for p in processes:
-            p.terminate()
-
-if __name__ == "__main__":
-    main()

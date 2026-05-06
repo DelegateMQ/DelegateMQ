@@ -233,13 +233,13 @@ private:
         int& m_cnt;
         MulticastDelegate* m_container;
     };
-
+protected:
     /// List of registered delegates
     xlist<std::shared_ptr<DelegateType>> m_delegates;
 
     /// Count of active nested broadcasts
     int m_broadcastCount = 0;
-    
+
     /// Flag for handling lazy delete
     bool m_cleanup = false;
 };
