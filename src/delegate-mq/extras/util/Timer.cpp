@@ -172,24 +172,28 @@ void Timer::ProcessTimers()
             m_timerStopped = false;
         }
 
-        // Iterate safely
+        // Identify expired timers while holding the lock.
+        // NOTE: CheckExpired() is now called AFTER releasing the lock 
+        // to prevent lock inversion deadlocks.
         Timer* t = GetTimersHead();
         while (t != nullptr)
         {
-            if (t->CheckExpired())
-            {
-                if (count < dmq::MAX_TIMER_EXPIRED)
-                    expiredTimers[count++] = t;
-            }
+            if (count < dmq::MAX_TIMER_EXPIRED)
+                expiredTimers[count++] = t;
             t = t->m_next;
         }
     }
 
-    // Call the client's expired callback functions outside the lock
+    // Call CheckExpired and the client's expired callback functions outside the lock.
+    // This allows callbacks to perform thread-safe operations (like DataBus::Publish)
+    // without risking a deadlock with the global timer lock.
     for (size_t i = 0; i < count; ++i)
     {
-        if (expiredTimers[i] != nullptr && !expiredTimers[i]->OnExpired.Empty())
-            expiredTimers[i]->OnExpired();
+        if (expiredTimers[i] != nullptr && expiredTimers[i]->CheckExpired())
+        {
+            if (!expiredTimers[i]->OnExpired.Empty())
+                expiredTimers[i]->OnExpired();
+        }
     }
 }
 
