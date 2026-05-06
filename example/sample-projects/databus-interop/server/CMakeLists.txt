@@ -23,9 +23,9 @@ file(GLOB SOURCES "*.cpp" "*.h")
 list(APPEND SOURCES ${DMQ_PORT_SOURCES})
 
 # Organize in IDE
-source_group("Delegate Files" FILES ${DMQ_LIB_SOURCES})
-source_group("Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
-source_group("Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
+source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
+source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
+source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 
 # Include paths
 include_directories(

@@ -49,7 +49,7 @@ void UI::Start() {
         if (screen) screen->PostEvent(Event::Custom);
     }, &m_thread);
 
-    auto cmdConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, [this](CentrifugeSpeedMsg msg) {
+    auto cmdConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::RPM, [this](CentrifugeSpeedMsg msg) {
         m_currentRpm = msg.rpm;
         auto* screen = ScreenInteractive::Active();
         if (screen) screen->PostEvent(Event::Custom);

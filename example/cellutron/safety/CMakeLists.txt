@@ -54,9 +54,9 @@ target_compile_definitions(cellutron_safety PRIVATE ${DMQ_COMPILE_DEFINITIONS})
 source_group("Source Files" FILES main.cpp)
 source_group("System Files" FILES ${SYSTEM_FILES})
 source_group("Common Files" FILES ${COMMON_SOURCES})
-source_group("Delegate Files" FILES ${DMQ_LIB_SOURCES})
-source_group("Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
-source_group("Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
+source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
+source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
+source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 source_group("FreeRTOS Files" FILES ${FREERTOS_SOURCES})
 
 target_include_directories(cellutron_safety PRIVATE 

@@ -39,9 +39,9 @@ set_source_files_properties(${COMMON_SOURCES} PROPERTIES HEADER_FILE_ONLY TRUE)
 list(APPEND SOURCES ${DMQ_PORT_SOURCES})
 
 # Organize delegate source files within IDE (Visual Studio)
-source_group("Delegate Files" FILES ${DMQ_LIB_SOURCES})
-source_group("Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
-source_group("Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
+source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
+source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
+source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 
 # 2. Create a specific filter/folder for Common files in the IDE
 source_group("Common Files" FILES ${COMMON_SOURCES})

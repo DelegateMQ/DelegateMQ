@@ -73,6 +73,7 @@ void System::SetupNetwork() {
     // Incoming Topics
     util::Network::GetInstance().RegisterIncomingTopic<RunStatusMsg>(topics::STATUS_RUN, RID_RUN_STATUS, serRun);
     util::Network::GetInstance().RegisterIncomingTopic<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
+    util::Network::GetInstance().RegisterIncomingTopic<CentrifugeSpeedMsg>(topics::RPM, RID_CENTRIFUGE_STATUS, serSpeed);
     util::Network::GetInstance().RegisterIncomingTopic<FaultMsg>(topics::FAULT, RID_FAULT_EVENT, serFault);
     util::Network::GetInstance().RegisterIncomingTopic<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, RID_ACTUATOR_STATUS, serActuator);
     util::Network::GetInstance().RegisterIncomingTopic<SensorStatusMsg>(topics::STATUS_SENSOR, RID_SENSOR_STATUS, serSensor);
