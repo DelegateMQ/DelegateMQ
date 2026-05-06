@@ -380,7 +380,22 @@ void Thread::Run()
                 ASSERT_TRUE(delegateMsg);
                 auto invoker = delegateMsg->GetInvoker();
                 ASSERT_TRUE(invoker);
+
+#if defined(DMQ_DATABUS_TOOLS)
+                dmq::TimePoint start = Timer::GetNow();
+#endif
                 bool success = invoker->Invoke(delegateMsg);
+#if defined(DMQ_DATABUS_TOOLS)
+                dmq::Duration invokeTime = Timer::GetNow() - start;
+                int64_t invokeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(invokeTime).count();
+                {
+                    const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+                    m_invokeTotalWindow += invokeNs;
+                    m_invokeCountWindow += 1;
+                    if (invokeNs > m_invokeMaxWindow) m_invokeMaxWindow = invokeNs;
+                    if (invokeNs > m_invokeMaxAll) m_invokeMaxAll = invokeNs;
+                }
+#endif
                 ASSERT_TRUE(success);
             }
             
@@ -427,6 +442,22 @@ Thread::ThreadStats Thread::SnapshotStats()
         stats.latency_max_window_ms = (float)m_latencyMaxWindow / 1000000.0f;
         m_latencyMaxWindow = 0;
         stats.latency_max_all_ms = (float)m_latencyMaxAll / 1000000.0f;
+
+        uint32_t iCount = m_invokeCountWindow;
+        m_invokeCountWindow = 0;
+        int64_t iTotal = m_invokeTotalWindow;
+        m_invokeTotalWindow = 0;
+
+        if (iCount > 0) {
+            stats.invoke_avg_ms = (float)iTotal / (iCount * 1000000.0f);
+        } else {
+            stats.invoke_avg_ms = 0.0f;
+        }
+
+        stats.invoke_max_window_ms = (float)m_invokeMaxWindow / 1000000.0f;
+        m_invokeMaxWindow = 0;
+        stats.invoke_max_all_ms = (float)m_invokeMaxAll / 1000000.0f;
+
         stats.dispatch_count = m_dispatchCountAll;
     }
 

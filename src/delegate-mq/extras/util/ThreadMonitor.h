@@ -25,6 +25,9 @@ struct ThreadStatsPacket {
     float       latency_avg_ms;
     float       latency_max_window_ms;
     float       latency_max_all_ms;
+    float       invoke_avg_ms;
+    float       invoke_max_window_ms;
+    float       invoke_max_all_ms;
     uint64_t    dispatch_count;
 };
 

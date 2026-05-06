@@ -149,12 +149,18 @@ int main(int argc, char* argv[]) {
             text(" LWin(ms)")      | bold | size(WIDTH, EQUAL, 10),
             separator(),
             text(" LMax(ms)")      | bold | size(WIDTH, EQUAL, 10),
-        }) | color(Color::White));
-        rows.push_back(separator());
+            separator(),
+            text(" IAvg(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            separator(),
+            text(" IWin(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            separator(),
+            text(" IMax(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            }) | color(Color::White));
+            rows.push_back(separator());
 
-        for (const auto& rec : records) {
+            for (const auto& rec : records) {
             auto& p = rec.packet;
-            
+
             auto fmtFloat = [](float f) {
                 std::stringstream ss;
                 ss << std::fixed << std::setprecision(2) << f;
@@ -179,9 +185,14 @@ int main(int argc, char* argv[]) {
                 text(" " + fmtFloat(p.latency_max_window_ms)) | size(WIDTH, EQUAL, 10),
                 separator(),
                 text(" " + fmtFloat(p.latency_max_all_ms)) | size(WIDTH, EQUAL, 10),
+                separator(),
+                text(" " + fmtFloat(p.invoke_avg_ms)) | size(WIDTH, EQUAL, 10),
+                separator(),
+                text(" " + fmtFloat(p.invoke_max_window_ms)) | size(WIDTH, EQUAL, 10),
+                separator(),
+                text(" " + fmtFloat(p.invoke_max_all_ms)) | size(WIDTH, EQUAL, 10),
             }));
-        }
-
+            }
         return vbox({
             text("DelegateMQ Thread Monitor") | bold | color(Color::Cyan) | center,
             text(" Packets: " + std::to_string(g_packetCount)) | dim,

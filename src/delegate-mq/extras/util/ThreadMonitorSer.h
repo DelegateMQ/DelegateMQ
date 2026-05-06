@@ -22,6 +22,9 @@ public:
         s.write(os, data.latency_avg_ms);
         s.write(os, data.latency_max_window_ms);
         s.write(os, data.latency_max_all_ms);
+        s.write(os, data.invoke_avg_ms);
+        s.write(os, data.invoke_max_window_ms);
+        s.write(os, data.invoke_max_all_ms);
         s.write(os, data.dispatch_count);
         return os;
     }
@@ -37,6 +40,9 @@ public:
         s.read(is, data.latency_avg_ms);
         s.read(is, data.latency_max_window_ms);
         s.read(is, data.latency_max_all_ms);
+        s.read(is, data.invoke_avg_ms);
+        s.read(is, data.invoke_max_window_ms);
+        s.read(is, data.invoke_max_all_ms);
         s.read(is, data.dispatch_count);
         return is;
     }
@@ -47,7 +53,8 @@ inline std::string ThreadStatsPacketToString(const ThreadStatsPacket& p) {
     std::stringstream ss;
     ss << "CPU:" << p.cpu_name << " Thread:" << p.thread_name 
        << " Q:" << p.queue_depth << "/" << p.queue_depth_max_window << "/" << p.queue_depth_max_all
-       << " Latency(ms):" << std::fixed << std::setprecision(2) << p.latency_avg_ms << "/" << p.latency_max_window_ms;
+       << " Latency(ms):" << std::fixed << std::setprecision(2) << p.latency_avg_ms << "/" << p.latency_max_window_ms
+       << " Invoke(ms):" << std::fixed << std::setprecision(2) << p.invoke_avg_ms << "/" << p.invoke_max_window_ms;
     return ss.str();
 }
 

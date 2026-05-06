@@ -416,7 +416,20 @@ void Thread::Process()
                 if (delegateMsg) {
                     auto invoker = delegateMsg->GetInvoker();
                     if (invoker) {
+#if defined(DMQ_DATABUS_TOOLS)
+                        dmq::TimePoint start = Timer::GetNow();
+#endif
                         invoker->Invoke(delegateMsg);
+#if defined(DMQ_DATABUS_TOOLS)
+                        dmq::Duration invokeTime = Timer::GetNow() - start;
+                        {
+                            lock_guard<mutex> lock(m_mutex);
+                            m_invokeTotalWindow += invokeTime;
+                            m_invokeCountWindow++;
+                            if (invokeTime > m_invokeMaxWindow) m_invokeMaxWindow = invokeTime;
+                            if (invokeTime > m_invokeMaxAll) m_invokeMaxAll = invokeTime;
+                        }
+#endif
                     }
                 }
                 break;
@@ -458,6 +471,16 @@ Thread::ThreadStats Thread::SnapshotStats()
 
     stats.latency_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count() / 1000.0f;
     stats.latency_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count() / 1000.0f;
+
+    if (m_invokeCountWindow > 0) {
+        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (m_invokeCountWindow * 1000.0f);
+    } else {
+        stats.invoke_avg_ms = 0.0f;
+    }
+
+    stats.invoke_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxWindow).count() / 1000.0f;
+    stats.invoke_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count() / 1000.0f;
+
     stats.dispatch_count = m_dispatchCountAll;
 
     // Reset windowed stats
@@ -465,6 +488,10 @@ Thread::ThreadStats Thread::SnapshotStats()
     m_latencyTotalWindow = dmq::Duration(0);
     m_latencyCountWindow = 0;
     m_latencyMaxWindow = dmq::Duration(0);
+
+    m_invokeTotalWindow = dmq::Duration(0);
+    m_invokeCountWindow = 0;
+    m_invokeMaxWindow = dmq::Duration(0);
 
     return stats;
 }

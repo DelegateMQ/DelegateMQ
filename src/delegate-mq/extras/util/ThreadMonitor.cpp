@@ -72,6 +72,9 @@ void ThreadMonitor::MonitorLoop() {
         packet.latency_avg_ms = s.latency_avg_ms;
         packet.latency_max_window_ms = s.latency_max_window_ms;
         packet.latency_max_all_ms = s.latency_max_all_ms;
+        packet.invoke_avg_ms = s.invoke_avg_ms;
+        packet.invoke_max_window_ms = s.invoke_max_window_ms;
+        packet.invoke_max_all_ms = s.invoke_max_all_ms;
         packet.dispatch_count = s.dispatch_count;
 
         dmq::databus::DataBus::Publish(m_topic, packet);

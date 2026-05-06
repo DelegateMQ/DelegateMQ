@@ -21,6 +21,28 @@ using namespace dmq::util;
 static int registerId = qRegisterMetaType<std::shared_ptr<dmq::DelegateMsg>>();
 
 //----------------------------------------------------------------------------
+// Worker::OnDispatch
+//----------------------------------------------------------------------------
+void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
+    if (msg) {
+        auto invoker = msg->GetInvoker();
+        if (invoker) {
+#if defined(DMQ_DATABUS_TOOLS)
+            dmq::TimePoint start = Timer::GetNow();
+#endif
+            invoker->Invoke(msg);
+#if defined(DMQ_DATABUS_TOOLS)
+            if (m_thread) {
+                dmq::Duration invokeTime = Timer::GetNow() - start;
+                m_thread->UpdateInvokeStats(invokeTime);
+            }
+#endif
+        }
+    }
+    emit MessageProcessed();
+}
+
+//----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
 Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
@@ -64,7 +86,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_thread->setObjectName(QString::fromStdString(m_threadName));
 
         // Create worker and move it to the new thread
-        m_worker = new Worker();
+        m_worker = new Worker(this);
         m_worker->moveToThread(m_thread);
 
         // Connect the Dispatch signal to the Worker's slot.
@@ -288,6 +310,19 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
 #if defined(DMQ_DATABUS_TOOLS)
 //----------------------------------------------------------------------------
+// UpdateInvokeStats
+//----------------------------------------------------------------------------
+void Thread::UpdateInvokeStats(dmq::Duration invokeTime)
+{
+    m_mutex.lock();
+    m_invokeTotalWindow += invokeTime;
+    m_invokeCountWindow++;
+    if (invokeTime > m_invokeMaxWindow) m_invokeMaxWindow = invokeTime;
+    if (invokeTime > m_invokeMaxAll) m_invokeMaxAll = invokeTime;
+    m_mutex.unlock();
+}
+
+//----------------------------------------------------------------------------
 // SnapshotStats
 //----------------------------------------------------------------------------
 Thread::ThreadStats Thread::SnapshotStats()
@@ -305,6 +340,16 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.latency_avg_ms = 0.0f;
     stats.latency_max_window_ms = 0.0f;
     stats.latency_max_all_ms = 0.0f;
+
+    if (m_invokeCountWindow > 0) {
+        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (m_invokeCountWindow * 1000.0f);
+    } else {
+        stats.invoke_avg_ms = 0.0f;
+    }
+
+    stats.invoke_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxWindow).count() / 1000.0f;
+    stats.invoke_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count() / 1000.0f;
+
     stats.dispatch_count = m_dispatchCountAll;
 
     // Reset windowed stats
@@ -312,6 +357,10 @@ Thread::ThreadStats Thread::SnapshotStats()
     m_latencyTotalWindow = Duration(0);
     m_latencyCountWindow = 0;
     m_latencyMaxWindow = Duration(0);
+
+    m_invokeTotalWindow = Duration(0);
+    m_invokeCountWindow = 0;
+    m_invokeMaxWindow = Duration(0);
 
     m_mutex.unlock();
     return stats;

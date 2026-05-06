@@ -57,6 +57,9 @@ public:
         float latency_avg_ms;        // Avg wait in window
         float latency_max_window_ms; // Max wait since last snapshot
         float latency_max_all_ms;    // All-time max wait
+        float invoke_avg_ms;         // Avg execution in window
+        float invoke_max_window_ms;  // Max execution since last snapshot
+        float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
     };
 #endif
@@ -180,14 +183,12 @@ private:
     uint32_t m_latencyCountWindow = 0;
     dmq::Duration m_latencyMaxWindow = dmq::Duration(0);
     dmq::Duration m_latencyMaxAll = dmq::Duration(0);
-    uint64_t m_dispatchCountAll = 0;
-#endif
-};
 
-} // namespace dmq::os
+    dmq::Duration m_invokeTotalWindow = dmq::Duration(0);
+    uint32_t m_invokeCountWindow = 0;
+    dmq::Duration m_invokeMaxWindow = dmq::Duration(0);
+    dmq::Duration m_invokeMaxAll = dmq::Duration(0);
 
-#endif // _THREAD_ZEPHYR_H
- m_latencyMaxAll = dmq::Duration(0);
     uint64_t m_dispatchCountAll = 0;
 #endif
 };

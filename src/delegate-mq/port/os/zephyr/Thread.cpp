@@ -406,7 +406,22 @@ void Thread::Run()
                 ASSERT_TRUE(delegateMsg);
                 auto invoker = delegateMsg->GetInvoker();
                 ASSERT_TRUE(invoker);
+
+#if defined(DMQ_DATABUS_TOOLS)
+                dmq::TimePoint start = Timer::GetNow();
+#endif
                 bool success = invoker->Invoke(delegateMsg);
+#if defined(DMQ_DATABUS_TOOLS)
+                dmq::Duration invokeTime = Timer::GetNow() - start;
+                {
+                    k_mutex_lock(&m_statMutex, K_FOREVER);
+                    m_invokeTotalWindow += invokeTime;
+                    m_invokeCountWindow++;
+                    if (invokeTime > m_invokeMaxWindow) m_invokeMaxWindow = invokeTime;
+                    if (invokeTime > m_invokeMaxAll) m_invokeMaxAll = invokeTime;
+                    k_mutex_unlock(&m_statMutex);
+                }
+#endif
                 ASSERT_TRUE(success);
             }
             
@@ -445,6 +460,16 @@ Thread::ThreadStats Thread::SnapshotStats()
 
     stats.latency_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count() / 1000.0f;
     stats.latency_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count() / 1000.0f;
+
+    if (m_invokeCountWindow > 0) {
+        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (m_invokeCountWindow * 1000.0f);
+    } else {
+        stats.invoke_avg_ms = 0.0f;
+    }
+
+    stats.invoke_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxWindow).count() / 1000.0f;
+    stats.invoke_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count() / 1000.0f;
+
     stats.dispatch_count = m_dispatchCountAll;
 
     // Reset windowed stats
@@ -452,6 +477,10 @@ Thread::ThreadStats Thread::SnapshotStats()
     m_latencyTotalWindow = Duration(0);
     m_latencyCountWindow = 0;
     m_latencyMaxWindow = Duration(0);
+
+    m_invokeTotalWindow = Duration(0);
+    m_invokeCountWindow = 0;
+    m_invokeMaxWindow = Duration(0);
 
     k_mutex_unlock(&m_statMutex);
     return stats;

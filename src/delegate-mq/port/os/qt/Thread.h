@@ -48,21 +48,21 @@ enum class FullPolicy { DROP, FAULT, TIMEOUT };
 // Worker Object
 // Lives on the target QThread and executes the slots
 // ----------------------------------------------------------------------------
+class Thread;
 class Worker : public QObject
 {
     Q_OBJECT
+public:
+    Worker(Thread* thread = nullptr) : m_thread(thread) {}
+
 public slots:
-    void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
-        if (msg) {
-            auto invoker = msg->GetInvoker();
-            if (invoker) {
-                invoker->Invoke(msg);
-            }
-        }
-        emit MessageProcessed();
-    }
+    void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg);
+
 signals:
     void MessageProcessed();
+
+private:
+    Thread* m_thread;
 };
 
 class Thread : public QObject, public dmq::IThread
@@ -82,6 +82,9 @@ public:
         float latency_avg_ms;        // Avg wait in window
         float latency_max_window_ms; // Max wait since last snapshot
         float latency_max_all_ms;    // All-time max wait
+        float invoke_avg_ms;         // Avg execution in window
+        float invoke_max_window_ms;  // Max execution since last snapshot
+        float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
     };
 #endif
@@ -143,6 +146,9 @@ public:
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Capture and reset windowed statistics.
     ThreadStats SnapshotStats();
+
+    /// @brief Internal method for Worker to update invoke stats.
+    void UpdateInvokeStats(dmq::Duration invokeTime);
 #endif
 
 signals:
@@ -195,6 +201,12 @@ private:
     uint32_t m_latencyCountWindow = 0;
     dmq::Duration m_latencyMaxWindow = dmq::Duration(0);
     dmq::Duration m_latencyMaxAll = dmq::Duration(0);
+
+    dmq::Duration m_invokeTotalWindow = dmq::Duration(0);
+    uint32_t m_invokeCountWindow = 0;
+    dmq::Duration m_invokeMaxWindow = dmq::Duration(0);
+    dmq::Duration m_invokeMaxAll = dmq::Duration(0);
+
     uint64_t m_dispatchCountAll = 0;
 #endif
 };
