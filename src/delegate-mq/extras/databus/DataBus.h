@@ -201,18 +201,25 @@ private:
 
             // 2. Get or create signal with type safety check (std::type_index)
             signal = GetOrCreateSignal<T>(topic);
-            if (!signal) {
-                return {}; // Type mismatch or other failure
-            }
+        }
 
-            // 3. Establish connection while holding the lock. This ensures no publishes
-            // are missed, as any new publish will be blocked until this lock is released.
-            if (thread) {
-                conn = signal->Connect(dmq::MakeDelegate(typedFunc, *thread));
-            } else {
-                conn = signal->Connect(dmq::MakeDelegate(typedFunc));
-            }
+        if (!signal) {
+            return {}; // Type mismatch or other failure
+        }
 
+        // 3. Establish connection OUTSIDE the lock to prevent deadlock with Timer/Signal locks.
+        // NOTE: There is a theoretical race where a publish happens between releasing the 
+        // DataBus lock and acquiring the Signal lock. However, both use RecursiveMutex 
+        // and InternalPublish also snapshots signals outside its lock, so this is 
+        // architecturally consistent with the "lock-free dispatch" pattern used elsewhere.
+        if (thread) {
+            conn = signal->Connect(dmq::MakeDelegate(typedFunc, *thread));
+        } else {
+            conn = signal->Connect(dmq::MakeDelegate(typedFunc));
+        }
+
+        {
+            std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             // 4. Prepare LVC delivery if enabled and available
             if (qos.lastValueCache) {
                 auto it = m_lastValues.find(topic);
@@ -437,4 +444,3 @@ private:
 
 
 #endif // DMQ_DATABUS_H
-
