@@ -196,8 +196,8 @@ private:
     StaticTask_t m_tcb;          // TCB storage for static creation
 
     // Watchdog related members
-    std::atomic<int64_t> m_lastAliveTime{0};
-    std::atomic<int64_t> m_watchdogTimeout{0};
+    std::atomic<uint32_t> m_lastAliveTime{0};
+    std::atomic<uint32_t> m_watchdogTimeout{0};
     Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
@@ -205,11 +205,13 @@ private:
     std::atomic<size_t> m_queueDepthMaxWindow{0};
     std::atomic<size_t> m_queueDepthMaxAll{0};
 
-    std::atomic<int64_t> m_latencyTotalWindow{0};
-    std::atomic<uint32_t> m_latencyCountWindow{0};
-    std::atomic<int64_t> m_latencyMaxWindow{0};
-    std::atomic<int64_t> m_latencyMaxAll{0};
-    std::atomic<uint64_t> m_dispatchCountAll{0};
+    // Use a mutex to protect 64-bit stats on 32-bit platforms without libatomic
+    dmq::RecursiveMutex m_statsLock;
+    int64_t m_latencyTotalWindow{0};
+    uint32_t m_latencyCountWindow{0};
+    int64_t m_latencyMaxWindow{0};
+    int64_t m_latencyMaxAll{0};
+    uint64_t m_dispatchCountAll{0};
 #endif
 };
 

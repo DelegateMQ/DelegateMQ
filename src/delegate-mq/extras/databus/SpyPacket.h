@@ -1,8 +1,7 @@
 #ifndef DMQ_SPY_PACKET_H
 #define DMQ_SPY_PACKET_H
 
-#include <string>
-#include <cstdint>
+#include "delegate/DelegateOpt.h"
 #include "port/serialize/serialize/msg_serialize.h"
 
 namespace dmq::databus {
@@ -15,11 +14,11 @@ namespace dmq::databus {
 /// monotonic time since boot.
 struct SpyPacket : public ::serialize::I {
     SpyPacket() = default;
-    SpyPacket(const std::string& t, const std::string& v, uint64_t ts) 
+    SpyPacket(const dmq::xstring& t, const dmq::xstring& v, uint64_t ts) 
         : topic(t), value(v), timestamp_us(ts) {}
 
-    std::string topic;      ///< The name of the data topic.
-    std::string value;      ///< Stringified representation of the data (or "?" if no stringifier registered).
+    dmq::xstring topic;      ///< The name of the data topic.
+    dmq::xstring value;      ///< Stringified representation of the data (or "?" if no stringifier registered).
     uint64_t timestamp_us;  ///< Microseconds (usually since boot) when the message was published.
 
     std::ostream& write(::serialize& ms, std::ostream& os) override {

@@ -117,7 +117,7 @@ void System::SetupNetwork() {
     util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::AIR_OUTLET, RID_SENSOR_STATUS, serSensor);
     util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::PRESSURE_INLET, RID_SENSOR_STATUS, serSensor);
     util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::PRESSURE_OUTLET, RID_SENSOR_STATUS, serSensor);
-    util::Network::GetInstance().RegisterOutgoingTopic<CentrifugeSpeedMsg>(topics::RPM, RID_CENTRIFUGE_SPEED, serSpeed);
+    util::Network::GetInstance().RegisterOutgoingTopic<CentrifugeSpeedMsg>(topics::RPM, RID_CENTRIFUGE_STATUS, serSpeed);
 }
 
 void System::SetupWatchdog() {

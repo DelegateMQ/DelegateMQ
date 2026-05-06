@@ -4,6 +4,7 @@
 
 #include "SpyBridge.h"
 #include "port/serialize/serialize/msg_serialize.h"
+#include "extras/util/ThreadMonitor.h"
 #include <iostream>
 #include <sstream>
 
@@ -28,6 +29,7 @@ void SpyBridge::Init(const std::string& address, uint16_t port, TransportType ty
 
     // Create a dedicated bridge thread with DROP policy to prevent stalling publishers
     instance.thread = std::make_unique<dmq::os::Thread>("SpyBridge", 1000, dmq::os::FullPolicy::DROP);
+    dmq::util::ThreadMonitor::Register(instance.thread.get());
     instance.thread->CreateThread();
 
     // Initialize the socket
@@ -54,7 +56,7 @@ void SpyBridge::Init(const std::string& address, uint16_t port, TransportType ty
     instance.monitorConn = dmq::databus::DataBus::Monitor([](const dmq::databus::SpyPacket& packet) {
         auto& inst = GetInstance();
         static serialize ms; 
-        std::ostringstream oss(std::ios::binary);
+        dmq::xostringstream oss(std::ios::binary);
         ms.write(oss, packet);
         if (oss.good()) {
             std::string buffer = oss.str();

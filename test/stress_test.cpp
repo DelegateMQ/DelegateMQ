@@ -64,13 +64,13 @@ const int MAX_QUEUE_SIZE = 100; // Constant for thread max queue "Back Pressure"
 
 // --- Global Integrity Counters ---
 // We track exactly how many messages *should* be received based on fire count.
-static std::atomic<uint64_t> g_signalsFired{ 0 };
-static std::atomic<uint64_t> g_syncReceived{ 0 };
-static std::atomic<uint64_t> g_asyncReceived{ 0 };
+static std::atomic<uint32_t> g_signalsFired{ 0 };
+static std::atomic<uint32_t> g_syncReceived{ 0 };
+static std::atomic<uint32_t> g_asyncReceived{ 0 };
 
 // Expected counts (calculated at emission time)
-static std::atomic<uint64_t> g_expectedSync{ 0 };
-static std::atomic<uint64_t> g_expectedAsync{ 0 };
+static std::atomic<uint32_t> g_expectedSync{ 0 };
+static std::atomic<uint32_t> g_expectedAsync{ 0 };
 
 static std::atomic<bool>     g_running{ true };
 

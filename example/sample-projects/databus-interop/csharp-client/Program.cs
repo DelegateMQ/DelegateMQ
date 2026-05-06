@@ -30,7 +30,7 @@ int duration = args.Length > 0 ? int.Parse(args[0]) : 30;
 // ---------------------------------------------------------------------------
 // Callback — invoked on the DmqDataBus receive thread
 // ---------------------------------------------------------------------------
-static void OnDataMsg(ushort remoteId, byte[] payload)
+static void OnDataMsg(byte[] payload)
 {
     // DataMsg: MSGPACK_DEFINE(actuators, sensors)
     // Wire:    [ [[id, position, voltage], ...], [[id, supplyV, readingV], ...] ]
@@ -48,9 +48,9 @@ static void OnDataMsg(ushort remoteId, byte[] payload)
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
-using var bus = new DmqDataBus(ServerHost, DataRecvPort, CmdSendPort);
+using var bus = new DmqDataBus();
 bus.RegisterCallback(DataMsgId, OnDataMsg);
-bus.Start();
+bus.Start(ServerHost, DataRecvPort, CmdSendPort);
 
 Console.WriteLine($"DataBus C# Client — connected to {ServerHost}");
 Console.WriteLine($"  Receiving DataMsg   on port {DataRecvPort}");

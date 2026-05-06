@@ -65,6 +65,7 @@ LINUX_ONLY = {
 # to any cmake targets.  Keys are project names; values are subdirectory names.
 DOTNET_BUILDS = {
     "databus-interop": ["csharp-client"],
+    "sample-interop": ["csharp"],
 }
 
 IS_WINDOWS = platform.system() == "Windows"
@@ -162,6 +163,7 @@ def build_samples(use_clang=False):
     repo_root    = os.path.dirname(os.path.abspath(__file__))
     target_dirs = [
         os.path.join(repo_root, "example", "sample-projects"),
+        os.path.join(repo_root, "example", "sample-interop"),
         os.path.join(repo_root, "test"),
         os.path.join(repo_root, "tools")
     ]

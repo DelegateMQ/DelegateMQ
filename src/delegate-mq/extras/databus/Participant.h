@@ -2,6 +2,7 @@
 #define DMQ_PARTICIPANT_H
 
 #include "delegate/DelegateRemote.h"
+#include "delegate/DelegateAsync.h"
 #include "delegate/DelegateOpt.h"
 #include "port/transport/ITransport.h"
 #include "port/transport/DmqHeader.h"
@@ -23,6 +24,12 @@ namespace dmq::databus {
 class Participant {
 public:
     Participant(dmq::transport::ITransport& transport) : m_transport(&transport) {}
+
+    // Set a thread to dispatch outgoing sends to. When set, Send() posts the
+    // channel invocation to this thread rather than executing inline on the
+    // calling thread. All remote sends are then serialized onto one thread,
+    // preventing blocking I/O from stalling unrelated publishing threads.
+    void SetSendThread(dmq::IThread* thread) { m_sendThread = thread; }
 
     // Add a remote topic mapping.
     // When local DataBus publishes to 'topic', it will be sent to this participant using 'remoteId'.
@@ -75,13 +82,21 @@ public:
     }
 
     // Send data for a topic.
+    // If a send thread was set via SetSendThread(), the channel invocation is
+    // dispatched asynchronously to that thread. Otherwise it executes inline.
     template <typename T>
     void Send(const std::string& topic, const T& data, dmq::ISerializer<void(T)>& serializer) {
         dmq::DelegateRemoteId remoteId;
         if (GetRemoteId(topic, remoteId)) {
             auto channel = GetOrCreateChannel<T>(remoteId, serializer);
             if (channel) {
-                (*channel)(data);
+                if (m_sendThread) {
+                    auto ch = channel;
+                    T d = data;
+                    (void)dmq::MakeDelegate([ch, d]() { (*ch)(d); }, *m_sendThread).AsyncInvoke();
+                } else {
+                    (*channel)(data);
+                }
             }
         }
     }
@@ -153,6 +168,7 @@ private:
     }
 
     dmq::transport::ITransport* m_transport;
+    dmq::IThread* m_sendThread = nullptr;
     dmq::RecursiveMutex m_mutex;
     std::unordered_map<std::string, dmq::DelegateRemoteId> m_topicToRemoteId;
     std::unordered_map<dmq::DelegateRemoteId, ChannelInvoker> m_channels;

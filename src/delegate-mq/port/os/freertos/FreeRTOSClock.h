@@ -18,36 +18,11 @@ namespace dmq::os {
 
         // 2. The critical "now()" function
         static time_point now() noexcept {
-            // Static state to track the tick rollover.
-            // 1. It must be called at least once per rollover period to detect the wrap.
-            // 2. Thread safety: Protected by Critical Section below.
-            static TickType_t last = 0;
-            static uint64_t high = 0;
-
-            // Enter Critical Section
-            // This prevents context switches and interrupts during the state update.
-            // NOTE: This function must be called from a TASK, not an ISR.
-            taskENTER_CRITICAL();
-
-            TickType_t cur = xTaskGetTickCount();
-
-            // Determine the rollover modulus based on the width of TickType_t.
-            // This makes the logic portable for both 16-bit and 32-bit FreeRTOS ticks.
-            constexpr uint64_t TICK_MODULO = static_cast<uint64_t>(1ULL) << (sizeof(TickType_t) * 8);
-
-            // Check for wrap-around
-            if (cur < last) {
-                high += TICK_MODULO;
-            }
-
-            last = cur;
-
-            // Combine high part with current tick
-            uint64_t ticks = high + cur;
-
-            taskEXIT_CRITICAL();  // End Lock
-
-            return time_point(duration(static_cast<rep>(ticks)));
+            // xTaskGetTickCount() is a single atomic 32-bit read on 32-bit FreeRTOS —
+            // no locking required. All uses in this codebase are delta computations
+            // (watchdog, timer expiry, latency) over intervals well under 49.7 days,
+            // so uint32_t modular wrap is never a concern.
+            return time_point(duration(static_cast<rep>(xTaskGetTickCount())));
         }
     };
 } // namespace dmq::os

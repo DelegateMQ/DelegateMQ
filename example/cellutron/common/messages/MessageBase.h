@@ -17,7 +17,7 @@ namespace cellutron {
 ///       to accept the restarted publisher's messages.
 struct MessageBase : public serialize::I
 {
-    uint64_t seq = 0;
+    uint32_t seq = 0;
 
     MessageBase() : seq(NextSeq()) {}
 
@@ -30,8 +30,8 @@ struct MessageBase : public serialize::I
     }
 
 private:
-    static uint64_t NextSeq() {
-        static std::atomic<uint64_t> s_seq{1};
+    static uint32_t NextSeq() {
+        static std::atomic<uint32_t> s_seq{1};
         return s_seq.fetch_add(1, std::memory_order_relaxed);
     }
 };

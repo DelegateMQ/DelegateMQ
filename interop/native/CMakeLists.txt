@@ -22,9 +22,9 @@ add_library(DmqInterop SHARED
 )
 
 # Organize delegate source files within IDE (Visual Studio)
-source_group("Delegate Files" FILES ${DMQ_LIB_SOURCES})
-source_group("Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
-source_group("Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
+source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
+source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
+source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 source_group("Source Files" FILES DmqInterop.cpp DmqInterop.h)
 
 # Add include directories

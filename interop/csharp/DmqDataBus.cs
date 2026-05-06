@@ -127,11 +127,16 @@ namespace DelegateMQ.Interop
         /// </summary>
         public void Send<T>(ushort remoteId, T data)
         {
-            // Note: Our Serializer.Pack in the original code wrapped items in a List.
-            // For better interop, we can pack directly or keep the list convention.
-            // Here we use the direct MessagePack serialization.
             byte[] bytes = MessagePackSerializer.Serialize(data);
-            int result = DmqInterop_Send(remoteId, bytes, (uint)bytes.Length);
+            Send(remoteId, bytes);
+        }
+
+        /// <summary>
+        /// Send a raw byte array to a Remote ID.
+        /// </summary>
+        public void Send(ushort remoteId, byte[] data)
+        {
+            int result = DmqInterop_Send(remoteId, data, (uint)data.Length);
             if (result != 0)
                 throw new Exception($"Failed to send message via DmqInterop DLL (Error: {result})");
         }

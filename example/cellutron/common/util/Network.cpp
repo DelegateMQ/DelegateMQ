@@ -103,7 +103,12 @@ void Network::AddRemoteNode(const std::string& nodeName, const std::string& addr
             }
         }
 
-        // 5. Register participants with DataBus for global distribution
+        // 5. Route all outgoing sends through the NetworkThread so that
+        //    blocking socket I/O never stalls the calling (e.g. Process) thread.
+        node.reliableParticipant->SetSendThread(m_thread.get());
+        node.unreliableParticipant->SetSendThread(m_thread.get());
+
+        // 6. Register participants with DataBus for global distribution
         dmq::databus::DataBus::AddParticipant(node.reliableParticipant);
         dmq::databus::DataBus::AddParticipant(node.unreliableParticipant);
 

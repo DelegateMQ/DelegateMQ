@@ -87,8 +87,17 @@ class DmqDataBus:
         self._native_callbacks[remote_id] = native_cb
         self._dll.DmqInterop_RegisterCallback(remote_id, native_cb)
 
-    def send(self, remote_id, obj):
-        payload = msgpack.packb(obj)
+    def send(self, remote_id, data):
+        """
+        Send an object or raw bytes to a Remote ID.
+        If data is already 'bytes', it is sent directly. Otherwise, it is
+        serialized using MessagePack.
+        """
+        if isinstance(data, bytes):
+            payload = data
+        else:
+            payload = msgpack.packb(data, use_bin_type=True)
+            
         ptr = (ctypes.c_uint8 * len(payload))(*payload)
         res = self._dll.DmqInterop_Send(remote_id, ptr, len(payload))
         if res != 0:

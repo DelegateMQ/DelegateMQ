@@ -65,7 +65,7 @@ def encode_command_msg(polling_rate_ms: int) -> bytes:
 # Callbacks — invoked on the DmqDataBus receive thread
 # ---------------------------------------------------------------------------
 
-def on_data_msg(remote_id: int, payload: bytes):
+def on_data_msg(payload: bytes):
     actuators, sensors = decode_data_msg(payload)
     print(f"[RECV] DataMsg: {len(actuators)} actuator(s), {len(sensors)} sensor(s)")
     for a in actuators:
@@ -78,9 +78,9 @@ def on_data_msg(remote_id: int, payload: bytes):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    bus = DmqDataBus(SERVER_HOST, DATA_RECV_PORT, CMD_SEND_PORT)
+    bus = DmqDataBus()
     bus.register_callback(DATA_MSG_ID, on_data_msg)
-    bus.start()
+    bus.start(SERVER_HOST, DATA_RECV_PORT, CMD_SEND_PORT)
 
     print(f"DataBus Python Client — connected to {SERVER_HOST}")
     print(f"  Receiving DataMsg   on port {DATA_RECV_PORT}")

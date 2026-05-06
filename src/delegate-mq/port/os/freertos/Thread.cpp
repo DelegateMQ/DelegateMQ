@@ -94,6 +94,34 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         }
     }
 
+    m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
+
+    if (watchdogTimeout.has_value())
+    {
+        m_watchdogTimeout.store(static_cast<uint32_t>(watchdogTimeout.value().count()));
+
+        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+        
+        // Add to watchdog registry if not already present
+        bool found = false;
+        Thread* p = GetWatchdogHead();
+        while (p != nullptr)
+        {
+            if (p == this)
+            {
+                found = true;
+                break;
+            }
+            p = p->m_watchdogNext;
+        }
+
+        if (!found)
+        {
+            m_watchdogNext = GetWatchdogHead();
+            GetWatchdogHead() = this;
+        }
+    }
+
     // 3. Create Task
     if (m_stackBuffer != nullptr)
     {
@@ -129,35 +157,6 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     }
 
     ASSERT_TRUE(m_thread != nullptr);
-
-    m_lastAliveTime.store(Timer::GetNow().time_since_epoch().count());
-
-    if (watchdogTimeout.has_value())
-    {
-        m_watchdogTimeout.store(watchdogTimeout.value().count());
-
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-        
-        // Add to watchdog registry if not already present
-        bool found = false;
-        Thread* p = GetWatchdogHead();
-        while (p != nullptr)
-        {
-            if (p == this)
-            {
-                found = true;
-                break;
-            }
-            p = p->m_watchdogNext;
-        }
-
-        if (!found)
-        {
-            m_watchdogNext = GetWatchdogHead();
-            GetWatchdogHead() = this;
-        }
-    }
-
     return true;
 }
 
@@ -316,7 +315,7 @@ void Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void Thread::WatchdogCheck()
 {
-    auto now = Timer::GetNow().time_since_epoch().count();
+    auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
 
@@ -335,7 +334,7 @@ void Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 void Thread::ThreadCheck()
 {
-    m_lastAliveTime.store(Timer::GetNow().time_since_epoch().count());
+    m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
 }
 
 void Thread::Run()
@@ -343,7 +342,7 @@ void Thread::Run()
     ThreadMsg* msg = nullptr;
     while (!m_exit.load())
     {
-        m_lastAliveTime.store(Timer::GetNow().time_since_epoch().count());
+        m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
         auto watchdogTimeout = m_watchdogTimeout.load();
 
         // If watchdog active, use a finite timeout so we can periodically update 
@@ -367,16 +366,14 @@ void Thread::Run()
                 dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
                 int64_t latNs = std::chrono::duration_cast<std::chrono::nanoseconds>(latency).count();
                 
-                m_latencyTotalWindow.fetch_add(latNs);
-                m_latencyCountWindow.fetch_add(1);
-                
-                int64_t oldMax = m_latencyMaxWindow.load();
-                while (latNs > oldMax && !m_latencyMaxWindow.compare_exchange_weak(oldMax, latNs));
-
-                oldMax = m_latencyMaxAll.load();
-                while (latNs > oldMax && !m_latencyMaxAll.compare_exchange_weak(oldMax, latNs));
-                
-                m_dispatchCountAll.fetch_add(1);
+                {
+                    const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+                    m_latencyTotalWindow += latNs;
+                    m_latencyCountWindow += 1;
+                    if (latNs > m_latencyMaxWindow) m_latencyMaxWindow = latNs;
+                    if (latNs > m_latencyMaxAll) m_latencyMaxAll = latNs;
+                    m_dispatchCountAll += 1;
+                }
 #endif
 
                 auto delegateMsg = msg->GetData();
@@ -414,18 +411,24 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.queue_depth_max_all = m_queueDepthMaxAll.load();
     stats.queue_size_limit = m_queueSize;
     
-    uint32_t count = m_latencyCountWindow.exchange(0);
-    int64_t total = m_latencyTotalWindow.exchange(0);
+    {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+        uint32_t count = m_latencyCountWindow;
+        m_latencyCountWindow = 0;
+        int64_t total = m_latencyTotalWindow;
+        m_latencyTotalWindow = 0;
 
-    if (count > 0) {
-        stats.latency_avg_ms = (float)total / (count * 1000000.0f);
-    } else {
-        stats.latency_avg_ms = 0.0f;
+        if (count > 0) {
+            stats.latency_avg_ms = (float)total / (count * 1000000.0f);
+        } else {
+            stats.latency_avg_ms = 0.0f;
+        }
+
+        stats.latency_max_window_ms = (float)m_latencyMaxWindow / 1000000.0f;
+        m_latencyMaxWindow = 0;
+        stats.latency_max_all_ms = (float)m_latencyMaxAll / 1000000.0f;
+        stats.dispatch_count = m_dispatchCountAll;
     }
-
-    stats.latency_max_window_ms = (float)m_latencyMaxWindow.exchange(0) / 1000000.0f;
-    stats.latency_max_all_ms = (float)m_latencyMaxAll.load() / 1000000.0f;
-    stats.dispatch_count = m_dispatchCountAll.load();
 
     return stats;
 }

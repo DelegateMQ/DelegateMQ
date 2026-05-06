@@ -51,8 +51,8 @@ const int BURST_SIZE = 500;
 const DelegateRemoteId REMOTE_ID = 1;
 
 // --- Global Counters ---
-static std::atomic<uint64_t> g_sentCount{ 0 };
-static std::atomic<uint64_t> g_receivedCount{ 0 };
+static std::atomic<uint32_t> g_sentCount{ 0 };
+static std::atomic<uint32_t> g_receivedCount{ 0 };
 
 // shutdown flags
 static std::atomic<bool>     g_stopClients{ false }; // Stops producers

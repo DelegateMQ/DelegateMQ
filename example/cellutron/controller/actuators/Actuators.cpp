@@ -50,12 +50,10 @@ void Actuators::Initialize() {
 
 void Actuators::HandleValveChanged(int id, bool open) {
     OnValveChanged(id, open);
-    //(void)dmq::MakeDelegate(&OnValveChanged, &dmq::Signal<void(int id, bool open)>::operator(), m_thread).AsyncInvoke(id, open);
 }
 
 void Actuators::HandlePumpChanged(int id, int speed) {
     OnPumpChanged(id, speed);
-    //(void)dmq::MakeDelegate(&OnPumpChanged, &dmq::Signal<void(int id, int speed)>::operator(), m_thread).AsyncInvoke(id, speed);
 }
 
 void Actuators::Shutdown() {
