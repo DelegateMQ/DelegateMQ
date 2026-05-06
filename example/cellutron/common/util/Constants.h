@@ -11,7 +11,7 @@ namespace cellutron {
     static constexpr uint16_t MAX_CENTRIFUGE_RPM = 1000;
 
     // Watchdog constants
-    static constexpr dmq::Duration WATCHDOG_TIMEOUT = 10s;
+    static constexpr dmq::Duration WATCHDOG_TIMEOUT = 30s;
     static constexpr dmq::Duration SYNC_INVOKE_TIMEOUT = 2s;
 
     // Heartbeat constants

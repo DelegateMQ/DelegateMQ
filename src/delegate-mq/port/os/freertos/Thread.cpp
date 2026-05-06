@@ -139,8 +139,8 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     else
     {
         // --- DYNAMIC ALLOCATION (Heap) ---
-        // Increase default stack to 1024 words (4KB) for safety
-        const uint32_t DYNAMIC_STACK_SIZE = 1024; 
+        // Increase default stack to 4096 words (16KB) for safety
+        const uint32_t DYNAMIC_STACK_SIZE = 4096; 
         
         BaseType_t xReturn = xTaskCreate(
             (TaskFunction_t)&Thread::Process,

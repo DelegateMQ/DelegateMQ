@@ -67,6 +67,10 @@ static void prvInitialiseHeap(void) {
 extern "C" void vApplicationIdleHook(void) { Sleep(1); }
 extern "C" void vApplicationTickHook(void) {}
 extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS: Malloc Failed!\n"); for (;;); }
+extern "C" void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
+    printf("FreeRTOS: STACK OVERFLOW in task '%s'!\n", pcTaskName);
+    for (;;);
+}
 extern "C" void vApplicationDaemonTaskStartupHook(void) {}
 extern "C" void vAssertCalled(unsigned long ulLine, const char* const pcFileName) {
     printf("FreeRTOS: ASSERT FAIL at %s:%lu\n", pcFileName, ulLine);
@@ -110,7 +114,7 @@ int main(void) {
     xTimerStart(sysTimer, 0);
 
     xTaskCreate(vControllerTask, "Controller", 4096, NULL, 6, NULL);
-    xTaskCreate(vWatchdogTask, "Watchdog", 1024, NULL, configMAX_PRIORITIES - 1, NULL);
+    xTaskCreate(vWatchdogTask, "Watchdog", 4096, NULL, configMAX_PRIORITIES - 1, NULL);
 
     vTaskStartScheduler();
     for (;;);

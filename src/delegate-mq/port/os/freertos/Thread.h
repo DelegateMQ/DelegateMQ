@@ -195,7 +195,7 @@ private:
 
     // Static allocation support
     StackType_t* m_stackBuffer = nullptr;
-    uint32_t m_stackSize = 1024; // Default size (words)
+    uint32_t m_stackSize = 4096; // Default size (words)
     StaticTask_t m_tcb;          // TCB storage for static creation
 
     // Watchdog related members
