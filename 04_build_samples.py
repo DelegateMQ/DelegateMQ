@@ -75,6 +75,40 @@ BUILD_CONFIG = "Release"
 # Helpers
 # ---------------------------------------------------------------------------
 
+def find_library(build_dir, lib_name):
+    """Search common CMake output sub-directories for a built library."""
+    suffix = ".dll" if IS_WINDOWS else ".so"
+    candidates = [
+        os.path.join(build_dir, "bin", BUILD_CONFIG, lib_name + suffix),
+        os.path.join(build_dir, "lib", BUILD_CONFIG, lib_name + suffix),
+        os.path.join(build_dir, "bin", lib_name + suffix),
+        os.path.join(build_dir, "lib", lib_name + suffix),
+        os.path.join(build_dir, BUILD_CONFIG, lib_name + suffix),
+        os.path.join(build_dir, lib_name + suffix),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def copy_interop_dll(build_dir, repo_root):
+    """Copy built DmqInterop DLL/SO to interop/python/."""
+    lib_name = "DmqInterop"
+    suffix = ".dll" if IS_WINDOWS else ".so"
+    src = find_library(build_dir, lib_name)
+    
+    if src:
+        dest_dir = os.path.join(repo_root, "interop", "python")
+        dest = os.path.join(dest_dir, lib_name + suffix)
+        try:
+            os.makedirs(dest_dir, exist_ok=True)
+            shutil.copy2(src, dest)
+            print(f"   [COPY] {os.path.basename(src)} -> interop/python/")
+        except Exception as e:
+            print(f"   [COPY FAILED] {e}")
+
+
 def build_project(build_dir, label):
     """
     Run cmake --build on an already-configured build directory.
@@ -162,6 +196,7 @@ def collect_build_dirs(project_dir, use_clang=False):
 def build_samples(use_clang=False):
     repo_root    = os.path.dirname(os.path.abspath(__file__))
     target_dirs = [
+        os.path.join(repo_root, "interop"),
         os.path.join(repo_root, "example", "sample-projects"),
         os.path.join(repo_root, "example", "sample-interop"),
         os.path.join(repo_root, "example", "cellutron"),
@@ -191,10 +226,10 @@ def build_samples(use_clang=False):
     print("  Compilation may take several minutes depending on")
     print("  the number of projects and machine speed.")
     print("=" * 60)
-    answer = input("\nContinue? [y/N]: ").strip().lower()
-    if answer != "y":
-        print("Aborted.")
-        return True
+    # answer = input("\nContinue? [y/N]: ").strip().lower()
+    # if answer != "y":
+    #     print("Aborted.")
+    #     return True
     print()
 
     passed  = []
@@ -217,6 +252,8 @@ def build_samples(use_clang=False):
                 success, err = build_project(build_dir, label)
                 if success:
                     print(f"   ok")
+                    if project_name == "native" and os.path.basename(target_dir) == "interop":
+                        copy_interop_dll(build_dir, repo_root)
                 else:
                     print(f"   FAILED")
                     lines = err.strip().splitlines()
@@ -266,6 +303,8 @@ def build_samples(use_clang=False):
                 success, err = build_project(build_dir, label)
                 if success:
                     print(f"   ok")
+                    if project_name == "native" and os.path.basename(target_dir) == "interop":
+                        copy_interop_dll(build_dir, repo_root)
                 else:
                     print(f"   FAILED")
                     # Print the last 15 lines of compiler output for context

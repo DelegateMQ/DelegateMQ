@@ -184,33 +184,47 @@ public:
 
     /// @brief Invoke all connected delegates.
     void operator()(Args... args) {
-        // Snapshot the list to invoke outside the lock.
-        // Use a small-buffer optimization to avoid heap allocation in the common case.
+        auto snapshot = GetSnapshot();
+        InvokeSnapshot(snapshot, std::forward<Args>(args)...);
+    }
+
+    /// @brief Capture a snapshot of all current subscribers.
+    /// @details The snapshot holds shared_ptrs to the delegates, ensuring they
+    /// stay alive even if the Signal is destroyed.
+    struct Snapshot {
         std::shared_ptr<DelegateType> small_buf[SIGNAL_SBO_COUNT];
         xlist<std::shared_ptr<DelegateType>> large_buf;
         size_t count = 0;
+    };
 
+    Snapshot GetSnapshot() const {
+        Snapshot s;
         {
             dmq::LockGuard<RecursiveMutex> lock(m_state->mtx);
-            count = m_state->delegates.size();
-            if (count <= SIGNAL_SBO_COUNT) {
+            s.count = m_state->delegates.size();
+            if (s.count <= SIGNAL_SBO_COUNT) {
                 size_t i = 0;
                 for (auto& d : m_state->delegates) {
-                    small_buf[i++] = d;
+                    s.small_buf[i++] = d;
                 }
             } else {
-                large_buf = m_state->delegates;
+                s.large_buf = m_state->delegates;
             }
         }
+        return s;
+    }
 
-        if (count <= SIGNAL_SBO_COUNT) {
-            for (size_t i = 0; i < count; ++i) {
-                (*small_buf[i])(args...);
-                small_buf[i].reset(); // Clear to release shared_ptr immediately
+    /// @brief Invoke a previously captured snapshot of delegates.
+    static void InvokeSnapshot(const Snapshot& s, Args... args) {
+        if (s.count <= SIGNAL_SBO_COUNT) {
+            for (size_t i = 0; i < s.count; ++i) {
+                if (s.small_buf[i])
+                    (*s.small_buf[i])(args...);
             }
         } else {
-            for (auto& d : large_buf) {
-                (*d)(args...);
+            for (auto& d : s.large_buf) {
+                if (d)
+                    (*d)(args...);
             }
         }
     }

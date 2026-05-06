@@ -286,9 +286,7 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 void Thread::WatchdogCheckAll()
 {
-    // Note: No lock acquired here for maximum reliability. 
-    // Traversing the list while a thread is added/removed is a race, 
-    // but in a steady state (system running) this is safe.
+    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     Thread* p = GetWatchdogHead();
     while (p != nullptr)
     {

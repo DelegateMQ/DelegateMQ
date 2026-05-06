@@ -144,9 +144,9 @@ bool Timer::CheckExpired()
 //------------------------------------------------------------------------------
 void Timer::ProcessTimers()
 {
-    // Use a fixed-size array to avoid heap allocation. 
+    // Use fixed-size arrays to avoid heap allocation. 
     // Most systems don't have hundreds of concurrent timers.
-    Timer* expiredTimers[dmq::MAX_TIMER_EXPIRED];
+    dmq::Signal<void()>::Snapshot snapshots[dmq::MAX_TIMER_EXPIRED];
     size_t count = 0;
 
     {
@@ -173,27 +173,35 @@ void Timer::ProcessTimers()
         }
 
         // Identify expired timers while holding the lock.
-        // NOTE: CheckExpired() is now called AFTER releasing the lock 
-        // to prevent lock inversion deadlocks.
+        // NOTE: Snapshots are captured under the lock to ensure the Timer
+        // object is valid. The actual invocation happens outside the lock.
         Timer* t = GetTimersHead();
         while (t != nullptr)
         {
-            if (count < dmq::MAX_TIMER_EXPIRED)
-                expiredTimers[count++] = t;
+            if (t->CheckExpired())
+            {
+                if (count < dmq::MAX_TIMER_EXPIRED)
+                {
+                    snapshots[count++] = t->OnExpired.GetSnapshot();
+                }
+                else
+                {
+                    LOG_ERROR("Timer::ProcessTimers MAX_TIMER_EXPIRED exceeded");
+                }
+            }
             t = t->m_next;
         }
     }
 
-    // Call CheckExpired and the client's expired callback functions outside the lock.
+    // Call the client's expired callback functions outside the lock.
     // This allows callbacks to perform thread-safe operations (like DataBus::Publish)
     // without risking a deadlock with the global timer lock.
+    // The Snapshot holds shared_ptrs to the delegates, so even if a Timer 
+    // was deleted on another thread after the lock was released, the 
+    // callback targets remain valid.
     for (size_t i = 0; i < count; ++i)
     {
-        if (expiredTimers[i] != nullptr && expiredTimers[i]->CheckExpired())
-        {
-            if (!expiredTimers[i]->OnExpired.Empty())
-                expiredTimers[i]->OnExpired();
-        }
+        dmq::Signal<void()>::InvokeSnapshot(snapshots[i]);
     }
 }
 

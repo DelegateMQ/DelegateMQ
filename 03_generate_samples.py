@@ -46,6 +46,7 @@ def build_samples(use_clang=False):
 
     repo_root = os.path.dirname(os.path.abspath(__file__))
     target_dirs = [
+        os.path.join(repo_root, "interop"),
         os.path.join(repo_root, "example", "sample-projects"),
         os.path.join(repo_root, "example", "sample-interop"),
         os.path.join(repo_root, "example", "cellutron"),
@@ -109,12 +110,19 @@ def build_samples(use_clang=False):
                     "freertos" in project_name.lower() or
                     ("freertos" in parent_name.lower() and project_name == "server")
                 )
+                
+                cmd = ["cmake", "-B", "build"]
                 if needs_win32:
-                    print(f"[CONFIGURING] {display_name} (Win32)")
-                    cmd = ["cmake", "-B", "build", "-A", "Win32", "."]
-                else:
-                    print(f"[CONFIGURING] {display_name}")
-                    cmd = ["cmake", "-B", "build", "."]
+                    cmd += ["-A", "Win32"]
+
+                # Special handling for DmqInterop DLL: Default to UDP transport
+                if project_name == "native" and parent_name == "interop":
+                    transport = "DMQ_TRANSPORT_WIN32_UDP" if IS_WINDOWS else "DMQ_TRANSPORT_LINUX_UDP"
+                    cmd.append(f"-DDMQ_TRANSPORT={transport}")
+
+                cmd.append(".")
+
+                print(f"[CONFIGURING] {display_name} {'(Win32)' if needs_win32 else ''}")
 
                 try:
                     subprocess.run(
