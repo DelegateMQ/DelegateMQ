@@ -69,6 +69,7 @@ void RunMiscExamples();
 using namespace Main;
 
 std::atomic<bool> processTimerExit = false;
+std::atomic<bool> watchdogExit = false;
 
 void ProcessTimers()
 {
@@ -78,6 +79,16 @@ void ProcessTimers()
         // Process all delegate-based timers
         Timer::ProcessTimers();
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+}
+
+void WatchdogThread()
+{
+    while (!watchdogExit.load())
+    {
+        // Check all registered threads for watchdog timeouts
+        dmq::os::Thread::WatchdogCheckAll();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
@@ -122,6 +133,9 @@ int main(void)
     // Start the thread that will run ProcessTimers
     std::thread timerThread(ProcessTimers);
 
+    // Start the thread that will run WatchdogCheckAll
+    std::thread watchdogThread(WatchdogThread);
+
     // Run all test code
     for (int i = 0; i < 3; i++)
     {
@@ -137,10 +151,15 @@ int main(void)
 #endif
     }
 
-    // Ensure the timer thread completes before main exits
+    // Ensure the threads complete before main exits
     processTimerExit.store(true);
+    watchdogExit.store(true);
+
     if (timerThread.joinable())
         timerThread.join();
+
+    if (watchdogThread.joinable())
+        watchdogThread.join();
 
     GetTimer().Stop();
 

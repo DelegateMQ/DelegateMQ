@@ -57,7 +57,7 @@ private:
     void HandlePumpChanged(int id, int speed);
 
     // Use standardized thread name for Active Object subsystem
-    dmq::os::Thread m_thread{"ActuatorsThread", 50, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
+    dmq::os::Thread m_thread{"ActuatorsThread", 100, dmq::os::FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
     Centrifuge m_centrifuge;
 
     std::map<int, Valve> m_valves;

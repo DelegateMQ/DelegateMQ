@@ -15,7 +15,7 @@ using namespace dmq::util;
 namespace cellutron {
 
 System::System()
-    : m_thread("Controller_SystemThread", 200, FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller")
+    : m_thread("Controller_SystemThread", 200, FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller")
     , m_heartbeat("Controller", topics::CONTROLLER_HEARTBEAT, m_thread)
 {
 }
@@ -113,6 +113,11 @@ void System::SetupNetwork() {
     util::Network::GetInstance().RegisterOutgoingTopic<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
     util::Network::GetInstance().RegisterOutgoingTopic<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, RID_ACTUATOR_STATUS, serActuator);
     util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::STATUS_SENSOR, RID_SENSOR_STATUS, serSensor);
+    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::AIR_INLET, RID_SENSOR_STATUS, serSensor);
+    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::AIR_OUTLET, RID_SENSOR_STATUS, serSensor);
+    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::PRESSURE_INLET, RID_SENSOR_STATUS, serSensor);
+    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::PRESSURE_OUTLET, RID_SENSOR_STATUS, serSensor);
+    util::Network::GetInstance().RegisterOutgoingTopic<CentrifugeSpeedMsg>(topics::RPM, RID_CENTRIFUGE_SPEED, serSpeed);
 }
 
 void System::SetupWatchdog() {

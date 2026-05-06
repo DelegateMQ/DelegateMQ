@@ -31,10 +31,21 @@ int main() {
 
     dmq::MakeDelegate([]() {
         while (true) {
-            cellutron::System::GetInstance().Tick(100);
-            dmq::os::Thread::Sleep(std::chrono::milliseconds(100));
+            cellutron::System::GetInstance().Tick(50);
+            dmq::os::Thread::Sleep(std::chrono::milliseconds(50));
         }
     }, tickThread).AsyncInvoke();
+
+    // Start a watchdog thread
+    static dmq::os::Thread watchdogThread{"Watchdog", 0, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI"};
+    watchdogThread.CreateThread();
+
+    dmq::MakeDelegate([]() {
+        while (true) {
+            dmq::os::Thread::WatchdogCheckAll();
+            dmq::os::Thread::Sleep(std::chrono::milliseconds(100));
+        }
+    }, watchdogThread).AsyncInvoke();
 
     // 4. Start the User Interface (blocks until UI exit)
     cellutron::gui::UI::GetInstance().Start();

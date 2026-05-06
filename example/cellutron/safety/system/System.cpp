@@ -14,7 +14,7 @@ using namespace dmq::util;
 namespace cellutron {
 
 System::System()
-    : m_thread("Safety_SystemThread", 50, FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Safety")
+    : m_thread("Safety_SystemThread", 50, FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Safety")
     , m_heartbeat("Safety", topics::SAFETY_HEARTBEAT, m_thread)
 {
 }

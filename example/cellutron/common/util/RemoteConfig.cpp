@@ -81,19 +81,19 @@ void RegisterStringifiers() {
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::PRESSURE_INLET, [](const SensorStatusMsg& msg) {
-        return "Pressure: " + std::to_string(msg.value);
+        return "Inlet: " + std::to_string(msg.value) + " mmHg";
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::PRESSURE_OUTLET, [](const SensorStatusMsg& msg) {
-        return "Pressure: " + std::to_string(msg.value);
+        return "Outlet: " + std::to_string(msg.value) + " mmHg";
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::AIR_INLET, [](const SensorStatusMsg& msg) {
-        return "Air: " + std::string(msg.value ? "YES" : "NO");
+        return (msg.value == 1) ? "AIR DETECTED" : "FLUID OK";
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::AIR_OUTLET, [](const SensorStatusMsg& msg) {
-        return "Air: " + std::string(msg.value ? "YES" : "NO");
+        return (msg.value == 1) ? "AIR DETECTED" : "FLUID OK";
     });
 
     dmq::databus::DataBus::RegisterStringifier<CentrifugeSpeedMsg>(cellutron::topics::RPM, [](const CentrifugeSpeedMsg& msg) {

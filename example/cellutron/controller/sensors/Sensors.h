@@ -2,6 +2,10 @@
 #define _SENSORS_H
 
 #include "DelegateMQ.h"
+#include "AirSensor.h"
+#include "PressureSensor.h"
+#include "RpmSensor.h"
+#include "extras/util/Timer.h"
 
 namespace cellutron {
 namespace sensors {
@@ -17,11 +21,11 @@ public:
     void Initialize();
     void Shutdown();
 
-    /// Request current pressure (Non-blocking)
-    void GetPressure();
+    /// Get current pressure (Blocking call)
+    int GetPressure();
 
-    /// Request air detection status (Non-blocking)
-    void IsAirInLine();
+    /// Check if air is detected in the line (Blocking call)
+    bool IsAirInLine();
 
 private:
     Sensors() = default;
@@ -30,11 +34,19 @@ private:
     Sensors(const Sensors&) = delete;
     Sensors& operator=(const Sensors&) = delete;
 
-    void InternalGetPressure();
-    void InternalIsAirInLine();
+    void Poll();
+    int InternalGetPressure();
+    bool InternalIsAirInLine();
 
     dmq::os::Thread m_thread{"SensorsThread", 50, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
+    dmq::util::Timer m_pollTimer;
+    dmq::ScopedConnection m_pollTimerConn;
+
+    AirSensor m_air;
+    PressureSensor m_pressure;
+    RpmSensor m_rpm;
 };
+
 
 } // namespace sensors
 } // namespace cellutron
