@@ -48,6 +48,7 @@ def build_samples(use_clang=False):
     target_dirs = [
         os.path.join(repo_root, "example", "sample-projects"),
         os.path.join(repo_root, "example", "sample-interop"),
+        os.path.join(repo_root, "example", "cellutron"),
         os.path.join(repo_root, "test"),
         os.path.join(repo_root, "tools")
     ]
