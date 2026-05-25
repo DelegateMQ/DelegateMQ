@@ -72,6 +72,12 @@ public:
             return -1;
         }
 
+        int opt = 1;
+        setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+#ifdef SO_REUSEPORT
+        setsockopt(m_socket, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+#endif
+
         memset(&m_addr, 0, sizeof(m_addr));
         m_addr.sin_family = AF_INET;
         m_addr.sin_port = htons(port);
@@ -98,7 +104,10 @@ public:
         }
         else if (type == Type::SUB)
         {
-            m_addr.sin_addr.s_addr = INADDR_ANY;
+            if (inet_aton(addr, &m_addr.sin_addr) == 0)
+            {
+                m_addr.sin_addr.s_addr = INADDR_ANY;
+            }
 
             if (bind(m_socket, (struct sockaddr*)&m_addr, sizeof(m_addr)) < 0)
             {

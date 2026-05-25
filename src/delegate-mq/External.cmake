@@ -200,10 +200,27 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
         "${FREERTOS_ROOT_DIR}/include/*.h"
     )
     
+    if(WIN32)
+        set(FREERTOS_PORT_DIR "MSVC-MingW")
+    elseif(APPLE)
+        set(FREERTOS_PORT_DIR "ThirdParty/GCC/Posix")
+    elseif(UNIX)
+        set(FREERTOS_PORT_DIR "ThirdParty/GCC/Posix")
+    else()
+        message(FATAL_ERROR "DelegateMQ: Unsupported OS for FreeRTOS simulation.")
+    endif()
+
+
     list(APPEND FREERTOS_SOURCES
-        "${FREERTOS_ROOT_DIR}/portable/MSVC-MingW/port.c"
+        "${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}/port.c"
         "${FREERTOS_ROOT_DIR}/portable/MemMang/heap_5.c"
     )
+    
+    if(UNIX AND NOT APPLE)
+        file(GLOB POSIX_UTILS "${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}/utils/*.c")
+        list(APPEND FREERTOS_SOURCES ${POSIX_UTILS})
+        set(FREERTOS_LIBRARIES pthread rt)
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------

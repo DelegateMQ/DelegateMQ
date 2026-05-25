@@ -153,7 +153,7 @@ STATE_DEFINE(cellutron::process::PumpProcess, PumpOn, cellutron::process::PumpDa
 
 STATE_DEFINE(cellutron::process::PumpProcess, Waiting, cellutron::process::PumpData)
 {
-    printf("PumpProcess: ST_WAITING (%lld ms)\n", data->duration.count());
+    printf("PumpProcess: ST_WAITING (%lld ms)\n", (long long)data->duration.count());
     m_timer.Start(data->duration, true);
 }
 

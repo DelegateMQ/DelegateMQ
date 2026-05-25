@@ -14,6 +14,9 @@
 #include "system/System.h"
 #include "extras/util/NetworkConnect.h"
 #include <cstdio>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -64,7 +67,13 @@ static void prvInitialiseHeap(void) {
 // ---------------------------------------------------------------------------
 // FreeRTOS hooks
 // ---------------------------------------------------------------------------
-extern "C" void vApplicationIdleHook(void) { Sleep(1); }
+extern "C" void vApplicationIdleHook(void) { 
+#if defined(_WIN32) || defined(_WIN64)
+    Sleep(1); 
+#elif defined(__unix__) || defined(__linux__) || defined(__APPLE__)
+    usleep(1000);
+#endif
+}
 extern "C" void vApplicationTickHook(void) {}
 extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS Safety: Malloc Failed!\n"); for (;;); }
 extern "C" void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
@@ -118,7 +127,7 @@ static void vWatchdogTask(void* /*pvParams*/) {
 int main(void) {
     prvInitialiseHeap();
     static dmq::util::NetworkContext networkContext;
-    printf("Cellutron Safety Processor starting (FreeRTOS Win32)...\n");
+    printf("Cellutron Safety Processor starting (FreeRTOS Simulator)...\n");
 
     TimerHandle_t sysTimer = xTimerCreate("SysTimer", pdMS_TO_TICKS(10), pdTRUE, NULL, [](TimerHandle_t) { dmq::util::Timer::ProcessTimers(); });
     xTimerStart(sysTimer, 0);

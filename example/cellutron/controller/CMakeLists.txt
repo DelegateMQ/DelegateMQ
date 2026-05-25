@@ -81,6 +81,8 @@ add_executable(cellutron_controller
 
 target_compile_definitions(cellutron_controller PRIVATE ${DMQ_COMPILE_DEFINITIONS} DMQ_USER_CONFIG="DelegateMQConfig.h")
 
+target_link_libraries(cellutron_controller PRIVATE ${FREERTOS_LIBRARIES})
+
 # Organize delegate source files within IDE (Visual Studio)
 source_group("Source Files" FILES main.cpp)
 source_group("Process Files" FILES ${PROCESS_FILES})
@@ -102,7 +104,7 @@ target_include_directories(cellutron_controller PRIVATE
     ${DMQ_SRC_DIR}
     ${SPDLOG_INCLUDE_DIR}
     ${FREERTOS_ROOT_DIR}/include
-    ${FREERTOS_ROOT_DIR}/portable/MSVC-MingW
+    ${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}
     ${TOOLS_BRIDGE_DIR}
     ${TOOLS_SRC_DIR}
 )

@@ -83,7 +83,7 @@ void CellProcess::AbortProcess()
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_processStartTime).count();
 
     if (elapsed < 1000) {
-        printf("CellProcess: ABORT IGNORED (Debounce Active, Elapsed: %lld ms)\n", elapsed);
+        printf("CellProcess: ABORT IGNORED (Debounce Active, Elapsed: %lld ms)\n", (long long)elapsed);
         return;
     }
 

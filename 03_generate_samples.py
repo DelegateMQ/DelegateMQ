@@ -49,11 +49,10 @@ def build_samples(use_clang=False):
         os.path.join(repo_root, "interop"),
         os.path.join(repo_root, "example", "sample-projects"),
         os.path.join(repo_root, "example", "sample-interop"),
+        os.path.join(repo_root, "example", "cellutron"),
         os.path.join(repo_root, "test"),
         os.path.join(repo_root, "tools")
     ]
-    if IS_WINDOWS:
-        target_dirs.append(os.path.join(repo_root, "example", "cellutron"))
 
     for target_dir in target_dirs:
         if not os.path.exists(target_dir):

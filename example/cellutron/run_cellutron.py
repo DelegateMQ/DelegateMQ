@@ -3,6 +3,11 @@ import os
 import sys
 import time
 import argparse
+import platform
+import shutil
+
+IS_WINDOWS = platform.system() == "Windows"
+EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
 
 def get_newest_exe(base, relative_paths):
     """Returns the full path to the newest existing file among the options."""
@@ -17,6 +22,41 @@ def get_newest_exe(base, relative_paths):
                 newest_path = full
     return newest_path
 
+def launch_process(exe_path, args, cwd):
+    """Launches a process in a new window if possible, otherwise falls back to current console."""
+    popen_args = {"cwd": cwd}
+    
+    if IS_WINDOWS:
+        popen_args["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+        return subprocess.Popen([exe_path] + args, **popen_args)
+    
+    # Linux: Try to find a terminal emulator to mimic Windows behavior
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        # List of terminal emulators and their command-to-execute flags
+        terminals = [
+            ("gnome-terminal", ["--wait", "--"]),
+            ("konsole", ["-e"]),
+            ("xfce4-terminal", ["-e"]),
+            ("xterm", ["-e"]),
+        ]
+        
+        for term, flags in terminals:
+            if shutil.which(term):
+                # Special handling for gnome-terminal to ensure it opens a new window
+                if term == "gnome-terminal":
+                    full_cmd = [term, "--window"] + flags + [exe_path] + args
+                else:
+                    full_cmd = [term] + flags + [exe_path] + args
+                
+                try:
+                    return subprocess.Popen(full_cmd, **popen_args)
+                except Exception as e:
+                    print(f"DEBUG: Failed to launch via {term}: {e}")
+                    continue
+
+    # Fallback: Launch in the same console
+    return subprocess.Popen([exe_path] + args, **popen_args)
+
 def main():
     parser = argparse.ArgumentParser(description="Launch Cellutron Distributed System.")
     parser.add_argument(
@@ -28,6 +68,16 @@ def main():
     args_parsed = parser.parse_args()
     config = args_parsed.config
 
+    # Linux Cleanup: Kill any orphan processes from previous runs
+    if (not IS_WINDOWS) and (os.environ.get("SKIP_CLEANUP") != "1"):
+        print("Cleaning up existing Cellutron processes...")
+        try:
+            # pkill -9 -f matches the full command line and kills forcefully
+            subprocess.run(["pkill", "-9", "-f", "cellutron_"], stderr=subprocess.DEVNULL)
+            subprocess.run(["pkill", "-9", "-f", "dmq-"], stderr=subprocess.DEVNULL)
+            time.sleep(1) # Wait for sockets to be released
+        except: pass
+
     # Define paths to executables relative to this script
     base_path = os.path.dirname(os.path.abspath(__file__))
     
@@ -35,26 +85,46 @@ def main():
     tools_definitions = [
         {
             "name": "DMQ Monitor", 
-            "exe": "dmq-monitor.exe",
+            "exe": f"dmq-monitor{EXE_SUFFIX}",
             "args": ["9998", "--multicast", "239.1.1.1"]
         },
         {
             "name": "DMQ Thread", 
-            "exe": "dmq-thread.exe",
+            "exe": f"dmq-thread{EXE_SUFFIX}",
             "args": ["9998", "--multicast", "239.1.1.1"]
         },
         {
             "name": "DMQ Spy", 
-            "exe": "dmq-spy.exe",
+            "exe": f"dmq-spy{EXE_SUFFIX}",
             "args": ["9999", "--log", "spy_logs.txt"]
         },
     ]
 
-    apps = [
-        {"name": "Safety",     "path": f"build/safety/{config}/cellutron_safety.exe",     "args": []},
-        {"name": "Controller", "path": f"build/controller/{config}/cellutron_controller.exe", "args": []},
-        {"name": "GUI",        "path": f"build/gui/{config}/cellutron_gui.exe",           "args": []},
+    # Define app search paths
+    app_definitions = [
+        {"name": "Safety",     "exe": f"cellutron_safety{EXE_SUFFIX}"},
+        {"name": "Controller", "exe": f"cellutron_controller{EXE_SUFFIX}"},
+        {"name": "GUI",        "exe": f"cellutron_gui{EXE_SUFFIX}"},
     ]
+
+    apps_to_launch = []
+    for app in app_definitions:
+        # Search for the app in various common build locations
+        search_paths = [
+            # Global build (from example/cellutron)
+            f"build/{app['name'].lower()}/{config}/{app['exe']}",
+            f"build/{app['name'].lower()}/{app['exe']}",
+            # Local build (from example/cellutron/app)
+            f"{app['name'].lower()}/build/{config}/{app['exe']}",
+            f"{app['name'].lower()}/build/{app['exe']}",
+        ]
+        
+        exe_path = get_newest_exe(base_path, search_paths)
+        if exe_path:
+            apps_to_launch.append({"name": app["name"], "path": exe_path, "args": []})
+        else:
+            print(f"ERROR: Could not find {app['name']} ({app['exe']}) in any expected build location.")
+            print(f"Searched in: {search_paths}")
 
     processes = []
 
@@ -65,14 +135,18 @@ def main():
     # 1. Launch Tools (Monitor/Spy/Thread)
     for tool in tools_definitions:
         # Search for the newest tool in either Debug or Release
-        exe_path = get_newest_exe(base_path, [
+        search_paths = [
             f"../../tools/build/Release/{tool['exe']}",
             f"../../tools/build/Debug/{tool['exe']}"
-        ])
+        ]
+        if not IS_WINDOWS:
+            search_paths.append(f"../../tools/build/{tool['exe']}")
+
+        exe_path = get_newest_exe(base_path, search_paths)
 
         if exe_path:
             # Special case: Clean up log for DMQ Spy in its specific directory
-            if tool["exe"] == "dmq-spy.exe":
+            if "dmq-spy" in tool["exe"]:
                 spy_log = os.path.join(os.path.dirname(exe_path), "spy_logs.txt")
                 if os.path.exists(spy_log):
                     try:
@@ -80,35 +154,33 @@ def main():
                         print(f"Deleted {spy_log}")
                     except: pass
 
-            config_found = "Release" if "Release" in exe_path else "Debug"
+            config_found = "Release" if "Release" in exe_path else "Debug" if "Debug" in exe_path else "Standard"
             print(f"Launching {tool['name']} ({config_found})...")
-            p = subprocess.Popen(
-                [exe_path] + tool["args"],
-                creationflags=subprocess.CREATE_NEW_CONSOLE,
-                cwd=os.path.dirname(exe_path)
-            )
+            
+            p = launch_process(exe_path, tool["args"], os.path.dirname(exe_path))
             processes.append(p)
             time.sleep(0.5)
         else:
             print(f"INFO: {tool['name']} not found in Debug or Release. Skipping.")
 
     # 2. Launch Cellutron Apps
-    for app in apps:
-        exe_path = os.path.normpath(os.path.join(base_path, app["path"]))
-        
-        if not os.path.exists(exe_path):
-            print(f"ERROR: Could not find {app['name']} at {exe_path}")
-            print(f"Did you build the project in {config} mode first?")
-            continue
+    # First, verify all core apps exist to avoid partial system starts
+    missing_apps = [app["name"] for app in apps_to_launch if not os.path.exists(app["path"])]
+    if missing_apps:
+        print(f"ERROR: The following core applications are missing: {', '.join(missing_apps)}")
+        print("Please build the project first.")
+        sys.exit(1)
 
+    # Require exactly 3 core apps for a complete system
+    if len(apps_to_launch) < 3:
+        print("ERROR: Not all core applications (Safety, Controller, GUI) were found.")
+        sys.exit(1)
+
+    for app in apps_to_launch:
         print(f"Launching {app['name']}...")
         
-        # Start each process in a new console window
-        p = subprocess.Popen(
-            [exe_path] + app["args"], 
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
-            cwd=os.path.dirname(exe_path)
-        )
+        # Start each process
+        p = launch_process(app["path"], app["args"], os.path.dirname(app["path"]))
         processes.append(p)
         time.sleep(0.5)
 
@@ -117,7 +189,7 @@ def main():
         sys.exit(1)
 
     print("\nAll applications started.")
-    print("Close the console windows or terminate this script to stop.")
+    print("Terminate this script (Ctrl+C) to stop all processes.")
 
     try:
         while any(p.poll() is None for p in processes):
@@ -126,6 +198,13 @@ def main():
         print("\nShutting down...")
         for p in processes:
             p.terminate()
+        
+        # Linux: Aggressively clean up to prevent orphan processes from terminal wrappers
+        if not IS_WINDOWS:
+            try:
+                subprocess.run(["pkill", "-9", "-f", "cellutron_"], stderr=subprocess.DEVNULL)
+                subprocess.run(["pkill", "-9", "-f", "dmq-"], stderr=subprocess.DEVNULL)
+            except: pass
 
 if __name__ == "__main__":
     main()

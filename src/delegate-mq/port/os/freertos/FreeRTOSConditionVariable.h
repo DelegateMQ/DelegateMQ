@@ -43,10 +43,10 @@ namespace dmq::os {
         {
             if (!m_sem) return;
 
-#if defined(_WIN32) || defined(WIN32)
-            // Windows Port: 
-            // "Interrupts" are simulated threads. The hardware ISR check 
-            // does not exist. Standard API is safe here.
+#if defined(_WIN32) || defined(WIN32) || defined(__linux__)
+            // Simulator Ports (Windows/Linux): 
+            // "Interrupts" are simulated. The hardware ISR check 
+            // often does not exist. Standard API is safe here.
             xSemaphoreGive(m_sem);
 #else
             // Embedded (e.g., ARM Cortex-M): 

@@ -8,25 +8,26 @@
 
 ## Quick Start
 
-The Cellutron system is designed to run entirely on Windows, with the Controller and Safety nodes operating within a **FreeRTOS Win32 simulation** to emulate embedded hardware behavior.
+The Cellutron system is cross-platform and supports both **Windows** and **Linux**. On both platforms, the Controller and Safety nodes operate within a **FreeRTOS simulation** to emulate embedded hardware behavior.
 
 1.  **Initialize Workspace**: Ensure `DelegateMQ` is placed inside a workspace directory (e.g., `DelegateMQWorkspace`). From the repository root, run the setup scripts to fetch dependencies and build tools:
-    ```powershell
-    python 01_fetch_repos.py
-    python 02_build_libs.py
-    python 03_generate_samples.py
-    python 04_build_samples.py
-    python 05_run_samples.py
+    ```bash
+    python3 01_fetch_repos.py
+    python3 02_build_libs.py
+    python3 03_generate_samples.py
+    python3 04_build_samples.py
+    python3 05_run_samples.py
     ```
 2.  **Build Cellutron**: From this directory (`example/cellutron/`), run:
-    ```powershell
+    ```bash
     cmake -B build .
-    cmake --build build --config Debug
+    cmake --build build --config Release
     ```
 3.  **Run Cellutron**: Launch all three processors and spy tools:
-    ```powershell
-    python run_cellutron.py
+    ```bash
+    python3 run_cellutron.py
     ```
+    *Note: On Linux, ensure you have a terminal emulator like `gnome-terminal`, `xterm`, or `konsole` installed for multi-window simulation support.*
 
 ---
 
@@ -66,8 +67,8 @@ The system is distributed across three independent processors (CPUs) communicati
 | CPU Node | Operating System | Primary Responsibility |
 |:---|:---|:---|
 | **GUI CPU** | Windows/Linux (stdlib) | HMI, Data Visualization, and System-wide Logging. |
-| **Controller CPU** | FreeRTOS (Win32 Sim) | Process orchestration and hardware sequencing. |
-| **Safety CPU** | FreeRTOS (Win32 Sim) | Independent hardware monitoring and interlock enforcement. |
+| **Controller CPU** | FreeRTOS (Win32/POSIX Sim) | Process orchestration and hardware sequencing. |
+| **Safety CPU** | FreeRTOS (Win32/POSIX Sim) | Independent hardware monitoring and interlock enforcement. |
 
 ### Thread Topology
 

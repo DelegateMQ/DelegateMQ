@@ -64,6 +64,11 @@ public:
     bool Bind(uint16_t port, const std::string& localInterface = "0.0.0.0") {
         int reuse = 1;
         setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
+#ifndef _WIN32
+#ifdef SO_REUSEPORT
+        setsockopt(m_socket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse));
+#endif
+#endif
 
         sockaddr_in addr{};
         addr.sin_family = AF_INET;

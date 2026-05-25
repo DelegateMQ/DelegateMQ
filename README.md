@@ -39,9 +39,19 @@ DelegateMQ is completely modular. You can use only the features you need—such 
 [CMake](https://cmake.org/) is used to create the project build files on any Windows or Linux machine. DelegateMQ supports Visual Studio, GCC, Clang, and ARM toolchains.
 
 1. Clone the repository.
-2. From the repository root, run the following CMake command:   
-   `cmake -B build .`
-3. Build and run the project within the `build` directory. 
+2. From the repository root, run the setup scripts to fetch dependencies and build tools:
+   ```bash
+   python3 01_fetch_repos.py
+   python3 02_build_libs.py
+   python3 03_generate_samples.py
+   python3 04_build_samples.py
+   ```
+3. Run and explore the sample projects within their respective `build` directories.
+4. To run the comprehensive **Cellutron** distributed system:
+   ```bash
+   cd example/cellutron
+   python3 run_cellutron.py
+   ```
 
 See [Example Projects](docs/DETAILS.md#example-projects) to build more project examples (remote/IPC, embedded). See [Porting Guide](docs/PORTING.md) for details on porting to a new platform.
 

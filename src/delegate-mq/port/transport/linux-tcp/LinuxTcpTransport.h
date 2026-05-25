@@ -45,16 +45,16 @@
 namespace dmq::transport {
 
 /// @brief A TCP transport implementation for Linux using BSD sockets.
-class TcpTransport : public ITransport
+class LinuxTcpTransport : public ITransport
 {
 public:
     enum class Type { SERVER, CLIENT };
 
-    TcpTransport() : m_sendTransport(this), m_recvTransport(this)
+    LinuxTcpTransport() : m_sendTransport(this), m_recvTransport(this)
     {
     }
 
-    ~TcpTransport() { Close(); }
+    ~LinuxTcpTransport() { Close(); }
 
     /// @brief Create a TCP transport.
     /// @param type SERVER or CLIENT.
@@ -330,6 +330,8 @@ private:
     ITransport* m_sendTransport, * m_recvTransport;
     ITransportMonitor* m_transportMonitor = nullptr;
 };
+
+using TcpTransport = LinuxTcpTransport;
 
 } // namespace dmq::transport
 
