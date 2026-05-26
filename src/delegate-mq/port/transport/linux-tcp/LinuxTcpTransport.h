@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 #include "delegate/DelegateOpt.h"
 #include "port/transport/ITransport.h"
@@ -108,11 +109,14 @@ public:
         }
 
         // Close all server-accepted clients
-        for (auto s : m_serverClients) {
-            shutdown(s, SHUT_RDWR);
-            close(s);
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+            for (auto s : m_serverClients) {
+                shutdown(s, SHUT_RDWR);
+                close(s);
+            }
+            m_serverClients.clear();
         }
-        m_serverClients.clear();
 
         // Close Listen Socket
         if (m_socket >= 0) 
@@ -136,6 +140,8 @@ public:
         {
             setsockopt(m_connFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         }
+        
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         for (auto s : m_serverClients) {
             setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         }
@@ -148,9 +154,10 @@ public:
         if (m_type == Type::CLIENT) {
             return SendToSocket(m_connFd, os, header);
         } else {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             int lastErr = 0;
-            for (auto s : m_serverClients) {
-                if (SendToSocket(s, os, header) != 0) lastErr = -1;
+            for (auto fd : m_serverClients) {
+                if (SendToSocket(fd, os, header) != 0) lastErr = -1;
             }
             return lastErr;
         }
@@ -236,23 +243,27 @@ private:
                 t.tv_sec = m_recvTimeout.count() / 1000;
                 t.tv_usec = (m_recvTimeout.count() % 1000) * 1000;
                 setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &t, sizeof(t));
+                const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
                 m_serverClients.push_back(client);
             }
         }
 
         // 2. Poll all connected clients for data
-        if (m_serverClients.empty()) return -1;
-
         fd_set readfds;
         FD_ZERO(&readfds);
         int max_fd = -1;
-        for (auto s : m_serverClients) {
-            FD_SET(s, &readfds);
-            if (s > max_fd) max_fd = s;
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+            if (m_serverClients.empty()) return -1;
+            for (auto s : m_serverClients) {
+                FD_SET(s, &readfds);
+                if (s > max_fd) max_fd = s;
+            }
         }
 
         tv.tv_usec = 1000; // 1ms poll
         if (select(max_fd + 1, &readfds, nullptr, nullptr, &tv) > 0) {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             for (auto it = m_serverClients.begin(); it != m_serverClients.end(); ) {
                 if (FD_ISSET(*it, &readfds)) {
                     int result = ReceiveSocket(*it, is, header);
@@ -350,6 +361,7 @@ private:
     
     ITransport* m_sendTransport, * m_recvTransport;
     ITransportMonitor* m_transportMonitor = nullptr;
+    dmq::RecursiveMutex m_mutex;
 };
 
 using TcpTransport = LinuxTcpTransport;

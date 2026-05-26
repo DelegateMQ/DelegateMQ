@@ -36,6 +36,7 @@
 #include <windows.h>
 #include <sstream>
 #include <cstdio>
+#include <mutex>
 
 namespace dmq::transport {
 
@@ -60,6 +61,7 @@ public:
 
     int Create(Type type, LPCSTR addr, USHORT port)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
 
         // Create a UDP socket
@@ -117,6 +119,7 @@ public:
 
     void Close()
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         // Protected check to avoid double-close
         // Note: In a distinct shutdown scenario, the race on m_socket is acceptable 
         // because the goal is simply to kill the handle.
@@ -129,6 +132,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket != INVALID_SOCKET)
         {
             DWORD ms = static_cast<DWORD>(timeout.count());
@@ -138,6 +142,7 @@ public:
 
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail()) {
             std::cout << "Error: xostringstream is in a bad state!" << std::endl;
             return -1;
@@ -199,6 +204,7 @@ public:
 
     virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_recvTransport != this) {
             std::cout << "Error: This transport used for send only!" << std::endl;
             return -1;
@@ -295,6 +301,7 @@ private:
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = { 0 };
     char m_sendBuffer[BUFFER_SIZE] = { 0 };
+    dmq::RecursiveMutex m_mutex;
 };
 
 using UdpTransport = Win32UdpTransport;

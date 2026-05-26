@@ -38,6 +38,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <mutex>
 
 namespace dmq::transport {
 
@@ -62,6 +63,7 @@ public:
 
     int Create(Type type, const char* addr, uint16_t port)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
 
         // Create UDP socket
@@ -131,6 +133,7 @@ public:
 
     void Close()
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket != -1)
         {
             // SHUT_RDWR breaks the blocking recvfrom() immediately
@@ -142,6 +145,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket != -1)
         {
             struct timeval tv;
@@ -153,6 +157,7 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         // Allow ACKs on SUB sockets. Block only regular data.
         if (m_type == Type::SUB && header.GetId() != dmq::ACK_REMOTE_ID) {
             std::cerr << "Send operation not allowed on SUB socket." << std::endl;
@@ -210,6 +215,7 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_recvTransport != this) {
             std::cerr << "Receive operation not allowed (Send only)." << std::endl;
             return -1;
@@ -318,6 +324,7 @@ private:
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = { 0 };
     char m_sendBuffer[BUFFER_SIZE] = { 0 };
+    dmq::RecursiveMutex m_mutex;
 };
 
 using UdpTransport = LinuxUdpTransport;

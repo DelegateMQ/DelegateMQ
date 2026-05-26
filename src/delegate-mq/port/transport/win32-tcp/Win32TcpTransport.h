@@ -42,6 +42,7 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 namespace dmq::transport {
 
@@ -130,11 +131,14 @@ public:
         }
 
         // Close all server-accepted clients
-        for (auto s : m_serverClients) {
-            shutdown(s, SD_BOTH);
-            closesocket(s);
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+            for (auto s : m_serverClients) {
+                shutdown(s, SD_BOTH);
+                closesocket(s);
+            }
+            m_serverClients.clear();
         }
-        m_serverClients.clear();
 
         // Close Listen Socket
         if (m_listenSocket != INVALID_SOCKET) {
@@ -151,6 +155,8 @@ public:
         {
             setsockopt(m_clientSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&m_recvTimeoutMs, sizeof(m_recvTimeoutMs));
         }
+        
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         for (auto s : m_serverClients) {
             setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&m_recvTimeoutMs, sizeof(m_recvTimeoutMs));
         }
@@ -163,6 +169,7 @@ public:
         if (m_type == Type::CLIENT) {
             return SendToSocket(m_clientSocket, os, header);
         } else {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             int lastErr = 0;
             for (auto s : m_serverClients) {
                 if (SendToSocket(s, os, header) != 0) lastErr = -1;
@@ -251,21 +258,25 @@ private:
             if (client != INVALID_SOCKET) {
                 std::cout << "Win32TcpTransport: Accepted client connection." << std::endl;
                 setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&m_recvTimeoutMs, sizeof(m_recvTimeoutMs));
+                const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
                 m_serverClients.push_back(client);
             }
         }
 
         // 2. Poll all connected clients for data
-        if (m_serverClients.empty()) return -1;
-
         fd_set readfds;
         FD_ZERO(&readfds);
-        for (auto s : m_serverClients) {
-            FD_SET(s, &readfds);
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+            if (m_serverClients.empty()) return -1;
+            for (auto s : m_serverClients) {
+                FD_SET(s, &readfds);
+            }
         }
 
         tv.tv_usec = 1000; // 1ms poll
         if (select(0, &readfds, NULL, NULL, &tv) > 0) {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             for (auto it = m_serverClients.begin(); it != m_serverClients.end(); ) {
                 if (FD_ISSET(*it, &readfds)) {
                     int result = ReceiveSocket(*it, is, header);
@@ -367,6 +378,7 @@ private:
     ITransport* m_sendTransport = nullptr;
     ITransport* m_recvTransport = nullptr;
     ITransportMonitor* m_transportMonitor = nullptr;
+    dmq::RecursiveMutex m_mutex;
 };
 
 } // namespace dmq::transport

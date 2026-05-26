@@ -21,6 +21,7 @@
 #include <sstream>
 #include <cstdio>
 #include <iostream>
+#include <mutex>
 
 namespace dmq::transport {
 
@@ -43,6 +44,7 @@ public:
 
     int Create(Type type, LPCSTR pipeName)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
         if (type == Type::PUB)
         {
@@ -84,6 +86,7 @@ public:
 
     void Close()
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_hPipe != INVALID_HANDLE_VALUE)
         {
             // DisconnectNamedPipe is a server (SUB) only API; skip for client (PUB)
@@ -96,6 +99,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         // Named pipes on Windows use different mechanisms for timeouts 
         // than sockets (e.g. SetCommTimeouts for serial or ReadFile with OVERLAPPED).
         // Since this transport currently uses PIPE_NOWAIT, we'll just store it.
@@ -104,6 +108,7 @@ public:
 
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail())
             return -1;
 
@@ -147,6 +152,7 @@ public:
 
     virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_hPipe == INVALID_HANDLE_VALUE) return -1;
 
         // Check/Accept connection
@@ -203,6 +209,7 @@ private:
     Type m_type = Type::PUB;
     HANDLE m_hPipe = INVALID_HANDLE_VALUE;
     std::chrono::milliseconds m_recvTimeout = std::chrono::milliseconds(2000);
+    dmq::RecursiveMutex m_mutex;
 };
 
 } // namespace dmq::transport

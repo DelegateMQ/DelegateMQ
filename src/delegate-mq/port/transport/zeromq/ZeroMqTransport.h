@@ -13,7 +13,7 @@
 /// and PUB/SUB (1-to-many).
 /// 
 /// Key Features:
-/// 1. **Thread Safety**: Uses a `std::recursive_mutex` to protect the ZeroMQ socket, 
+/// 1. **Thread Safety**: Uses a `dmq::RecursiveMutex` to protect the ZeroMQ socket, 
 ///    allowing safe concurrent access from the Send and Receive threads (ZeroMQ sockets 
 ///    are not inherently thread-safe).
 /// 2. **Flexible Patterns**: Supports both bidirectional (PAIR) and unidirectional (PUB/SUB)
@@ -70,7 +70,7 @@ public:
 
     int Create(Type type, const char* addr)
     {
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
         if (m_zmqContext == nullptr) {
             m_zmqContext = zmq_ctx_new();
@@ -147,7 +147,7 @@ public:
 
     void Close()
     {
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
         // Close the subscriber socket and context
         if (m_zmq) {
@@ -161,7 +161,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_zmq)
         {
             int ms = static_cast<int>(timeout.count());
@@ -182,70 +182,59 @@ public:
 
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
     {
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
-        if (os.bad() || os.fail()) {
-            std::cout << "Error: xostringstream is in a bad state!" << std::endl;
-            return -1;
-        }
-
-        if (m_zmq == nullptr) {
+        if (os.bad() || os.fail() || m_zmq == nullptr) {
             return -1;
         }
 
         if (m_type == Type::SUB) {
-            std::cout << "Error: Cannot send on SUB socket!" << std::endl;
             return -1;
         }
 
         if (m_sendTransport != this) {
-            std::cout << "Error: This transport used for receive only!" << std::endl;
             return -1;
         }
 
-        // Create a local copy to modify the length
-        DmqHeader headerCopy = header;
-
-        // Calculate payload size and set it on the copy
+        // Get payload data without string copy if possible
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) {
-            std::cerr << "Error: Payload too large for 16-bit length." << std::endl;
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        
+        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
-        dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        // Prepare header values in Network Byte Order
+        uint16_t marker = htons(header.GetMarker());
+        uint16_t id     = htons(header.GetId());
+        uint16_t seqNum = htons(header.GetSeqNum());
+        uint16_t length = htons(payloadLen);
 
-        // Write header values from the COPY
-        auto marker = htons(headerCopy.GetMarker());
-        ss.write(reinterpret_cast<const char*>(&marker), sizeof(marker));
+        // Copy Header & Payload into the linear buffer
+        memcpy(m_sendBuffer, &marker, 2);
+        memcpy(m_sendBuffer + 2, &id, 2);
+        memcpy(m_sendBuffer + 4, &seqNum, 2);
+        memcpy(m_sendBuffer + 6, &length, 2);
 
-        auto id = htons(headerCopy.GetId());
-        ss.write(reinterpret_cast<const char*>(&id), sizeof(id));
+        if (payloadLen > 0) {
+            memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
+        }
 
-        auto seqNum = htons(headerCopy.GetSeqNum());
-        ss.write(reinterpret_cast<const char*>(&seqNum), sizeof(seqNum));
+        size_t totalSize = DmqHeader::HEADER_SIZE + payloadLen;
 
-        auto len = htons(headerCopy.GetLength());
-        ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
-
-        // Insert delegate arguments (payload)
-        ss.write(payload.data(), payload.size());
-
-        auto fullPacket = ss.str();
-
-        // Send delegate argument data using ZeroMQ
-        int err = zmq_send(m_zmq, fullPacket.c_str(), fullPacket.size(), ZMQ_DONTWAIT);
+        // Send data using ZeroMQ
+        int err = zmq_send(m_zmq, m_sendBuffer, totalSize, ZMQ_DONTWAIT);
         if (err == -1)
         {
-            // EAGAIN is common if queue is full, treat as error so RetryMonitor retries
-            return zmq_errno();
+            // EAGAIN is common if queue is full
+            return -1;
         }
 
-        if (headerCopy.GetId() != dmq::ACK_REMOTE_ID)
+        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
         {
-            if (m_transportMonitor)
-                m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId());
+            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
+                return -1;
+            }
         }
 
         return 0;
@@ -253,69 +242,55 @@ public:
 
     virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
     {
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
         if (m_zmq == nullptr) {
-            // std::cout << "Error: Socket not created!" << std::endl;
             return -1;
         }
 
         if (m_type == Type::PUB) {
-            std::cout << "Error: Cannot receive on PUB socket!" << std::endl;
             return -1;
         }
 
         if (m_recvTransport != this) {
-            std::cout << "Error: This transport used for send only!" << std::endl;
             return -1;
         }
 
         int size = zmq_recv(m_zmq, m_buffer, BUFFER_SIZE, 0);
         if (size == -1) {
-            // Check if the error is due to a timeout
-            if (zmq_errno() == EAGAIN) {
-                //std::cout << "Receive timeout!" << std::endl;
-            }
             return -1;
         }
 
         if (size < DmqHeader::HEADER_SIZE) {
-            std::cerr << "Received data is too small to process." << std::endl;
             return -1;
         }
 
-        dmq::xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
+        // 1. Read Header (Network Byte Order)
+        uint16_t marker, id, seqNum, length;
+        memcpy(&marker, m_buffer, 2);
+        memcpy(&id,     m_buffer + 2, 2);
+        memcpy(&seqNum, m_buffer + 4, 2);
+        memcpy(&length, m_buffer + 6, 2);
 
-        // Write the received header data into the stringstream
-        headerStream.write(m_buffer, DmqHeader::HEADER_SIZE);
-        headerStream.seekg(0);
-
-        uint16_t marker = 0;
-        headerStream.read(reinterpret_cast<char*>(&marker), sizeof(marker));
         header.SetMarker(ntohs(marker));
-
-        if (header.GetMarker() != DmqHeader::MARKER) {
-            std::cerr << "Invalid sync marker!" << std::endl;
-            return -1;  // @TODO: Optionally handle this case more gracefully
-        }
-
-        // Read the DelegateRemoteId (2 bytes) into the `id` variable
-        uint16_t id = 0;
-        headerStream.read(reinterpret_cast<char*>(&id), sizeof(id));
         header.SetId(ntohs(id));
-
-        // Read seqNum using the getter for byte swapping
-        uint16_t seqNum = 0;
-        headerStream.read(reinterpret_cast<char*>(&seqNum), sizeof(seqNum));
         header.SetSeqNum(ntohs(seqNum));
-
-        // Read length using the getter for byte swapping
-        uint16_t length = 0;
-        headerStream.read(reinterpret_cast<char*>(&length), sizeof(length));
         header.SetLength(ntohs(length));
 
-        // Write the remaining target function argument data to stream
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, size - DmqHeader::HEADER_SIZE);
+        if (header.GetMarker() != DmqHeader::MARKER) {
+            return -1;
+        }
+
+        // 2. Write payload
+        uint16_t payloadSize = header.GetLength();
+        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
+            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+
+        if (payloadSize > 0) {
+            is.clear();
+            is.str("");
+            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+        }
 
         if (header.GetId() == dmq::ACK_REMOTE_ID)
         {
@@ -332,9 +307,8 @@ public:
                 DmqHeader ack;
                 ack.SetId(dmq::ACK_REMOTE_ID);
                 ack.SetSeqNum(header.GetSeqNum());
-
-                // Note: Recursive mutex allows us to call Send() if m_sendTransport == this.
-                // If m_sendTransport is a different instance, that instance's lock will be taken.
+                
+                // Note: Recursive mutex allows Send() here
                 m_sendTransport->Send(ss_ack, ack);
             }
         }
@@ -365,7 +339,7 @@ private:
     void* m_zmq = nullptr;
     Type m_type = Type::PAIR_CLIENT;
 
-    std::recursive_mutex m_mutex;
+    dmq::RecursiveMutex m_mutex;
 
     ITransport* m_sendTransport = nullptr;
     ITransport* m_recvTransport = nullptr;
@@ -373,6 +347,7 @@ private:
 
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = {};
+    char m_sendBuffer[BUFFER_SIZE] = {};
 };
 
 } // namespace dmq::transport
