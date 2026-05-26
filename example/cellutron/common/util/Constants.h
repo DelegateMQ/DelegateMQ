@@ -14,6 +14,9 @@ namespace cellutron {
     static constexpr dmq::Duration WATCHDOG_TIMEOUT = 30s;
     static constexpr dmq::Duration SYNC_INVOKE_TIMEOUT = 2s;
 
+    // Timer constants
+    static constexpr dmq::Duration TIMER_TICK_PERIOD = 10ms;
+
     // Heartbeat constants
     static constexpr dmq::Duration HEARTBEAT_PERIOD = 1s;
     static constexpr dmq::Duration HEARTBEAT_TIMEOUT = 10s;

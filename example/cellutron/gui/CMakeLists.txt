@@ -28,7 +28,7 @@ else()
     message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
 endif()
 
-file(GLOB_RECURSE ALL_COMMON_SOURCES "${CELLUTRON_COMMON_DIR}/*.h" "${CELLUTRON_COMMON_DIR}/*.cpp" "${CELLUTRON_COMMON_DIR}/*.c")
+file(GLOB_RECURSE ALL_COMMON_SOURCES CONFIGURE_DEPENDS "${CELLUTRON_COMMON_DIR}/*.h" "${CELLUTRON_COMMON_DIR}/*.cpp" "${CELLUTRON_COMMON_DIR}/*.c")
 set(COMMON_SOURCES ${ALL_COMMON_SOURCES})
 
 # Ensure Network.cpp and RemoteConfig.cpp are included

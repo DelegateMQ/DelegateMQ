@@ -35,7 +35,7 @@ import subprocess
 
 IS_WINDOWS = platform.system() == "Windows"
 
-def build_samples(use_clang=False):
+def build_samples(use_clang=False, clean=False):
     clang_exe = shutil.which("clang++") if (use_clang and not IS_WINDOWS) else None
     if use_clang and IS_WINDOWS:
         print("NOTE: --clang is only supported on Linux. Clang builds skipped on Windows.\n")
@@ -43,6 +43,9 @@ def build_samples(use_clang=False):
         print("WARNING: --clang requested but clang++ not found in PATH. Clang builds skipped.\n")
     elif use_clang and clang_exe:
         print(f"NOTE: --clang enabled. Using {clang_exe} for additional 'build-clang' directories.\n")
+
+    if clean:
+        print("NOTE: --clean enabled. Old build directories will be removed.\n")
 
     repo_root = os.path.dirname(os.path.abspath(__file__))
     target_dirs = [
@@ -59,7 +62,7 @@ def build_samples(use_clang=False):
             print(f"Warning: Could not find directory: {target_dir}")
             continue
 
-        print(f"Cleaning and Generating ALL projects in: {target_dir}\n")
+        print(f"Generating projects in: {target_dir}\n")
 
         for dirpath, dirnames, files in os.walk(target_dir):
             # 1. CLEANUP: Avoid recursing into build/install folders
@@ -67,7 +70,7 @@ def build_samples(use_clang=False):
             if "install" in dirnames: dirnames.remove("install")
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
-            skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal"]
+            skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal", "stm32-freertos"]
             for sd in skip_dirs:
                 if sd in dirnames: dirnames.remove(sd)
 
@@ -95,9 +98,9 @@ def build_samples(use_clang=False):
                 else:
                     display_name = project_name
 
-                # 2. CLEAN: Delete existing build folder
+                # 2. CLEAN: Delete existing build folder if --clean set
                 build_path = os.path.join(dirpath, "build")
-                if os.path.exists(build_path):
+                if clean and os.path.exists(build_path):
                     try: shutil.rmtree(build_path)
                     except: pass
 
@@ -152,7 +155,7 @@ def build_samples(use_clang=False):
                 # --- CLANG CONFIGURE (optional, Linux only) ---
                 if clang_exe and not needs_win32:
                     build_clang_path = os.path.join(dirpath, "build-clang")
-                    if os.path.exists(build_clang_path):
+                    if clean and os.path.exists(build_clang_path):
                         try: shutil.rmtree(build_clang_path)
                         except: pass
                     print(f"[CONFIGURING] {display_name} (clang)")
@@ -173,5 +176,9 @@ if __name__ == "__main__":
         "--clang", action="store_true",
         help="Also configure a build-clang/ directory using clang++ (Linux only)."
     )
+    parser.add_argument(
+        "--clean", action="store_true",
+        help="Remove existing build directories before configuring."
+    )
     args = parser.parse_args()
-    build_samples(use_clang=args.clang)
+    build_samples(use_clang=args.clang, clean=args.clean)

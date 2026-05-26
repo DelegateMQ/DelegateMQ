@@ -58,6 +58,7 @@ public:
 
     int Create(Type type)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         int rc = EXIT_FAILURE;
         printf("Using server at %s\n", ADDRESS);
 
@@ -117,6 +118,7 @@ public:
 
     void Close()
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_client)
         {
             if (m_type == Type::SUB)
@@ -130,7 +132,7 @@ public:
 
         // Wake up any blocked Receive
         {
-            std::lock_guard<std::mutex> lock(m_queueMtx);
+            std::lock_guard<std::mutex> q_lock(m_queueMtx);
             m_stop = true;
         }
         m_queueCv.notify_all();
@@ -138,55 +140,56 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
-        if (os.bad() || os.fail())
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        if (os.bad() || os.fail() || !m_client)
             return -1;
 
-        // Create a local copy to modify the length
-        DmqHeader headerCopy = header;
+        // Get payload data without string copy if possible
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) {
-            std::cerr << "Payload too large." << std::endl;
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        
+        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
-        xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        // Prepare header values in Network Byte Order
+        uint16_t marker = htons(header.GetMarker());
+        uint16_t id     = htons(header.GetId());
+        uint16_t seqNum = htons(header.GetSeqNum());
+        uint16_t length = htons(payloadLen);
 
-        // Serialize Header (Network Byte Order)
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id = htons(headerCopy.GetId());
-        uint16_t seqNum = htons(headerCopy.GetSeqNum());
-        uint16_t len = htons(headerCopy.GetLength());
+        // Copy Header & Payload into the linear buffer
+        memcpy(m_sendBuffer, &marker, 2);
+        memcpy(m_sendBuffer + 2, &id, 2);
+        memcpy(m_sendBuffer + 4, &seqNum, 2);
+        memcpy(m_sendBuffer + 6, &length, 2);
 
-        ss.write(reinterpret_cast<const char*>(&marker), sizeof(marker));
-        ss.write(reinterpret_cast<const char*>(&id), sizeof(id));
-        ss.write(reinterpret_cast<const char*>(&seqNum), sizeof(seqNum));
-        ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+        if (payloadLen > 0) {
+            memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
+        }
 
-        // Append Payload
-        ss.write(payload.data(), payload.size());
-
-        auto fullPacket = ss.str();
+        size_t totalSize = DmqHeader::HEADER_SIZE + payloadLen;
 
         MQTTClient_message pubmsg = MQTTClient_message_initializer;
         MQTTClient_deliveryToken token;
         
-        pubmsg.payload = (void*)fullPacket.data();
-        pubmsg.payloadlen = (int)fullPacket.size();
+        pubmsg.payload = (void*)m_sendBuffer;
+        pubmsg.payloadlen = (int)totalSize;
         pubmsg.qos = QOS;
         pubmsg.retained = 0;
 
         int rc;
         if ((rc = MQTTClient_publishMessage(m_client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS)
         {
-            // printf("Failed to publish message, return code %d\n", rc);
             return EXIT_FAILURE;
         }
         else
         {
-            if (headerCopy.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
+            if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
             {
-                m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId());
+                if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
+                    return -1;
+                }
             }
             return EXIT_SUCCESS;
         }
@@ -194,10 +197,10 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        std::unique_lock<std::mutex> lock(m_queueMtx);
+        std::unique_lock<std::mutex> q_lock(m_queueMtx);
         
         // Wait for data or stop signal
-        if (m_queueCv.wait_for(lock, m_recvTimeout, [this] { return !m_rxQueue.empty() || m_stop; }))
+        if (m_queueCv.wait_for(q_lock, m_recvTimeout, [this] { return !m_rxQueue.empty() || m_stop; }))
         {
             if (m_stop) return -1;
 
@@ -206,33 +209,41 @@ public:
             // Pop message
             std::vector<char> msg = std::move(m_rxQueue.front());
             m_rxQueue.pop();
-            lock.unlock(); // Release lock before processing
+            q_lock.unlock(); // Release queue lock before processing
 
             if (msg.size() < DmqHeader::HEADER_SIZE) return -1;
 
-            // Deserialize
-            xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
-            headerStream.write(msg.data(), DmqHeader::HEADER_SIZE);
-            headerStream.seekg(0);
+            // 1. Read Header (Network Byte Order)
+            uint16_t marker, id, seqNum, length;
+            memcpy(&marker, msg.data(), 2);
+            memcpy(&id,     msg.data() + 2, 2);
+            memcpy(&seqNum, msg.data() + 4, 2);
+            memcpy(&length, msg.data() + 6, 2);
 
-            uint16_t val;
-            headerStream.read((char*)&val, 2); header.SetMarker(ntohs(val));
+            header.SetMarker(ntohs(marker));
+            header.SetId(ntohs(id));
+            header.SetSeqNum(ntohs(seqNum));
+            header.SetLength(ntohs(length));
+
             if (header.GetMarker() != DmqHeader::MARKER) return -1;
 
-            headerStream.read((char*)&val, 2); header.SetId(ntohs(val));
-            headerStream.read((char*)&val, 2); header.SetSeqNum(ntohs(val));
-            headerStream.read((char*)&val, 2); header.SetLength(ntohs(val));
+            // 2. Write payload
+            uint16_t payloadSize = header.GetLength();
+            if (payloadSize > (msg.size() - DmqHeader::HEADER_SIZE))
+                payloadSize = static_cast<uint16_t>(msg.size() - DmqHeader::HEADER_SIZE);
 
-            // Write payload
-            if (msg.size() > DmqHeader::HEADER_SIZE) {
-                is.write(msg.data() + DmqHeader::HEADER_SIZE, msg.size() - DmqHeader::HEADER_SIZE);
+            if (payloadSize > 0) {
+                is.clear();
+                is.str("");
+                is.write(msg.data() + DmqHeader::HEADER_SIZE, payloadSize);
             }
 
-            // ACK Logic
+            // 3. ACK Logic
             if (header.GetId() == dmq::ACK_REMOTE_ID) {
                 if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
             }
             else if (m_transportMonitor) {
+                // Auto-ACK
                 xostringstream ss_ack;
                 DmqHeader ack;
                 ack.SetId(dmq::ACK_REMOTE_ID);
@@ -300,6 +311,10 @@ private:
     std::mutex m_queueMtx;
     std::condition_variable m_queueCv;
     bool m_stop = false;
+
+    static const int BUFFER_SIZE = 4096;
+    char m_sendBuffer[BUFFER_SIZE] = { 0 };
+    dmq::RecursiveMutex m_mutex;
 };
 
 }

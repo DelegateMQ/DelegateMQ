@@ -42,6 +42,7 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 namespace dmq::transport {
 
@@ -130,11 +131,14 @@ public:
         }
 
         // Close all server-accepted clients
-        for (auto s : m_serverClients) {
-            shutdown(s, SD_BOTH);
-            closesocket(s);
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+            for (auto s : m_serverClients) {
+                shutdown(s, SD_BOTH);
+                closesocket(s);
+            }
+            m_serverClients.clear();
         }
-        m_serverClients.clear();
 
         // Close Listen Socket
         if (m_listenSocket != INVALID_SOCKET) {
@@ -151,6 +155,8 @@ public:
         {
             setsockopt(m_clientSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&m_recvTimeoutMs, sizeof(m_recvTimeoutMs));
         }
+        
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         for (auto s : m_serverClients) {
             setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&m_recvTimeoutMs, sizeof(m_recvTimeoutMs));
         }
@@ -163,6 +169,7 @@ public:
         if (m_type == Type::CLIENT) {
             return SendToSocket(m_clientSocket, os, header);
         } else {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             int lastErr = 0;
             for (auto s : m_serverClients) {
                 if (SendToSocket(s, os, header) != 0) lastErr = -1;
@@ -190,28 +197,35 @@ private:
     int SendToSocket(SOCKET s, dmq::xostringstream& os, const DmqHeader& header) {
         if (s == INVALID_SOCKET) return -1;
 
-        DmqHeader headerCopy = header;
+        // Get payload data without string copy if possible
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) return -1;
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
-        dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-        
-        // Convert to Network Byte Order (Big Endian)
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id = htons(headerCopy.GetId());
-        uint16_t seq = htons(headerCopy.GetSeqNum());
-        uint16_t len = htons(headerCopy.GetLength());
+        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+            std::cerr << "Error: Payload too large for static buffer." << std::endl;
+            return -1;
+        }
 
-        ss.write((char*)&marker, 2);
-        ss.write((char*)&id, 2);
-        ss.write((char*)&seq, 2);
-        ss.write((char*)&len, 2);
-        ss.write(payload.data(), payload.size());
+        // Prepare header values in Network Byte Order
+        uint16_t marker = htons(header.GetMarker());
+        uint16_t id     = htons(header.GetId());
+        uint16_t seqNum = htons(header.GetSeqNum());
+        uint16_t length = htons(payloadLen);
 
-        auto data = ss.str();
-        const char* ptr = data.c_str();
-        int remaining = (int)data.length();
+        // Copy header to start of send buffer
+        memcpy(m_sendBuffer, &marker, 2);
+        memcpy(m_sendBuffer + 2, &id, 2);
+        memcpy(m_sendBuffer + 4, &seqNum, 2);
+        memcpy(m_sendBuffer + 6, &length, 2);
+
+        // Copy payload after header
+        if (payloadLen > 0) {
+            memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
+        }
+
+        int totalSize = DmqHeader::HEADER_SIZE + payloadLen;
+        const char* ptr = m_sendBuffer;
+        int remaining = totalSize;
 
         while (remaining > 0)
         {
@@ -222,8 +236,11 @@ private:
         }
 
         // Always track the message (unless it is an ACK)
-        if (headerCopy.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
-            m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId());
+        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
+            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
+                return -1;
+            }
+        }
 
         return 0;
     }
@@ -241,21 +258,25 @@ private:
             if (client != INVALID_SOCKET) {
                 std::cout << "Win32TcpTransport: Accepted client connection." << std::endl;
                 setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&m_recvTimeoutMs, sizeof(m_recvTimeoutMs));
+                const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
                 m_serverClients.push_back(client);
             }
         }
 
         // 2. Poll all connected clients for data
-        if (m_serverClients.empty()) return -1;
-
         fd_set readfds;
         FD_ZERO(&readfds);
-        for (auto s : m_serverClients) {
-            FD_SET(s, &readfds);
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+            if (m_serverClients.empty()) return -1;
+            for (auto s : m_serverClients) {
+                FD_SET(s, &readfds);
+            }
         }
 
         tv.tv_usec = 1000; // 1ms poll
         if (select(0, &readfds, NULL, NULL, &tv) > 0) {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             for (auto it = m_serverClients.begin(); it != m_serverClients.end(); ) {
                 if (FD_ISSET(*it, &readfds)) {
                     int result = ReceiveSocket(*it, is, header);
@@ -288,27 +309,27 @@ private:
         char headerBuf[DmqHeader::HEADER_SIZE];
         if (!ReadExact(s, headerBuf, DmqHeader::HEADER_SIZE)) return -2; // Disconnected
 
-        dmq::xstringstream hs(std::ios::in | std::ios::out | std::ios::binary);
-        hs.write(headerBuf, DmqHeader::HEADER_SIZE);
-        hs.seekg(0);
+        // Parse Header (Convert Network -> Host)
+        uint16_t marker, id, seqNum, length;
+        memcpy(&marker, headerBuf, 2);
+        memcpy(&id,     headerBuf + 2, 2);
+        memcpy(&seqNum, headerBuf + 4, 2);
+        memcpy(&length, headerBuf + 6, 2);
 
-        uint16_t val;
+        header.SetMarker(ntohs(marker));
+        header.SetId(ntohs(id));
+        header.SetSeqNum(ntohs(seqNum));
+        header.SetLength(ntohs(length));
 
-        // Read Marker (Convert Network -> Host)
-        hs.read((char*)&val, 2); header.SetMarker(ntohs(val));
         if (header.GetMarker() != DmqHeader::MARKER) return -1;
 
-        hs.read((char*)&val, 2); header.SetId(ntohs(val));
-        hs.read((char*)&val, 2); header.SetSeqNum(ntohs(val));
-        hs.read((char*)&val, 2); header.SetLength(ntohs(val));
-
         // 2. Read Payload
-        uint16_t length = header.GetLength();
-        if (length > 0)
+        uint16_t payloadSize = header.GetLength();
+        if (payloadSize > 0)
         {
-            m_recvBuf.resize(length);
-            if (!ReadExact(s, m_recvBuf.data(), length)) return -2;
-            is.write(m_recvBuf.data(), length);
+            if (payloadSize > BUFFER_SIZE) return -1;
+            if (!ReadExact(s, m_recvBuffer, payloadSize)) return -2;
+            is.write(m_recvBuffer, payloadSize);
         }
 
         // 3. Handle Acknowledgment
@@ -316,11 +337,19 @@ private:
             if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
         }
         else if (m_transportMonitor && m_sendTransport) {
-            dmq::xostringstream ss_ack;
-            DmqHeader ack;
-            ack.SetId(dmq::ACK_REMOTE_ID);
-            ack.SetSeqNum(header.GetSeqNum());
-            m_sendTransport->Send(ss_ack, ack);
+            // Send ACK using a small stack buffer
+            uint16_t a_marker = htons(DmqHeader::MARKER);
+            uint16_t a_id     = htons(dmq::ACK_REMOTE_ID);
+            uint16_t a_seqNum = htons(header.GetSeqNum());
+            uint16_t a_length = 0;
+
+            char ackBuf[DmqHeader::HEADER_SIZE];
+            memcpy(ackBuf, &a_marker, 2);
+            memcpy(ackBuf + 2, &a_id, 2);
+            memcpy(ackBuf + 4, &a_seqNum, 2);
+            memcpy(ackBuf + 6, &a_length, 2);
+
+            send(s, ackBuf, DmqHeader::HEADER_SIZE, 0);
         }
         return 0;
     }
@@ -340,13 +369,16 @@ private:
     SOCKET m_listenSocket = INVALID_SOCKET;
     SOCKET m_clientSocket = INVALID_SOCKET;
     std::vector<SOCKET> m_serverClients;
-    std::vector<char> m_recvBuf;
+    static const int BUFFER_SIZE = 4096;
+    char m_recvBuffer[BUFFER_SIZE] = { 0 };
+    char m_sendBuffer[BUFFER_SIZE] = { 0 };
     DWORD m_recvTimeoutMs = 2000;
     Type m_type = Type::SERVER;
     
     ITransport* m_sendTransport = nullptr;
     ITransport* m_recvTransport = nullptr;
     ITransportMonitor* m_transportMonitor = nullptr;
+    dmq::RecursiveMutex m_mutex;
 };
 
 } // namespace dmq::transport

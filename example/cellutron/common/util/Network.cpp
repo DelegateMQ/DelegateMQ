@@ -1,6 +1,7 @@
 #include "Network.h"
 #include "Constants.h"
 #include "extras/util/ThreadMonitor.h"
+#include "extras/util/TimerDelegate.h"
 #include <iostream>
 #include <vector>
 
@@ -24,7 +25,7 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const std::string& 
 
     // 1. Setup UDP Telemetry Subscriber
     if (m_subTransport.Create(UdpTransport::Type::SUB, "127.0.0.1", subPort) != 0) {
-        std::cerr << "Network: ERROR - Failed to create subscriber transport on port " << subPort << std::endl;
+        std::cerr << "Network: ERROR - Failed to create subscriber transport on port " << subPort << std::endl; 
         return;
     }
     m_subTransport.SetRecvTimeout(std::chrono::milliseconds(1));
@@ -35,11 +36,11 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const std::string& 
     // 2. Setup TCP Command Server (if port provided)
     if (tcpPort > 0) {
         if (m_tcpServerTransport.Create(TcpTransport::Type::SERVER, "127.0.0.1", tcpPort) != 0) {
-             std::cerr << "Network: ERROR - Failed to create TCP server on port " << tcpPort << std::endl;
+             std::cerr << "Network: ERROR - Failed to create TCP server on port " << tcpPort << std::endl;      
         } else {
              m_tcpServerTransport.SetRecvTimeout(std::chrono::milliseconds(1));
              std::cout << "Network: TCP Server listening on port " << tcpPort << std::endl;
-             m_tcpServerParticipant = std::make_shared<dmq::databus::Participant>(m_tcpServerTransport);
+             m_tcpServerParticipant = std::make_shared<dmq::databus::Participant>(m_tcpServerTransport);        
              for (auto& in : m_incomingTopics)
                  in.adder(in.serializer, in.topic, in.remoteId, *m_tcpServerParticipant);
         }
@@ -54,7 +55,7 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const std::string& 
 #endif
 
     m_running = true;
-    
+
     // Enable watchdog for this thread. ProcessIncoming() timeout ensures periodic check-ins.
     m_thread->CreateThread(WATCHDOG_TIMEOUT);
 
@@ -62,15 +63,18 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const std::string& 
     SpyBridge::Start("127.0.0.1", 9999, m_nodeName);
     NodeBridge::StartMulticast(m_nodeName, "239.1.1.1", 9998);
 
-    // Post the receiver loop to the standardized worker thread
-    (void)dmq::MakeDelegate(this, &Network::ReceiverThread, *m_thread).AsyncInvoke();
+    // Setup receiver timer (Standard loop inside thread context)
+    // Use MakeTimerDelegate to prevent queue flooding if the NetworkThread is busy.
+    m_recvConn = m_recvTimer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &Network::ReceiverThread, *m_thread));
+    m_recvTimer.Start(TIMER_TICK_PERIOD);
 }
-
 void Network::Shutdown() {
     if (!m_running) return;
 
     std::cout << "Network: Shutting down..." << std::endl;
     m_running = false;
+    m_recvTimer.Stop();
+    m_recvConn.Disconnect();
     m_subTransport.Close();
     m_tcpServerTransport.Close();
     if (m_thread) {
@@ -93,7 +97,6 @@ void Network::AddRemoteNode(const std::string& nodeName, const std::string& addr
         node.reliableTransport = std::make_unique<ReliableTransport>(*node.rawTransport, *node.retryMonitor);
         node.reliableParticipant = std::make_shared<dmq::databus::Participant>(*node.reliableTransport);
         node.unreliableParticipant = std::make_shared<dmq::databus::Participant>(*node.rawTransport);
-        node.rawTransport->SetTransportMonitor(node.transportMonitor.get());
         
         node.reliableParticipant->SetSendThread(m_thread.get());
         node.unreliableParticipant->SetSendThread(m_thread.get());
@@ -170,12 +173,6 @@ void Network::ReceiverThread() {
             }
         }
         lastTimeoutCheck = now;
-    }
-
-    if (m_running) {
-        // Reduced sleep to improve throughput
-        Thread::Sleep(std::chrono::milliseconds(10));
-        (void)dmq::MakeDelegate(this, &Network::ReceiverThread, *m_thread).AsyncInvoke();
     }
 }
 

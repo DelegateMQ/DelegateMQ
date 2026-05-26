@@ -31,6 +31,7 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
+#include <mutex>
 
 namespace dmq::transport {
 
@@ -59,6 +60,7 @@ public:
     /// @return 0 on success, -1 on failure
     int Create(Type type, const char* addr, uint16_t port)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
         m_remotePort = port;
 
@@ -98,6 +100,7 @@ public:
     /// Clean up the netconn resources
     void Close()
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_conn)
         {
             netconn_delete(m_conn);
@@ -107,6 +110,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_conn)
         {
             netconn_set_recvtimeout(m_conn, static_cast<int>(timeout.count()));
@@ -115,6 +119,7 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail() || !m_conn) {
             return -1;
         }
@@ -128,36 +133,42 @@ public:
             return -1;
         }
 
-        DmqHeader headerCopy = header;
+        // Get payload data without string copy if possible
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) {
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        
+        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
-        // Serialize Header (Network Byte Order)
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id     = htons(headerCopy.GetId());
-        uint16_t seqNum = htons(headerCopy.GetSeqNum());
-        uint16_t length = htons(headerCopy.GetLength());
+        // Prepare header values in Network Byte Order
+        uint16_t marker = htons(header.GetMarker());
+        uint16_t id     = htons(header.GetId());
+        uint16_t seqNum = htons(header.GetSeqNum());
+        uint16_t length = htons(payloadLen);
+
+        // Copy Header & Payload into the linear buffer
+        memcpy(m_sendBuffer, &marker, 2);
+        memcpy(m_sendBuffer + 2, &id, 2);
+        memcpy(m_sendBuffer + 4, &seqNum, 2);
+        memcpy(m_sendBuffer + 6, &length, 2);
+
+        if (payloadLen > 0) {
+            memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
+        }
 
         // Allocate a Netbuf
         struct netbuf* buf = netbuf_new();
         if (!buf) return -1;
 
-        void* dataPtr = netbuf_alloc(buf, DmqHeader::HEADER_SIZE + payload.size());
+        void* dataPtr = netbuf_alloc(buf, DmqHeader::HEADER_SIZE + payloadLen);
         if (!dataPtr) {
             netbuf_delete(buf);
             return -1;
         }
 
-        // Copy Header & Payload into the linear buffer
-        char* ptr = static_cast<char*>(dataPtr);
-        memcpy(ptr, &marker, sizeof(marker)); ptr += sizeof(marker);
-        memcpy(ptr, &id,     sizeof(id));     ptr += sizeof(id);
-        memcpy(ptr, &seqNum, sizeof(seqNum)); ptr += sizeof(seqNum);
-        memcpy(ptr, &length, sizeof(length)); ptr += sizeof(length);
-        memcpy(ptr, payload.data(), payload.size());
+        // Copy to NetX/LwIP internal buffer
+        memcpy(dataPtr, m_sendBuffer, DmqHeader::HEADER_SIZE + payloadLen);
 
         // PUB uses pre-configured IP; SUB uses last-received IP (Reply)
         err_t err = netconn_sendto(m_conn, buf, &m_remoteIp, m_remotePort);
@@ -166,14 +177,18 @@ public:
 
         if (err != ERR_OK) return -1;
 
-        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
-            m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId());
+        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
+            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
+                return -1;
+            }
+        }
 
         return 0;
     }
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_recvTransport != this || !m_conn) {
             return -1;
         }
@@ -196,22 +211,20 @@ public:
             return -1;
         }
 
-        // Ensure the stream is clean before writing new data
-        is.clear(); 
-        is.str(""); 
-
+        // Read Header (Network Byte Order)
         char headerBuf[DmqHeader::HEADER_SIZE];
         netbuf_copy(buf, headerBuf, DmqHeader::HEADER_SIZE);
 
-        xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
-        headerStream.write(headerBuf, DmqHeader::HEADER_SIZE);
-        headerStream.seekg(0);
+        uint16_t marker, id, seqNum, length;
+        memcpy(&marker, headerBuf, 2);
+        memcpy(&id,     headerBuf + 2, 2);
+        memcpy(&seqNum, headerBuf + 4, 2);
+        memcpy(&length, headerBuf + 6, 2);
 
-        uint16_t netVal;
-        headerStream.read((char*)&netVal, 2); header.SetMarker(ntohs(netVal));
-        headerStream.read((char*)&netVal, 2); header.SetId(ntohs(netVal));
-        headerStream.read((char*)&netVal, 2); header.SetSeqNum(ntohs(netVal));
-        headerStream.read((char*)&netVal, 2); header.SetLength(ntohs(netVal));
+        header.SetMarker(ntohs(marker));
+        header.SetId(ntohs(id));
+        header.SetSeqNum(ntohs(seqNum));
+        header.SetLength(ntohs(length));
 
         if (header.GetMarker() != DmqHeader::MARKER || len < DmqHeader::HEADER_SIZE + header.GetLength()) {
             netbuf_delete(buf);
@@ -219,11 +232,13 @@ public:
         }
 
         // Extract Payload
-        m_recvBuf.resize(header.GetLength());
-        netbuf_copy_partial(buf, m_recvBuf.data(), header.GetLength(), DmqHeader::HEADER_SIZE);
-        
-        if (is.good()) {
-            is.write(payloadBuf.data(), header.GetLength());
+        uint16_t payloadSize = header.GetLength();
+        if (payloadSize > 0) {
+            if (payloadSize > BUFFER_SIZE) payloadSize = BUFFER_SIZE;
+            netbuf_copy_partial(buf, m_recvBuffer, payloadSize, DmqHeader::HEADER_SIZE);
+            is.clear(); 
+            is.str(""); 
+            is.write(m_recvBuffer, payloadSize);
         }
 
         netbuf_delete(buf);
@@ -233,8 +248,8 @@ public:
             if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
         }
         else if (m_transportMonitor && m_sendTransport) {
-            // Auto-ACK
-            xostringstream ss_ack;
+            // Auto-ACK using Send logic
+            dmq::xostringstream ss_ack;
             DmqHeader ack;
             ack.SetId(dmq::ACK_REMOTE_ID);
             ack.SetSeqNum(header.GetSeqNum());
@@ -252,13 +267,17 @@ public:
 private:
     struct netconn* m_conn = nullptr;
     ip_addr_t m_remoteIp{};
-    std::vector<char> m_recvBuf;
     uint16_t  m_remotePort = 0;
     Type m_type = Type::PUB;
 
     ITransport* m_sendTransport = nullptr;
     ITransport* m_recvTransport = nullptr;
     ITransportMonitor* m_transportMonitor = nullptr;
+
+    static const int BUFFER_SIZE = 1500;
+    char m_recvBuffer[BUFFER_SIZE] = { 0 };
+    char m_sendBuffer[BUFFER_SIZE] = { 0 };
+    dmq::RecursiveMutex m_mutex;
 };
 
 }

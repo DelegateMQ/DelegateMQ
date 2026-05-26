@@ -21,6 +21,7 @@
 #include <sstream>
 #include <cstdio>
 #include <iostream>
+#include <mutex>
 
 namespace dmq::transport {
 
@@ -43,6 +44,7 @@ public:
 
     int Create(Type type, LPCSTR pipeName)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
         if (type == Type::PUB)
         {
@@ -84,6 +86,7 @@ public:
 
     void Close()
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_hPipe != INVALID_HANDLE_VALUE)
         {
             // DisconnectNamedPipe is a server (SUB) only API; skip for client (PUB)
@@ -96,6 +99,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         // Named pipes on Windows use different mechanisms for timeouts 
         // than sockets (e.g. SetCommTimeouts for serial or ReadFile with OVERLAPPED).
         // Since this transport currently uses PIPE_NOWAIT, we'll just store it.
@@ -104,44 +108,43 @@ public:
 
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail())
             return -1;
 
         if (m_hPipe == INVALID_HANDLE_VALUE) return -1;
 
-        // Create a local copy to modify the length
-        DmqHeader headerCopy = header;
-
-        // Calculate payload size and set it on the copy
+        // Get payload data without string copy if possible
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) {
-            std::cerr << "Error: Payload too large for 16-bit length." << std::endl;
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+
+        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+            std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
-        dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        // Prepare header values in Network Byte Order
+        uint16_t marker = htons(header.GetMarker());
+        uint16_t id     = htons(header.GetId());
+        uint16_t seqNum = htons(header.GetSeqNum());
+        uint16_t length = htons(payloadLen);
 
-        // Use Network Byte Order (htons) for consistency
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id     = htons(headerCopy.GetId());
-        uint16_t seqNum = htons(headerCopy.GetSeqNum());
-        uint16_t len    = htons(headerCopy.GetLength());
+        // Copy header to start of send buffer
+        memcpy(m_sendBuffer, &marker, 2);
+        memcpy(m_sendBuffer + 2, &id, 2);
+        memcpy(m_sendBuffer + 4, &seqNum, 2);
+        memcpy(m_sendBuffer + 6, &length, 2);
 
-        ss.write(reinterpret_cast<const char*>(&marker), sizeof(marker));
-        ss.write(reinterpret_cast<const char*>(&id), sizeof(id));
-        ss.write(reinterpret_cast<const char*>(&seqNum), sizeof(seqNum));
-        ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+        // Copy payload after header
+        if (payloadLen > 0) {
+            memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
+        }
 
-        // Insert delegate arguments (payload)
-        ss.write(payload.data(), payload.size());
-
-        auto fullPacket = ss.str();
-
+        DWORD totalSize = static_cast<DWORD>(DmqHeader::HEADER_SIZE + payloadLen);
         DWORD sentLen = 0;
-        BOOL success = WriteFile(m_hPipe, fullPacket.c_str(), (DWORD)fullPacket.length(), &sentLen, NULL);
+        BOOL success = WriteFile(m_hPipe, m_sendBuffer, totalSize, &sentLen, NULL);
 
-        if (!success || sentLen != fullPacket.length())
+        if (!success || sentLen != totalSize)
             return -1;
 
         return 0;
@@ -149,6 +152,7 @@ public:
 
     virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
     {
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_hPipe == INVALID_HANDLE_VALUE) return -1;
 
         // Check/Accept connection
@@ -165,41 +169,33 @@ public:
         DWORD size = 0;
         BOOL success = ReadFile(m_hPipe, m_buffer, BUFFER_SIZE, &size, NULL);
 
-        if (success == FALSE || size <= 0)
+        if (success == FALSE || size < DmqHeader::HEADER_SIZE)
             return -1;
 
-        if (size <= DmqHeader::HEADER_SIZE) {
-            // std::cerr << "Received data is too small to process." << std::endl;
-            return -1;
-        }
+        // 1. Read Header directly from m_buffer (Network Byte Order)
+        uint16_t marker, id, seqNum, length;
+        memcpy(&marker, m_buffer, 2);
+        memcpy(&id,     m_buffer + 2, 2);
+        memcpy(&seqNum, m_buffer + 4, 2);
+        memcpy(&length, m_buffer + 6, 2);
 
-        dmq::xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
-        headerStream.write(m_buffer, DmqHeader::HEADER_SIZE);
-        headerStream.seekg(0);
-
-        uint16_t val = 0;
-
-        // Use Network Byte Order (ntohs)
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetMarker(ntohs(val));
+        header.SetMarker(ntohs(marker));
+        header.SetId(ntohs(id));
+        header.SetSeqNum(ntohs(seqNum));
+        header.SetLength(ntohs(length));
 
         if (header.GetMarker() != DmqHeader::MARKER) {
             return -1;
         }
 
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetId(ntohs(val));
+        // 2. Write payload to provided stream
+        uint16_t payloadSize = header.GetLength();
+        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
+            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
 
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetSeqNum(ntohs(val));
-
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetLength(ntohs(val));
-
-        // Write the remaining argument data to stream
-        // Note: This relies on PIPE_TYPE_MESSAGE mode preserving boundaries.
-        // If 'size' is > HEADER_SIZE + payload length, we strictly write the payload part.
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, size - DmqHeader::HEADER_SIZE);
+        if (payloadSize > 0) {
+            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+        }
 
         return 0;
     }
@@ -207,11 +203,13 @@ public:
 private:
     // Increase buffer to Max Packet Size (64KB) to avoid truncation
     static const int BUFFER_SIZE = 65536;
-    char m_buffer[BUFFER_SIZE];
+    char m_buffer[BUFFER_SIZE] = { 0 };
+    char m_sendBuffer[BUFFER_SIZE] = { 0 };
 
     Type m_type = Type::PUB;
     HANDLE m_hPipe = INVALID_HANDLE_VALUE;
     std::chrono::milliseconds m_recvTimeout = std::chrono::milliseconds(2000);
+    dmq::RecursiveMutex m_mutex;
 };
 
 } // namespace dmq::transport

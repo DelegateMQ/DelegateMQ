@@ -51,6 +51,12 @@ public:
         {
             transport::DmqHeader header(id, transport::DmqHeader::GetNextSeqNum());
             int err = m_transport->Send(*ss, header);
+
+            // Reset the stream content and error state for the next use.
+            // This prevents the stream from growing indefinitely.
+            ss->str("");
+            ss->clear();
+
             LOG_INFO("Dispatcher::Dispatch id={} seqNum={} err={}", header.GetId(), header.GetSeqNum(), err);
             return err;
         }

@@ -46,13 +46,13 @@ using namespace cellutron;
 // ---------------------------------------------------------------------------
 // Heap initialisation
 // ---------------------------------------------------------------------------
-#define mainREGION_1_SIZE   (1024 * 1024)
-#define mainREGION_2_SIZE   (512 * 1024)
-#define mainREGION_3_SIZE   (512 * 1024)
+#define mainREGION_1_SIZE   (512 * 1024)
+#define mainREGION_2_SIZE   (256 * 1024)
+#define mainREGION_3_SIZE   (256 * 1024)
 
-static uint8_t ucHeap1[mainREGION_1_SIZE];
-static uint8_t ucHeap2[mainREGION_2_SIZE];
-static uint8_t ucHeap3[mainREGION_3_SIZE];
+alignas(16) static uint8_t ucHeap1[mainREGION_1_SIZE];
+alignas(16) static uint8_t ucHeap2[mainREGION_2_SIZE];
+alignas(16) static uint8_t ucHeap3[mainREGION_3_SIZE];
 
 static void prvInitialiseHeap(void) {
     const HeapRegion_t xHeapRegions[] = {
@@ -120,6 +120,12 @@ static void vControllerTask(void* /*pvParams*/) {
 static void vWatchdogTask(void* /*pvParams*/) {
     for (;;) {
         Thread::WatchdogCheckAll();
+
+        static int count = 0;
+        if (++count >= 50) { // Every 5 seconds
+            printf("FreeRTOS Controller Heap: %u bytes free\n", (unsigned int)xPortGetFreeHeapSize());
+            count = 0;
+        }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

@@ -9,6 +9,7 @@ endif()
 set(DMQ_THREAD "DMQ_THREAD_FREERTOS")
 set(DMQ_SERIALIZE "DMQ_SERIALIZE_SERIALIZE")
 set(DMQ_DATABUS "ON")
+set(DMQ_ALLOCATOR "ON")
 
 # Include DelegateMQ setup
 include("${CMAKE_CURRENT_SOURCE_DIR}/../../../src/delegate-mq/DelegateMQ.cmake")
@@ -18,7 +19,7 @@ set(TOOLS_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/bridge")
 set(TOOLS_SRC_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/src")
 
 # Glob common sources but exclude SQLite
-file(GLOB_RECURSE ALL_COMMON_SOURCES "${CELLUTRON_COMMON_DIR}/*.h" "${CELLUTRON_COMMON_DIR}/*.cpp" "${CELLUTRON_COMMON_DIR}/*.c")
+file(GLOB_RECURSE ALL_COMMON_SOURCES CONFIGURE_DEPENDS "${CELLUTRON_COMMON_DIR}/*.h" "${CELLUTRON_COMMON_DIR}/*.cpp" "${CELLUTRON_COMMON_DIR}/*.c")
 set(COMMON_SOURCES ${ALL_COMMON_SOURCES})
 
 # Ensure util files are included
