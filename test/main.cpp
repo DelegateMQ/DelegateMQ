@@ -63,6 +63,7 @@ extern void RunDelegateUnitTests();
 #if defined(DMQ_DATABUS)
 extern void RunDataBusTests();
 #endif
+extern void RunStabilityTests();
 void RunSimpleExamples();
 void RunRemoteChannelExamples();
 void RunPubSubExamples();
@@ -152,6 +153,7 @@ int main(void)
         RunAsyncAPIExamples();
         RunAllExamples();
         RunMiscExamples();
+        RunStabilityTests();
         RunDelegateUnitTests();
 #if defined(DMQ_DATABUS)
         RunDataBusTests();

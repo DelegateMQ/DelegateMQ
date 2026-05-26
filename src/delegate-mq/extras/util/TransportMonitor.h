@@ -58,7 +58,7 @@ public:
         const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
 
         // Diagnostic: Detect if tracking map is ballooning (likely logic or network error)
-        if (m_pending.size() > dmq::MAX_TRANSPORT_MONITOR_PENDING) {
+        if (m_pending.size() >= dmq::MAX_TRANSPORT_MONITOR_PENDING) {
             LOG_ERROR("TransportMonitor: Dangerous growth detected! Map size: {}. Check ACK logic or reliability settings.", m_pending.size());
             return false;
         }
