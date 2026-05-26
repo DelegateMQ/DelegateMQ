@@ -52,11 +52,14 @@ public:
     // Process incoming data from the transport.
     // @return The result code from ITransport::Receive.
     int ProcessIncoming() {
-        dmq::xstringstream is(std::ios::in | std::ios::out | std::ios::binary);
+        // Clear the stream for reuse to avoid heap growth
+        m_inputStream.str("");
+        m_inputStream.clear();
+
         dmq::transport::DmqHeader header;
         dmq::IRemoteInvoker* invoker = nullptr;
 
-        int result = m_transport->Receive(is, header);
+        int result = m_transport->Receive(m_inputStream, header);
         if (result == 0) {
             // Validate header marker
             if (header.GetMarker() != dmq::transport::DmqHeader::MARKER) {
@@ -86,7 +89,7 @@ public:
 
             // Invoke outside the lock to prevent deadlocks and allow re-entry
             if (invoker) {
-                invoker->Invoke(is);
+                invoker->Invoke(m_inputStream);
             }
         }
         return result;
@@ -102,13 +105,23 @@ public:
             auto channel = GetOrCreateChannel<T>(remoteId, serializer);
             if (channel) {
                 if (m_sendThread) {
-                    auto ch = channel;
-                    T d = data;
-                    (void)dmq::MakeDelegate([ch, d]() { (*ch)(d); }, *m_sendThread).AsyncInvoke();
+                    // Use a member function to avoid potential shared_ptr circular 
+                    // references. Pass arguments to AsyncInvoke.
+                    (void)dmq::MakeDelegate(this, &Participant::AsyncSend<T>, *m_sendThread).AsyncInvoke(channel, data);
                 } else {
                     (*channel)(data);
                 }
             }
+        }
+    }
+
+    /// @brief Internal helper to execute a remote send on a background thread.
+    /// @details Using a member function prevents potential shared_ptr circular 
+    /// references.
+    template <typename T>
+    void AsyncSend(std::shared_ptr<dmq::RemoteChannel<void(T)>> channel, T data) {
+        if (channel) {
+            (*channel)(data);
         }
     }
 
@@ -255,6 +268,7 @@ private:
         }
     };
     xmap<dmq::DelegateRemoteId, SeqHistory> m_history;
+    dmq::xstringstream m_inputStream;
 };
 
 } // namespace dmq::databus

@@ -56,10 +56,8 @@ void NodeBridge::InitTelemetry(const std::string& address, uint16_t port, bool i
     instance.monitorConn = dmq::databus::DataBus::Monitor([](const dmq::databus::SpyPacket& packet) {
         auto& inst = GetInstance();
         inst.totalMsgCount++;
-        // Topics update is done on NodeBridge thread, so it's safe if we don't hit other threads.
-        // We still need a lock if we access instance.topics from SendHeartbeat (also on NodeBridge thread).
-        // Actually, if both are on NodeBridge thread, no lock is needed!
-        inst.topics.insert(packet.topic);
+        // Explicit conversion from dmq::xstring to std::string for the set
+        inst.topics.insert(packet.topic.c_str());
     }, instance.thread.get());
 
     static dmq::util::ThreadStatsPacketSerializer serializer;
@@ -69,11 +67,13 @@ void NodeBridge::InitTelemetry(const std::string& address, uint16_t port, bool i
     // Subscribe to ThreadStats. Asynchronous delivery to NodeBridge thread.
     instance.threadStatsConn = dmq::databus::DataBus::Subscribe<dmq::util::ThreadStatsPacket>("ThreadStats", [](const dmq::util::ThreadStatsPacket& packet) {
         auto& inst = GetInstance();
-        std::ostringstream oss(std::ios::binary);
+        static std::ostringstream oss(std::ios::binary);
         static dmq::util::ThreadStatsPacketSerializer ser;
+        oss.str("");
+        oss.clear();
         ser.Write(oss, packet);
         if (oss.good()) {
-            std::string body = oss.str();
+            const std::string& body = oss.str();
             std::string buf;
             buf.reserve(1 + body.size());
             buf.push_back(static_cast<char>(dmq::PacketType::ThreadStats));
@@ -121,11 +121,13 @@ void NodeBridge::SendHeartbeat() {
     packet.topicsStr = std::move(joined);
 
     static serialize ms;
-    std::ostringstream oss(std::ios::binary);
+    static std::ostringstream oss(std::ios::binary);
+    oss.str("");
+    oss.clear();
     ms.write(oss, packet);
 
     if (oss.good()) {
-        std::string body = oss.str();
+        const std::string& body = oss.str();
         std::string buf;
         buf.reserve(1 + body.size());
         buf.push_back(static_cast<char>(dmq::PacketType::NodeInfo));

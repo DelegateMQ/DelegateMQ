@@ -147,6 +147,8 @@ private:
     std::vector<OutgoingTopic> m_outgoingTopics;
     std::vector<IncomingTopic> m_incomingTopics;
     std::string m_nodeName;
+    dmq::util::Timer m_recvTimer;
+    dmq::ScopedConnection m_recvConn;
 };
 
 } // namespace util

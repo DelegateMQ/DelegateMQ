@@ -153,45 +153,43 @@ public:
             return -1;
         }
 
-        // Create a local copy to modify the length
-        DmqHeader headerCopy = header;
-
-        // Calculate payload size and set it on the copy
+        // Get payload data without string copy if possible
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) {
-            std::cerr << "Error: Payload too large for 16-bit length." << std::endl;
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+
+        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+            std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
-        dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        // Prepare header values in Network Byte Order
+        uint16_t marker = htons(header.GetMarker());
+        uint16_t id     = htons(header.GetId());
+        uint16_t seqNum = htons(header.GetSeqNum());
+        uint16_t length = htons(payloadLen);
 
-        // Convert to Network Byte Order (Big Endian)
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id = htons(headerCopy.GetId());
-        uint16_t seq = htons(headerCopy.GetSeqNum());
-        uint16_t len = htons(headerCopy.GetLength());
+        // Copy header to start of send buffer
+        memcpy(m_sendBuffer, &marker, 2);
+        memcpy(m_sendBuffer + 2, &id, 2);
+        memcpy(m_sendBuffer + 4, &seqNum, 2);
+        memcpy(m_sendBuffer + 6, &length, 2);
 
-        ss.write((char*)&marker, 2);
-        ss.write((char*)&id, 2);
-        ss.write((char*)&seq, 2);
-        ss.write((char*)&len, 2);
-        ss.write(payload.data(), payload.size());
+        // Copy payload after header
+        if (payloadLen > 0) {
+            memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
+        }
 
-        auto data = ss.str();
+        int totalSize = DmqHeader::HEADER_SIZE + payloadLen;
 
-        int err = sendto(m_socket, data.c_str(), (int)data.size(), 0, (sockaddr*)&m_addr, sizeof(m_addr));
+        int err = sendto(m_socket, m_sendBuffer, totalSize, 0, (sockaddr*)&m_addr, sizeof(m_addr));
 
-        if (err != SOCKET_ERROR) {
-            // std::cout << "Win32UdpTransport: Sent " << data.size() << " bytes to remote ID " << headerCopy.GetId() << std::endl;
-        } else {
+        if (err == SOCKET_ERROR) {
             std::cerr << "Win32UdpTransport: ERROR - sendto failed with " << WSAGetLastError() << std::endl;
         }
 
         // Always track the message (unless it is an ACK)
-        // Use Host Byte Order for ID check
-        if (err != SOCKET_ERROR && headerCopy.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-            m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId());
+        if (err != SOCKET_ERROR && header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
+            m_transportMonitor->Add(header.GetSeqNum(), header.GetId());
         }
 
         return (err == SOCKET_ERROR) ? -1 : 0;
@@ -204,63 +202,59 @@ public:
             return -1;
         }
 
-        dmq::xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
-
         int addrLen = sizeof(m_addr);
         int size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, (sockaddr*)&m_addr, &addrLen);
-        if (size == SOCKET_ERROR)
+        if (size == SOCKET_ERROR || size < DmqHeader::HEADER_SIZE)
         {
             return -1;
         }
 
-        // Write the received data into the stringstream
-        headerStream.write(m_buffer, size);
-        headerStream.seekg(0);
+        // 1. Read Header directly from m_buffer (Network Byte Order)
+        uint16_t marker, id, seqNum, length;
+        memcpy(&marker, m_buffer, 2);
+        memcpy(&id,     m_buffer + 2, 2);
+        memcpy(&seqNum, m_buffer + 4, 2);
+        memcpy(&length, m_buffer + 6, 2);
 
-        uint16_t val = 0;
-
-        // 1. Read Marker (Convert Network -> Host)
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetMarker(ntohs(val));
+        header.SetMarker(ntohs(marker));
+        header.SetId(ntohs(id));
+        header.SetSeqNum(ntohs(seqNum));
+        header.SetLength(ntohs(length));
 
         if (header.GetMarker() != DmqHeader::MARKER) {
-            std::cerr << "Invalid sync marker!" << std::endl;
             return -1;
         }
 
-        // 2. Read ID
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetId(ntohs(val));
+        // 2. Write payload to provided stream
+        uint16_t payloadSize = header.GetLength();
+        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
+            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
 
-        // 3. Read SeqNum
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetSeqNum(ntohs(val));
+        if (payloadSize > 0) {
+            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+        }
 
-        // 4. Read Length
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetLength(ntohs(val));
-
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, size - DmqHeader::HEADER_SIZE);
-
-        // Get Host Byte Order values for logic check
-        uint16_t id = header.GetId();
-        uint16_t seqNum = header.GetSeqNum();
-
-        if (id == dmq::ACK_REMOTE_ID)
+        // 3. Handle Acknowledgment
+        if (header.GetId() == dmq::ACK_REMOTE_ID)
         {
             if (m_transportMonitor)
-                m_transportMonitor->Remove(seqNum);
+                m_transportMonitor->Remove(header.GetSeqNum());
         }
-        else
+        else if (m_transportMonitor && m_sendTransport)
         {
-            if (m_transportMonitor && m_sendTransport)
-            {
-                dmq::xostringstream ss_ack;
-                DmqHeader ack;
-                ack.SetId(dmq::ACK_REMOTE_ID);
-                ack.SetSeqNum(seqNum);
-                m_sendTransport->Send(ss_ack, ack);
-            }
+            // Send ACK using a small stack buffer to avoid any heap
+            uint16_t a_marker = htons(DmqHeader::MARKER);
+            uint16_t a_id     = htons(dmq::ACK_REMOTE_ID);
+            uint16_t a_seqNum = htons(header.GetSeqNum());
+            uint16_t a_length = 0;
+
+            char ackBuf[DmqHeader::HEADER_SIZE];
+            memcpy(ackBuf, &a_marker, 2);
+            memcpy(ackBuf + 2, &a_id, 2);
+            memcpy(ackBuf + 4, &a_seqNum, 2);
+            memcpy(ackBuf + 6, &a_length, 2);
+
+            sendto(m_socket, ackBuf, DmqHeader::HEADER_SIZE, 0, (sockaddr*)&m_addr, sizeof(m_addr));
         }
 
         return 0;
@@ -298,6 +292,7 @@ private:
     /// Messages exceeding BUFFER_SIZE will be truncated and discarded by the OS.
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = { 0 };
+    char m_sendBuffer[BUFFER_SIZE] = { 0 };
 };
 
 using UdpTransport = Win32UdpTransport;

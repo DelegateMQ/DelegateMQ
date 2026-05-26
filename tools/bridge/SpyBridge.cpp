@@ -6,7 +6,6 @@
 #include "port/serialize/serialize/msg_serialize.h"
 #include "extras/util/ThreadMonitor.h"
 #include <iostream>
-#include <sstream>
 
 void SpyBridge::Start(const std::string& address, uint16_t port, const std::string& nodeId) {
     Init(address, port, TransportType::UNICAST, nodeId);
@@ -61,12 +60,15 @@ void SpyBridge::Init(const std::string& address, uint16_t port, TransportType ty
         dmq::databus::SpyPacket outgoing = packet;
         outgoing.nodeId = inst.nodeId;
 
-        static serialize ms; 
-        dmq::xostringstream oss(std::ios::binary);
+        static serialize ms;
+        static std::ostringstream oss(std::ios::binary);
+        oss.str("");
+        oss.clear();
         ms.write(oss, outgoing);
+
         if (oss.good()) {
-            std::string buffer = oss.str();
-            inst.telemetrySocket.Send(buffer.data(), buffer.size());
+            const std::string& s = oss.str();
+            inst.telemetrySocket.Send(s.data(), s.size());
         }
     }, instance.thread.get());
 }

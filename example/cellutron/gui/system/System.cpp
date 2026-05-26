@@ -106,9 +106,9 @@ void System::StartTimerThread() {
 
 void System::TimerTick() {
     Timer::ProcessTimers();
-    Tick(100);
+    Tick(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(TIMER_TICK_PERIOD).count()));
     if (m_timerRunning) {
-        Thread::Sleep(std::chrono::milliseconds(100));
+        Thread::Sleep(TIMER_TICK_PERIOD);
         (void)dmq::MakeDelegate(this, &System::TimerTick, m_backgroundTimer).AsyncInvoke();
     }
 }

@@ -153,11 +153,6 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
-        if (os.bad() || os.fail()) {
-            std::cerr << "Stream state error." << std::endl;
-            return -1;
-        }
-
         // Allow ACKs on SUB sockets. Block only regular data.
         if (m_type == Type::SUB && header.GetId() != dmq::ACK_REMOTE_ID) {
             std::cerr << "Send operation not allowed on SUB socket." << std::endl;
@@ -169,43 +164,44 @@ public:
             return -1;
         }
 
-        // Create a local copy so we can modify the length
-        DmqHeader headerCopy = header;
-
-        // Calculate payload size and set it
+        // Get payload data without string copy if possible
+        // Note: os.str() still creates a copy. In a full zero-copy version,
+        // we would use a custom streambuf that points to m_sendBuffer.
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) {
-            std::cerr << "Error: Payload too large." << std::endl;
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        
+        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+            std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
-        xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        // Prepare header values in Network Byte Order
+        uint16_t marker = htons(header.GetMarker());
+        uint16_t id     = htons(header.GetId());
+        uint16_t seqNum = htons(header.GetSeqNum());
+        uint16_t length = htons(payloadLen);
 
-        // Convert to Network Byte Order (Big Endian)
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id     = htons(headerCopy.GetId());
-        uint16_t seqNum = htons(headerCopy.GetSeqNum());
-        uint16_t length = htons(headerCopy.GetLength());
+        // Copy header to start of send buffer
+        memcpy(m_sendBuffer, &marker, 2);
+        memcpy(m_sendBuffer + 2, &id, 2);
+        memcpy(m_sendBuffer + 4, &seqNum, 2);
+        memcpy(m_sendBuffer + 6, &length, 2);
 
-        ss.write(reinterpret_cast<const char*>(&marker), sizeof(marker));
-        ss.write(reinterpret_cast<const char*>(&id), sizeof(id));
-        ss.write(reinterpret_cast<const char*>(&seqNum), sizeof(seqNum));
-        ss.write(reinterpret_cast<const char*>(&length), sizeof(length));
+        // Copy payload after header
+        if (payloadLen > 0) {
+            memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
+        }
 
-        // Append Payload
-        ss.write(payload.data(), payload.size());
+        size_t totalSize = DmqHeader::HEADER_SIZE + payloadLen;
 
-        auto data = ss.str();
-
-        ssize_t sent = sendto(m_socket, data.c_str(), data.size(), 0,
+        ssize_t sent = sendto(m_socket, m_sendBuffer, totalSize, 0,
             (struct sockaddr*)&m_addr, sizeof(m_addr));
-        if (sent != (ssize_t)data.size()) return -1;
+            
+        if (sent != (ssize_t)totalSize) return -1;
 
         // Always track the message (unless it is an ACK)
-        // Use Host Byte Order for ID check
-        if (headerCopy.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
-            m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId());
+        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
+            m_transportMonitor->Add(header.GetSeqNum(), header.GetId());
 
         return 0;
     }
@@ -226,63 +222,64 @@ public:
         {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 return -1; // Timeout
-            // std::cerr << "recvfrom failed: " << strerror(errno) << std::endl;
             return -1;
         }
 
-        // Important: Update m_addr to the sender's address so we can ACK back
-        // Note: For a true 1-to-N PUB/SUB, you might not want to overwrite m_addr permanently,
-        // but for a 1-to-1 reliable link, this is required to route the ACK.
-        if (m_type == Type::SUB) {
-            m_addr = fromAddr;
+        if (size < DmqHeader::HEADER_SIZE) {
+            return -1;
         }
 
-        xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
-        headerStream.write(m_buffer, size);
-        headerStream.seekg(0);
+        // 1. Read Header directly from m_buffer (Network Byte Order)
+        uint16_t marker, id, seqNum, length;
+        memcpy(&marker, m_buffer, 2);
+        memcpy(&id,     m_buffer + 2, 2);
+        memcpy(&seqNum, m_buffer + 4, 2);
+        memcpy(&length, m_buffer + 6, 2);
 
-        uint16_t val = 0;
-
-        // 1. Read Marker (Convert Network -> Host)
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetMarker(ntohs(val));
+        header.SetMarker(ntohs(marker));
+        header.SetId(ntohs(id));
+        header.SetSeqNum(ntohs(seqNum));
+        header.SetLength(ntohs(length));
 
         if (header.GetMarker() != DmqHeader::MARKER)
         {
-            std::cerr << "Invalid sync marker!" << std::endl;
             return -1;
         }
 
-        // 2. Read ID
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetId(ntohs(val));
+        // 2. Write payload to provided stream
+        uint16_t payloadSize = header.GetLength();
+        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
+            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
 
-        // 3. Read SeqNum
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetSeqNum(ntohs(val));
+        if (payloadSize > 0) {
+            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+        }
 
-        // 4. Read Length
-        headerStream.read(reinterpret_cast<char*>(&val), sizeof(val));
-        header.SetLength(ntohs(val));
-
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, size - DmqHeader::HEADER_SIZE);
-
-        // Get Host Byte Order values for logic check
-        uint16_t id = header.GetId();
-        uint16_t seqNum = header.GetSeqNum();
-
-        if (id == dmq::ACK_REMOTE_ID)
+        // 3. Handle ACKs and Metadata
+        if (header.GetId() == dmq::ACK_REMOTE_ID)
         {
             if (m_transportMonitor)
-                m_transportMonitor->Remove(seqNum);
+                m_transportMonitor->Remove(header.GetSeqNum());
         }
         else if (m_transportMonitor && m_sendTransport)
         {
-            xostringstream ss_ack;
-            DmqHeader ack;
-            ack.SetId(dmq::ACK_REMOTE_ID);
-            ack.SetSeqNum(seqNum);
-            m_sendTransport->Send(ss_ack, ack);
+            // Send ACK using a small stack buffer to avoid any heap
+            uint16_t a_marker = htons(DmqHeader::MARKER);
+            uint16_t a_id     = htons(dmq::ACK_REMOTE_ID);
+            uint16_t a_seqNum = htons(header.GetSeqNum());
+            uint16_t a_length = 0;
+
+            char ackBuf[DmqHeader::HEADER_SIZE];
+            memcpy(ackBuf, &a_marker, 2);
+            memcpy(ackBuf + 2, &a_id, 2);
+            memcpy(ackBuf + 4, &a_seqNum, 2);
+            memcpy(ackBuf + 6, &a_length, 2);
+
+            // Use the subscriber's m_addr which was set by recvfrom if m_type == SUB
+            sockaddr_in targetAddr = (m_type == Type::SUB) ? fromAddr : m_addr;
+
+            sendto(m_socket, ackBuf, DmqHeader::HEADER_SIZE, 0,
+                (struct sockaddr*)&targetAddr, sizeof(targetAddr));
         }
 
         return 0;
@@ -318,6 +315,7 @@ private:
     /// Messages exceeding BUFFER_SIZE will be truncated and discarded by the OS.
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = { 0 };
+    char m_sendBuffer[BUFFER_SIZE] = { 0 };
 };
 
 using UdpTransport = LinuxUdpTransport;

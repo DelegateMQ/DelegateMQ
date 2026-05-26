@@ -12,6 +12,7 @@ if (MSVC)
     # Fix for spdlog bundled fmt in C++20 mode
     add_compile_definitions(FMT_USE_ITERATOR_TRAITS=1)
     add_compile_definitions(FMT_MSVC_CRT_ITERATORS=0)
+    add_compile_definitions(_SECURE_SCL=0)
 endif()
 
 

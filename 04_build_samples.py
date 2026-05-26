@@ -20,10 +20,11 @@ Skip List (always excluded):
     - bare-metal-arm          Embedded ARM target, requires cross-compiler
     - mqtt-rapidjson          Requires external MQTT broker (excluded from run)
     - serialport-serializer   Requires physical serial port hardware
+    - stm32-freertos          Embedded STM32 target, requires cross-compiler
     - system-architecture-python  Python-only client, no C++ build
 
 Windows-only (skipped on Linux):
-    - stm32-freertos          Client uses Win32 serial (libserialport) + UDP; server is embedded STM32
+    - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
@@ -46,13 +47,13 @@ SKIP_ALWAYS = {
     "bare-metal-arm",
     "mqtt-rapidjson",
     "serialport-serializer",
+    "stm32-freertos",
     "system-architecture-python",
 }
 
 WINDOWS_ONLY = {
     "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
     "freertos-bare-metal",
-    "stm32-freertos",          # client uses Win32 serial (libserialport) and UDP; server is an embedded STM32 target
     "win32-pipe-serializer",
     "win32-tcp-serializer",
     "win32-udp-serializer",
