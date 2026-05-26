@@ -97,7 +97,6 @@ void Network::AddRemoteNode(const std::string& nodeName, const std::string& addr
         node.reliableTransport = std::make_unique<ReliableTransport>(*node.rawTransport, *node.retryMonitor);
         node.reliableParticipant = std::make_shared<dmq::databus::Participant>(*node.reliableTransport);
         node.unreliableParticipant = std::make_shared<dmq::databus::Participant>(*node.rawTransport);
-        node.rawTransport->SetTransportMonitor(node.transportMonitor.get());
         
         node.reliableParticipant->SetSendThread(m_thread.get());
         node.unreliableParticipant->SetSendThread(m_thread.get());

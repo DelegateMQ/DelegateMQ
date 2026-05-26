@@ -52,13 +52,23 @@ public:
     /// Add a sequence number
     /// param[in] seqNum - the delegate message sequence number
     /// param[in] remoteId - the remote ID
-    virtual void Add(uint16_t seqNum, dmq::DelegateRemoteId remoteId) override
+    /// @return true if added; false otherwise.
+    virtual bool Add(uint16_t seqNum, dmq::DelegateRemoteId remoteId) override
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+
+        // Diagnostic: Detect if tracking map is ballooning (likely logic or network error)
+        if (m_pending.size() > dmq::MAX_TRANSPORT_MONITOR_PENDING) {
+            LOG_ERROR("TransportMonitor: Dangerous growth detected! Map size: {}. Check ACK logic or reliability settings.", m_pending.size());
+            return false;
+        }
+
         TimeoutData d;
         d.timeStamp = dmq::Clock::now();
         d.remoteId = remoteId;
         m_pending[seqNum] = d;
+
+        return true;
     }
 
     /// Remove a sequence number. Invokes SendStatusCb callback to notify 
@@ -107,8 +117,11 @@ public:
 
                 if (elapsed > TRANSPORT_TIMEOUT)
                 {
-                    if (expiredCount >= dmq::MAX_TIMER_EXPIRED)
+                    if (expiredCount >= dmq::MAX_TIMER_EXPIRED) {
+                        // Diagnostic: Alert that we are failing to clean up fast enough
+                        LOG_ERROR("TransportMonitor: Cleanup bottleneck! Expired items exceeding MAX_TIMER_EXPIRED ({})", dmq::MAX_TIMER_EXPIRED);
                         break; // Buffer full; remaining expired items processed next tick
+                    }
                     m_expiredItems[expiredCount++] = { (*it).first, (*it).second };
                     it = m_pending.erase(it);
                 }

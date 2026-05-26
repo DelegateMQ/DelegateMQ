@@ -195,6 +195,10 @@ namespace dmq
     /// Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.
     inline constexpr size_t MAX_PARTICIPANTS = DMQ_MAX_PARTICIPANTS;
 
+    /// @brief Max number of pending messages the TransportMonitor can track.
+    /// Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.
+    inline constexpr size_t MAX_TRANSPORT_MONITOR_PENDING = DMQ_TRANSPORT_MONITOR_MAX_PENDING;
+
     // --- MUTEX / LOCK SELECTION ---
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
     // Windows / Linux / macOS / Qt

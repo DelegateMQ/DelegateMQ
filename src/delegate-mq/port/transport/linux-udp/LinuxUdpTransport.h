@@ -200,9 +200,11 @@ public:
         if (sent != (ssize_t)totalSize) return -1;
 
         // Always track the message (unless it is an ACK)
-        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
-            m_transportMonitor->Add(header.GetSeqNum(), header.GetId());
-
+        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
+            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
+                return -1;
+            }
+        }
         return 0;
     }
 

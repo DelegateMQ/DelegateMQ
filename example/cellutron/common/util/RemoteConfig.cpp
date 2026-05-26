@@ -37,11 +37,11 @@ void RegisterStringifiers() {
     });
 
     dmq::databus::DataBus::RegisterStringifier<CentrifugeSpeedMsg>(cellutron::topics::CMD_CENTRIFUGE_SPEED, [](const CentrifugeSpeedMsg& msg) -> dmq::xstring {
-        return (std::to_string(msg.rpm) + " RPM").c_str();
+        return std::to_string(msg.rpm) + " RPM";
     });
 
     dmq::databus::DataBus::RegisterStringifier<CentrifugeStatusMsg>(cellutron::topics::STATUS_CENTRIFUGE, [](const CentrifugeStatusMsg& msg) -> dmq::xstring {
-        return (std::to_string(msg.rpm) + " RPM").c_str();
+        return std::to_string(msg.rpm) + " RPM";
     });
 
     dmq::databus::DataBus::RegisterStringifier<RunStatusMsg>(cellutron::topics::STATUS_RUN, [](const RunStatusMsg& msg) -> dmq::xstring {
@@ -55,37 +55,37 @@ void RegisterStringifiers() {
     });
 
     dmq::databus::DataBus::RegisterStringifier<FaultMsg>(cellutron::topics::FAULT, [](const FaultMsg& msg) -> dmq::xstring {
-        return ("FAULT CODE: " + std::to_string(msg.faultCode)).c_str();
+        return "FAULT CODE: " + std::to_string(msg.faultCode);
     });
 
     dmq::databus::DataBus::RegisterStringifier<ActuatorStatusMsg>(cellutron::topics::STATUS_ACTUATOR, [](const ActuatorStatusMsg& msg) -> dmq::xstring {
         std::string type = (msg.type == ActuatorType::VALVE) ? "VALVE" : "PUMP";
-        return (type + " " + std::to_string(msg.id) + ": " + std::to_string(msg.value)).c_str();
+        return type + " " + std::to_string(msg.id) + ": " + std::to_string(msg.value);
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::STATUS_SENSOR, [](const SensorStatusMsg& msg) -> dmq::xstring {
         std::string type = (msg.type == SensorType::PRESSURE) ? "PRESSURE" : "AIR";
-        return (type + ": " + std::to_string(msg.value)).c_str();
+        return type + ": " + std::to_string(msg.value);
     });
 
     dmq::databus::DataBus::RegisterStringifier<HeartbeatMsg>(cellutron::topics::SAFETY_HEARTBEAT, [](const HeartbeatMsg& msg) -> dmq::xstring {
-        return ("SAFETY HB: " + std::to_string(msg.counter)).c_str();
+        return "SAFETY HB: " + std::to_string(msg.counter);
     });
 
     dmq::databus::DataBus::RegisterStringifier<HeartbeatMsg>(cellutron::topics::CONTROLLER_HEARTBEAT, [](const HeartbeatMsg& msg) -> dmq::xstring {
-        return ("CONTROLLER HB: " + std::to_string(msg.counter)).c_str();
+        return "CONTROLLER HB: " + std::to_string(msg.counter);
     });
 
     dmq::databus::DataBus::RegisterStringifier<HeartbeatMsg>(cellutron::topics::GUI_HEARTBEAT, [](const HeartbeatMsg& msg) -> dmq::xstring {
-        return ("GUI HB: " + std::to_string(msg.counter)).c_str();
+        return "GUI HB: " + std::to_string(msg.counter);
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::PRESSURE_INLET, [](const SensorStatusMsg& msg) -> dmq::xstring {
-        return ("Inlet: " + std::to_string(msg.value) + " mmHg").c_str();
+        return "Inlet: " + std::to_string(msg.value) + " mmHg";
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::PRESSURE_OUTLET, [](const SensorStatusMsg& msg) -> dmq::xstring {
-        return ("Outlet: " + std::to_string(msg.value) + " mmHg").c_str();
+        return "Outlet: " + std::to_string(msg.value) + " mmHg";
     });
 
     dmq::databus::DataBus::RegisterStringifier<SensorStatusMsg>(cellutron::topics::AIR_INLET, [](const SensorStatusMsg& msg) -> dmq::xstring {
@@ -97,7 +97,7 @@ void RegisterStringifiers() {
     });
 
     dmq::databus::DataBus::RegisterStringifier<CentrifugeSpeedMsg>(cellutron::topics::RPM, [](const CentrifugeSpeedMsg& msg) -> dmq::xstring {
-        return ("RPM: " + std::to_string(msg.rpm)).c_str();
+        return "RPM: " + std::to_string(msg.rpm);
     });
 }
 

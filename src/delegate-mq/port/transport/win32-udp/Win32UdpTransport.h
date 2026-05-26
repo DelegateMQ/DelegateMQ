@@ -189,7 +189,9 @@ public:
 
         // Always track the message (unless it is an ACK)
         if (err != SOCKET_ERROR && header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-            m_transportMonitor->Add(header.GetSeqNum(), header.GetId());
+            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
+                return -1;
+            }
         }
 
         return (err == SOCKET_ERROR) ? -1 : 0;

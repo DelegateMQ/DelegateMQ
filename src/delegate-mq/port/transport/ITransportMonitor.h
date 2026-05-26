@@ -14,7 +14,8 @@ public:
     /// Add a sequence number
     /// param[in] seqNum - the message sequence number
     /// param[in] remoteId - the remote ID
-    virtual void Add(uint16_t seqNum, dmq::DelegateRemoteId remoteId) = 0;
+    /// @return true if added; false otherwise.
+    virtual bool Add(uint16_t seqNum, dmq::DelegateRemoteId remoteId) = 0;
 
     /// Remove a sequence number
     /// param[in] seqNum - the message sequence number
