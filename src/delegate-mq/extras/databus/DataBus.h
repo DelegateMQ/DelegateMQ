@@ -104,7 +104,7 @@ public:
 
     // Register a stringifier for a topic to enable spying/logging.
     template <typename T>
-    static void RegisterStringifier(const std::string& topic, std::function<std::string(const T&)> func) {
+    static void RegisterStringifier(const std::string& topic, std::function<dmq::xstring(const T&)> func) {
         GetInstance().InternalRegisterStringifier<T>(topic, std::move(func));
     }
 
@@ -310,8 +310,8 @@ private:
                 hasMonitor = true;
                 auto itStr = m_stringifiers.find(topic);
                 if (itStr != m_stringifiers.end()) {
-                    auto func = static_cast<std::function<std::string(const T&)>*>(itStr->second.get());
-                    strVal = (*func)(data);
+                    auto func = static_cast<std::function<dmq::xstring(const T&)>*>(itStr->second.get());
+                    strVal = (*func)(data).c_str();
                 }
             }
 
@@ -419,7 +419,7 @@ private:
     }
 
     template <typename T>
-    void InternalRegisterStringifier(const std::string& topic, std::function<std::string(const T&)> func) {
+    void InternalRegisterStringifier(const std::string& topic, std::function<dmq::xstring(const T&)> func) {
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
         // Runtime Type Safety: Ensure topic is not registered with multiple types
@@ -435,8 +435,8 @@ private:
 
         // Use shared_ptr with custom deleter to fix memory leak
         m_stringifiers[topic] = std::shared_ptr<void>(
-            new std::function<std::string(const T&)>(std::move(func)),
-            [](void* ptr) { delete static_cast<std::function<std::string(const T&)>*>(ptr); }
+            new std::function<dmq::xstring(const T&)>(std::move(func)),
+            [](void* ptr) { delete static_cast<std::function<dmq::xstring(const T&)>*>(ptr); }
         );
     }
 

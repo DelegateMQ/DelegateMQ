@@ -50,9 +50,9 @@ using namespace cellutron;
 #define mainREGION_2_SIZE   (256 * 1024)
 #define mainREGION_3_SIZE   (256 * 1024)
 
-static uint8_t ucHeap1[mainREGION_1_SIZE];
-static uint8_t ucHeap2[mainREGION_2_SIZE];
-static uint8_t ucHeap3[mainREGION_3_SIZE];
+alignas(16) static uint8_t ucHeap1[mainREGION_1_SIZE];
+alignas(16) static uint8_t ucHeap2[mainREGION_2_SIZE];
+alignas(16) static uint8_t ucHeap3[mainREGION_3_SIZE];
 
 static void prvInitialiseHeap(void) {
     const HeapRegion_t xHeapRegions[] = {

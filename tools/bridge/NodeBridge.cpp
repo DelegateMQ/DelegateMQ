@@ -62,15 +62,15 @@ void NodeBridge::InitTelemetry(const std::string& address, uint16_t port, bool i
 
     static dmq::util::ThreadStatsPacketSerializer serializer;
     dmq::databus::DataBus::RegisterSerializer<dmq::util::ThreadStatsPacket>("ThreadStats", serializer);
-    dmq::databus::DataBus::RegisterStringifier<dmq::util::ThreadStatsPacket>("ThreadStats", dmq::util::ThreadStatsPacketToString);
+    dmq::databus::DataBus::RegisterStringifier<dmq::util::ThreadStatsPacket>("ThreadStats", [](const dmq::util::ThreadStatsPacket& p) {
+        return dmq::util::ThreadStatsPacketToString(p);
+    });
 
     // Subscribe to ThreadStats. Asynchronous delivery to NodeBridge thread.
     instance.threadStatsConn = dmq::databus::DataBus::Subscribe<dmq::util::ThreadStatsPacket>("ThreadStats", [](const dmq::util::ThreadStatsPacket& packet) {
         auto& inst = GetInstance();
-        static std::ostringstream oss(std::ios::binary);
+        std::ostringstream oss(std::ios::binary);
         static dmq::util::ThreadStatsPacketSerializer ser;
-        oss.str("");
-        oss.clear();
         ser.Write(oss, packet);
         if (oss.good()) {
             const std::string& body = oss.str();
@@ -120,10 +120,8 @@ void NodeBridge::SendHeartbeat() {
     }
     packet.topicsStr = std::move(joined);
 
-    static serialize ms;
-    static std::ostringstream oss(std::ios::binary);
-    oss.str("");
-    oss.clear();
+    serialize ms;
+    std::ostringstream oss(std::ios::binary);
     ms.write(oss, packet);
 
     if (oss.good()) {

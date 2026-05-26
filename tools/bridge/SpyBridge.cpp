@@ -60,10 +60,8 @@ void SpyBridge::Init(const std::string& address, uint16_t port, TransportType ty
         dmq::databus::SpyPacket outgoing = packet;
         outgoing.nodeId = inst.nodeId;
 
-        static serialize ms;
-        static std::ostringstream oss(std::ios::binary);
-        oss.str("");
-        oss.clear();
+        serialize ms;
+        std::ostringstream oss(std::ios::binary);
         ms.write(oss, outgoing);
 
         if (oss.good()) {

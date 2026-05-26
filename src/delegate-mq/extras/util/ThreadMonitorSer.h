@@ -48,7 +48,7 @@ public:
 };
 
 /// @brief Stringifier for ThreadStatsPacket (for DataSpy).
-inline std::string ThreadStatsPacketToString(const ThreadStatsPacket& p) {
+inline dmq::xstring ThreadStatsPacketToString(const ThreadStatsPacket& p) {
     dmq::xstringstream ss;
     ss << "CPU:" << p.cpu_name << " Thread:" << p.thread_name 
        << " Q:" << p.queue_depth << "/" << p.queue_depth_max_window << "/" << p.queue_depth_max_all

@@ -10,7 +10,7 @@ endif()
 set(DMQ_THREAD "DMQ_THREAD_FREERTOS")
 set(DMQ_SERIALIZE "DMQ_SERIALIZE_SERIALIZE")
 set(DMQ_DATABUS "ON")
-# set(DMQ_ALLOCATOR "ON")
+set(DMQ_ALLOCATOR "ON")
 
 # Include DelegateMQ setup
 include("${CMAKE_CURRENT_SOURCE_DIR}/../../../src/delegate-mq/DelegateMQ.cmake")
