@@ -16,7 +16,7 @@ Network::~Network() {
     Shutdown();
 }
 
-void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const std::string& nodeName, const std::string& cpuName) {
+void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const dmq::xstring& nodeName, const dmq::xstring& cpuName) {
     if (m_running) return;
 
     m_nodeName = nodeName;
@@ -47,7 +47,9 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const std::string& 
     }
 
     // Initialize thread with CPU name and register for monitoring
-    m_thread = std::make_unique<Thread>(m_nodeName + "_NetworkThread", 100, FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, cpuName);
+    std::string threadName(m_nodeName.c_str());
+    threadName += "_NetworkThread";
+    m_thread = std::make_unique<Thread>(threadName.c_str(), 100, FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, cpuName.c_str());
     ThreadMonitor::Register(m_thread.get());
 
 #ifndef DMQ_THREAD_STDLIB
@@ -60,8 +62,8 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const std::string& 
     m_thread->CreateThread(WATCHDOG_TIMEOUT);
 
     // Initialize Bridges for dmq-spy and dmq-monitor
-    SpyBridge::Start("127.0.0.1", 9999, m_nodeName);
-    NodeBridge::StartMulticast(m_nodeName, "239.1.1.1", 9998);
+    SpyBridge::Start("127.0.0.1", 9999, m_nodeName.c_str());
+    NodeBridge::StartMulticast(m_nodeName.c_str(), "239.1.1.1", 9998);
 
     // Setup receiver timer (Standard loop inside thread context)
     // Use MakeTimerDelegate to prevent queue flooding if the NetworkThread is busy.
@@ -84,7 +86,7 @@ void Network::Shutdown() {
     m_remoteNodes.clear();
 }
 
-void Network::AddRemoteNode(const std::string& nodeName, const std::string& addr, uint16_t udpPort, uint16_t tcpPort) {
+void Network::AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& addr, uint16_t udpPort, uint16_t tcpPort) {
     std::cout << "Network: Adding remote node '" << nodeName << "' (UDP:" << udpPort << ", TCP:" << tcpPort << ")..." << std::endl;
     
     RemoteNode node;

@@ -48,17 +48,17 @@ public:
     /// Initialize network and start receiving.
     /// @param subPort UDP port for telemetry
     /// @param tcpPort TCP port for commands (server mode)
-    void Initialize(uint16_t subPort, uint16_t tcpPort = 0, const std::string& nodeName = "Unknown", const std::string& cpuName = "");
+    void Initialize(uint16_t subPort, uint16_t tcpPort = 0, const dmq::xstring& nodeName = "Unknown", const dmq::xstring& cpuName = "");
 
     /// Stop network.
     void Shutdown();
 
     /// Add a remote node to the network.
-    void AddRemoteNode(const std::string& nodeName, const std::string& addr, uint16_t udpPort, uint16_t tcpPort = 0);
+    void AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& addr, uint16_t udpPort, uint16_t tcpPort = 0);
 
     /// Register a serializer for an outgoing topic.
     template <typename T>
-    void RegisterOutgoingTopic(const std::string& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, Reliability reliability = Reliability::UNRELIABLE) {
+    void RegisterOutgoingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, Reliability reliability = Reliability::UNRELIABLE) {
         dmq::databus::DataBus::RegisterSerializer<T>(topic, serializer);
         m_outgoingTopics.push_back({topic, remoteId, reliability});
         
@@ -76,9 +76,9 @@ public:
 
     /// Register an incoming topic from the network.
     template <typename T>
-    void RegisterIncomingTopic(const std::string& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer) {
+    void RegisterIncomingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer) {
         m_incomingTopics.push_back({topic, remoteId, (void*)&serializer, 
-            [](void* ser, const std::string& t, dmq::DelegateRemoteId rid, dmq::databus::Participant& p) {
+            [](void* ser, const dmq::xstring& t, dmq::DelegateRemoteId rid, dmq::databus::Participant& p) {
                 dmq::databus::DataBus::AddIncomingTopic<T>(t, rid, p, *(dmq::ISerializer<void(T)>*)ser);
             }
         });
@@ -130,23 +130,23 @@ private:
     };
 
     struct OutgoingTopic {
-        std::string topic;
+        dmq::xstring topic;
         dmq::DelegateRemoteId remoteId;
         Reliability reliability;
     };
 
-    typedef void (*IncomingTopicAdder)(void* ser, const std::string& t, dmq::DelegateRemoteId rid, dmq::databus::Participant& p);
+    typedef void (*IncomingTopicAdder)(void* ser, const dmq::xstring& t, dmq::DelegateRemoteId rid, dmq::databus::Participant& p);
     struct IncomingTopic {
-        std::string topic;
+        dmq::xstring topic;
         dmq::DelegateRemoteId remoteId;
         void* serializer;
         IncomingTopicAdder adder;
     };
 
-    std::unordered_map<std::string, RemoteNode> m_remoteNodes;
+    std::unordered_map<dmq::xstring, RemoteNode> m_remoteNodes;
     std::vector<OutgoingTopic> m_outgoingTopics;
     std::vector<IncomingTopic> m_incomingTopics;
-    std::string m_nodeName;
+    dmq::xstring m_nodeName;
     dmq::util::Timer m_recvTimer;
     dmq::ScopedConnection m_recvConn;
 };

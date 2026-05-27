@@ -108,6 +108,8 @@ Timer& GetTimer()
 //------------------------------------------------------------------------------
 int main(void)
 {
+try
+{
 // Uncomment to run the DelegateMQ stress tests. **Release** builds run faster!
 //#define STRESS_TESTS
 
@@ -176,6 +178,17 @@ int main(void)
 
     cout << "Success!" << endl;
     return 0;
+}
+catch (const std::exception& e)
+{
+    std::cerr << "Unhandled exception in main: " << e.what() << std::endl;
+    return 1;
+}
+catch (...)
+{
+    std::cerr << "Unhandled unknown exception in main." << std::endl;
+    return 1;
+}
 }
 
 size_t MsgOut(const std::string& msg)

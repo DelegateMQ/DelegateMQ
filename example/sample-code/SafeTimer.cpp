@@ -44,10 +44,13 @@ namespace Example
         void Term() {
             m_timer.Stop();
 
-            // Manual disconnect (optional, since destructor handles it, but good for deterministic cleanup)
-            m_timerConn.Disconnect();
-
+            // Drain the thread before disconnecting: ExitThread() processes all queued
+            // messages, ensuring no in-flight InvokeTarget holds a raw 'this' pointer
+            // into the TimerDelegate after Disconnect() destroys it.
             m_thread.ExitThread();
+
+            // Now safe: m_thread queue is empty, no in-flight references to TimerDelegate.
+            m_timerConn.Disconnect();
         }
 
         ~SafeTimer() {

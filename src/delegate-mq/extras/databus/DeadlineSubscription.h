@@ -77,7 +77,7 @@ public:
     ///                  handler fires on the publisher's thread and onMissed fires
     ///                  on the Timer::ProcessTimers() thread.
     DeadlineSubscription(
-        const std::string& topic,
+        const dmq::xstring& topic,
         dmq::Duration deadline,
         std::function<void(const T&)> handler,
         std::function<void()> onMissed,

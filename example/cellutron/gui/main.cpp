@@ -25,13 +25,13 @@ int main() {
     cellutron::System::GetInstance().Initialize();
 
     // Catch unhandled topics (sent but no subscribers)
-    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([](const std::string& topic) {
-        std::cout << "GUI WARNING: Unhandled topic: " << topic << std::endl;
+    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([](const dmq::xstring& topic) {
+        std::cout << "GUI WARNING: Unhandled topic: " << topic.c_str() << std::endl;
     });
 
     // Catch technical errors (e.g. serialization failures)
-    static auto errorConn = dmq::databus::DataBus::SubscribeError([](const std::string& topic, dmq::DelegateError error) {
-        std::cerr << "GUI ERROR: Technical failure on topic: " << topic << ", Error: " << (int)error << std::endl;
+    static auto errorConn = dmq::databus::DataBus::SubscribeError([](const dmq::xstring& topic, dmq::DelegateError error) {
+        std::cerr << "GUI ERROR: Technical failure on topic: " << topic.c_str() << ", Error: " << (int)error << std::endl;
     });
 
     // Start a background thread to tick the system (heartbeat warmup, etc.)

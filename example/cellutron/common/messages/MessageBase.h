@@ -22,6 +22,7 @@ namespace cellutron {
 ///       restarted publisher's sequence numbers.
 struct MessageBase : public serialize::I
 {
+    XALLOCATOR
     uint32_t seq = 0;
 
     MessageBase() : seq(NextSeq()) {}

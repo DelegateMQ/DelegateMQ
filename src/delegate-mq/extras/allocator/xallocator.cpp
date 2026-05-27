@@ -13,7 +13,7 @@ using namespace std;
 #endif
 
 // @TODO: Comment out to disable alignment check if desired after porting
-#define CHECK_ALIGNMENT
+//#define CHECK_ALIGNMENT
 
 // @TODO: Adjust header size to ensure the user's memory block maintains proper alignment.
 // Logic:
@@ -116,8 +116,10 @@ static void check_alignment(void* ptr)
 	// Convert pointer to integer to perform bitwise check
 	uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
 
-	// Check if the address is a multiple of BLOCK_HEADER_SIZE
-	if ((address & (BLOCK_HEADER_SIZE - 1)) != 0)
+	// Check if the address is a multiple of the pointer size. 
+	// On 32-bit systems, we often only get 4-byte alignment from the heap.
+	// On 64-bit systems, we expect 8 or 16-byte alignment.
+	if ((address & (sizeof(void*) - 1)) != 0)
 	{
 		assert(false && "xmalloc returning misaligned memory");
 	}

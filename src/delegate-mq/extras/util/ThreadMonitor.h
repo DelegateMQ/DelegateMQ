@@ -16,8 +16,8 @@ namespace dmq::util {
 
 /// @brief Packet published to DataBus for thread monitoring.
 struct ThreadStatsPacket {
-    std::string cpu_name;
-    std::string thread_name;
+    dmq::xstring cpu_name;
+    dmq::xstring thread_name;
     uint32_t    queue_depth;
     uint32_t    queue_depth_max_window;
     uint32_t    queue_depth_max_all;
@@ -41,7 +41,7 @@ public:
     static void Deregister(dmq::os::Thread* thread);
 
     /// Enable the monitor (starts the 1Hz polling thread).
-    static void Enable(const std::string& topic = "ThreadStats");
+    static void Enable(const dmq::xstring& topic = "ThreadStats");
 
     /// Disable the monitor.
     static void Disable();
@@ -62,7 +62,7 @@ private:
     dmq::Mutex m_mutex;
     std::unique_ptr<dmq::os::Thread> m_monitorThread;
     std::atomic<bool> m_enabled{false};
-    std::string m_topic;
+    dmq::xstring m_topic;
 };
 
 } // namespace dmq::util

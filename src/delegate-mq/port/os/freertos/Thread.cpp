@@ -390,7 +390,20 @@ void Thread::Run()
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::TimePoint start = Timer::GetNow();
 #endif
+#if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
+                bool success = false;
+                try {
+                    success = invoker->Invoke(delegateMsg);
+                }
+                catch (const std::exception& e) {
+                    printf("[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
+                }
+                catch (...) {
+                    printf("[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
+                }
+#else
                 bool success = invoker->Invoke(delegateMsg);
+#endif
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::Duration invokeTime = Timer::GetNow() - start;
                 int64_t invokeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(invokeTime).count();

@@ -13,14 +13,15 @@ namespace dmq::databus {
 /// The timestamp_us field uses dmq::Clock::now(), which typically provides 
 /// monotonic time since boot.
 struct SpyPacket : public ::serialize::I {
+    XALLOCATOR
     SpyPacket() = default;
-    SpyPacket(const std::string& t, const std::string& v, uint64_t ts, const std::string& id = "")
+    SpyPacket(const dmq::xstring& t, const dmq::xstring& v, uint64_t ts, const dmq::xstring& id = "")
         : topic(t), value(v), timestamp_us(ts), nodeId(id) {}
 
-    std::string topic;      ///< The name of the data topic.
-    std::string value;      ///< Stringified representation of the data (or "?" if no stringifier registered).
+    dmq::xstring topic;      ///< The name of the data topic.
+    dmq::xstring value;      ///< Stringified representation of the data (or "?" if no stringifier registered).
     uint64_t timestamp_us;  ///< Microseconds (usually since boot) when the message was published.
-    std::string nodeId;    ///< Unique identifier for the sending node.
+    dmq::xstring nodeId;    ///< Unique identifier for the sending node.
 
     std::ostream& write(::serialize& ms, std::ostream& os) override {
         ms.write(os, topic);

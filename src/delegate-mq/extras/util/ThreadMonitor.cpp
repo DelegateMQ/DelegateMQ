@@ -38,7 +38,7 @@ void ThreadMonitor::Deregister(dmq::os::Thread* thread) {
     }
 }
 
-void ThreadMonitor::Enable(const std::string& topic) {
+void ThreadMonitor::Enable(const dmq::xstring& topic) {
     auto& instance = GetInstance();
     if (instance.m_enabled.exchange(true)) return;
 

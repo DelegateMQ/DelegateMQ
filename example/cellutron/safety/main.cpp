@@ -102,12 +102,12 @@ static void vSafetyTask(void* /*pvParams*/) {
     cellutron::System::GetInstance().Initialize();
 
     // Catch unhandled topics (sent but no subscribers)
-    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([](const std::string& topic) {
+    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([](const dmq::xstring& topic) {
         printf("SAFETY WARNING: Unhandled topic: %s\n", topic.c_str());
     });
 
     // Catch technical errors (e.g. serialization failures)
-    static auto errorConn = dmq::databus::DataBus::SubscribeError([](const std::string& topic, dmq::DelegateError error) {
+    static auto errorConn = dmq::databus::DataBus::SubscribeError([](const dmq::xstring& topic, dmq::DelegateError error) {
         printf("SAFETY ERROR: Technical failure on topic: %s, Error: %d\n", topic.c_str(), (int)error);
     });
 

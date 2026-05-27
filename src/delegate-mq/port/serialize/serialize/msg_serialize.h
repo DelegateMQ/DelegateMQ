@@ -300,7 +300,8 @@ public:
     /// @param[in] is - the input stream
     /// @param[in] s - the string to read
     /// @return The input stream
-    std::istream& read(std::istream& is, std::string& s)
+    template <typename Traits, typename Alloc>
+    std::istream& read(std::istream& is, std::basic_string<char, Traits, Alloc>& s)
     {
         if (check_stop_parse(is))
             return is;
@@ -324,7 +325,8 @@ public:
     /// @param[in] is - the input stream
     /// @param[in] s - the string to read
     /// @return The input stream
-    std::istream& read(std::istream& is, std::wstring& s)
+    template <typename Traits, typename Alloc>
+    std::istream& read(std::istream& is, std::basic_string<wchar_t, Traits, Alloc>& s)
     {
         if (check_stop_parse(is))
             return is;
@@ -456,7 +458,8 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] s - the string to write
     /// @return The output stream
-    std::ostream& write(std::ostream& os, const std::string& s)
+    template <typename Traits, typename Alloc>
+    std::ostream& write(std::ostream& os, const std::basic_string<char, Traits, Alloc>& s)
     {
         assert(s.size() <= (std::numeric_limits<uint16_t>::max)());
         uint16_t size = static_cast<uint16_t>(s.size());
@@ -473,16 +476,18 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] s - the string to write
     /// @return The output stream
-    std::ostream& write(std::ostream& os, std::string& s)
+    template <typename Traits, typename Alloc>
+    std::ostream& write(std::ostream& os, std::basic_string<char, Traits, Alloc>& s)
     {
-        return write(os, static_cast<const std::string&>(s));
+        return write(os, static_cast<const std::basic_string<char, Traits, Alloc>&>(s));
     }
 
     /// Write a const std::wstring to a stream.
     /// @param[in] os - the output stream
     /// @param[in] s - the string to write
     /// @return The output stream
-    std::ostream& write(std::ostream& os, const std::wstring& s)
+    template <typename Traits, typename Alloc>
+    std::ostream& write(std::ostream& os, const std::basic_string<wchar_t, Traits, Alloc>& s)
     {
         assert(s.size() <= (std::numeric_limits<uint16_t>::max)());
         uint16_t size = static_cast<uint16_t>(s.size());
@@ -504,9 +509,10 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] s - the string to write
     /// @return The output stream
-    std::ostream& write(std::ostream& os, std::wstring& s)
+    template <typename Traits, typename Alloc>
+    std::ostream& write(std::ostream& os, std::basic_string<wchar_t, Traits, Alloc>& s)
     {
-        return write(os, static_cast<const std::wstring&>(s));
+        return write(os, static_cast<const std::basic_string<wchar_t, Traits, Alloc>&>(s));
     }
 
     /// Write a character string to a stream.

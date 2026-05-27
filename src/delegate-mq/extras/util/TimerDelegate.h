@@ -11,7 +11,9 @@ namespace dmq::util {
 /// @brief Tag type whose lifetime tracks a dispatched message through the thread queue.
 /// When the async closure is destroyed after Invoke() completes (or immediately on DROP),
 /// the reference count falls to zero and the paired weak_ptr in PacedDispatch expires.
-struct DispatchToken {};
+struct DispatchToken {
+    XALLOCATOR
+};
 
 /// @brief Gate that enforces at-most-one-in-flight dispatch for a periodic timer source.
 ///
@@ -58,7 +60,7 @@ public:
 
         m_pending = false;
 
-        auto token = std::make_shared<DispatchToken>();
+        auto token = dmq::xmake_shared<DispatchToken>();
         m_inFlight = token;
         m_dispatchTime = Timer::GetNow();
 
@@ -110,13 +112,17 @@ public:
     void operator()() const
     {
         m_gate.TryFire([this](std::shared_ptr<DispatchToken> token) {
-            dmq::MakeDelegate([fn = m_fn, tok = std::move(token)]() {
-                fn();
-            }, *m_thread)();
+            dmq::MakeDelegate(this, &TimerDelegate::InvokeTarget, *m_thread)(std::move(token));
         }, m_stuckTimeout);
     }
 
 private:
+    void InvokeTarget(std::shared_ptr<DispatchToken> token) const
+    {
+        (void)token;
+        m_fn();
+    }
+
     std::function<void()> m_fn;
     dmq::IThread* m_thread;
     dmq::Duration m_stuckTimeout;

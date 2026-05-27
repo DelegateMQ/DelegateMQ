@@ -439,7 +439,15 @@ void Thread::Process()
 #if defined(DMQ_DATABUS_TOOLS)
                         dmq::TimePoint start = Timer::GetNow();
 #endif
-                        invoker->Invoke(delegateMsg);
+                        try {
+                            invoker->Invoke(delegateMsg);
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
+                        }
+                        catch (...) {
+                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled unknown exception in delegate callback." << std::endl;
+                        }
 #if defined(DMQ_DATABUS_TOOLS)
                         dmq::Duration invokeTime = Timer::GetNow() - start;
                         {
@@ -462,9 +470,8 @@ void Thread::Process()
             }
 
             default:
-            {
-                throw std::invalid_argument("Invalid message ID");
-            }
+                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                break;
         }
         // msg goes out of scope here — may trigger self-destruction of 'this'.
         // After this point do not access any member; check selfExit in while().
