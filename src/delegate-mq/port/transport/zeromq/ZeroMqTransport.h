@@ -40,6 +40,7 @@
 #include <zmq.h>
 #include <sstream>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <iostream> // For std::cout/cerr
 

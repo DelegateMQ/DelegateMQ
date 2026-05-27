@@ -43,6 +43,7 @@
 #include <nng/protocol/pubsub0/sub.h>
 #include <sstream>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <iostream>
 
