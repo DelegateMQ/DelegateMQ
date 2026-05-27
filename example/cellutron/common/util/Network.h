@@ -7,10 +7,10 @@
 #include "extras/util/TransportMonitor.h"
 #include "extras/util/RetryMonitor.h"
 #include "extras/util/ReliableTransport.h"
+#include "Constants.h"
 #include <string>
 #include <memory>
-#include <unordered_map>
-#include <vector>
+#include <array>
 
 // Explicitly include transport headers OUTSIDE the namespace to prevent nesting errors.
 #if defined(_WIN32) || defined(_WIN64)
@@ -60,7 +60,10 @@ public:
     template <typename T>
     void RegisterOutgoingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, Reliability reliability = Reliability::UNRELIABLE) {
         dmq::databus::DataBus::RegisterSerializer<T>(topic, serializer);
-        m_outgoingTopics.push_back({topic, remoteId, reliability});
+        if (m_outgoingTopicCount >= m_outgoingTopics.size())
+            ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+        else
+            m_outgoingTopics[m_outgoingTopicCount++] = {topic, remoteId, reliability};
         
         // Add to all existing remote nodes
         for (auto& [name, node] : m_remoteNodes) {
@@ -77,11 +80,14 @@ public:
     /// Register an incoming topic from the network.
     template <typename T>
     void RegisterIncomingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer) {
-        m_incomingTopics.push_back({topic, remoteId, (void*)&serializer, 
-            [](void* ser, const dmq::xstring& t, dmq::DelegateRemoteId rid, dmq::databus::Participant& p) {
-                dmq::databus::DataBus::AddIncomingTopic<T>(t, rid, p, *(dmq::ISerializer<void(T)>*)ser);
-            }
-        });
+        if (m_incomingTopicCount >= m_incomingTopics.size())
+            ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+        else
+            m_incomingTopics[m_incomingTopicCount++] = {topic, remoteId, (void*)&serializer,
+                [](void* ser, const dmq::xstring& t, dmq::DelegateRemoteId rid, dmq::databus::Participant& p) {
+                    dmq::databus::DataBus::AddIncomingTopic<T>(t, rid, p, *(dmq::ISerializer<void(T)>*)ser);
+                }
+            };
 
         if (m_subParticipant) {
             dmq::databus::DataBus::AddIncomingTopic<T>(topic, remoteId, *m_subParticipant, serializer);
@@ -143,9 +149,11 @@ private:
         IncomingTopicAdder adder;
     };
 
-    std::unordered_map<dmq::xstring, RemoteNode> m_remoteNodes;
-    std::vector<OutgoingTopic> m_outgoingTopics;
-    std::vector<IncomingTopic> m_incomingTopics;
+    xmap<dmq::xstring, RemoteNode> m_remoteNodes;
+    std::array<OutgoingTopic, MAX_OUTGOING_TOPICS> m_outgoingTopics{};
+    size_t m_outgoingTopicCount = 0;
+    std::array<IncomingTopic, MAX_INCOMING_TOPICS> m_incomingTopics{};
+    size_t m_incomingTopicCount = 0;
     dmq::xstring m_nodeName;
     dmq::util::Timer m_recvTimer;
     dmq::ScopedConnection m_recvConn;

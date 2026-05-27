@@ -38,7 +38,10 @@ void Heartbeat::MonitorNode(const char* remoteTopic, FaultCode faultCode, const 
         &m_thread
     );
 
-    m_monitors.push_back({ nodeName, std::move(sub) });
+    if (m_monitorCount >= m_monitors.size())
+        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+    else
+        m_monitors[m_monitorCount++] = { nodeName, std::move(sub) };
 }
 
 void Heartbeat::Tick(uint32_t ms)

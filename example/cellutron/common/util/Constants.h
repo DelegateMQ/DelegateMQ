@@ -53,6 +53,12 @@ namespace cellutron {
         static const char* const RPM                  = "hw/sensor/rpm";
     }
 
+    // Fixed-size container limits
+    static constexpr size_t MAX_REMOTE_NODES       = 4;
+    static constexpr size_t MAX_OUTGOING_TOPICS    = 12;
+    static constexpr size_t MAX_INCOMING_TOPICS    = 12;
+    static constexpr size_t MAX_HEARTBEAT_MONITORS = 4;
+
     // Fault codes
     enum FaultCode {
         FAULT_OVERSPEED = 1,

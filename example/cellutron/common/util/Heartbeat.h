@@ -5,7 +5,7 @@
 #include "messages/HeartbeatMsg.h"
 #include "util/Constants.h"
 #include <string>
-#include <vector>
+#include <array>
 #include <memory>
 #include <functional>
 #include <atomic>
@@ -55,7 +55,8 @@ private:
         std::string name;
         std::unique_ptr<dmq::databus::DeadlineSubscription<HeartbeatMsg>> subscription;
     };
-    std::vector<Monitor> m_monitors;
+    std::array<Monitor, MAX_HEARTBEAT_MONITORS> m_monitors{};
+    size_t m_monitorCount = 0;
 
     std::atomic<uint32_t> m_msElapsed{0};
     bool     m_faultTriggered = false;

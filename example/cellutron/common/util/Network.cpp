@@ -3,7 +3,6 @@
 #include "extras/util/ThreadMonitor.h"
 #include "extras/util/TimerDelegate.h"
 #include <iostream>
-#include <vector>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -30,8 +29,8 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const dmq::xstring&
     }
     m_subTransport.SetRecvTimeout(std::chrono::milliseconds(1));
     m_subParticipant = std::make_shared<dmq::databus::Participant>(m_subTransport);
-    for (auto& in : m_incomingTopics)
-        in.adder(in.serializer, in.topic, in.remoteId, *m_subParticipant);
+    for (size_t i = 0; i < m_incomingTopicCount; ++i)
+        m_incomingTopics[i].adder(m_incomingTopics[i].serializer, m_incomingTopics[i].topic, m_incomingTopics[i].remoteId, *m_subParticipant);
 
     // 2. Setup TCP Command Server (if port provided)
     if (tcpPort > 0) {
@@ -40,9 +39,9 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const dmq::xstring&
         } else {
              m_tcpServerTransport.SetRecvTimeout(std::chrono::milliseconds(1));
              std::cout << "Network: TCP Server listening on port " << tcpPort << std::endl;
-             m_tcpServerParticipant = std::make_shared<dmq::databus::Participant>(m_tcpServerTransport);        
-             for (auto& in : m_incomingTopics)
-                 in.adder(in.serializer, in.topic, in.remoteId, *m_tcpServerParticipant);
+             m_tcpServerParticipant = std::make_shared<dmq::databus::Participant>(m_tcpServerTransport);
+             for (size_t i = 0; i < m_incomingTopicCount; ++i)
+                 m_incomingTopics[i].adder(m_incomingTopics[i].serializer, m_incomingTopics[i].topic, m_incomingTopics[i].remoteId, *m_tcpServerParticipant);
         }
     }
 
@@ -116,16 +115,16 @@ void Network::AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& ad
             dmq::databus::DataBus::AddParticipant(node.tcpParticipant);
             
             // Register all existing incoming topics on this new TCP client connection
-            for (auto& in : m_incomingTopics) {
-                in.adder(in.serializer, in.topic, in.remoteId, *node.tcpParticipant);
-            }
+            for (size_t i = 0; i < m_incomingTopicCount; ++i)
+                m_incomingTopics[i].adder(m_incomingTopics[i].serializer, m_incomingTopics[i].topic, m_incomingTopics[i].remoteId, *node.tcpParticipant);
 
             std::cout << "Network: TCP Client connected to " << nodeName << std::endl;
         }
     }
 
     // 3. Apply all outgoing topic-RID mappings
-    for (const auto& out : m_outgoingTopics) {
+    for (size_t i = 0; i < m_outgoingTopicCount; ++i) {
+        const auto& out = m_outgoingTopics[i];
         if (out.reliability == Reliability::TCP && node.tcpParticipant) {
             node.tcpParticipant->AddRemoteTopic(out.topic, out.remoteId);
         } else if (out.reliability == Reliability::RELIABLE) {
@@ -135,7 +134,10 @@ void Network::AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& ad
         }
     }
 
-    m_remoteNodes[nodeName] = std::move(node);
+    if (m_remoteNodes.size() >= MAX_REMOTE_NODES)
+        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+    else
+        m_remoteNodes[nodeName] = std::move(node);
 }
 
 void Network::ReceiverThread() {
