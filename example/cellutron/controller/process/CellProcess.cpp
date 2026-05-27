@@ -95,7 +95,7 @@ void CellProcess::AbortProcess()
         TRANSITION_MAP_ENTRY(ST_ABORTING)        // ST_SPIN_UP
         TRANSITION_MAP_ENTRY(ST_ABORTING)        // ST_SPIN_DOWN
         TRANSITION_MAP_ENTRY(ST_ABORTING)        // ST_DRAIN
-        TRANSITION_MAP_ENTRY(EVENT_IGNORED)      // ST_COMPLETE
+        TRANSITION_MAP_ENTRY(ST_IDLE)            // ST_COMPLETE
         TRANSITION_MAP_ENTRY(EVENT_IGNORED)      // ST_ABORTING
         TRANSITION_MAP_ENTRY(EVENT_IGNORED)      // ST_FAULT
     END_TRANSITION_MAP(nullptr)
@@ -187,7 +187,7 @@ void CellProcess::TimerExpired()
         TRANSITION_MAP_ENTRY(EVENT_IGNORED)  // ST_SPIN_UP
         TRANSITION_MAP_ENTRY(EVENT_IGNORED)  // ST_SPIN_DOWN
         TRANSITION_MAP_ENTRY(EVENT_IGNORED)  // ST_DRAIN
-        TRANSITION_MAP_ENTRY(EVENT_IGNORED)  // ST_COMPLETE
+        TRANSITION_MAP_ENTRY(ST_FILL_SOLUTION_A) // ST_COMPLETE
         TRANSITION_MAP_ENTRY(ST_IDLE)        // ST_ABORTING
         TRANSITION_MAP_ENTRY(EVENT_IGNORED)  // ST_FAULT
     END_TRANSITION_MAP(nullptr)
@@ -276,8 +276,9 @@ STATE_DEFINE(cellutron::process::CellProcess, Drain, NoEventData)
 
 STATE_DEFINE(cellutron::process::CellProcess, Complete, NoEventData)
 {
-    printf("CellProcess: ST_COMPLETE\n");
-    InternalEvent(ST_IDLE);
+    printf("CellProcess: ST_COMPLETE (Waiting 100ms to Auto-Restart)\n");
+    dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::IDLE });
+    m_timer.Start(std::chrono::milliseconds(100), true);
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, Aborting, NoEventData)
