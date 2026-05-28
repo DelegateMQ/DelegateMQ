@@ -30,7 +30,23 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 #if defined(DMQ_DATABUS_TOOLS)
             dmq::TimePoint start = Timer::GetNow();
 #endif
-            invoker->Invoke(msg);
+#if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
+            try {
+                bool success = invoker->Invoke(msg);
+                ASSERT_TRUE(success);
+            }
+            catch (const std::exception& e) {
+                qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled exception in delegate callback:" << e.what();
+                dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+            }
+            catch (...) {
+                qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled unknown exception in delegate callback.";
+                dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+            }
+#else
+            bool success = invoker->Invoke(msg);
+            ASSERT_TRUE(success);
+#endif
 #if defined(DMQ_DATABUS_TOOLS)
             if (m_thread) {
                 dmq::Duration invokeTime = Timer::GetNow() - start;

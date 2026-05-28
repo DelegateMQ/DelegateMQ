@@ -280,7 +280,23 @@ void Thread::Process()
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::TimePoint start = Timer::GetNow();
 #endif
+#if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
+                try {
+                    bool success = invoker->Invoke(delegateMsg);
+                    ASSERT_TRUE(success);
+                }
+                catch (const std::exception& e) {
+                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
+                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                }
+                catch (...) {
+                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled unknown exception in delegate callback." << std::endl;
+                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                }
+#else
                 bool success = invoker->Invoke(delegateMsg);
+                ASSERT_TRUE(success);
+#endif
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::Duration invokeTime = Timer::GetNow() - start;
                 {
@@ -292,7 +308,6 @@ void Thread::Process()
                     LeaveCriticalSection(&m_cs);
                 }
 #endif
-                ASSERT_TRUE(success);
                 break;
             }
 
