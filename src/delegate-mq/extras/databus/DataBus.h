@@ -19,8 +19,68 @@
 #include <functional>
 #include <typeindex>
 #include <atomic>
+#include <type_traits>
 
 namespace dmq::databus {
+
+namespace detail {
+    // Helper class to implement QoS rate limiting without heavy lambda captures.
+    // Storing state in a class and capturing only a shared_ptr in std::function 
+    // ensures the delegate fits within Small Buffer Optimization (SBO).
+    template <typename T>
+    class RateLimiter {
+        XALLOCATOR
+    public:
+        RateLimiter(std::function<void(T)> func, uint32_t minSepRep)
+            : m_func(std::move(func)), m_minSepRep(minSepRep), m_lastDeliveryRep(0) {}
+
+        void Invoke(T data) {
+            auto nowRep = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(dmq::Clock::now().time_since_epoch()).count());
+            auto lastRep = m_lastDeliveryRep.load(std::memory_order_relaxed);
+            if (nowRep - lastRep >= m_minSepRep) {
+                m_lastDeliveryRep.store(nowRep, std::memory_order_relaxed);
+                m_func(data);
+            }
+        }
+
+    private:
+        std::function<void(T)> m_func;
+        uint32_t m_minSepRep;
+        std::atomic<uint32_t> m_lastDeliveryRep;
+    };
+
+    // Helper class to implement QoS filtering without heavy lambda captures.
+    template <typename T, typename F, typename P>
+    class Filter {
+        XALLOCATOR
+    public:
+        Filter(F func, P predicate) : m_func(std::move(func)), m_predicate(std::move(predicate)) {}
+
+        void Invoke(T data) {
+            if (m_predicate(data)) {
+                m_func(data);
+            }
+        }
+
+    private:
+        F m_func;
+        P m_predicate;
+    };
+
+    // Helper class to implement topic forwarding without heavy lambda captures.
+    template <typename T>
+    class TopicForwarder {
+        XALLOCATOR
+    public:
+        TopicForwarder(dmq::xstring topic, bool localOnly) : m_topic(std::move(topic)), m_localOnly(localOnly) {}
+
+        void Invoke(const T& msg);
+
+    private:
+        dmq::xstring m_topic;
+        bool m_localOnly;
+    };
+}
 
 // The DataBus is a central registry for topic-based communication.
 // It allows components to publish and subscribe to data topics identified by strings.
@@ -41,12 +101,8 @@ public:
     // Subscribe to a topic with a filter.
     template <typename T, typename F, typename P>
     static dmq::ScopedConnection SubscribeFilter(const dmq::xstring& topic, F&& func, P&& predicate, dmq::IThread* thread = nullptr, QoS qos = {}) {
-        auto filterFunc = [f = std::forward<F>(func), p = std::forward<P>(predicate)](T data) {
-            if (p(data)) {
-                f(data);
-            }
-        };
-        return GetInstance().InternalSubscribe<T>(topic, std::move(filterFunc), thread, qos);
+        auto filter = dmq::xmake_shared<detail::Filter<T, std::decay_t<F>, std::decay_t<P>>>(std::forward<F>(func), std::forward<P>(predicate));
+        return GetInstance().InternalSubscribe<T>(topic, [filter](T data) { filter->Invoke(data); }, thread, qos);
     }
 
     // Publish data to a topic.
@@ -83,8 +139,9 @@ public:
     // use AddRelayTopic instead.
     template <typename T>
     static void AddIncomingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, Participant& participant, dmq::ISerializer<void(T)>& serializer) {
-        participant.RegisterHandler<T>(remoteId, serializer, [topic](const T& msg) {
-            DataBus::PublishLocal<T>(topic, msg);
+        auto forwarder = dmq::xmake_shared<detail::TopicForwarder<T>>(topic, true);
+        participant.RegisterHandler<T>(remoteId, serializer, [forwarder](const T& msg) {
+            forwarder->Invoke(msg);
         });
     }
 
@@ -97,8 +154,9 @@ public:
     // create an infinite relay loop. Use AddIncomingTopic instead for subscriber-only nodes.
     template <typename T>
     static void AddRelayTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, Participant& participant, dmq::ISerializer<void(T)>& serializer) {
-        participant.RegisterHandler<T>(remoteId, serializer, [topic](const T& msg) {
-            DataBus::Publish<T>(topic, msg);
+        auto forwarder = dmq::xmake_shared<detail::TopicForwarder<T>>(topic, false);
+        participant.RegisterHandler<T>(remoteId, serializer, [forwarder](const T& msg) {
+            forwarder->Invoke(msg);
         });
     }
 
@@ -186,16 +244,8 @@ private:
         // topic can have different (or no) rate limits without affecting each other.
         if (qos.minSeparation.has_value()) {
             auto minSepRep = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(qos.minSeparation.value()).count());
-            auto lastDeliveryRep = dmq::xmake_shared<std::atomic<uint32_t>>(0);
-            auto inner = std::move(typedFunc);
-            typedFunc = [inner = std::move(inner), minSepRep, lastDeliveryRep](T data) {
-                auto nowRep = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(dmq::Clock::now().time_since_epoch()).count());
-                auto lastRep = lastDeliveryRep->load(std::memory_order_relaxed);
-                if (nowRep - lastRep >= minSepRep) {
-                    lastDeliveryRep->store(nowRep, std::memory_order_relaxed);
-                    inner(data);
-                }
-            };
+            auto limiter = dmq::xmake_shared<detail::RateLimiter<T>>(std::move(typedFunc), minSepRep);
+            typedFunc = [limiter](T data) { limiter->Invoke(data); };
         }
 
         T* cachedValPtr = nullptr;
@@ -390,9 +440,7 @@ private:
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_participantCount < dmq::MAX_PARTICIPANTS) {
             // Bridge participant-level technical errors to the global DataBus error signal
-            m_participantErrorConnections[m_participantCount] = participant->SubscribeError([this](const dmq::xstring& topic, dmq::DelegateError error) {
-                this->InternalReportError(topic, error);
-            });
+            m_participantErrorConnections[m_participantCount] = participant->SubscribeError(dmq::MakeDelegate(this, &DataBus::InternalReportError));
 
             m_participants[m_participantCount++] = participant;
         }
@@ -502,6 +550,15 @@ private:
     dmq::Signal<void(const dmq::xstring& topic, dmq::DelegateError error)> m_errorSignal;
     std::array<dmq::ScopedConnection, dmq::MAX_PARTICIPANTS> m_participantErrorConnections;
 };
+
+// Definition of TopicForwarder::Invoke must follow DataBus definition
+template <typename T>
+void detail::TopicForwarder<T>::Invoke(const T& msg) {
+    if (m_localOnly)
+        DataBus::PublishLocal<T>(m_topic, msg);
+    else
+        DataBus::Publish<T>(m_topic, msg);
+}
 
 } // namespace dmq::databus
 

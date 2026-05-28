@@ -156,6 +156,40 @@ void WatchdogTask(void*) {
 - `MAX_TIMER_EXPIRED = 16` — maximum timers that can expire in a single `ProcessTimers()` call without heap allocation
 - `MAX_WATCHDOG_THREADS = 16` — maximum threads registered for watchdog monitoring
 
+## Best Practices for Constrained Systems (STM32, ESP32, etc.)
+
+For applications running on MCUs with limited RAM (e.g., 64KB–512KB), follow these guidelines to ensure deterministic performance and prevent heap exhaustion:
+
+1. **Enable `DMQ_ALLOCATOR`**: This is the most critical step. It replaces the standard `malloc`/`free` with DelegateMQ's fixed-block allocator for all internal library structures (DataBus topics, connections, async messages). This eliminates fragmentation and makes memory usage predictable.
+2. **Prefer Class Member Delegates**: Use `dmq::MakeDelegate(this, &Class::Method)` instead of capturing lambdas for internal plumbing or long-lived connections. Member function delegates are fixed-size (24–32 bytes) and never trigger heap allocations, whereas lambdas can silently exceed Small Buffer Optimization (SBO) limits.
+3. **Be Mindful of Async Arguments**: When using `DelegateAsync`, every argument is deep-copied to the heap. 
+    - **Avoid**: Passing large structs or strings by value.
+    - **Prefer**: Passing by `const T&` if the object's lifetime is guaranteed (e.g., a singleton or global).
+    - **Prefer**: Using `std::shared_ptr<T>` to share ownership; only the smart pointer is copied, not the underlying data.
+4. **Tune `DMQ_MAX_TIMER_EXPIRED`**: If you have many timers firing simultaneously, ensure this value in `DelegateOpt.h` is large enough to prevent temporary heap spikes during `ProcessTimers()`.
+
+## Lambda Usage and Developer Rules
+
+While lambdas are convenient and fully supported for user-level code, the DelegateMQ library follows strict rules for **internal implementation** and **middleware glue logic** to ensure deterministic performance and minimal heap usage.
+
+### 1. Prefer Class Member Delegates for Library Internals
+Internal library components (e.g., DataBus, Participant, RAII helpers) should avoid capturing lambdas that rely on `std::function` for storage.
+- **Rule:** If a callback needs to capture `this` or other state, refactor the logic into a private member function and use `dmq::MakeDelegate(this, &Class::Method)`.
+- **Reason:** Member function delegates in DelegateMQ are fixed-size (24–32 bytes) and never trigger heap allocations. Capturing lambdas often exceed the Small Buffer Optimization (SBO) of `std::function`, causing hidden heap pressure.
+
+### 2. Use Helper Classes for Closure State
+If complex state must be associated with a delegate (e.g., QoS rate limiting or filtering), use a dedicated template class in a `detail` namespace.
+- **Rule:** Store the state in a `shared_ptr`-managed object and capture only the `shared_ptr` in a "thin" lambda if necessary.
+- **Reason:** This ensures the lambda capture remains small (16 bytes for a `shared_ptr`), fitting safely within SBO limits.
+
+### 3. Lifetime and Safety
+- **Rule:** For long-lived internal connections, prefer `DelegateMemberSp` (via `std::shared_ptr`/`std::weak_ptr`) over lambdas capturing `this`.
+- **Reason:** Weak-pointer delegates automatically expire when the object is destroyed, preventing dangling pointer crashes that are common with capturing lambdas.
+
+### 4. User Code vs. Library Code
+- **User Code:** Lambdas are encouraged for trivial, local, or fire-and-forget tasks where developer productivity is the priority.
+- **Library/Middleware Code:** Determinism, RAM efficiency, and predictable destruction order take precedence. Avoid anonymous closures for "plumbing."
+
 ## MakeTimerDelegate
 
 `dmq::util::MakeTimerDelegate()` creates a timer-safe async delegate that prevents queue flooding. Unlike `MakeDelegate()`, it guarantees **at most one message in flight** to the target thread at any time — additional timer ticks are silently dropped while the previous dispatch is still pending. Use it whenever connecting a delegate to `Timer::OnExpired`.

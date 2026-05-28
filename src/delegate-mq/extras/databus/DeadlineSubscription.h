@@ -82,26 +82,22 @@ public:
         std::function<void(const T&)> handler,
         std::function<void()> onMissed,
         dmq::IThread* thread = nullptr)
-        : m_deadline(deadline)
+        : m_deadline(deadline), m_handler(std::move(handler)), m_onMissed(std::move(onMissed))
     {
         // Connect onMissed to the timer expiry signal, dispatching to thread if provided
         if (thread) {
             m_timerConn = m_timer.OnExpired.Connect(
-                dmq::util::MakeTimerDelegate(std::move(onMissed), *thread));
+                dmq::util::MakeTimerDelegate(this, &DeadlineSubscription::OnTimerExpired, *thread));
         } else {
             m_timerConn = m_timer.OnExpired.Connect(
-                dmq::MakeDelegate(std::move(onMissed)));
+                dmq::MakeDelegate(this, &DeadlineSubscription::OnTimerExpired));
         }
 
         // Arm the timer immediately. It fires if no delivery arrives within deadline.
         m_timer.Start(m_deadline, false);
 
         // Subscribe and reset the timer on every delivery
-        m_conn = DataBus::Subscribe<T>(topic,
-            [this, h = std::move(handler)](const T& data) {
-                m_timer.Start(m_deadline, false); // reset deadline window
-                h(data);
-            }, thread);
+        m_conn = DataBus::Subscribe<T>(topic, dmq::MakeDelegate(this, &DeadlineSubscription::OnDataReceived), thread);
     }
 
     ~DeadlineSubscription() = default;
@@ -112,11 +108,22 @@ public:
     DeadlineSubscription& operator=(DeadlineSubscription&&) = delete;
 
 private:
+    void OnDataReceived(const T& data) {
+        m_timer.Start(m_deadline, false); // reset deadline window
+        m_handler(data);
+    }
+
+    void OnTimerExpired() {
+        m_onMissed();
+    }
+
     // Declaration order controls destruction order (reverse).
     // m_conn disconnects first (no more timer resets via the data lambda),
     // then m_timerConn disconnects (onMissed removed from timer signal),
     // then m_timer destructs (removed from global timer list).
     dmq::Duration m_deadline;
+    std::function<void(const T&)> m_handler;
+    std::function<void()> m_onMissed;
     dmq::util::Timer m_timer;
     dmq::ScopedConnection m_timerConn;
     dmq::ScopedConnection m_conn;

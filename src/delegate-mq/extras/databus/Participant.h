@@ -178,27 +178,29 @@ private:
 
     template <typename T>
     void AttachErrorHandler(std::shared_ptr<dmq::RemoteChannel<void(T)>>& channel) {
-        channel->SetErrorHandler(dmq::MakeDelegate([this](dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux) {
-            if (error == dmq::DelegateError::SUCCESS) return;
-            bool shouldFire = false;
-            dmq::xstring topic;
-            {
-                std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-                for (auto& [t, rid] : m_topicToRemoteId) {
-                    if (rid == id) { topic = t; break; }
-                }
-                if (!topic.empty()) {
-                    uint8_t bit = uint8_t(1u << static_cast<int>(error));
-                    auto& bits = m_reportedErrors[topic];
-                    if (!(bits & bit)) {
-                        bits |= bit;
-                        shouldFire = true;
-                    }
+        channel->SetErrorHandler(dmq::MakeDelegate(this, &Participant::OnChannelError));
+    }
+
+    void OnChannelError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux) {
+        if (error == dmq::DelegateError::SUCCESS) return;
+        bool shouldFire = false;
+        dmq::xstring topic;
+        {
+            std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+            for (auto& [t, rid] : m_topicToRemoteId) {
+                if (rid == id) { topic = t; break; }
+            }
+            if (!topic.empty()) {
+                uint8_t bit = uint8_t(1u << static_cast<int>(error));
+                auto& bits = m_reportedErrors[topic];
+                if (!(bits & bit)) {
+                    bits |= bit;
+                    shouldFire = true;
                 }
             }
-            if (shouldFire)
-                m_errorSignal(topic, error);
-        }));
+        }
+        if (shouldFire)
+            m_errorSignal(topic, error);
     }
 
     void ResetErrors() {
