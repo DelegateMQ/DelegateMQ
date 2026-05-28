@@ -408,39 +408,26 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        bool invoke = false;
-        {
-            // Protect data shared between source and destination threads
-            const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
+        // Protect data shared between source and destination threads
+        const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
 
-            // Is the source thread waiting for the target function invoke to complete?
-            if (delegateMsg->GetInvokerWaiting()) {
-                invoke = true;
-            }
-        }
-
-        if (invoke) {
-            // Invoke the delegate function synchronously without holding the lock
+        // Is the source thread waiting for the target function invoke to complete?
+        if (delegateMsg->GetInvokerWaiting()) {
+            // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting())
-                    delegateMsg->GetSema().Signal();
             } else {
-                // Invoke the target function and capture the return value before re-locking
-                std::optional<RetType> tempRetVal =
-                    std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting (sender may have timed out)
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting()) {
-                    m_retVal = std::move(tempRetVal.value());
-                    delegateMsg->GetSema().Signal();
-                }
+                // Invoke the target function using the source thread supplied function arguments 
+                // and get the return value
+                m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
+
+            // Signal the source thread that the destination thread function call is complete
+            delegateMsg->GetSema().Signal();
         }
         return true;
     }
@@ -857,39 +844,26 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        bool invoke = false;
-        {
-            // Protect data shared between source and destination threads
-            const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
+        // Protect data shared between source and destination threads
+        const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
 
-            // Is the source thread waiting for the target function invoke to complete?
-            if (delegateMsg->GetInvokerWaiting()) {
-                invoke = true;
-            }
-        }
-
-        if (invoke) {
-            // Invoke the delegate function synchronously without holding the lock
+        // Is the source thread waiting for the target function invoke to complete?
+        if (delegateMsg->GetInvokerWaiting()) {
+            // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting())
-                    delegateMsg->GetSema().Signal();
             } else {
-                // Invoke the target function and capture the return value before re-locking
-                std::optional<RetType> tempRetVal =
-                    std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting (sender may have timed out)
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting()) {
-                    m_retVal = std::move(tempRetVal.value());
-                    delegateMsg->GetSema().Signal();
-                }
+                // Invoke the target function using the source thread supplied function arguments 
+                // and get the return value
+                m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
+
+            // Signal the source thread that the destination thread function call is complete
+            delegateMsg->GetSema().Signal();
         }
         return true;
     }
@@ -1223,39 +1197,26 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        bool invoke = false;
-        {
-            // Protect data shared between source and destination threads
-            const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
+        // Protect data shared between source and destination threads
+        const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
 
-            // Is the source thread waiting for the target function invoke to complete?
-            if (delegateMsg->GetInvokerWaiting()) {
-                invoke = true;
-            }
-        }
-
-        if (invoke) {
-            // Invoke the delegate function synchronously without holding the lock
+        // Is the source thread waiting for the target function invoke to complete?
+        if (delegateMsg->GetInvokerWaiting()) {
+            // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting())
-                    delegateMsg->GetSema().Signal();
             } else {
-                // Invoke the target function and capture the return value before re-locking
-                std::optional<RetType> tempRetVal =
-                    std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting (sender may have timed out)
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting()) {
-                    m_retVal = std::move(tempRetVal.value());
-                    delegateMsg->GetSema().Signal();
-                }
+                // Invoke the target function using the source thread supplied function arguments 
+                // and get the return value
+                m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
+
+            // Signal the source thread that the destination thread function call is complete
+            delegateMsg->GetSema().Signal();
         }
         return true;
     }
@@ -1591,39 +1552,26 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        bool invoke = false;
-        {
-            // Protect data shared between source and destination threads
-            const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
+        // Protect data shared between source and destination threads
+        const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
 
-            // Is the source thread waiting for the target function invoke to complete?
-            if (delegateMsg->GetInvokerWaiting()) {
-                invoke = true;
-            }
-        }
-
-        if (invoke) {
-            // Invoke the delegate function synchronously without holding the lock
+        // Is the source thread waiting for the target function invoke to complete?
+        if (delegateMsg->GetInvokerWaiting()) {
+            // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting())
-                    delegateMsg->GetSema().Signal();
             } else {
-                // Invoke the target function and capture the return value before re-locking
-                std::optional<RetType> tempRetVal =
-                    std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
-                // Re-acquire lock; signal sender if still waiting (sender may have timed out)
-                const dmq::LockGuard<Mutex> lock(delegateMsg->GetLock());
-                if (delegateMsg->GetInvokerWaiting()) {
-                    m_retVal = std::move(tempRetVal.value());
-                    delegateMsg->GetSema().Signal();
-                }
+                // Invoke the target function using the source thread supplied function arguments 
+                // and get the return value
+                m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
+
+            // Signal the source thread that the destination thread function call is complete
+            delegateMsg->GetSema().Signal();
         }
         return true;
     }
