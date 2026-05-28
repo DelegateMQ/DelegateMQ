@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['server_0',['SERVER',['../classdmq_1_1transport_1_1_tcp_transport.html#aebbda83cfc8909a24e62690ff56eba0aa3d27c95bfdbea691b250894d96852844',1,'dmq::transport::TcpTransport::SERVER'],['../classdmq_1_1transport_1_1_win32_tcp_transport.html#a026836460f7992726db10b7a5f800f61a3d27c95bfdbea691b250894d96852844',1,'dmq::transport::Win32TcpTransport::SERVER']]],
+  ['server_0',['SERVER',['../classdmq_1_1transport_1_1_linux_tcp_transport.html#a2c96aef1b577aeffc5a238b6cd676bf4a3d27c95bfdbea691b250894d96852844',1,'dmq::transport::LinuxTcpTransport::SERVER'],['../classdmq_1_1transport_1_1_win32_tcp_transport.html#a026836460f7992726db10b7a5f800f61a3d27c95bfdbea691b250894d96852844',1,'dmq::transport::Win32TcpTransport::SERVER']]],
   ['set_1',['SET',['../classserialize.html#a9a6b840996a628f65126f216bafe3ab4a8c52684db8f49511e9b44471716bf164',1,'serialize']]],
   ['stream_5ferror_2',['STREAM_ERROR',['../classserialize.html#acfb1afef8776c22530f83bec54ea89b0a778538f32afec1c04103343a92a7ff0f',1,'serialize']]],
   ['string_3',['STRING',['../classserialize.html#a9a6b840996a628f65126f216bafe3ab4a63b588d5559f64f89a416e656880b949',1,'serialize']]],

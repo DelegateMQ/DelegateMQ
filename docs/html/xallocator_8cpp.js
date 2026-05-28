@@ -1,7 +1,6 @@
 var xallocator_8cpp =
 [
     [ "char_BIT", "xallocator_8cpp.html#a84da32026c61b3ed50255cc5334d635e", null ],
-    [ "CHECK_ALIGNMENT", "xallocator_8cpp.html#ae094875b655606e85fe25be3e59786b9", null ],
     [ "MAX_ALLOCATORS", "xallocator_8cpp.html#aff008d52737cefdb0cabb57e9c08c2e0", null ],
     [ "nexthigher", "xallocator_8cpp.html#a229bdfd69b1fe7d0ad297e789824019e", null ],
     [ "xalloc_destroy", "xallocator_8cpp.html#ab15c84ed4c7ef8268c3e1e3ca40ac261", null ],

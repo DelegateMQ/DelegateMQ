@@ -172,9 +172,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a18244b3b336cb2da93590de81317b04d" id="r_a18244b3b336cb2da93590de81317b04d"><td class="memItemLeft" align="right" valign="top">unsigned short&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a18244b3b336cb2da93590de81317b04d">Crc16CalcBlock</a> (const unsigned char *crc_msg, int len, unsigned short crc=0xFFFF)</td></tr>
 <tr class="memdesc:a18244b3b336cb2da93590de81317b04d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Calculates a 16-bit CRC using the table-based method.  <br /></td></tr>
 <tr class="separator:a18244b3b336cb2da93590de81317b04d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3050b027b061726a6a347ba2c10881ee" id="r_a3050b027b061726a6a347ba2c10881ee"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a3050b027b061726a6a347ba2c10881ee">ThreadStatsPacketToString</a> (const ThreadStatsPacket &amp;p)</td></tr>
-<tr class="memdesc:a3050b027b061726a6a347ba2c10881ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Stringifier for ThreadStatsPacket (for DataSpy).  <br /></td></tr>
-<tr class="separator:a3050b027b061726a6a347ba2c10881ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aace522ab84dd22b1d6306ad8c360a07d" id="r_aace522ab84dd22b1d6306ad8c360a07d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aace522ab84dd22b1d6306ad8c360a07d">ThreadStatsPacketToString</a> (const ThreadStatsPacket &amp;p)</td></tr>
+<tr class="memdesc:aace522ab84dd22b1d6306ad8c360a07d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Stringifier for ThreadStatsPacket (for DataSpy).  <br /></td></tr>
+<tr class="separator:aace522ab84dd22b1d6306ad8c360a07d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aec4e4d7ab27e33b95914bde8d31367a0" id="r_aec4e4d7ab27e33b95914bde8d31367a0"><td class="memItemLeft" align="right" valign="top">auto&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aec4e4d7ab27e33b95914bde8d31367a0">MakeTimerDelegate</a> (void(*func)(), <a class="el" href="classdmq_1_1_i_thread.html">dmq::IThread</a> &amp;thr, std::function&lt; void()&gt; onStuck=std::function&lt; void()&gt;(), <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> stuckTimeout=<a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a>(0))</td></tr>
 <tr class="memdesc:aec4e4d7ab27e33b95914bde8d31367a0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a timer-safe async delegate for a free function or static member function.  <br /></td></tr>
 <tr class="separator:aec4e4d7ab27e33b95914bde8d31367a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -205,6 +205,7 @@ Variables</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>RAII wrapper to initialize and cleanup network stacks. Instantiate this ONCE at the top of main(). </p>
+<p>On bare-metal targets (no OS, no socket stack) the class compiles to empty stubs so that <a class="el" href="_data_bus_8h.html">DataBus.h</a> can include this header unconditionally. </p>
 </div><h2 class="groupheader">Function Documentation</h2>
 <a id="a0e01cfd719d30a8ecef745888a4bd99a" name="a0e01cfd719d30a8ecef745888a4bd99a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a0e01cfd719d30a8ecef745888a4bd99a">&#9670;&#160;</a></span>AsyncInvoke() <span class="overload">[1/3]</span></h2>
@@ -573,7 +574,7 @@ template&lt;typename TClass &gt; </div>
 <div class="line">m_timerConn = m_timer.OnExpired.Connect(</div>
 <div class="line">    <a class="code hl_function" href="#aec4e4d7ab27e33b95914bde8d31367a0">MakeTimerDelegate</a>(<span class="keyword">this</span>, &amp;MyClass::OnTick, m_thread,</div>
 <div class="line">        [<span class="keyword">this</span>]{ OnThreadStuck(); }, std::chrono::seconds(2)));</div>
-<div class="ttc" id="anamespacedmq_1_1util_html_aec4e4d7ab27e33b95914bde8d31367a0"><div class="ttname"><a href="#aec4e4d7ab27e33b95914bde8d31367a0">dmq::util::MakeTimerDelegate</a></div><div class="ttdeci">auto MakeTimerDelegate(void(*func)(), dmq::IThread &amp;thr, std::function&lt; void()&gt; onStuck=std::function&lt; void()&gt;(), dmq::Duration stuckTimeout=dmq::Duration(0))</div><div class="ttdoc">Create a timer-safe async delegate for a free function or static member function.</div><div class="ttdef"><b>Definition</b> TimerDelegate.h:135</div></div>
+<div class="ttc" id="anamespacedmq_1_1util_html_aec4e4d7ab27e33b95914bde8d31367a0"><div class="ttname"><a href="#aec4e4d7ab27e33b95914bde8d31367a0">dmq::util::MakeTimerDelegate</a></div><div class="ttdeci">auto MakeTimerDelegate(void(*func)(), dmq::IThread &amp;thr, std::function&lt; void()&gt; onStuck=std::function&lt; void()&gt;(), dmq::Duration stuckTimeout=dmq::Duration(0))</div><div class="ttdoc">Create a timer-safe async delegate for a free function or static member function.</div><div class="ttdef"><b>Definition</b> TimerDelegate.h:141</div></div>
 </div><!-- fragment --> 
 </div>
 </div>
@@ -622,8 +623,8 @@ template&lt;typename TClass &gt; </div>
 </div><!-- fragment --> 
 </div>
 </div>
-<a id="a3050b027b061726a6a347ba2c10881ee" name="a3050b027b061726a6a347ba2c10881ee"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3050b027b061726a6a347ba2c10881ee">&#9670;&#160;</a></span>ThreadStatsPacketToString()</h2>
+<a id="aace522ab84dd22b1d6306ad8c360a07d" name="aace522ab84dd22b1d6306ad8c360a07d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aace522ab84dd22b1d6306ad8c360a07d">&#9670;&#160;</a></span>ThreadStatsPacketToString()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -632,7 +633,7 @@ template&lt;typename TClass &gt; </div>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string dmq::util::ThreadStatsPacketToString </td>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::util::ThreadStatsPacketToString </td>
           <td>(</td>
           <td class="paramtype">const ThreadStatsPacket &amp;</td>          <td class="paramname"><span class="paramname"><em>p</em></span></td><td>)</td>
           <td></td>

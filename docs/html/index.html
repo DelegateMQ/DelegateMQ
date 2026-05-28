@@ -133,7 +133,7 @@ Using XALLOCATOR in a class</h2>
 <div class="line"><span class="comment">// Now &#39;new MyClass&#39; uses the fixed-block allocator</span></div>
 <div class="line">MyClass* obj = <span class="keyword">new</span> MyClass();</div>
 <div class="line"><span class="keyword">delete</span> obj;</div>
-<div class="ttc" id="a_delegate_opt_8h_html_a5e800c556290ed548055177c33a66f5c"><div class="ttname"><a href="_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c">XALLOCATOR</a></div><div class="ttdeci">#define XALLOCATOR</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:272</div></div>
+<div class="ttc" id="a_delegate_opt_8h_html_a5e800c556290ed548055177c33a66f5c"><div class="ttname"><a href="_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c">XALLOCATOR</a></div><div class="ttdeci">#define XALLOCATOR</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:300</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md5"></a>
 Using STL containers</h2>
 <div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="xlist_8h.html">xlist.h</a>&quot;</span></div>
@@ -144,8 +144,7 @@ Using STL containers</h2>
 <div class="ttc" id="axlist_8h_html"><div class="ttname"><a href="xlist_8h.html">xlist.h</a></div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md6"></a>
 Using xmake_shared</h2>
-<div class="fragment"><div class="line"><span class="keyword">auto</span> sp = <a class="code hl_function" href="xmake__shared_8h.html#a897146520ab3fe3629d618cf8efb925c">xmake_shared&lt;MyClass&gt;</a>(args...);</div>
-<div class="ttc" id="axmake__shared_8h_html_a897146520ab3fe3629d618cf8efb925c"><div class="ttname"><a href="xmake__shared_8h.html#a897146520ab3fe3629d618cf8efb925c">xmake_shared</a></div><div class="ttdeci">std::shared_ptr&lt; T &gt; xmake_shared(Args &amp;&amp;... args)</div><div class="ttdoc">Create a shared_ptr with both the object and control block allocated from the fixed-block pool.</div><div class="ttdef"><b>Definition</b> xmake_shared.h:11</div></div>
+<div class="fragment"><div class="line"><span class="keyword">auto</span> sp = xmake_shared&lt;MyClass&gt;(args...);</div>
 </div><!-- fragment --><h1><a class="anchor" id="autotoc_md7"></a>
 Memory Alignment</h1>
 <p>The <code>xallocator</code> implementation ensures that all allocated blocks are correctly aligned for the target architecture:</p>

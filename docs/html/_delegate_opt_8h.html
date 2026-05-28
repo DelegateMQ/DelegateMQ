@@ -116,6 +116,7 @@ $(function(){initNavTree('_delegate_opt_8h.html',''); initResizable(true); });
 <code>#include &lt;cassert&gt;</code><br />
 <code>#include &lt;string&gt;</code><br />
 <code>#include &lt;list&gt;</code><br />
+<code>#include &lt;map&gt;</code><br />
 <code>#include &lt;sstream&gt;</code><br />
 <code>#include &lt;memory&gt;</code><br />
 <code>#include &lt;utility&gt;</code><br />
@@ -125,6 +126,8 @@ $(function(){initNavTree('_delegate_opt_8h.html',''); initResizable(true); });
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_portable_lock_guard.html">dmq::PortableLockGuard&lt; T &gt;</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_scoped_lock.html">dmq::ScopedLock&lt; M &gt;</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdmq_1_1_null_mutex.html">dmq::NullMutex</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -175,6 +178,12 @@ Typedefs</h2></td></tr>
 <tr class="separator:a96216b70259f3d7e0a6462222e96e3b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a11cea01eb8d1af200d992657af94c7fb" id="r_a11cea01eb8d1af200d992657af94c7fb"><td class="memItemLeft" align="right" valign="top">typedef std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></td></tr>
 <tr class="separator:a11cea01eb8d1af200d992657af94c7fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a469c70e22b4e113778864ed7568d7474" id="r_a469c70e22b4e113778864ed7568d7474"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
+<tr class="memitem:a469c70e22b4e113778864ed7568d7474"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a469c70e22b4e113778864ed7568d7474">xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
+<tr class="separator:a469c70e22b4e113778864ed7568d7474"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae6e99a0ad5b40dd413347112d7049833" id="r_ae6e99a0ad5b40dd413347112d7049833"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
+<tr class="memitem:ae6e99a0ad5b40dd413347112d7049833"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
+<tr class="separator:ae6e99a0ad5b40dd413347112d7049833"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -210,6 +219,9 @@ Variables</h2></td></tr>
 <tr class="memitem:a5996b329a6a4ad786362e2b64d3a180c" id="r_a5996b329a6a4ad786362e2b64d3a180c"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a5996b329a6a4ad786362e2b64d3a180c">dmq::MAX_PARTICIPANTS</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a82fd3e9a7368f3ed51bcd74f1e30c8f6">DMQ_MAX_PARTICIPANTS</a></td></tr>
 <tr class="memdesc:a5996b329a6a4ad786362e2b64d3a180c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of remote Participants the DataBus can hold without heap allocation. Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.  <br /></td></tr>
 <tr class="separator:a5996b329a6a4ad786362e2b64d3a180c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5328cc2a5f84fe0f49a89a571600e8a8" id="r_a5328cc2a5f84fe0f49a89a571600e8a8"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a5328cc2a5f84fe0f49a89a571600e8a8">dmq::MAX_TRANSPORT_MONITOR_PENDING</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a28a4c0eeb05b626391e1e7735a179c0b">DMQ_TRANSPORT_MONITOR_MAX_PENDING</a></td></tr>
+<tr class="memdesc:a5328cc2a5f84fe0f49a89a571600e8a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of pending messages the TransportMonitor can track. Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.  <br /></td></tr>
+<tr class="separator:a5328cc2a5f84fe0f49a89a571600e8a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Delegate library options header file. </p>
@@ -322,6 +334,39 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">#define XALLOCATOR</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<h2 class="groupheader">Typedef Documentation</h2>
+<a id="a469c70e22b4e113778864ed7568d7474" name="a469c70e22b4e113778864ed7568d7474"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a469c70e22b4e113778864ed7568d7474">&#9670;&#160;</a></span>xmap</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#a469c70e22b4e113778864ed7568d7474">xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ae6e99a0ad5b40dd413347112d7049833" name="ae6e99a0ad5b40dd413347112d7049833"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae6e99a0ad5b40dd413347112d7049833">&#9670;&#160;</a></span>xmultimap</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td>
         </tr>
       </table>
 </div><div class="memdoc">

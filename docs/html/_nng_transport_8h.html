@@ -116,6 +116,7 @@ $(function(){initNavTree('_nng_transport_8h.html',''); initResizable(true); });
 <code>#include &lt;nng/protocol/pubsub0/sub.h&gt;</code><br />
 <code>#include &lt;sstream&gt;</code><br />
 <code>#include &lt;cstdio&gt;</code><br />
+<code>#include &lt;cstring&gt;</code><br />
 <code>#include &lt;mutex&gt;</code><br />
 <code>#include &lt;iostream&gt;</code><br />
 </div>
@@ -141,7 +142,7 @@ Namespaces</h2></td></tr>
 <dl class="section see"><dt>See also</dt><dd><a href="https://github.com/DelegateMQ/DelegateMQ">https://github.com/DelegateMQ/DelegateMQ</a> David Lafreniere, 2025.</dd></dl>
 <p>This class implements the ITransport interface using the NNG (Nanomsg Next Gen) lightweight messaging library. It supports multiple scalability protocols including PAIR (1-to-1 bidrectional) and PUB/SUB (1-to-many unidirectional).</p>
 <p>Key Features:</p><ol type="1">
-<li><b>Thread Safety</b>: Uses a <code>std::recursive_mutex</code> to protect the NNG socket, allowing safe concurrent access from the Send and Receive threads (NNG sockets are not inherently thread-safe).</li>
+<li><b>Thread Safety</b>: Uses a <code><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">dmq::RecursiveMutex</a></code> to protect the NNG socket, allowing safe concurrent access from the Send and Receive threads (NNG sockets are not inherently thread-safe).</li>
 <li><b>Scalability Protocols</b>: flexible configuration for different topologies:<ul>
 <li><code>PAIR_CLIENT</code>/<code>PAIR_SERVER</code>: Exclusive 1-to-1 connection.</li>
 <li><code>PUB</code>/<code>SUB</code>: Efficient distribution to multiple subscribers.</li>

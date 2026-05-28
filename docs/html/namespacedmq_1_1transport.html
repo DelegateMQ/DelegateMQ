@@ -119,6 +119,9 @@ Classes</h2></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">DelegateMQ transport monitor interface. <br  />
   <a href="classdmq_1_1transport_1_1_i_transport_monitor.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1transport_1_1_linux_tcp_transport.html">LinuxTcpTransport</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A TCP transport implementation for Linux using BSD sockets.  <a href="classdmq_1_1transport_1_1_linux_tcp_transport.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1transport_1_1_linux_udp_transport.html">LinuxUdpTransport</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1transport_1_1_mqtt_transport.html">MqttTransport</a></td></tr>
@@ -137,9 +140,6 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1transport_1_1_serial_transport.html">SerialTransport</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1transport_1_1_stm32_uart_transport.html">Stm32UartTransport</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1transport_1_1_tcp_transport.html">TcpTransport</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A TCP transport implementation for Linux using BSD sockets.  <a href="classdmq_1_1transport_1_1_tcp_transport.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1transport_1_1_uart_ring_buffer.html">UartRingBuffer</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A lightweight, thread-safe (Single Producer / Single Consumer) Ring Buffer.  <a href="classdmq_1_1transport_1_1_uart_ring_buffer.html#details">More...</a><br /></td></tr>
@@ -163,6 +163,8 @@ Classes</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
+<tr class="memitem:a099eb7cd81775f085e954927cdea6c45" id="r_a099eb7cd81775f085e954927cdea6c45"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a099eb7cd81775f085e954927cdea6c45">TcpTransport</a> = <a class="el" href="classdmq_1_1transport_1_1_linux_tcp_transport.html">LinuxTcpTransport</a></td></tr>
+<tr class="separator:a099eb7cd81775f085e954927cdea6c45"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a63e104a5809b89f7000b570a84655d86" id="r_a63e104a5809b89f7000b570a84655d86"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a63e104a5809b89f7000b570a84655d86">UdpTransport</a> = <a class="el" href="classdmq_1_1transport_1_1_linux_udp_transport.html">LinuxUdpTransport</a></td></tr>
 <tr class="separator:a63e104a5809b89f7000b570a84655d86"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -188,6 +190,20 @@ Typedefs</h2></td></tr>
 </ol>
 <dl class="section note"><dt>Note</dt><dd>This implementation uses blocking sockets with timeouts (<code>SO_RCVTIMEO</code>) to prevent indefinite blocking during receive operations. </dd></dl>
 </div><h2 class="groupheader">Typedef Documentation</h2>
+<a id="a099eb7cd81775f085e954927cdea6c45" name="a099eb7cd81775f085e954927cdea6c45"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a099eb7cd81775f085e954927cdea6c45">&#9670;&#160;</a></span>TcpTransport</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#a099eb7cd81775f085e954927cdea6c45">dmq::transport::TcpTransport</a> = <a class="el" href="classdmq_1_1transport_1_1_linux_tcp_transport.html">LinuxTcpTransport</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a63e104a5809b89f7000b570a84655d86" name="a63e104a5809b89f7000b570a84655d86"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a63e104a5809b89f7000b570a84655d86">&#9670;&#160;</a></span>UdpTransport</h2>
 

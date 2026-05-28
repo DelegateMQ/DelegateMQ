@@ -107,17 +107,17 @@ $(function(){initNavTree('xmap_8h_source.html',''); initResizable(true); });
 <div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span> </div>
 <div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="comment">// xmap uses a fix-block memory allocator</span></div>
 <div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="keyword">template</span> &lt;<span class="keyword">typename</span> Key, <span class="keyword">typename</span> Value, <span class="keyword">typename</span> Alloc = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt;</div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno"><a class="line" href="xmap_8h.html#a469c70e22b4e113778864ed7568d7474">    9</a></span><span class="keyword">using </span><a class="code hl_typedef" href="xmap_8h.html#a469c70e22b4e113778864ed7568d7474">xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;;</div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno"><a class="line" href="xmap_8h.html#a469c70e22b4e113778864ed7568d7474">    9</a></span><span class="keyword">using </span><a class="code hl_typedef" href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;;</div>
 <div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span> </div>
 <div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="keyword">template</span> &lt;<span class="keyword">typename</span> Key, <span class="keyword">typename</span> Value, <span class="keyword">typename</span> Alloc = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt;</div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno"><a class="line" href="xmap_8h.html#ae6e99a0ad5b40dd413347112d7049833">   12</a></span><span class="keyword">using </span><a class="code hl_typedef" href="xmap_8h.html#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;;</div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno"><a class="line" href="xmap_8h.html#ae6e99a0ad5b40dd413347112d7049833">   12</a></span><span class="keyword">using </span><a class="code hl_typedef" href="_delegate_opt_8h.html#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;;</div>
 <div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span> </div>
 <div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="preprocessor">#if 0  </span><span class="comment">// Deprecated</span></div>
 <div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="keyword">template</span>&lt;<span class="keyword">class </span>_Kty,</div>
 <div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>    <span class="keyword">class </span>_Ty,</div>
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>    <span class="keyword">class </span>_Pr = std::less&lt;_Kty&gt;,</div>
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    <span class="keyword">class </span>_Alloc = <a class="code hl_class" href="classstl__allocator.html">stl_allocator&lt;std::pair&lt;const _Kty, _Ty&gt;</a> &gt; &gt;</div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <span class="keyword">class </span><a class="code hl_typedef" href="xmap_8h.html#a469c70e22b4e113778864ed7568d7474">xmap</a></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <span class="keyword">class </span><a class="code hl_typedef" href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap</a></div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>        : <span class="keyword">public</span> std::map&lt;_Kty, _Ty, _Pr, _Alloc&gt;</div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    {</div>
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    };</div>
@@ -126,7 +126,7 @@ $(function(){initNavTree('xmap_8h_source.html',''); initResizable(true); });
 <div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    <span class="keyword">class </span>_Ty,</div>
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <span class="keyword">class </span>_Pr = std::less&lt;_Kty&gt;,</div>
 <div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>    <span class="keyword">class </span>_Alloc = <a class="code hl_class" href="classstl__allocator.html">stl_allocator&lt;std::pair&lt;const _Kty, _Ty&gt;</a> &gt; &gt;</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <span class="keyword">class </span><a class="code hl_typedef" href="xmap_8h.html#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <span class="keyword">class </span><a class="code hl_typedef" href="_delegate_opt_8h.html#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a></div>
 <div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>        : <span class="keyword">public</span> std::multimap&lt;_Kty, _Ty, _Pr, _Alloc&gt;</div>
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    {</div>
 <div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    };</div>
@@ -134,10 +134,10 @@ $(function(){initNavTree('xmap_8h_source.html',''); initResizable(true); });
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span> </div>
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#endif</span></div>
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span> </div>
+<div class="ttc" id="a_delegate_opt_8h_html_a469c70e22b4e113778864ed7568d7474"><div class="ttname"><a href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap</a></div><div class="ttdeci">std::map&lt; Key, Value, std::less&lt; Key &gt;, Alloc &gt; xmap</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:337</div></div>
+<div class="ttc" id="a_delegate_opt_8h_html_ae6e99a0ad5b40dd413347112d7049833"><div class="ttname"><a href="_delegate_opt_8h.html#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a></div><div class="ttdeci">std::multimap&lt; Key, Value, std::less&lt; Key &gt;, Alloc &gt; xmultimap</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:340</div></div>
 <div class="ttc" id="aclassstl__allocator_html"><div class="ttname"><a href="classstl__allocator.html">stl_allocator</a></div><div class="ttdef"><b>Definition</b> stl_allocator.h:29</div></div>
 <div class="ttc" id="astl__allocator_8h_html"><div class="ttname"><a href="stl__allocator_8h.html">stl_allocator.h</a></div></div>
-<div class="ttc" id="axmap_8h_html_a469c70e22b4e113778864ed7568d7474"><div class="ttname"><a href="xmap_8h.html#a469c70e22b4e113778864ed7568d7474">xmap</a></div><div class="ttdeci">std::map&lt; Key, Value, std::less&lt; Key &gt;, Alloc &gt; xmap</div><div class="ttdef"><b>Definition</b> xmap.h:9</div></div>
-<div class="ttc" id="axmap_8h_html_ae6e99a0ad5b40dd413347112d7049833"><div class="ttname"><a href="xmap_8h.html#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a></div><div class="ttdeci">std::multimap&lt; Key, Value, std::less&lt; Key &gt;, Alloc &gt; xmultimap</div><div class="ttdef"><b>Definition</b> xmap.h:12</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

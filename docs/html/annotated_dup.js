@@ -2,6 +2,11 @@ var annotated_dup =
 [
     [ "dmq", "namespacedmq.html", [
       [ "databus", "namespacedmq_1_1databus.html", [
+        [ "detail", "namespacedmq_1_1databus_1_1detail.html", [
+          [ "Filter", "classdmq_1_1databus_1_1detail_1_1_filter.html", "classdmq_1_1databus_1_1detail_1_1_filter" ],
+          [ "RateLimiter", "classdmq_1_1databus_1_1detail_1_1_rate_limiter.html", "classdmq_1_1databus_1_1detail_1_1_rate_limiter" ],
+          [ "TopicForwarder", "classdmq_1_1databus_1_1detail_1_1_topic_forwarder.html", "classdmq_1_1databus_1_1detail_1_1_topic_forwarder" ]
+        ] ],
         [ "DataBus", "classdmq_1_1databus_1_1_data_bus.html", null ],
         [ "DeadlineSubscription", "classdmq_1_1databus_1_1_deadline_subscription.html", "classdmq_1_1databus_1_1_deadline_subscription" ],
         [ "Participant", "classdmq_1_1databus_1_1_participant.html", "classdmq_1_1databus_1_1_participant" ],
@@ -67,6 +72,7 @@ var annotated_dup =
         [ "DmqHeader", "classdmq_1_1transport_1_1_dmq_header.html", "classdmq_1_1transport_1_1_dmq_header" ],
         [ "ITransport", "classdmq_1_1transport_1_1_i_transport.html", "classdmq_1_1transport_1_1_i_transport" ],
         [ "ITransportMonitor", "classdmq_1_1transport_1_1_i_transport_monitor.html", "classdmq_1_1transport_1_1_i_transport_monitor" ],
+        [ "LinuxTcpTransport", "classdmq_1_1transport_1_1_linux_tcp_transport.html", "classdmq_1_1transport_1_1_linux_tcp_transport" ],
         [ "LinuxUdpTransport", "classdmq_1_1transport_1_1_linux_udp_transport.html", "classdmq_1_1transport_1_1_linux_udp_transport" ],
         [ "MqttTransport", "classdmq_1_1transport_1_1_mqtt_transport.html", "classdmq_1_1transport_1_1_mqtt_transport" ],
         [ "MulticastTransport", "classdmq_1_1transport_1_1_multicast_transport.html", "classdmq_1_1transport_1_1_multicast_transport" ],
@@ -75,7 +81,6 @@ var annotated_dup =
         [ "NngTransport", "classdmq_1_1transport_1_1_nng_transport.html", "classdmq_1_1transport_1_1_nng_transport" ],
         [ "SerialTransport", "classdmq_1_1transport_1_1_serial_transport.html", "classdmq_1_1transport_1_1_serial_transport" ],
         [ "Stm32UartTransport", "classdmq_1_1transport_1_1_stm32_uart_transport.html", "classdmq_1_1transport_1_1_stm32_uart_transport" ],
-        [ "TcpTransport", "classdmq_1_1transport_1_1_tcp_transport.html", "classdmq_1_1transport_1_1_tcp_transport" ],
         [ "UartRingBuffer", "classdmq_1_1transport_1_1_uart_ring_buffer.html", "classdmq_1_1transport_1_1_uart_ring_buffer" ],
         [ "UdpTransport", "classdmq_1_1transport_1_1_udp_transport.html", "classdmq_1_1transport_1_1_udp_transport" ],
         [ "Win32PipeTransport", "classdmq_1_1transport_1_1_win32_pipe_transport.html", "classdmq_1_1transport_1_1_win32_pipe_transport" ],
@@ -157,6 +162,7 @@ var annotated_dup =
       [ "RemoteChannel", "classdmq_1_1_remote_channel.html", null ],
       [ "RemoteChannel< RetType(Args...)>", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4" ],
       [ "ScopedConnection", "classdmq_1_1_scoped_connection.html", "classdmq_1_1_scoped_connection" ],
+      [ "ScopedLock", "classdmq_1_1_scoped_lock.html", "classdmq_1_1_scoped_lock" ],
       [ "Signal", "classdmq_1_1_signal.html", null ],
       [ "Signal< RetType(Args...)>", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4" ],
       [ "UnicastDelegate", "classdmq_1_1_unicast_delegate.html", null ],

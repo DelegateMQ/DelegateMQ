@@ -278,6 +278,8 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_scoped_connection.html">ScopedConnection</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">RAII handle to a single <a class="el" href="classdmq_1_1_signal.html">Signal</a> subscription. Disconnects automatically on destruction. The only connection type users need to store.  <a href="classdmq_1_1_scoped_connection.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_scoped_lock.html">ScopedLock</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_signal.html">Signal</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html">Signal&lt; RetType(Args...)&gt;</a></td></tr>
@@ -510,6 +512,9 @@ Variables</h2></td></tr>
 <tr class="memitem:a5996b329a6a4ad786362e2b64d3a180c" id="r_a5996b329a6a4ad786362e2b64d3a180c"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5996b329a6a4ad786362e2b64d3a180c">MAX_PARTICIPANTS</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a82fd3e9a7368f3ed51bcd74f1e30c8f6">DMQ_MAX_PARTICIPANTS</a></td></tr>
 <tr class="memdesc:a5996b329a6a4ad786362e2b64d3a180c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of remote Participants the DataBus can hold without heap allocation. Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.  <br /></td></tr>
 <tr class="separator:a5996b329a6a4ad786362e2b64d3a180c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5328cc2a5f84fe0f49a89a571600e8a8" id="r_a5328cc2a5f84fe0f49a89a571600e8a8"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5328cc2a5f84fe0f49a89a571600e8a8">MAX_TRANSPORT_MONITOR_PENDING</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a28a4c0eeb05b626391e1e7735a179c0b">DMQ_TRANSPORT_MONITOR_MAX_PENDING</a></td></tr>
+<tr class="memdesc:a5328cc2a5f84fe0f49a89a571600e8a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of pending messages the TransportMonitor can track. Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.  <br /></td></tr>
+<tr class="separator:a5328cc2a5f84fe0f49a89a571600e8a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0278aebc59e9f350d10a47d1a5ef1acb" id="r_a0278aebc59e9f350d10a47d1a5ef1acb"><td class="memItemLeft" align="right" valign="top">const uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a0278aebc59e9f350d10a47d1a5ef1acb">INVALID_REMOTE_ID</a> = static_cast&lt;uint16_t&gt;(-1)</td></tr>
 <tr class="separator:a0278aebc59e9f350d10a47d1a5ef1acb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a621e40ea0fde57bf5426750dab582f0b" id="r_a621e40ea0fde57bf5426750dab582f0b"><td class="memItemLeft" align="right" valign="top">const uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a621e40ea0fde57bf5426750dab582f0b">ACK_REMOTE_ID</a> = 0</td></tr>
@@ -517,6 +522,7 @@ Variables</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>The delegate library namespace. </p>
+<p>Create a shared_ptr with both the object and control block allocated from the fixed-block pool. </p>
 </div><h2 class="groupheader">Typedef Documentation</h2>
 <a id="aa5033450a33d262cadf38fc666741732" name="aa5033450a33d262cadf38fc666741732"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aa5033450a33d262cadf38fc666741732">&#9670;&#160;</a></span>ArgTypeOf</h2>
@@ -2328,6 +2334,30 @@ template&lt;typename T , typename... Args&gt; </div>
 </div><div class="memdoc">
 
 <p>Max timers processed in one tick without heap allocation. Override via DMQ_MAX_TIMER_EXPIRED in delegatemqconfig.h. </p>
+
+</div>
+</div>
+<a id="a5328cc2a5f84fe0f49a89a571600e8a8" name="a5328cc2a5f84fe0f49a89a571600e8a8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5328cc2a5f84fe0f49a89a571600e8a8">&#9670;&#160;</a></span>MAX_TRANSPORT_MONITOR_PENDING</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t dmq::MAX_TRANSPORT_MONITOR_PENDING = <a class="el" href="_delegate_m_q_config___default_8h.html#a28a4c0eeb05b626391e1e7735a179c0b">DMQ_TRANSPORT_MONITOR_MAX_PENDING</a></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">constexpr</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Max number of pending messages the TransportMonitor can track. Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h. </p>
 
 </div>
 </div>

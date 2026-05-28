@@ -1,5 +1,10 @@
 var NAVTREEINDEX1 =
 {
+"_win32_udp_transport_8h.html":[3,0,0,0,2,3,11,1],
+"_win32_udp_transport_8h_source.html":[3,0,0,0,2,3,11,1],
+"_zephyr_clock_8h.html":[3,0,0,0,2,1,7,3],
+"_zephyr_clock_8h_source.html":[3,0,0,0,2,1,7,3],
+"_zephyr_mutex_8h.html":[3,0,0,0,2,1,7,4],
 "_zephyr_mutex_8h.html#ac1c71ebbb72b7e1716ebd4757ef6a61b":[3,0,0,0,2,1,7,4,1],
 "_zephyr_mutex_8h_source.html":[3,0,0,0,2,1,7,4],
 "_zephyr_udp_transport_8h.html":[3,0,0,0,2,3,12,0],
@@ -244,10 +249,5 @@ var NAVTREEINDEX1 =
 "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af16fa7b2ae88ebfc6ac0a7166be24b58":[2,0,0,16,2],
 "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af626a540f95d9f63153e5b6070b97ca6":[1,0,0,16,32],
 "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af626a540f95d9f63153e5b6070b97ca6":[2,0,0,16,32],
-"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af9aa80fdccc5fd783a8e90c39b50cbe2":[1,0,0,16,21],
-"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af9aa80fdccc5fd783a8e90c39b50cbe2":[2,0,0,16,21],
-"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#afb5f7f58dc8293f4922c76c78c32c6af":[1,0,0,16,1],
-"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#afb5f7f58dc8293f4922c76c78c32c6af":[2,0,0,16,1],
-"classdmq_1_1_delegate_function.html":[1,0,0,17],
-"classdmq_1_1_delegate_function.html":[2,0,0,17]
+"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af9aa80fdccc5fd783a8e90c39b50cbe2":[1,0,0,16,21]
 };

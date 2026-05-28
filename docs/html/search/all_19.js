@@ -15,7 +15,7 @@ var searchData=
   ['usage_12',['Usage',['../index.html#autotoc_md3',1,'Basic Usage'],['../C:/Projects/DelegateMQWorkspace/DelegateMQ/src/delegate-mq/extras/databus/README.md#autotoc_md11',1,'Basic Usage'],['../C:/Projects/DelegateMQWorkspace/DelegateMQ/src/delegate-mq/port/serialize/serialize/README.md#autotoc_md46',1,'Basic Usage'],['../C:/Projects/DelegateMQWorkspace/DelegateMQ/src/delegate-mq/extras/util/README.md#autotoc_md30',1,'Usage'],['../C:/Projects/DelegateMQWorkspace/DelegateMQ/src/delegate-mq/port/transport/README.md#autotoc_md58',1,'Usage']]],
   ['use_5fcrc_5ftable_13',['USE_CRC_TABLE',['../crc16_8h.html#a3010df5660a7bb91381b279881d7ce40',1,'crc16.h']]],
   ['user_5fdefined_14',['USER_DEFINED',['../classserialize.html#a9a6b840996a628f65126f216bafe3ab4a5123cb514ff95a726922950380866e00',1,'serialize']]],
-  ['using_20delegatemq_15',['Other Projects Using DelegateMQ',['../C:/Projects/DelegateMQWorkspace/DelegateMQ/README.md#autotoc_md77',1,'']]],
+  ['using_20delegatemq_15',['Other Projects Using DelegateMQ',['../C:/Projects/DelegateMQWorkspace/DelegateMQ/README.md#autotoc_md78',1,'']]],
   ['using_20stl_20containers_16',['Using STL containers',['../index.html#autotoc_md5',1,'']]],
   ['using_20xallocator_20in_20a_20class_17',['Using XALLOCATOR in a class',['../index.html#autotoc_md4',1,'']]],
   ['using_20xmake_5fshared_18',['Using xmake_shared',['../index.html#autotoc_md6',1,'']]],

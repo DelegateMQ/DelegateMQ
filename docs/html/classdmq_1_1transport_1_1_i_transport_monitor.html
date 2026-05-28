@@ -120,8 +120,8 @@ Inheritance diagram for dmq::transport::ITransportMonitor:</div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:abf1953ce7eaa8d7638b9835ab4e9ad3b" id="r_abf1953ce7eaa8d7638b9835ab4e9ad3b"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abf1953ce7eaa8d7638b9835ab4e9ad3b">Add</a> (uint16_t seqNum, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId)=0</td></tr>
-<tr class="separator:abf1953ce7eaa8d7638b9835ab4e9ad3b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3e84524d33c3ea6d065abb7170555747" id="r_a3e84524d33c3ea6d065abb7170555747"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a3e84524d33c3ea6d065abb7170555747">Add</a> (uint16_t seqNum, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId)=0</td></tr>
+<tr class="separator:a3e84524d33c3ea6d065abb7170555747"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad5f5ff93cb459bde9e90570541937cba" id="r_ad5f5ff93cb459bde9e90570541937cba"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad5f5ff93cb459bde9e90570541937cba">Remove</a> (uint16_t seqNum)=0</td></tr>
 <tr class="separator:ad5f5ff93cb459bde9e90570541937cba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -130,8 +130,8 @@ Public Member Functions</h2></td></tr>
  </p>
 <p>@TODO Implement the <a class="el" href="classdmq_1_1transport_1_1_i_transport_monitor.html" title="DelegateMQ transport monitor interface.">ITransportMonitor</a> interface if necessary. </p>
 </div><h2 class="groupheader">Member Function Documentation</h2>
-<a id="abf1953ce7eaa8d7638b9835ab4e9ad3b" name="abf1953ce7eaa8d7638b9835ab4e9ad3b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abf1953ce7eaa8d7638b9835ab4e9ad3b">&#9670;&#160;</a></span>Add()</h2>
+<a id="a3e84524d33c3ea6d065abb7170555747" name="a3e84524d33c3ea6d065abb7170555747"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3e84524d33c3ea6d065abb7170555747">&#9670;&#160;</a></span>Add()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -140,7 +140,7 @@ Public Member Functions</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">virtual void dmq::transport::ITransportMonitor::Add </td>
+          <td class="memname">virtual bool dmq::transport::ITransportMonitor::Add </td>
           <td>(</td>
           <td class="paramtype">uint16_t</td>          <td class="paramname"><span class="paramname"><em>seqNum</em></span>, </td>
         </tr>
@@ -156,9 +156,9 @@ Public Member Functions</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-<p>Add a sequence number param[in] seqNum - the message sequence number param[in] remoteId - the remote ID </p>
+<p>Add a sequence number param[in] seqNum - the message sequence number param[in] remoteId - the remote ID </p><dl class="section return"><dt>Returns</dt><dd>true if added; false otherwise. </dd></dl>
 
-<p>Implemented in <a class="el" href="classdmq_1_1util_1_1_transport_monitor.html#a2d9ccaecafc12e24984ab7110654ac55">dmq::util::TransportMonitor</a>.</p>
+<p>Implemented in <a class="el" href="classdmq_1_1util_1_1_transport_monitor.html#ae15434515a50fe14453225cf53231942">dmq::util::TransportMonitor</a>.</p>
 
 </div>
 </div>

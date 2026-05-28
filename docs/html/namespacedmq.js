@@ -65,6 +65,7 @@ var namespacedmq =
     [ "RemoteChannel", "classdmq_1_1_remote_channel.html", null ],
     [ "RemoteChannel< RetType(Args...)>", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4" ],
     [ "ScopedConnection", "classdmq_1_1_scoped_connection.html", "classdmq_1_1_scoped_connection" ],
+    [ "ScopedLock", "classdmq_1_1_scoped_lock.html", "classdmq_1_1_scoped_lock" ],
     [ "Signal", "classdmq_1_1_signal.html", null ],
     [ "Signal< RetType(Args...)>", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4" ],
     [ "UnicastDelegate", "classdmq_1_1_unicast_delegate.html", null ],
@@ -140,6 +141,7 @@ var namespacedmq =
     [ "INVALID_REMOTE_ID", "namespacedmq.html#a0278aebc59e9f350d10a47d1a5ef1acb", null ],
     [ "MAX_PARTICIPANTS", "namespacedmq.html#a5996b329a6a4ad786362e2b64d3a180c", null ],
     [ "MAX_TIMER_EXPIRED", "namespacedmq.html#acf2ae0d8cf284588d5c27c53ed606bd8", null ],
+    [ "MAX_TRANSPORT_MONITOR_PENDING", "namespacedmq.html#a5328cc2a5f84fe0f49a89a571600e8a8", null ],
     [ "MAX_WATCHDOG_THREADS", "namespacedmq.html#a946391767dd0907a9c745fcf7594419a", null ],
     [ "SIGNAL_SBO_COUNT", "namespacedmq.html#ab63766cc3a5899f6fc9a675eed88dab4", null ]
 ];

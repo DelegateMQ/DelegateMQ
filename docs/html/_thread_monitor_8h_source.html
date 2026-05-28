@@ -116,8 +116,8 @@ $(function(){initNavTree('_thread_monitor_8h_source.html',''); initResizable(tru
 <div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="comment">// ... rest of namespace dmq::util content ...</span></div>
 <div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span> </div>
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="keyword">struct </span>ThreadStatsPacket {</div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    std::string cpu_name;</div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    std::string thread_name;</div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> cpu_name;</div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> thread_name;</div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    uint32_t    queue_depth;</div>
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    uint32_t    queue_depth_max_window;</div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>    uint32_t    queue_depth_max_all;</div>
@@ -137,7 +137,7 @@ $(function(){initNavTree('_thread_monitor_8h_source.html',''); initResizable(tru
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keyword">static</span> <span class="keywordtype">void</span> Deregister(<a class="code hl_class" href="classdmq_1_1os_1_1_thread.html">dmq::os::Thread</a>* thread);</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    <span class="keyword">static</span> <span class="keywordtype">void</span> Enable(<span class="keyword">const</span> std::string&amp; topic = <span class="stringliteral">&quot;ThreadStats&quot;</span>);</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    <span class="keyword">static</span> <span class="keywordtype">void</span> Enable(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic = <span class="stringliteral">&quot;ThreadStats&quot;</span>);</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="keyword">static</span> <span class="keywordtype">void</span> Disable();</div>
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
@@ -157,7 +157,7 @@ $(function(){initNavTree('_thread_monitor_8h_source.html',''); initResizable(tru
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <a class="code hl_struct" href="structdmq_1_1_null_mutex.html">dmq::Mutex</a> m_mutex;</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    std::unique_ptr&lt;dmq::os::Thread&gt; m_monitorThread;</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    std::atomic&lt;bool&gt; m_enabled{<span class="keyword">false</span>};</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    std::string m_topic;</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> m_topic;</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>};</div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>} <span class="comment">// namespace dmq::util</span></div>
@@ -168,7 +168,8 @@ $(function(){initNavTree('_thread_monitor_8h_source.html',''); initResizable(tru
 <div class="ttc" id="a_delegate_m_q_8h_html"><div class="ttname"><a href="_delegate_m_q_8h.html">DelegateMQ.h</a></div><div class="ttdoc">A single-include header for the complete DelegateMQ library functionality.</div></div>
 <div class="ttc" id="aclassdmq_1_1os_1_1_thread_html"><div class="ttname"><a href="classdmq_1_1os_1_1_thread.html">dmq::os::Thread</a></div><div class="ttdoc">Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).</div><div class="ttdef"><b>Definition</b> zephyr/Thread.h:46</div></div>
 <div class="ttc" id="anamespacedmq_1_1util_html"><div class="ttname"><a href="namespacedmq_1_1util.html">dmq::util</a></div><div class="ttdoc">RAII wrapper to initialize and cleanup network stacks. Instantiate this ONCE at the top of main().</div><div class="ttdef"><b>Definition</b> AsyncInvoke.h:37</div></div>
-<div class="ttc" id="astructdmq_1_1_null_mutex_html"><div class="ttname"><a href="structdmq_1_1_null_mutex.html">dmq::NullMutex</a></div><div class="ttdef"><b>Definition</b> DelegateOpt.h:218</div></div>
+<div class="ttc" id="anamespacedmq_html_a11cea01eb8d1af200d992657af94c7fb"><div class="ttname"><a href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></div><div class="ttdeci">std::string xstring</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:314</div></div>
+<div class="ttc" id="astructdmq_1_1_null_mutex_html"><div class="ttname"><a href="structdmq_1_1_null_mutex.html">dmq::NullMutex</a></div><div class="ttdef"><b>Definition</b> DelegateOpt.h:244</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

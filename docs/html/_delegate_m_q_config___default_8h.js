@@ -6,5 +6,6 @@ var _delegate_m_q_config___default_8h =
     [ "DMQ_MAX_TIMER_EXPIRED", "_delegate_m_q_config___default_8h.html#ae1555d863e85ab2d815860a6457cf1ed", null ],
     [ "DMQ_MAX_WATCHDOG_THREADS", "_delegate_m_q_config___default_8h.html#a48ff526be8cc82f0ea7f846f43c2187b", null ],
     [ "DMQ_SEQ_HISTORY_SIZE", "_delegate_m_q_config___default_8h.html#a0499d73ff51679990e0ccd89252e4231", null ],
-    [ "DMQ_SIGNAL_SBO_COUNT", "_delegate_m_q_config___default_8h.html#adef9b996057e209c7c6a4b31a4337694", null ]
+    [ "DMQ_SIGNAL_SBO_COUNT", "_delegate_m_q_config___default_8h.html#adef9b996057e209c7c6a4b31a4337694", null ],
+    [ "DMQ_TRANSPORT_MONITOR_MAX_PENDING", "_delegate_m_q_config___default_8h.html#a28a4c0eeb05b626391e1e7735a179c0b", null ]
 ];

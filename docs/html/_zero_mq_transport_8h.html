@@ -113,6 +113,7 @@ $(function(){initNavTree('_zero_mq_transport_8h.html',''); initResizable(true); 
 <code>#include &lt;zmq.h&gt;</code><br />
 <code>#include &lt;sstream&gt;</code><br />
 <code>#include &lt;cstdio&gt;</code><br />
+<code>#include &lt;cstring&gt;</code><br />
 <code>#include &lt;mutex&gt;</code><br />
 <code>#include &lt;iostream&gt;</code><br />
 </div>
@@ -138,7 +139,7 @@ Namespaces</h2></td></tr>
 <dl class="section see"><dt>See also</dt><dd><a href="https://github.com/DelegateMQ/DelegateMQ">https://github.com/DelegateMQ/DelegateMQ</a> David Lafreniere, 2025.</dd></dl>
 <p>This class implements the ITransport interface using the ZeroMQ high-performance asynchronous messaging library. It supports multiple patterns including PAIR (1-to-1) and PUB/SUB (1-to-many).</p>
 <p>Key Features:</p><ol type="1">
-<li><b>Thread Safety</b>: Uses a <code>std::recursive_mutex</code> to protect the ZeroMQ socket, allowing safe concurrent access from the Send and Receive threads (ZeroMQ sockets are not inherently thread-safe).</li>
+<li><b>Thread Safety</b>: Uses a <code><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">dmq::RecursiveMutex</a></code> to protect the ZeroMQ socket, allowing safe concurrent access from the Send and Receive threads (ZeroMQ sockets are not inherently thread-safe).</li>
 <li><b>Flexible Patterns</b>: Supports both bidirectional (PAIR) and unidirectional (PUB/SUB) communication topologies.</li>
 <li><b>Non-Blocking</b>: Configures <code>ZMQ_RCVTIMEO</code> and <code>ZMQ_DONTWAIT</code> to ensure the transport remains responsive and never blocks the application indefinitely.</li>
 <li><b>Reliability</b>: Integrates with <code>TransportMonitor</code> to provide sequence tracking and ACKs even over PUB/SUB (when a return channel is available).</li>

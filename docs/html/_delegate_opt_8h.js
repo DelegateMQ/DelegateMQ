@@ -1,6 +1,7 @@
 var _delegate_opt_8h =
 [
     [ "dmq::PortableLockGuard< T >", "classdmq_1_1_portable_lock_guard.html", "classdmq_1_1_portable_lock_guard" ],
+    [ "dmq::ScopedLock< M >", "classdmq_1_1_scoped_lock.html", "classdmq_1_1_scoped_lock" ],
     [ "dmq::NullMutex", "structdmq_1_1_null_mutex.html", "structdmq_1_1_null_mutex" ],
     [ "dmq::xlist< T, Alloc >", "classdmq_1_1xlist.html", null ],
     [ "BAD_ALLOC", "_delegate_opt_8h.html#abe89b46e296c7421855410a08d6d31fe", null ],
@@ -16,6 +17,8 @@ var _delegate_opt_8h =
     [ "Mutex", "_delegate_opt_8h.html#a8698347146f2270db3906748c029c529", null ],
     [ "RecursiveMutex", "_delegate_opt_8h.html#a32a836d0420b059412e11bb2f8dbfe76", null ],
     [ "TimePoint", "_delegate_opt_8h.html#a8ff86233aa2d05f03cada0b63ebf8aef", null ],
+    [ "xmap", "_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474", null ],
+    [ "xmultimap", "_delegate_opt_8h.html#ae6e99a0ad5b40dd413347112d7049833", null ],
     [ "xostringstream", "_delegate_opt_8h.html#aa67d7309f9b005cc369e448ec28f8129", null ],
     [ "xstring", "_delegate_opt_8h.html#a11cea01eb8d1af200d992657af94c7fb", null ],
     [ "xstringstream", "_delegate_opt_8h.html#a96216b70259f3d7e0a6462222e96e3b0", null ],
@@ -26,6 +29,7 @@ var _delegate_opt_8h =
     [ "DEFAULT_QUEUE_SIZE", "_delegate_opt_8h.html#a93973750d3ed0b71b524081d9f2e3f35", null ],
     [ "MAX_PARTICIPANTS", "_delegate_opt_8h.html#a5996b329a6a4ad786362e2b64d3a180c", null ],
     [ "MAX_TIMER_EXPIRED", "_delegate_opt_8h.html#acf2ae0d8cf284588d5c27c53ed606bd8", null ],
+    [ "MAX_TRANSPORT_MONITOR_PENDING", "_delegate_opt_8h.html#a5328cc2a5f84fe0f49a89a571600e8a8", null ],
     [ "MAX_WATCHDOG_THREADS", "_delegate_opt_8h.html#a946391767dd0907a9c745fcf7594419a", null ],
     [ "SIGNAL_SBO_COUNT", "_delegate_opt_8h.html#ab63766cc3a5899f6fc9a675eed88dab4", null ]
 ];
