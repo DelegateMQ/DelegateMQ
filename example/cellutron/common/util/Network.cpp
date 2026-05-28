@@ -94,6 +94,16 @@ void Network::AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& ad
     node.rawTransport = std::make_unique<UdpTransport>();
     if (node.rawTransport->Create(UdpTransport::Type::PUB, addr.c_str(), udpPort) == 0) {
         node.transportMonitor = std::make_unique<TransportMonitor>();
+        node.capExceededConn = node.transportMonitor->OnCapExceeded.Connect(
+            dmq::MakeDelegate([nodeName](size_t size) {
+                std::cerr << "Network: [" << nodeName << "] TransportMonitor cap exceeded ("
+                          << size << " unacked messages). Comm link may be down." << std::endl;
+            }));
+        node.pendingExceededConn = node.transportMonitor->OnPendingExceeded.Connect(
+            dmq::MakeDelegate([nodeName](size_t remaining) {
+                std::cerr << "Network: [" << nodeName << "] TransportMonitor pending exceeded ("
+                          << remaining << " expired entries remain). Process() call rate may be too low." << std::endl;
+            }));
         node.retryMonitor = std::make_unique<RetryMonitor>(*node.rawTransport, *node.transportMonitor);
         node.reliableTransport = std::make_unique<ReliableTransport>(*node.rawTransport, *node.retryMonitor);
         node.reliableParticipant = std::make_shared<dmq::databus::Participant>(*node.reliableTransport);
@@ -170,7 +180,7 @@ void Network::ReceiverThread() {
     // 4. Process reliable transport monitors
     static auto lastTimeoutCheck = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
-    if (now - lastTimeoutCheck >= std::chrono::milliseconds(500)) {
+    if (now - lastTimeoutCheck >= std::chrono::milliseconds(100)) {
         for (auto& [name, node] : m_remoteNodes) {
             if (node.transportMonitor) {
                 node.transportMonitor->Process();

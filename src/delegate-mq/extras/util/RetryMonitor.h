@@ -45,7 +45,7 @@ class RetryMonitor
 public:
     /// @brief Storage for a message that might need retransmission.
     struct RetryEntry {
-        std::string packetData;     ///< The raw serialized arguments
+        dmq::xstring packetData;    ///< The raw serialized arguments
         dmq::transport::DmqHeader header;           ///< Original metadata (ID, SeqNum, etc.)
         int attemptsRemaining;      ///< Counter for retry budget
     };
@@ -107,7 +107,7 @@ private:
         (void)id;
         // Variables to hold data for the retry OUTSIDE the lock
         bool shouldRetry = false;
-        std::string retryPayload;
+        dmq::xstring retryPayload;
         dmq::transport::DmqHeader retryHeader;
 
         {

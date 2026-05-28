@@ -126,14 +126,20 @@ The `dmq::databus::DataBus` library itself has **no internal threads**. All thre
 **Receive** (incoming network data) requires the application to call `dmq::databus::Participant::ProcessIncoming()` in a polling loop. A typical pattern is one dedicated background thread that polls all participants:
 
 ```cpp
-std::thread receiveThread([&]() {
-    while (running) {
+dmq::os::Thread recvThread("RecvThread");
+recvThread.CreateThread();
+
+// Post the polling loop onto recvThread — runs until m_running is cleared
+dmq::MakeDelegate(this, &MyNode::RecvLoop, recvThread).AsyncInvoke();
+
+void MyNode::RecvLoop() {
+    while (m_running) {
         commandParticipant->ProcessIncoming();  // blocks briefly on transport receive
         dataParticipant->ProcessIncoming();
         monitor.Process();                      // drive ACK/retry timeouts
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        dmq::os::Thread::Sleep(std::chrono::milliseconds(10));
     }
-});
+}
 ```
 
 `ProcessIncoming()` blocks inside the transport's `Receive()` call (typically 10–100 ms depending on the transport timeout). When a message arrives, it deserializes and invokes the registered handler **synchronously on the polling thread**, which may then re-publish to the local `dmq::databus::DataBus` to fan out to other local subscribers.
@@ -479,6 +485,31 @@ auto conn = dmq::databus::DataBus::Subscribe<float>("sensor/temp", [](float v) {
 
 The `dmq::databus::DataBus` supports two primary patterns for network distribution: **Unicast** and **Multicast**.
 
+### Runtime Comm Degradation Signals
+
+Beyond the setup checklist below, `dmq::util::TransportMonitor` emits two signals that indicate the comm link is degraded at runtime:
+
+| Signal | Fires when | Argument |
+|:---|:---|:---|
+| `OnCapExceeded` | `m_pending` reaches `MAX_TRANSPORT_MONITOR_PENDING` — new sends are being rejected | `size_t` current pending count |
+| `OnPendingExceeded` | `Process()` fills its batch before fully draining expired entries — timeouts are accumulating faster than they are cleared | `size_t` remaining entry count after the pass |
+
+Both signals fire outside the internal lock so subscribers can safely call back into `TransportMonitor`. Subscribe once per remote node at setup time:
+
+```cpp
+node.capExceededConn = node.transportMonitor->OnCapExceeded.Connect(
+    dmq::MakeDelegate([nodeName](size_t size) {
+        // Log or escalate: comm link to nodeName may be down
+    }));
+
+node.pendingExceededConn = node.transportMonitor->OnPendingExceeded.Connect(
+    dmq::MakeDelegate([nodeName](size_t remaining) {
+        // Log or escalate: Process() call rate is too low or send rate is too high
+    }));
+```
+
+`OnCapExceeded` is the primary signal for a dead comm link — the pending map fills when ACKs stop arriving. `OnPendingExceeded` indicates that timeouts are queuing faster than `Process()` clears them; the remedy is to increase the `Process()` call frequency (default cadence should be 100 ms or faster).
+
 ### Setup Checklist — Silent Failure Hazards
 
 Remote distribution requires several manual wiring calls. Each omission silently disables delivery with no compile-time or runtime error. This is the most common source of "why isn't my topic arriving?" bugs.
@@ -802,9 +833,9 @@ while (true)
 
 | Leg | Topic | Reliable | Failure Notification |
 |:---|:---|:---|:---|
-| CPU-A → CPU-B (Ethernet unicast) | `cmd/actuator` | Yes (with `dmq::util::ReliableTransport`) | Via `dmq::util::TransportMonitor::OnSendStatus` or `dmq::util::NetworkEngine::OnStatus()` override |
-| CPU-B → MCU-C, MCU-D (Serial) | `cmd/actuator` | Yes (with `dmq::util::ReliableTransport`) | Via `dmq::util::TransportMonitor::OnSendStatus` |
-| MCU-C, MCU-D → CPU-B (Serial) | `sensor/temp` | Yes (with `dmq::util::ReliableTransport`) | Via `dmq::util::TransportMonitor::OnSendStatus` |
+| CPU-A → CPU-B (Ethernet unicast) | `cmd/actuator` | Yes (with `dmq::util::ReliableTransport`) | `TransportMonitor::OnSendStatus` (per-message ACK/timeout); `OnCapExceeded` (link down); `OnPendingExceeded` (drain bottleneck); or `dmq::util::NetworkEngine::OnStatus()` override |
+| CPU-B → MCU-C, MCU-D (Serial) | `cmd/actuator` | Yes (with `dmq::util::ReliableTransport`) | `TransportMonitor::OnSendStatus`; `OnCapExceeded`; `OnPendingExceeded` |
+| MCU-C, MCU-D → CPU-B (Serial) | `sensor/temp` | Yes (with `dmq::util::ReliableTransport`) | `TransportMonitor::OnSendStatus`; `OnCapExceeded`; `OnPendingExceeded` |
 | CPU-B → CPU-A (Multicast) | `sensor/temp` | No | No — next reading follows shortly |
 
 The multicast leg from CPU-B to CPU-A is intentionally best effort. Sensor data is high-frequency and a lost packet is simply superseded by the next sample. Actuator commands travel the full path reliably with failure notification at each hop — but only when `dmq::util::ReliableTransport` and `dmq::util::RetryMonitor` are wired in. See the `system-architecture` sample project for the complete setup.

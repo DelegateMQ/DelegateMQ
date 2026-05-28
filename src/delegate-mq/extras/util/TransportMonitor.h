@@ -41,6 +41,17 @@ public:
     /// Subscribers receive: (remoteId, seqNum, status)
     dmq::Signal<void(dmq::DelegateRemoteId, uint16_t, Status)> OnSendStatus;
 
+    /// Signal emitted when the pending map hits MAX_TRANSPORT_MONITOR_PENDING.
+    /// Subscribers receive: (currentSize) — the number of unacknowledged messages at the time of rejection.
+    /// Fired outside the internal lock so subscribers may call back into TransportMonitor safely.
+    dmq::Signal<void(size_t)> OnCapExceeded;
+
+    /// Signal emitted when Process() fills its batch buffer before emptying m_pending.
+    /// Subscribers receive: (remaining) — number of entries still in m_pending after the current pass.
+    /// Indicates that expired messages are accumulating faster than Process() is being called.
+    /// Fired outside the internal lock so subscribers may call back into TransportMonitor safely.
+    dmq::Signal<void(size_t)> OnPendingExceeded;
+
     TransportMonitor(const dmq::Duration timeout = std::chrono::seconds(2)) : TRANSPORT_TIMEOUT(timeout) {}
 
     ~TransportMonitor()
@@ -55,18 +66,25 @@ public:
     /// @return true if added; false otherwise.
     virtual bool Add(uint16_t seqNum, dmq::DelegateRemoteId remoteId) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+        size_t capSize = 0;
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
 
-        // Diagnostic: Detect if tracking map is ballooning (likely logic or network error)
-        if (m_pending.size() >= dmq::MAX_TRANSPORT_MONITOR_PENDING) {
-            LOG_ERROR("TransportMonitor: Dangerous growth detected! Map size: {}. Check ACK logic or reliability settings.", m_pending.size());
-            return false;
+            if (m_pending.size() >= dmq::MAX_TRANSPORT_MONITOR_PENDING) {
+                capSize = m_pending.size();
+            } else {
+                TimeoutData d;
+                d.timeStamp = dmq::Clock::now();
+                d.remoteId = remoteId;
+                m_pending[seqNum] = d;
+            }
         }
 
-        TimeoutData d;
-        d.timeStamp = dmq::Clock::now();
-        d.remoteId = remoteId;
-        m_pending[seqNum] = d;
+        if (capSize > 0) {
+            LOG_ERROR("TransportMonitor: Pending map full ({} entries). Check ACK logic or comm link.", capSize);
+            OnCapExceeded(capSize);
+            return false;
+        }
 
         return true;
     }
@@ -95,49 +113,61 @@ public:
         }
     }
 
-    /// Call periodically to process message timeouts
+    /// Call periodically to process message timeouts.
+    /// Drains all expired entries across multiple passes so a single call always
+    /// fully clears the backlog, regardless of how many entries have timed out.
     void Process()
     {
-        // 1. Collect expired items (fixed-size stack buffer — no heap)
         size_t expiredCount = 0;
 
-        {
-            // Lock ONLY while reading/modifying the map
-            const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+        do {
+            expiredCount = 0;
+            size_t remaining = 0;
 
-            if (m_pending.empty())
-                return;
-
-            auto now = dmq::Clock::now();
-            auto it = m_pending.begin();
-
-            while (it != m_pending.end())
             {
-                auto elapsed = std::chrono::duration_cast<dmq::Duration>(now - (*it).second.timeStamp);
+                // Lock ONLY while reading/modifying the map
+                const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
 
-                if (elapsed > TRANSPORT_TIMEOUT)
+                if (m_pending.empty())
+                    return;
+
+                auto now = dmq::Clock::now();
+                auto it = m_pending.begin();
+
+                while (it != m_pending.end())
                 {
-                    if (expiredCount >= dmq::MAX_TIMER_EXPIRED) {
-                        // Diagnostic: Alert that we are failing to clean up fast enough
-                        LOG_ERROR("TransportMonitor: Cleanup bottleneck! Expired items exceeding MAX_TIMER_EXPIRED ({})", dmq::MAX_TIMER_EXPIRED);
-                        break; // Buffer full; remaining expired items processed next tick
+                    auto elapsed = std::chrono::duration_cast<dmq::Duration>(now - (*it).second.timeStamp);
+
+                    if (elapsed > TRANSPORT_TIMEOUT)
+                    {
+                        if (expiredCount >= dmq::MAX_TIMER_EXPIRED) {
+                            remaining = m_pending.size();
+                            break;
+                        }
+                        m_expiredItems[expiredCount++] = { (*it).first, (*it).second };
+                        it = m_pending.erase(it);
                     }
-                    m_expiredItems[expiredCount++] = { (*it).first, (*it).second };
-                    it = m_pending.erase(it);
+                    else
+                    {
+                        // map is sorted by seqNum, not time — must scan all entries
+                        ++it;
+                    }
                 }
-                else
-                {
-                    // map is sorted by seqNum, not time — must scan all entries
-                    ++it;
-                }
-            }
-        } // Lock is RELEASED here
+            } // Lock is RELEASED here
 
-        // 2. Fire callbacks without holding the lock
-        for (size_t i = 0; i < expiredCount; ++i)
-        {
-            OnSendStatus(m_expiredItems[i].data.remoteId, m_expiredItems[i].seq, Status::TIMEOUT);
-        }
+            // Fire timeout callbacks without holding the lock
+            for (size_t i = 0; i < expiredCount; ++i)
+            {
+                OnSendStatus(m_expiredItems[i].data.remoteId, m_expiredItems[i].seq, Status::TIMEOUT);
+            }
+
+            // Notify app if a full pass still left entries; loop to drain them
+            if (remaining > 0) {
+                LOG_ERROR("TransportMonitor: Cleanup bottleneck — {} entries remain after pass. Continuing drain.", remaining);
+                OnPendingExceeded(remaining);
+            }
+
+        } while (expiredCount == dmq::MAX_TIMER_EXPIRED);
     }
 
 private:

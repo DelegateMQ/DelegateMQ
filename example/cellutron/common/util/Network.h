@@ -125,6 +125,8 @@ private:
         // UDP Pipeline
         std::unique_ptr<UdpTransport> rawTransport;
         std::unique_ptr<dmq::util::TransportMonitor> transportMonitor;
+        dmq::ScopedConnection capExceededConn;       // disconnects before transportMonitor is destroyed
+        dmq::ScopedConnection pendingExceededConn;   // disconnects before transportMonitor is destroyed
         std::unique_ptr<dmq::util::RetryMonitor> retryMonitor;
         std::unique_ptr<dmq::util::ReliableTransport> reliableTransport;
         std::shared_ptr<dmq::databus::Participant> reliableParticipant;

@@ -20,7 +20,7 @@ const std::chrono::milliseconds NetworkEngine::RECV_TIMEOUT(2000);
 #endif
 
 NetworkEngine::NetworkEngine()
-    : m_thread("NetworkEngine"),
+    : m_thread("NetworkEngine", 25, dmq::os::FullPolicy::DROP),
     m_transportMonitor(RECV_TIMEOUT),
     m_recvThread("NetworkRecv")
 #if defined(DMQ_TRANSPORT_ZEROMQ)
@@ -248,7 +248,7 @@ void NetworkEngine::RecvThread()
     {
         DmqHeader header;
         // Use a shared_ptr for the stream to efficiently pass data between threads
-        auto arg_data = make_shared<dmq::xstringstream>(std::ios::in | std::ios::out | std::ios::binary);
+        auto arg_data = dmq::xmake_shared<dmq::xstringstream>(std::ios::in | std::ios::out | std::ios::binary);
 
         // Block reading from the physical transport
         int error = m_recvTransport.Receive(*arg_data, header);

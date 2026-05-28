@@ -266,43 +266,31 @@ void AppThreadLoop() {
 }
 ```
 
-**DelegateMQ equivalent — type definition is a plain C++ class, setup is one object, thread dispatch is automatic:**
+**DelegateMQ equivalent — type definition is a plain C++ class, publish/subscribe is a one-liner, thread dispatch is automatic:**
 
 ```cpp
 // Type definition — no IDL, no codegen
-struct SensorData : public serialize::I {
-    int x = 0, y = 0; std::string msg;
-    std::ostream& write(serialize& ms, std::ostream& os) override {
-        ms.write(os, x); ms.write(os, y); return ms.write(os, msg);
-    }
-    std::istream& read(serialize& ms, std::istream& is) override {
-        ms.read(is, x); ms.read(is, y); return ms.read(is, msg);
-    }
-};
+struct SensorData { int x = 0, y = 0; std::string msg; };
 
-// Receiver — Poll() runs on m_thread; DataUpdate() called directly on m_thread
-class Receiver {
+// Serializer — one per type, registered once
+dmq::serialize::MsgPackSerializer<void(SensorData)> sensorSerializer;
+
+// Publisher — same Publish() call works locally and over the network
+DataBus::RegisterSerializer<SensorData>("SensorTopic", sensorSerializer);
+DataBus::Publish<SensorData>("SensorTopic", { 5, 10, "hello" });
+
+// Subscriber — DataUpdate() is called directly on m_thread, no manual dispatch
+class Display {
 public:
-    Receiver(dmq::transport::ITransport& transport, dmq::DelegateRemoteId id)
-        : m_channel(transport, m_serializer)
-    {
-        m_channel.Bind(this, &Receiver::DataUpdate, id);
+    Display() {
         m_thread.CreateThread();
-        m_timerConn = m_pollTimer.OnExpired.Connect(
-            dmq::MakeDelegate(this, &Receiver::Poll, m_thread));
-        m_pollTimer.Start(std::chrono::milliseconds(10));
+        m_conn = DataBus::Subscribe<SensorData>("SensorTopic",
+            dmq::MakeDelegate(this, &Display::DataUpdate, m_thread));
     }
 private:
-    void Poll() {
-        dmq::transport::DmqHeader hdr; dmq::xstringstream is(...);
-        if (m_transport.Receive(is, hdr) == 0)
-            m_channel.GetEndpoint()->Invoke(is);  // DataUpdate called here on m_thread
-    }
-    void DataUpdate(SensorData data) { /* on m_thread */ }
-
-    dmq::os::Thread m_thread; dmq::util::Timer m_pollTimer; dmq::ScopedConnection m_timerConn;
-    dmq::serialization::serializer::Serializer<void(SensorData)> m_serializer;
-    dmq::RemoteChannel<void(SensorData)> m_channel;
+    void DataUpdate(const SensorData& d) { /* always on m_thread */ }
+    dmq::os::Thread m_thread;
+    dmq::ScopedConnection m_conn;
 };
 ```
 
@@ -310,7 +298,7 @@ private:
 
 | Feature | DDS | DelegateMQ |
 |---|---|---|
-| Type definition | IDL file + code generator + generated files | Plain C++ class + `write()`/`read()` |
+| Type definition | IDL file + code generator + generated files | Plain C++ struct — no base class, no codegen |
 | Publisher setup | `Participant → Topic → Publisher → DataWriter` | `dmq::RemoteChannel` + `Bind()` |
 | Subscriber setup | `Participant → Topic → Subscriber → DataReader` | `dmq::RemoteChannel` + `Bind()` |
 | Thread dispatch on receive | Manual (listener on DDS thread → queue → your thread) | Automatic (Poll runs on your thread) |
@@ -358,11 +346,24 @@ Full DDS implementations carry substantial binary and RAM overhead driven by dis
 Key points:
 
 - **Header-only**: DelegateMQ has no precompiled library binary. Compiled code size scales with the templates instantiated — topics and serializers you don't use contribute zero code.
-- **Predictable allocation**: Per-topic overhead is a `dmq::Signal<>` and a small `unordered_map` entry. No hidden history queues or discovery tables consume memory in the background.
+- **Predictable allocation**: Per-topic overhead is a `dmq::Signal<>` and a small `xmap` entry. No hidden history queues or discovery tables consume memory in the background.
 - **Fixed-block allocator**: Building with `DMQ_ALLOCATOR=ON` replaces `new`/`delete` with a fixed-block pool, eliminating heap fragmentation. No DDS implementation offers this.
 - **Bare-metal proof**: The `bare-metal-arm` sample runs on a Cortex-M4 with no OS, no heap, and no transport — demonstrating the lower bound of the footprint.
 
 Micro XRCE-DDS is the embedded-targeted DDS variant and achieves a much smaller footprint (~100 KB flash, ~20 KB RAM) but at the cost of requiring a full DDS broker/agent process on the other end of the connection and losing most standard QoS policies.
+
+**Codebase size and auditability:**
+
+| | DDS (OpenDDS) | DDS (FastDDS) | DDS (CycloneDDS) | DelegateMQ |
+|---|---|---|---|---|
+| Approx. source lines (core) | ~500K | ~200K | ~150K | ~10K |
+| Readable by one developer | No | No | No | Yes |
+| No external build dependencies | No | No | No | Yes (headers only) |
+| Qualifiable (DO-178C / IEC 61508) | High cost | High cost | High cost | Low cost |
+
+For safety-critical or certified software, qualification cost scales directly with lines of code — every line is subject to review, traceability, and test coverage requirements. DelegateMQ's core fits comfortably in a single review pass. Full DDS stacks are effectively unqualifiable at practical cost.
+
+Compilation time follows the same pattern. DelegateMQ is included as headers with no pre-built runtime, no CMake find modules, no pkg-config, and no vcpkg/conan package to integrate. Template instantiation scales with your topic count — topics you don't use generate no code.
 
 ---
 

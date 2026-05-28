@@ -90,8 +90,8 @@ public:
                 Close(); // Prevent memory leak on bind failure
                 return -1;
             }
-            // Set a 2-second timeout to allow the thread to check for exit signals
-            netconn_set_recvtimeout(m_conn, 2000);
+            // Set a 200ms timeout to allow the thread to check for exit signals
+            netconn_set_recvtimeout(m_conn, 200);
         }
 
         return 0;
