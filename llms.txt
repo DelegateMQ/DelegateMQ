@@ -398,9 +398,9 @@ Use the dmq-provided types instead of OS or std primitives:
 The library has two error-handling modes selected at build time:
 
 - **Without `DMQ_ASSERTS`** (desktop default): allocation failures throw `std::bad_alloc`.
-- **With `DMQ_ASSERTS`** (embedded default, or when `__cpp_exceptions` is absent): `BAD_ALLOC()` calls `assert(false)`. `DelegateOpt.h` auto-enables `DMQ_ASSERTS` when the compiler reports no exception support.
+- **With `DMQ_ASSERTS`** (embedded default, or when `__cpp_exceptions` is absent): `BAD_ALLOC()` calls `ASSERT()`, routing the failure to `dmq::util::FaultHandler`. `DelegateOpt.h` auto-enables `DMQ_ASSERTS` when the compiler reports no exception support.
 
-Always use the `BAD_ALLOC()` macro for allocation failures — never write `throw std::bad_alloc()` or bare `assert` directly. Use `FaultHandler` for hard invariant/capacity violations. Use `dmq::DelegateError` + `SetErrorHandler` for soft recoverable errors (serialization failure, dispatch timeout).
+Always use the `BAD_ALLOC()` macro for allocation failures — never write `throw std::bad_alloc()` or bare `assert` directly. Use `FaultHandler` for hard invariant/capacity violations (including unhandled thread exceptions). Use `dmq::DelegateError` + `SetErrorHandler` for soft recoverable errors (serialization failure, dispatch timeout).
 
 ### `XALLOCATOR` Macro
 

@@ -262,10 +262,9 @@ namespace dmq
 // @TODO: Select the desired software fault handling (see Port.cmake).
 #ifdef DMQ_ASSERTS
     #include "extras/util/Fault.h"
-    #include <cassert>
     // Use assert error handling. Change assert to a different error 
     // handler as required by the target application.
-    #define BAD_ALLOC() assert(false && "Memory allocation failed!")
+    #define BAD_ALLOC() ASSERT()
 #else
     #include "extras/util/Fault.h"
     #include <new>
