@@ -94,18 +94,18 @@ int DataBusLocalTestMain() {
     // 5. Different types on different topics
     {
         bool stringReceived = false;
-        auto conn = dmq::databus::DataBus::Subscribe<std::string>("name", [&](std::string name) {
+        auto conn = dmq::databus::DataBus::Subscribe<dmq::xstring>("name", [&](dmq::xstring name) {
             stringReceived = (name == "DelegateMQ");
         });
-        dmq::databus::DataBus::Publish<std::string>("name", "DelegateMQ");
+        dmq::databus::DataBus::Publish<dmq::xstring>("name", "DelegateMQ");
         ASSERT_TRUE(stringReceived == true);
     }
 
     // 6. SubscribeUnhandled — fires when no subscriber exists for a topic
     {
         dmq::databus::DataBus::ResetForTesting();
-        std::string unhandledTopic;
-        auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([&](const std::string& topic) {
+        dmq::xstring unhandledTopic;
+        auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([&](const dmq::xstring& topic) {
             unhandledTopic = topic;
         });
 

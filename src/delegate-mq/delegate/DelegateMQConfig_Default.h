@@ -41,4 +41,11 @@
     #define DMQ_TRANSPORT_MONITOR_MAX_PENDING 100
 #endif
 
+// Maximum number of distinct fixed-block allocator buckets (heap-blocks mode only).
+// Each unique power-of-two allocation size gets one bucket. Most applications use
+// 8-12 distinct sizes; raise this only if xallocator's ASSERT fires at runtime.
+#ifndef DMQ_XALLOCATOR_MAX_ALLOCATORS
+    #define DMQ_XALLOCATOR_MAX_ALLOCATORS   15
+#endif
+
 #endif // _DELEGATEMQ_CONFIG_DEFAULT_H

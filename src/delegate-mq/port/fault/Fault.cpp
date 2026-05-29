@@ -1,45 +1,193 @@
 #include "extras/util/Fault.h"
+#include <cstdio>
 #include <cstdlib>
 
 #if defined(_WIN32) || defined(__linux__)
 #include <iostream>
+#include <iomanip>
 #include "delegate/DelegateOpt.h"
 #endif
 
 #ifdef _WIN32
 #include <windows.h>
+#include <dbghelp.h>
+#include <tlhelp32.h>
+#include <vector>
+#pragma comment(lib, "dbghelp.lib")
+#endif
+
+#ifdef __linux__
+#include <execinfo.h>
 #endif
 
 namespace dmq::util {
+
+#ifdef _WIN32
+static void PrintStackTraceWindows(HANDLE hThread, const char* threadName) {
+    DWORD tid = GetThreadId(hThread);
+    printf("\n--- Stack Trace: %s (TID: %lu) ---\n", (threadName ? threadName : "Unknown"), tid);
+    fflush(stdout);
+
+    CONTEXT context = { 0 };
+    context.ContextFlags = CONTEXT_FULL;
+    if (!GetThreadContext(hThread, &context)) {
+        printf("  Failed to get thread context (Error: %lu)\n", GetLastError());
+        fflush(stdout);
+        return;
+    }
+
+    STACKFRAME64 stackFrame = { 0 };
+#ifdef _M_IX86
+    DWORD machineType = IMAGE_FILE_MACHINE_I386;
+    stackFrame.AddrPC.Offset = context.Eip;
+    stackFrame.AddrPC.Mode = AddrModeFlat;
+    stackFrame.AddrFrame.Offset = context.Ebp;
+    stackFrame.AddrFrame.Mode = AddrModeFlat;
+    stackFrame.AddrStack.Offset = context.Esp;
+    stackFrame.AddrStack.Mode = AddrModeFlat;
+#elif _M_X64
+    DWORD machineType = IMAGE_FILE_MACHINE_AMD64;
+    stackFrame.AddrPC.Offset = context.Rip;
+    stackFrame.AddrPC.Mode = AddrModeFlat;
+    stackFrame.AddrFrame.Offset = context.Rsp;
+    stackFrame.AddrFrame.Mode = AddrModeFlat;
+    stackFrame.AddrStack.Offset = context.Rsp;
+    stackFrame.AddrStack.Mode = AddrModeFlat;
+#else
+    return;
+#endif
+
+    HANDLE hProcess = GetCurrentProcess();
+    int frameCount = 0;
+    while (StackWalk64(machineType, hProcess, hThread, &stackFrame, &context, NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL)) {
+        if (stackFrame.AddrPC.Offset == 0 || frameCount++ > 50) break;
+
+        char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+        PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
+        pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+        pSymbol->MaxNameLen = MAX_SYM_NAME;
+
+        DWORD64 displacement = 0;
+        if (SymFromAddr(hProcess, stackFrame.AddrPC.Offset, &displacement, pSymbol)) {
+            IMAGEHLP_LINE64 line = { 0 };
+            line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+            DWORD lineDisplacement = 0;
+            if (SymGetLineFromAddr64(hProcess, stackFrame.AddrPC.Offset, &lineDisplacement, &line)) {
+                printf("  %s [%s:%lu]\n", pSymbol->Name, line.FileName, line.LineNumber);
+            } else {
+                printf("  %s (no line info)\n", pSymbol->Name);
+            }
+        } else {
+            printf("  0x%llX (no symbol info)\n", stackFrame.AddrPC.Offset);
+        }
+        fflush(stdout);
+    }
+}
+
+static void PrintAllThreadsStackTraces() {
+    printf("\nCapturing stack traces for all threads...\n");
+    fflush(stdout);
+
+    HANDLE hProcess = GetCurrentProcess();
+    SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);
+    
+    // Use FALSE for fInvadeProcess to avoid Error 87 in some environments.
+    // Symbols will be loaded on-demand.
+    if (!SymInitialize(hProcess, NULL, FALSE)) {
+        printf("SymInitialize failed (Error: %lu)\n", GetLastError());
+        fflush(stdout);
+        return;
+    }
+
+    // Refresh modules manually since we didn't invade
+    SymRefreshModuleList(hProcess);
+
+    DWORD currentProcessId = GetCurrentProcessId();
+    DWORD currentThreadId = GetCurrentThreadId();
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+
+    if (hSnapshot != INVALID_HANDLE_VALUE) {
+        THREADENTRY32 te = { 0 };
+        te.dwSize = sizeof(THREADENTRY32);
+
+        if (Thread32First(hSnapshot, &te)) {
+            do {
+                if (te.th32OwnerProcessID == currentProcessId) {
+                    if (te.th32ThreadID == currentThreadId) {
+                        PrintStackTraceWindows(GetCurrentThread(), "Fault/Watchdog Thread");
+                    } else {
+                        HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, te.th32ThreadID);
+                        if (hThread) {
+                            SuspendThread(hThread);
+                            PrintStackTraceWindows(hThread, "Suspended Thread");
+                            ResumeThread(hThread);
+                            CloseHandle(hThread);
+                        }
+                    }
+                }
+            } while (Thread32Next(hSnapshot, &te));
+        }
+        CloseHandle(hSnapshot);
+    }
+    SymCleanup(hProcess);
+    printf("\nStack trace capture complete.\n");
+    fflush(stdout);
+}
+#endif
+
+#ifdef __linux__
+static void PrintStackTraceLinux() {
+    void* array[50];
+    int size = backtrace(array, 50);
+    char** symbols = backtrace_symbols(array, size);
+    printf("\n--- Stack Trace (Current Thread) ---\n");
+    for (int i = 0; i < size; i++) {
+        printf("  %s\n", symbols[i]);
+    }
+    fflush(stdout);
+    free(symbols);
+}
+#endif
 
 //----------------------------------------------------------------------------
 // FaultHandler
 //----------------------------------------------------------------------------
 void FaultHandler(const char* file, unsigned short line)
 {
-    // @TODO: Update fault handling if necessary.
+    // 1. PRINT FIRST
+    printf("\n************************************************\n");
+    printf("FaultHandler called. Application terminated.\n");
+    printf("File: %s Line: %u\n", file, (unsigned int)line);
+    printf("************************************************\n");
+    fflush(stdout);
 
-    // 1. PRINT FIRST (Flush to ensure it appears in CI logs)
-    // Excluded on bare-metal/RTOS targets where cout is unavailable.
 #if defined(_WIN32) || defined(__linux__)
-    std::cout << "FaultHandler called. Application terminated." << std::endl;
-    std::cout << "File: " << file << " Line: " << line << std::endl;
     LOG_ERROR("FaultHandler File={} Line={}", file, line);
 #endif
 
-    // 2. Break only if interactive or specifically desired
+    // 2. PRINT STACK TRACES
 #ifdef _WIN32
-    // Optional: Only break if a debugger is actually present to avoid CI crashes
+    PrintAllThreadsStackTraces();
+#elif defined(__linux__)
+    PrintStackTraceLinux();
+#endif
+
+    // 3. Break only if interactive or specifically desired
+#ifdef _WIN32
     if (IsDebuggerPresent()) {
         DebugBreak();
     }
 #endif
 
-    // 3. Force exit
+    // 4. Force exit
 #if defined(_WIN32) || defined(__linux__)
-    abort();    // raises SIGABRT, triggers core dump, returns non-zero exit code
+    printf("\nTerminating application...\n");
+    fflush(stdout);
+    abort();
 #else
-    while(1);   // halt for debugger / watchdog on embedded targets
+    printf("FaultHandler: %s line %u\r\n", file, (unsigned int)line);
+    fflush(stdout);
+    while(1);
 #endif
 }
 

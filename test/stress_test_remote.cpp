@@ -107,12 +107,12 @@ public:
 
 class TestDispatcher : public dmq::IDispatcher {
 public:
-    using SendFunc = std::function<void(std::stringstream&)>;
+    using SendFunc = std::function<void(dmq::xstringstream&)>;
 
     TestDispatcher(SendFunc func) : m_func(func) {}
 
     virtual int Dispatch(std::ostream& os, dmq::DelegateRemoteId id) override {
-        auto* ss = dynamic_cast<std::stringstream*>(&os);
+        auto* ss = dynamic_cast<dmq::xstringstream*>(&os);
         if (ss && m_func) {
             m_func(*ss);
             return 0; // Success
@@ -127,16 +127,16 @@ private:
 class VirtualTransport
 {
 public:
-    using Packet = std::string;
+    using Packet = dmq::xstring;
 
-    void Send(const std::stringstream& ss)
+    void Send(const dmq::xstringstream& ss)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_queue.push(ss.str());
         m_cv.notify_one();
     }
 
-    bool Receive(std::stringstream& out_ss)
+    bool Receive(dmq::xstringstream& out_ss)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         // Server keeps waiting as long as g_running is true OR queue has data
@@ -174,7 +174,7 @@ public:
 
     void Start() {
         m_thread = std::thread([this]() {
-            std::stringstream incoming;
+            dmq::xstringstream incoming;
             // Drain loop: continue until Receive returns false (queue empty & stopped)
             while (g_transport.Receive(incoming)) {
                 m_remoteDelegate.Invoke(incoming);
@@ -195,7 +195,7 @@ public:
 
 private:
     std::thread m_thread;
-    std::stringstream m_stream{ std::ios::in | std::ios::out | std::ios::binary };
+    dmq::xstringstream m_stream{ std::ios::in | std::ios::out | std::ios::binary };
     TestSerializer<void(Payload)> m_serializer;
     dmq::DelegateMemberRemote<ServerNode, void(Payload)> m_remoteDelegate;
 };
@@ -209,7 +209,7 @@ public:
     ClientNode(int id)
         : m_id(id)
         , m_remote(REMOTE_ID)
-        , m_dispatcher([this](std::stringstream& ss) { this->TransportSend(ss); })
+        , m_dispatcher([this](dmq::xstringstream& ss) { this->TransportSend(ss); })
     {
         m_remote.SetStream(&m_stream);
         m_remote.SetSerializer(&m_serializer);
@@ -238,7 +238,7 @@ public:
     }
 
 private:
-    void TransportSend(std::stringstream& ss) {
+    void TransportSend(dmq::xstringstream& ss) {
         g_transport.Send(ss);
         ss.str("");
         ss.clear();
@@ -246,7 +246,7 @@ private:
 
     int m_id;
     std::thread m_thread;
-    std::stringstream m_stream{ std::ios::in | std::ios::out | std::ios::binary };
+    dmq::xstringstream m_stream{ std::ios::in | std::ios::out | std::ios::binary };
     TestSerializer<void(Payload)> m_serializer;
     TestDispatcher m_dispatcher;
     dmq::DelegateFreeRemote<void(Payload)> m_remote;
@@ -269,7 +269,7 @@ int stress_test_remote()
 
     std::vector<std::shared_ptr<ClientNode>> clients;
     for (int i = 0; i < NUM_CLIENTS; ++i) {
-        auto client = std::make_shared<ClientNode>(i);
+        auto client = dmq::xmake_shared<ClientNode>(i);
         clients.push_back(client);
         client->Start();
     }
@@ -307,7 +307,7 @@ int stress_test_remote()
     g_running = false;
 
     // 4. Wake server if it's idle
-    g_transport.Send(std::stringstream());
+    g_transport.Send(dmq::xstringstream());
 
     std::cout << "Draining pipe (3s)..." << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(3));

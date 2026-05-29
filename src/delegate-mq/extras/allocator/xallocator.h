@@ -38,6 +38,22 @@ static XallocInitDestroy xallocInitDestroy;
 extern "C" {
 #endif
 
+#ifdef DMQ_ALLOCATOR_SAFEGUARDS
+#define XALLOC_BLOCK_HEADER_SIZE 16
+#define XALLOC_BLOCK_FOOTER_SIZE 4
+#define XALLOC_MAGIC   0x414C4C4F  // "ALLO"
+#define XALLOC_FREED   0xDEADBEEF
+#define XALLOC_CANARY  0xAA55AA55
+#else
+#define XALLOC_BLOCK_HEADER_SIZE (sizeof(void*) > 4 ? 16 : 8)
+#define XALLOC_BLOCK_FOOTER_SIZE 0
+#endif
+
+/// Forward declaration of Allocator class
+#ifdef __cplusplus
+class Allocator;
+#endif
+
 /// This function must be called exactly one time before the operating system
 /// threading starts. If using xallocator exclusively in C files within your application
 /// code, you must call this function before the OS starts. If using C++, client code
@@ -53,6 +69,13 @@ void xalloc_init();
 /// the program exits. If using C++, ~XallocInitDestroy() must call xalloc_destroy automatically.
 /// Embedded systems that never exit need not call this function at all. 
 void xalloc_destroy();
+
+/// Get an Allocator instance based upon the client's requested block size.
+/// @param[in] size - the client's requested block size.
+/// @return An Allocator instance that handles blocks of the requested size.
+#ifdef __cplusplus
+Allocator* xallocator_get_allocator(size_t size);
+#endif
 
 /// Allocate a block of memory
 /// @param[in] size - the size of the block to allocate. 

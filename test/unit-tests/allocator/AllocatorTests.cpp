@@ -149,10 +149,52 @@ void AllocatorTests()
 
     // Test xmake_shared
     {
-        auto sp = xmake_shared<int>(123);
+        auto sp = dmq::xmake_shared<int>(123);
         ASSERT_TRUE(sp != NULL);
         ASSERT_TRUE(*sp == 123);
     }
+
+#ifdef DMQ_ALLOCATOR_SAFEGUARDS
+    // White-box Safeguard Tests — constants come from xallocator.h (single source of truth)
+    {
+        size_t size = 16;
+        void* p = xmalloc(size);
+        ASSERT_TRUE(p != NULL);
+
+        // Check magic and canary in header
+        // Header layout (safeguards ON, 64-bit): [allocator*:8][magic:4][canary:4] = 16 bytes
+        uint32_t* pMagic = (uint32_t*)((char*)p - 8);
+        uint32_t* pCanaryFront = (uint32_t*)((char*)p - 4);
+        ASSERT_TRUE(*pMagic == XALLOC_MAGIC);
+        ASSERT_TRUE(*pCanaryFront == XALLOC_CANARY);
+
+        // Check canary in footer
+        // nexthigher(16 + XALLOC_BLOCK_HEADER_SIZE + XALLOC_BLOCK_FOOTER_SIZE) = nexthigher(36) = 64
+        // userSize = 64 - 16 - 4 = 44 bytes
+        Allocator* allocator = xallocator_get_allocator(size);
+        size_t userSize = allocator->GetBlockSize() - XALLOC_BLOCK_HEADER_SIZE - XALLOC_BLOCK_FOOTER_SIZE;
+        uint32_t* pCanaryBack = (uint32_t*)((char*)p + userSize);
+        ASSERT_TRUE(*pCanaryBack == XALLOC_CANARY);
+
+        xfree(p);
+    }
+#endif
+
+#ifdef DMQ_ALLOCATOR_SAFEGUARDS
+    // Manual Safeguard Tests — each block intentionally triggers FaultHandler.
+    {
+        void* p = xmalloc(16);
+        Allocator* allocator = xallocator_get_allocator(16);
+        size_t userSize = allocator->GetBlockSize() - XALLOC_BLOCK_HEADER_SIZE - XALLOC_BLOCK_FOOTER_SIZE;
+        ((char*)p)[userSize] = 0; // Buffer overrun — corrupts footer canary
+        xfree(p);                 // Should trigger FaultHandler
+    }
+    {
+        void* p = xmalloc(16);
+        xfree(p);
+        xfree(p);           // Double free — Should trigger FaultHandler
+    }
+#endif
 }
 
 #endif

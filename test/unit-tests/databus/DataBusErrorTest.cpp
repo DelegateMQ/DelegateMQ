@@ -40,14 +40,14 @@ int DataBusErrorTest() {
     {
         DataBus::ResetForTesting();
         MockTransport transport;
-        auto participant = std::make_shared<Participant>(transport);
+        auto participant = dmq::xmake_shared<Participant>(transport);
         
         participant->AddRemoteTopic("test/topic", 100);
         DataBus::AddParticipant(participant);
 
         dmq::DelegateError capturedError = dmq::DelegateError::SUCCESS;
-        std::string capturedTopic;
-        auto conn = DataBus::SubscribeError([&](const std::string& topic, dmq::DelegateError error) {
+        dmq::xstring capturedTopic;
+        auto conn = DataBus::SubscribeError([&](const dmq::xstring& topic, dmq::DelegateError error) {
             capturedTopic = topic;
             capturedError = error;
         });
@@ -79,8 +79,8 @@ int DataBusErrorTest() {
         DataBus::RegisterSerializer<int>("test/topic", serializer);
 
         dmq::DelegateError capturedError = dmq::DelegateError::SUCCESS;
-        std::string capturedTopic;
-        auto conn = DataBus::SubscribeError([&](const std::string& topic, dmq::DelegateError error) {
+        dmq::xstring capturedTopic;
+        auto conn = DataBus::SubscribeError([&](const dmq::xstring& topic, dmq::DelegateError error) {
             capturedTopic = topic;
             capturedError = error;
         });
@@ -106,7 +106,7 @@ int DataBusErrorTest() {
         DataBus::AddParticipant(participant);
 
         int errorCount = 0;
-        auto conn = DataBus::SubscribeError([&](const std::string&, dmq::DelegateError) {
+        auto conn = DataBus::SubscribeError([&](const dmq::xstring&, dmq::DelegateError) {
             ++errorCount;
         });
 
@@ -132,7 +132,7 @@ int DataBusErrorTest() {
         DataBus::AddParticipant(participant);
 
         dmq::DelegateError capturedError = dmq::DelegateError::SUCCESS;
-        auto conn = DataBus::SubscribeError([&](const std::string&, dmq::DelegateError error) {
+        auto conn = DataBus::SubscribeError([&](const dmq::xstring&, dmq::DelegateError error) {
             capturedError = error;
         });
 

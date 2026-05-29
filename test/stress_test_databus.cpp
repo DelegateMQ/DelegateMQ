@@ -70,13 +70,13 @@ static constexpr DelegateRemoteId DB_ECHO_REMOTE_ID = 77;
 // ---------------------------------------------------------------------------
 // Topics
 // ---------------------------------------------------------------------------
-static const std::string DB_TOPIC_SYNC   = "db/sync";
-static const std::string DB_TOPIC_ASYNC  = "db/async";
-static const std::string DB_TOPIC_RATE   = "db/rate";
-static const std::string DB_TOPIC_FILTER = "db/filter";
-static const std::string DB_TOPIC_REMOTE = "db/remote";
-static const std::string DB_TOPIC_ECHO   = "db/echo";
-static const std::string DB_TOPIC_GHOST  = "db/ghost";
+static const dmq::xstring DB_TOPIC_SYNC   = "db/sync";
+static const dmq::xstring DB_TOPIC_ASYNC  = "db/async";
+static const dmq::xstring DB_TOPIC_RATE   = "db/rate";
+static const dmq::xstring DB_TOPIC_FILTER = "db/filter";
+static const dmq::xstring DB_TOPIC_REMOTE = "db/remote";
+static const dmq::xstring DB_TOPIC_ECHO   = "db/echo";
+static const dmq::xstring DB_TOPIC_GHOST  = "db/ghost";
 
 // ---------------------------------------------------------------------------
 // Global counters
@@ -184,7 +184,7 @@ int stress_test_databus()
     // -----------------------------------------------------------------------
     // SubscribeUnhandled — "db/ghost" has no data subscribers → fires here
     // -----------------------------------------------------------------------
-    auto unhandledConn = DataBus::SubscribeUnhandled([](const std::string&) {
+    auto unhandledConn = DataBus::SubscribeUnhandled([](const dmq::xstring&) {
         g_db_unhandledCount++;
     });
 
@@ -251,12 +251,12 @@ int stress_test_databus()
     // -----------------------------------------------------------------------
     Serializer<void(int)> dbRemoteSerializer;
 
-    auto remoteParticipant = std::make_shared<Participant>(g_dbTransport);
+    auto remoteParticipant = dmq::xmake_shared<Participant>(g_dbTransport);
     remoteParticipant->AddRemoteTopic(DB_TOPIC_REMOTE, DB_ECHO_REMOTE_ID);
     DataBus::AddParticipant(remoteParticipant);
     DataBus::RegisterSerializer<int>(DB_TOPIC_REMOTE, dbRemoteSerializer);
 
-    auto echoParticipant = std::make_shared<Participant>(g_dbTransport);
+    auto echoParticipant = dmq::xmake_shared<Participant>(g_dbTransport);
     DataBus::AddIncomingTopic<int>(DB_TOPIC_ECHO, DB_ECHO_REMOTE_ID, *echoParticipant, dbRemoteSerializer);
 
     auto echoConn = DataBus::Subscribe<int>(DB_TOPIC_ECHO, [](int) {

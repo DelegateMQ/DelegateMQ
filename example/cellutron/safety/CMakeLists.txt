@@ -49,7 +49,15 @@ add_executable(cellutron_safety
     ${FREERTOS_SOURCES}
 )
 
-target_compile_definitions(cellutron_safety PRIVATE ${DMQ_COMPILE_DEFINITIONS} DMQ_USER_CONFIG="DelegateMQConfig.h")
+target_compile_definitions(cellutron_safety PRIVATE
+    ${DMQ_COMPILE_DEFINITIONS}
+    DMQ_USER_CONFIG="DelegateMQConfig.h"
+    # Disable MSVC debug iterator orphan tracking (_Lockit). The FreeRTOS-Windows
+    # port uses SuspendThread for context switches, which can preempt a task while
+    # it holds _Lockit, blocking any other task that needs it at the OS level.
+    # Must be a compile-definition (not a header define) so it precedes all STL includes.
+    $<$<CXX_COMPILER_ID:MSVC>:_ITERATOR_DEBUG_LEVEL=0>
+)
 
 target_link_libraries(cellutron_safety PRIVATE ${FREERTOS_LIBRARIES})
 

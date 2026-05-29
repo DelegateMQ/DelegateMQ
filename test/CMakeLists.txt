@@ -10,6 +10,7 @@ project(Delegate VERSION 1.0 LANGUAGES CXX)
 # Override defaults by setting the variables below before including DelegateMQ.cmake.
 # set(DMQ_ASSERTS "ON")
 # set(DMQ_ALLOCATOR "ON")
+# add_compile_definitions(DMQ_ALLOCATOR_SAFEGUARDS)
 # set(DMQ_LOG "ON")
 # set(DMQ_DATABUS "OFF")
 # set(DMQ_UTIL "OFF")

@@ -18,19 +18,19 @@ int DataBusSpyTestMain() {
 
     // Register stringifiers for topics we want to spy on
     DataBus::RegisterStringifier<int>("sensor/temp", [](int val) {
-        return std::to_string(val) + " C";
+        return (dmq::xstring(std::to_string(val).c_str()) + " C");
     });
-    DataBus::RegisterStringifier<std::string>("system/status", [](const std::string& val) {
+    DataBus::RegisterStringifier<dmq::xstring>("system/status", [](const dmq::xstring& val) {
         return val;
     });
 
-    std::string lastTopic;
-    std::string lastValue;
+    dmq::xstring lastTopic;
+    dmq::xstring lastValue;
     uint64_t lastTimestamp = 0;
 
     // Connect the spy monitor
     auto spyConn = DataBus::Monitor([&](const SpyPacket& packet) {
-        std::cout << "[SPY] " << packet.timestamp_us << " " << packet.topic << " = " << packet.value << std::endl;
+        std::cout << "[SPY] " << packet.timestamp_us << " " << packet.topic.c_str() << " = " << packet.value.c_str() << std::endl;
         lastTopic = packet.topic;
         lastValue = packet.value;
         lastTimestamp = packet.timestamp_us;
@@ -42,7 +42,7 @@ int DataBusSpyTestMain() {
     ASSERT_TRUE(lastValue == "22 C");
     ASSERT_TRUE(lastTimestamp > 0);
 
-    DataBus::Publish<std::string>("system/status", "OK");
+    DataBus::Publish<dmq::xstring>("system/status", "OK");
     ASSERT_TRUE(lastTopic == "system/status");
     ASSERT_TRUE(lastValue == "OK");
 

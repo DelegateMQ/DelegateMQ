@@ -11,5 +11,6 @@
 #define DMQ_MAX_WATCHDOG_THREADS        8
 #define DMQ_SEQ_HISTORY_SIZE            4
 #define DMQ_MAX_PARTICIPANTS            8
+#define DMQ_ALLOCATOR_SAFEGUARDS
 
 #endif // _DELEGATEMQ_CONFIG_H
