@@ -147,7 +147,10 @@ public:
 
     /// @brief Invoke the channel (fire-and-forget send).
     /// @pre Bind() must have been called first.
-    void operator()(Args... args) { m_delegate(std::forward<Args>(args)...); }
+    void operator()(Args... args) {
+        dmq::LockGuard<dmq::Mutex> lock(m_sendMutex);
+        m_delegate(std::forward<Args>(args)...);
+    }
 
     /// @brief Register an error handler delegate.
     template<class Handler>
@@ -189,6 +192,7 @@ private:
         m_delegate.SetStream(&m_stream);
     }
 
+    dmq::Mutex m_sendMutex;
     Dispatcher m_dispatcher;
     dmq::xostringstream m_stream;
     dmq::ISerializer<RetType(Args...)>* m_serializer = nullptr;

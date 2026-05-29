@@ -437,11 +437,14 @@ private:
     }
 
     void InternalAddParticipant(std::shared_ptr<Participant> participant) {
+        // Establish connection OUTSIDE the global DataBus lock to prevent
+        // lock inversion deadlocks. Signal::Connect() is already thread-safe.
+        auto conn = participant->SubscribeError(
+            dmq::MakeDelegate(this, &DataBus::InternalReportError));
+
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_participantCount < dmq::MAX_PARTICIPANTS) {
-            // Bridge participant-level technical errors to the global DataBus error signal
-            m_participantErrorConnections[m_participantCount] = participant->SubscribeError(dmq::MakeDelegate(this, &DataBus::InternalReportError));
-
+            m_participantErrorConnections[m_participantCount] = std::move(conn);
             m_participants[m_participantCount++] = participant;
         }
         else
