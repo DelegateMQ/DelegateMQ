@@ -45,7 +45,7 @@ public:
     }
 
     // Subscribe to technical errors (serialization/dispatch) for this participant.
-    dmq::ScopedConnection SubscribeError(std::function<void(const dmq::xstring&, dmq::DelegateError)> func) {
+    [[nodiscard]] dmq::ScopedConnection SubscribeError(std::function<void(const dmq::xstring&, dmq::DelegateError)> func) {
         return m_errorSignal.Connect(dmq::MakeDelegate(std::move(func)));
     }
 

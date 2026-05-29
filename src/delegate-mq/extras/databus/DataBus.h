@@ -94,13 +94,13 @@ public:
     // NOTE: Signal connection is established before LVC delivery to ensure 
     // no messages are missed.
     template <typename T, typename F>
-    static dmq::ScopedConnection Subscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread = nullptr, QoS qos = {}) {
+    [[nodiscard]] static dmq::ScopedConnection Subscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread = nullptr, QoS qos = {}) {
         return GetInstance().InternalSubscribe<T>(topic, std::forward<F>(func), thread, qos);
     }
 
     // Subscribe to a topic with a filter.
     template <typename T, typename F, typename P>
-    static dmq::ScopedConnection SubscribeFilter(const dmq::xstring& topic, F&& func, P&& predicate, dmq::IThread* thread = nullptr, QoS qos = {}) {
+    [[nodiscard]] static dmq::ScopedConnection SubscribeFilter(const dmq::xstring& topic, F&& func, P&& predicate, dmq::IThread* thread = nullptr, QoS qos = {}) {
         auto filter = dmq::xmake_shared<detail::Filter<T, std::decay_t<F>, std::decay_t<P>>>(std::forward<F>(func), std::forward<P>(predicate));
         return GetInstance().InternalSubscribe<T>(topic, [filter](T data) { filter->Invoke(data); }, thread, qos);
     }
@@ -175,7 +175,7 @@ public:
     // Monitor all traffic on the DataBus.
     // NOTE: priority is only applied when thread != nullptr; passing a non-default
     // priority without a thread is a programming error and triggers FaultHandler.
-    static dmq::ScopedConnection Monitor(std::function<void(const SpyPacket&)> func, dmq::IThread* thread = nullptr, dmq::Priority priority = dmq::Priority::NORMAL) {
+    [[nodiscard]] static dmq::ScopedConnection Monitor(std::function<void(const SpyPacket&)> func, dmq::IThread* thread = nullptr, dmq::Priority priority = dmq::Priority::NORMAL) {
         if (!thread && priority != dmq::Priority::NORMAL) {
             ::FaultHandler(__FILE__, (unsigned short)__LINE__);
             return {};
@@ -194,12 +194,12 @@ public:
     }
 
     /// Fired when a message is published but has no local or remote subscribers.
-    static dmq::ScopedConnection SubscribeUnhandled(std::function<void(const dmq::xstring& topic)> func) {
+    [[nodiscard]] static dmq::ScopedConnection SubscribeUnhandled(std::function<void(const dmq::xstring& topic)> func) {
         return GetInstance().m_unhandledSignal.Connect(dmq::MakeDelegate(std::move(func)));
     }
 
     /// Fired when a message is published but a technical error occurs (e.g. serialization failure).
-    static dmq::ScopedConnection SubscribeError(std::function<void(const dmq::xstring& topic, dmq::DelegateError error)> func) {
+    [[nodiscard]] static dmq::ScopedConnection SubscribeError(std::function<void(const dmq::xstring& topic, dmq::DelegateError error)> func) {
         return GetInstance().m_errorSignal.Connect(dmq::MakeDelegate(std::move(func)));
     }
 
@@ -233,7 +233,7 @@ private:
     using SignalPtr = std::shared_ptr<dmq::Signal<void(T)>>;
 
     template <typename T, typename F>
-    dmq::ScopedConnection InternalSubscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread, QoS qos) {
+    [[nodiscard]] dmq::ScopedConnection InternalSubscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread, QoS qos) {
         SignalPtr<T> signal;
 
         // Performance Note: Forced std::function construction for internal type management.
