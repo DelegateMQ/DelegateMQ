@@ -43,6 +43,7 @@ namespace dmq::transport {
 /// @brief Win32 UDP transport example. 
 class Win32UdpTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type
     {

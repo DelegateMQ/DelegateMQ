@@ -45,6 +45,7 @@ namespace dmq::transport {
 // Linux UDP transport example
 class LinuxUdpTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type
     {

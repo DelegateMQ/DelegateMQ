@@ -48,6 +48,7 @@ namespace dmq::transport {
 /// @brief A TCP transport implementation for Linux using BSD sockets.
 class LinuxTcpTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type { SERVER, CLIENT };
 

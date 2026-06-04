@@ -394,7 +394,7 @@ public:
     void Bind(ObjectPtr object, MemberFunc func) {
         static_assert(!std::is_const<TClass>::value, "Cannot bind non-const function to const object.");
         auto deleter = [](TClass*) {};                        // No-op deleter
-        m_object = std::shared_ptr<TClass>(object, deleter);  // Not deleted when out of scope
+        m_object = std::shared_ptr<TClass>(object, deleter, dmq::stl_allocator<TClass>());  // Not deleted when out of scope
         m_func = func;
     }
 
@@ -407,7 +407,7 @@ public:
     /// @param[in] func The const member function to bind.
     void Bind(ObjectPtr object, ConstMemberFunc func) {
         auto deleter = [](TClass*) {};                        // No-op deleter
-        m_object = std::shared_ptr<TClass>(object, deleter);  // Not deleted when out of scope
+        m_object = std::shared_ptr<TClass>(object, deleter, dmq::stl_allocator<TClass>());  // Not deleted when out of scope
         m_func = reinterpret_cast<MemberFunc>(func);
     }
 

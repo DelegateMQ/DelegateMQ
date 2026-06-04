@@ -48,6 +48,7 @@ namespace dmq::transport {
 
 class NetXUdpTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type
     {

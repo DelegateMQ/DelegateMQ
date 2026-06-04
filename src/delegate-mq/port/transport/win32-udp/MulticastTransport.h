@@ -20,6 +20,7 @@ namespace dmq::transport {
 
 class MulticastTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type { PUB, SUB };
 

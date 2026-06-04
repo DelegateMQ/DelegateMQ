@@ -465,8 +465,9 @@ private:
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
 
-        // Use shared_ptr with no-op deleter because serializer is owned by caller
-        m_serializers[topic] = std::shared_ptr<void>(&serializer, [](void*) {});
+        // Use shared_ptr with no-op deleter because serializer is owned by caller.
+        // Use stl_allocator to ensure control block is allocated from fixed-block pool.
+        m_serializers[topic] = std::shared_ptr<void>(&serializer, [](void*) {}, dmq::stl_allocator<void>());
     }
 
     template <typename T>
@@ -484,10 +485,13 @@ private:
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
 
-        // Use shared_ptr with custom deleter to fix memory leak
+        // Use shared_ptr with custom deleter and stl_allocator.
+        // Allocate function object from fixed-block pool using xnew.
+        using FuncType = std::function<dmq::xstring(const T&)>;
         m_stringifiers[topic] = std::shared_ptr<void>(
-            new std::function<dmq::xstring(const T&)>(std::move(func)),
-            [](void* ptr) { delete static_cast<std::function<dmq::xstring(const T&)>*>(ptr); }
+            dmq::xnew<FuncType>(std::move(func)),
+            [](void* ptr) { dmq::xdelete(static_cast<FuncType*>(ptr)); },
+            dmq::stl_allocator<void>()
         );
     }
 

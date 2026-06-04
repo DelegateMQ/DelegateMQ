@@ -75,6 +75,7 @@ namespace dmq::util {
 /// to the physical transport.
 class ReliableTransport : public dmq::transport::ITransport
 {
+    XALLOCATOR
 public:
     ReliableTransport(dmq::transport::ITransport& transport, RetryMonitor& retry) 
         : m_transport(transport), m_retry(retry) {}

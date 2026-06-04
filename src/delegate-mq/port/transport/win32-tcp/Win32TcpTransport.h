@@ -49,6 +49,7 @@ namespace dmq::transport {
 /// @brief A TCP transport implementation for Win32 using Winsock.
 class Win32TcpTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type
     {

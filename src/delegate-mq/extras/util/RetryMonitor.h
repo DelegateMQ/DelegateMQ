@@ -42,6 +42,7 @@ namespace dmq::util {
 /// @see https://github.com/DelegateMQ/DelegateMQ
 class RetryMonitor 
 {
+    XALLOCATOR
 public:
     /// @brief Storage for a message that might need retransmission.
     struct RetryEntry {

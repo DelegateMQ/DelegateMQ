@@ -33,7 +33,7 @@ public:
         if (rhs.m_delegate) {
             auto delegateClone = rhs.m_delegate->Clone();
             if (!delegateClone) BAD_ALLOC();
-            m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+            m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), dmq::stl_allocator<DelegateType>());
         }
     }
 
@@ -72,7 +72,7 @@ public:
     void operator=(const DelegateType& rhs) {
         auto delegateClone = rhs.Clone();
         if (!delegateClone) BAD_ALLOC();
-        m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+        m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), dmq::stl_allocator<DelegateType>());
     }
 
     /// Assign a delegate to the container.
@@ -80,7 +80,7 @@ public:
     void operator=(DelegateType&& rhs) {
         auto delegateClone = rhs.Clone();
         if (!delegateClone) BAD_ALLOC();
-        m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+        m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), dmq::stl_allocator<DelegateType>());
     }
 
     /// @brief Assignment operator that assigns the state of one object to another.
@@ -91,7 +91,7 @@ public:
             if (rhs.m_delegate) {
                 auto delegateClone = rhs.m_delegate->Clone();
                 if (!delegateClone) BAD_ALLOC();
-                m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+                m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), dmq::stl_allocator<DelegateType>());
             }
             else {
                 m_delegate = nullptr;

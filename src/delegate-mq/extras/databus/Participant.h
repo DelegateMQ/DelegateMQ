@@ -22,6 +22,7 @@ namespace dmq::databus {
 // LIFETIME NOTE: This class assumes that the ITransport object passed to the constructor 
 // will outlive the Participant instance.
 class Participant {
+    XALLOCATOR
     friend class DataBus;
 public:
     Participant(dmq::transport::ITransport& transport) : m_transport(&transport) {}

@@ -28,7 +28,7 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const dmq::xstring&
         return;
     }
     m_subTransport.SetRecvTimeout(std::chrono::milliseconds(1));
-    m_subParticipant = std::make_shared<dmq::databus::Participant>(m_subTransport);
+    m_subParticipant = dmq::xmake_shared<dmq::databus::Participant>(m_subTransport);
     for (size_t i = 0; i < m_incomingTopicCount; ++i)
         m_incomingTopics[i].adder(m_incomingTopics[i].serializer, m_incomingTopics[i].topic, m_incomingTopics[i].remoteId, *m_subParticipant);
 
@@ -39,7 +39,7 @@ void Network::Initialize(uint16_t subPort, uint16_t tcpPort, const dmq::xstring&
         } else {
              m_tcpServerTransport.SetRecvTimeout(std::chrono::milliseconds(1));
              std::cout << "Network: TCP Server listening on port " << tcpPort << std::endl;
-             m_tcpServerParticipant = std::make_shared<dmq::databus::Participant>(m_tcpServerTransport);
+             m_tcpServerParticipant = dmq::xmake_shared<dmq::databus::Participant>(m_tcpServerTransport);
              for (size_t i = 0; i < m_incomingTopicCount; ++i)
                  m_incomingTopics[i].adder(m_incomingTopics[i].serializer, m_incomingTopics[i].topic, m_incomingTopics[i].remoteId, *m_tcpServerParticipant);
         }
@@ -106,8 +106,8 @@ void Network::AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& ad
             }));
         node.retryMonitor = std::make_unique<RetryMonitor>(*node.rawTransport, *node.transportMonitor);
         node.reliableTransport = std::make_unique<ReliableTransport>(*node.rawTransport, *node.retryMonitor);
-        node.reliableParticipant = std::make_shared<dmq::databus::Participant>(*node.reliableTransport);
-        node.unreliableParticipant = std::make_shared<dmq::databus::Participant>(*node.rawTransport);
+        node.reliableParticipant = dmq::xmake_shared<dmq::databus::Participant>(*node.reliableTransport);
+        node.unreliableParticipant = dmq::xmake_shared<dmq::databus::Participant>(*node.rawTransport);
         
         node.reliableParticipant->SetSendThread(m_thread.get());
         node.unreliableParticipant->SetSendThread(m_thread.get());
@@ -120,7 +120,7 @@ void Network::AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& ad
         node.tcpTransport = std::make_unique<TcpTransport>();
         if (node.tcpTransport->Create(TcpTransport::Type::CLIENT, addr.c_str(), tcpPort) == 0) {
             node.tcpTransport->SetRecvTimeout(std::chrono::milliseconds(1));
-            node.tcpParticipant = std::make_shared<dmq::databus::Participant>(*node.tcpTransport);
+            node.tcpParticipant = dmq::xmake_shared<dmq::databus::Participant>(*node.tcpTransport);
             node.tcpParticipant->SetSendThread(m_thread.get());
             dmq::databus::DataBus::AddParticipant(node.tcpParticipant);
             

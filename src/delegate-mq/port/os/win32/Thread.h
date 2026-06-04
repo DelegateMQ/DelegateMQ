@@ -67,6 +67,7 @@ enum class FullPolicy { DROP, FAULT, TIMEOUT };
 /// invoking asynchronous delegates.
 class Thread : public dmq::IThread
 {
+    XALLOCATOR
 public:
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Statistics captured for thread monitoring.

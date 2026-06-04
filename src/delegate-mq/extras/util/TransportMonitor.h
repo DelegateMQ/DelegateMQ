@@ -30,6 +30,7 @@ namespace dmq::util {
 /// and handle expired messages.
 class TransportMonitor : public dmq::transport::ITransportMonitor
 {
+    XALLOCATOR
 public:
     enum class Status
     {

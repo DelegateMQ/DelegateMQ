@@ -164,7 +164,7 @@ public:
     /// @return A `ScopedConnection`. Let it go out of scope to auto-disconnect,
     ///         or call `Disconnect()` manually.
     [[nodiscard]] ScopedConnection Connect(const DelegateType& delegate) {
-        auto copy  = std::shared_ptr<DelegateType>(delegate.Clone());
+        auto copy  = std::shared_ptr<DelegateType>(delegate.Clone(), std::default_delete<DelegateType>(), dmq::stl_allocator<DelegateType>());
         if (!copy)
             BAD_ALLOC();
         auto state = m_state;

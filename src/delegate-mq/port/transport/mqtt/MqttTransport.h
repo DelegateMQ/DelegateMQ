@@ -35,6 +35,7 @@ namespace dmq::transport {
 /// @brief MQTT transport example.
 class MqttTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type
     {
