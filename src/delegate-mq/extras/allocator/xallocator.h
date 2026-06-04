@@ -116,10 +116,10 @@ void xalloc_stats();
             void* operator new(size_t size) { \
                 return xmalloc(size); \
             } \
-            void* operator new(size_t size, void* mem) { \
+            void* operator new(size_t /*size*/, void* mem) { \
                 return mem; \
             } \
-            void* operator new(size_t size, const std::nothrow_t& nt) { \
+            void* operator new(size_t size, const std::nothrow_t& /*nt*/) { \
                 return xmalloc(size); \
             } \
             void* operator new[](size_t size) { \
@@ -128,7 +128,7 @@ void xalloc_stats();
             void operator delete(void* pObject) { \
                 xfree(pObject); \
             } \
-            void operator delete(void* pObject, const std::nothrow_t& nt) { \
+            void operator delete(void* pObject, const std::nothrow_t& /*nt*/) { \
                 xfree(pObject); \
             } \
             void operator delete[](void* pData) { \

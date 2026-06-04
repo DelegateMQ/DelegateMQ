@@ -6,10 +6,8 @@
 #if defined(DMQ_DATABUS)
 
 #include <array>
-#include <mutex>
-#include <thread>
 #include <atomic>
-#include <string>
+#include <optional>
 
 namespace dmq::util {
 // ... rest of namespace dmq::util content ...
@@ -40,7 +38,7 @@ public:
     /// Deregister a thread.
     static void Deregister(dmq::os::Thread* thread);
 
-    /// Enable the monitor (starts the 1Hz polling thread).
+    /// Enable the monitor (starts the 2-second polling loop).
     static void Enable(const dmq::xstring& topic = "ThreadStats");
 
     /// Disable the monitor.
@@ -60,7 +58,7 @@ private:
     std::array<dmq::os::Thread*, dmq::MAX_WATCHDOG_THREADS> m_threads{};
     size_t m_threadCount = 0;
     dmq::Mutex m_mutex;
-    std::unique_ptr<dmq::os::Thread> m_monitorThread;
+    std::optional<dmq::os::Thread> m_monitorThread;
     std::atomic<bool> m_enabled{false};
     dmq::xstring m_topic;
 };

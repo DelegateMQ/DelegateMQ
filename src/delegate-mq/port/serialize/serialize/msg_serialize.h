@@ -584,7 +584,51 @@ public:
         if (check_stop_parse(is))
             return is;
 
+        // If C++17 or higher
+#if defined(_MSVC_LANG) && _MSVC_LANG >= 201703L || __cplusplus >= 201703L
+        // Check if T is a user-defined class
+        if constexpr (std::is_class<T>::value)
+        {
+            // C-style cast required: T may be const-qualified (e.g. const AlarmMsg)
+            // when called from a const context, and neither static_cast nor
+            // reinterpret_cast can strip const. A C-style cast combines const_cast
+            // with the pointer conversion in one step. The static_assert above
+            // guarantees T derives from I whenever this branch is executed.
+            read(is, (serialize::I*)(&t_));
+            return is;
+        }
+        else
+        {
+            // If T is not a class, handle built-in data types
+            if constexpr (std::is_pointer<T>::value == false)
+            {
+                if (readPrependedType)
+                {
+                    if (!read_type(is, Type::LITERAL))
+                    {
+                        return is;
+                    }
+                }
+
+                if (readPrependedType)
+                    parseStatus(typeid(t_), sizeof(t_));
+                read_internal(is, reinterpret_cast<char*>(&t_), sizeof(t_));
+                return is;
+            }
+            else
+            {
+                // Can't read pointers to built-in types
+                raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
+                is.setstate(std::ios::failbit);
+                return is;
+            }
+        }
+#else
         // Is T a built-in data type (e.g. float, int, ...)?
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 6326)
+#endif
         if (std::is_class<T>::value == false)
         {
             // Is T is not a pointer type
@@ -621,6 +665,10 @@ public:
             read(is, (serialize::I*)(&t_));
             return is;
         }
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+#endif
     }
 
     /// Write an object to a stream.
@@ -658,7 +706,7 @@ public:
         else
         {
             // If T is not a class, handle built-in data types
-            if (std::is_pointer<T>::value == false)
+            if constexpr (std::is_pointer<T>::value == false)
             {
                 if (prependType)
                 {
@@ -676,6 +724,10 @@ public:
         }
 #else
         // Is T type a built-in data type (e.g. float, int, ...)?
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 6326)
+#endif
         if (std::is_class<T>::value == false)
         {
             // Is T is not a pointer type
@@ -704,6 +756,9 @@ public:
             // is_class<T> is true, making the cast safe at runtime.
             return write(os, (serialize::I*)(&t_));
         }
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 #endif
     }
 

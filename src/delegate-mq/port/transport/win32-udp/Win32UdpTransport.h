@@ -256,13 +256,13 @@ public:
             uint16_t a_seqNum = htons(header.GetSeqNum());
             uint16_t a_length = 0;
 
-            char ackBuf[DmqHeader::HEADER_SIZE];
+            char ackBuf[DmqHeader::HEADER_SIZE] = {0};
             memcpy(ackBuf, &a_marker, 2);
             memcpy(ackBuf + 2, &a_id, 2);
             memcpy(ackBuf + 4, &a_seqNum, 2);
             memcpy(ackBuf + 6, &a_length, 2);
 
-            sendto(m_socket, ackBuf, DmqHeader::HEADER_SIZE, 0, (sockaddr*)&m_addr, sizeof(m_addr));
+            sendto(m_socket, ackBuf, static_cast<int>(DmqHeader::HEADER_SIZE), 0, (sockaddr*)&m_addr, sizeof(m_addr));
         }
 
         return 0;

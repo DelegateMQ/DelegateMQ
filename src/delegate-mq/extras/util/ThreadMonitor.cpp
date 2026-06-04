@@ -43,7 +43,7 @@ void ThreadMonitor::Enable(const dmq::xstring& topic) {
     if (instance.m_enabled.exchange(true)) return;
 
     instance.m_topic = topic;
-    instance.m_monitorThread = std::make_unique<dmq::os::Thread>("ThreadMonitor", 10);
+    instance.m_monitorThread.emplace("ThreadMonitor", 10);
     instance.m_monitorThread->CreateThread();
     
     (void)dmq::MakeDelegate(&instance, &ThreadMonitor::MonitorLoop, *instance.m_monitorThread).AsyncInvoke();
@@ -62,12 +62,18 @@ void ThreadMonitor::Disable() {
 void ThreadMonitor::MonitorLoop() {
     if (!m_enabled) return;
 
-    std::array<dmq::os::Thread::ThreadStats, dmq::MAX_WATCHDOG_THREADS> snapshots;
+    dmq::os::Thread::ThreadStats snapshots[dmq::MAX_WATCHDOG_THREADS];
     size_t snapshotCount = 0;
     {
         dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-        for (size_t i = 0; i < m_threadCount; ++i)
-            snapshots[snapshotCount++] = m_threads[i]->SnapshotStats();
+        for (size_t i = 0; i < dmq::MAX_WATCHDOG_THREADS; ++i) {
+            if (i >= m_threadCount || snapshotCount >= dmq::MAX_WATCHDOG_THREADS) 
+                break;
+
+            if (m_threads[i] != nullptr) {
+                snapshots[snapshotCount++] = m_threads[i]->SnapshotStats();
+            }
+        }
     }
 
     for (size_t i = 0; i < snapshotCount; ++i) {
@@ -92,7 +98,8 @@ void ThreadMonitor::MonitorLoop() {
 
     if (m_enabled) {
         dmq::os::Thread::Sleep(std::chrono::seconds(2));
-        (void)dmq::MakeDelegate(this, &ThreadMonitor::MonitorLoop, *m_monitorThread).AsyncInvoke();
+        if (m_enabled && m_monitorThread.has_value())
+            (void)dmq::MakeDelegate(this, &ThreadMonitor::MonitorLoop, *m_monitorThread).AsyncInvoke();
     }
 }
 

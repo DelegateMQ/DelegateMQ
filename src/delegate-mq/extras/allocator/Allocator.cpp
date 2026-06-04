@@ -59,7 +59,7 @@ Allocator::~Allocator()
 //------------------------------------------------------------------------------
 // Allocate
 //------------------------------------------------------------------------------
-void* Allocator::Allocate(size_t size)
+void* Allocator::Allocate([[maybe_unused]] size_t size)
 {
     assert(size <= m_objectSize);
 	

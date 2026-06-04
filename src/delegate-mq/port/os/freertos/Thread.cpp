@@ -28,7 +28,14 @@ Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fu
     , m_exit(false)
 {
     m_queueSize = (maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize;
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 6326)
+#endif
     m_priority = configMAX_PRIORITIES > 2 ? configMAX_PRIORITIES - 2 : tskIDLE_PRIORITY + 1;
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 }
 
 //----------------------------------------------------------------------------
