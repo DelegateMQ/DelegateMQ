@@ -6,6 +6,15 @@
 #include <fstream>
 
 namespace cellutron {
+
+struct StartProcessMsg;
+struct StopProcessMsg;
+struct RunStatusMsg;
+struct CentrifugeSpeedMsg;
+struct FaultMsg;
+struct ActuatorStatusMsg;
+struct SensorStatusMsg;
+
 namespace util {
 
 /// @brief Singleton class for system-wide data logging to a file.
@@ -32,6 +41,16 @@ private:
     void WriteToFile(const std::string& msg);
     std::string GetTimestamp();
     void LogHeartbeat();
+
+    void OnInit();
+    void OnShutdown();
+    void OnStart(StartProcessMsg msg);
+    void OnStop(StopProcessMsg msg);
+    void OnRunStatus(RunStatusMsg msg);
+    void OnSpeed(CentrifugeSpeedMsg msg);
+    void OnFault(FaultMsg msg);
+    void OnActuator(ActuatorStatusMsg msg);
+    void OnSensor(SensorStatusMsg msg);
 
     std::ofstream m_file;
     size_t m_writeCount = 0;

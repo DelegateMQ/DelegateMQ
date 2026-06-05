@@ -29,79 +29,98 @@ void Logs::Initialize() {
     m_thread.CreateThread(std::chrono::seconds(20));
 
     // Open file and write initial log on the logging thread
-    (void)dmq::MakeDelegate([this]() {
-        m_file.open("logs.txt", std::ios::out | std::ios::trunc);
-        WriteToFile("--- Logging System Initializing ---");
-        WriteToFile("--- Logging Thread Started ---");
-    }, m_thread).AsyncInvoke();
+    (void)dmq::MakeDelegate(this, &Logs::OnInit, m_thread).AsyncInvoke();
 
     // Register thread for monitoring
     ThreadMonitor::Register(&m_thread);
 
-    m_startConn = dmq::databus::DataBus::Subscribe<StartProcessMsg>(topics::CMD_RUN, [this](StartProcessMsg msg) {
-        WriteToFile("[CMD] START Process Command (Seq: " + std::to_string(msg.seq) + ")");
-    }, &m_thread);
-
-    m_stopConn = dmq::databus::DataBus::Subscribe<StopProcessMsg>(topics::CMD_ABORT, [this](StopProcessMsg msg) {
-        WriteToFile("[CMD] ABORT Process Command (Seq: " + std::to_string(msg.seq) + ")");
-    }, &m_thread);
-
-    m_speedConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, [this](CentrifugeSpeedMsg msg) {
-        std::stringstream ss;
-        ss << "[STATUS] Centrifuge Speed: " << msg.rpm << " RPM (Seq: " << msg.seq << ")";
-        WriteToFile(ss.str());
-    }, &m_thread);
-
-    m_runConn = dmq::databus::DataBus::Subscribe<RunStatusMsg>(topics::STATUS_RUN, [this](RunStatusMsg msg) {
-        std::string status_text;
-        switch (msg.status) {
-            case RunStatus::IDLE: status_text = "IDLE"; break;
-            case RunStatus::PROCESSING: status_text = "PROCESSING"; break;
-            case RunStatus::ABORTING: status_text = "ABORTING"; break;
-            case RunStatus::FAULT: status_text = "FAULT"; break;
-        }
-        WriteToFile("[STATUS] System State: " + status_text);
-    }, &m_thread);
-
-    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [this](FaultMsg msg) {
-        std::string reason;
-        switch (msg.faultCode) {
-            case FAULT_OVERSPEED: reason = "CENTRIFUGE OVERSPEED"; break;
-            case FAULT_SAFETY_LOST: reason = "SAFETY HEARTBEAT LOST"; break;
-            case FAULT_CONTROLLER_LOST: reason = "CONTROLLER HEARTBEAT LOST"; break;
-            case FAULT_GUI_LOST: reason = "GUI HEARTBEAT LOST"; break;
-            case FAULT_AIR_INLET: reason = "AIR INLET DETECTED"; break;
-            case FAULT_BLOCKAGE: reason = "PRESSURE BLOCKAGE"; break;
-            default: reason = "UNKNOWN (Code: " + std::to_string(msg.faultCode) + ")"; break;
-        }
-        WriteToFile("[CRITICAL] FAULT DETECTED: " + reason);
-    }, &m_thread);
-
-    // Hardware Logging
-    m_actuatorConn = dmq::databus::DataBus::Subscribe<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, [this](ActuatorStatusMsg msg) {
-        std::stringstream ss;
-        if (msg.type == ActuatorType::VALVE) {
-            ss << "[HW] Valve " << (int)msg.id << " changed to " << (msg.value ? "OPEN" : "CLOSED");
-        } else {
-            ss << "[HW] Pump " << (int)msg.id << " speed changed to " << (int)msg.value << "%";
-        }
-        WriteToFile(ss.str());
-    }, &m_thread);
-
-    m_sensorConn = dmq::databus::DataBus::Subscribe<SensorStatusMsg>(topics::STATUS_SENSOR, [this](SensorStatusMsg msg) {
-        std::stringstream ss;
-        if (msg.type == SensorType::PRESSURE) {
-            ss << "[HW] Pressure Sensor: " << msg.value;
-        } else {
-            ss << "[HW] Air Detector: " << (msg.value ? "AIR" : "FLUID");
-        }
-        WriteToFile(ss.str());
-    }, &m_thread);
+    m_startConn = dmq::databus::DataBus::Subscribe<StartProcessMsg>(topics::CMD_RUN, dmq::MakeDelegate(this, &Logs::OnStart), &m_thread);
+    m_stopConn = dmq::databus::DataBus::Subscribe<StopProcessMsg>(topics::CMD_ABORT, dmq::MakeDelegate(this, &Logs::OnStop), &m_thread);
+    m_speedConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, dmq::MakeDelegate(this, &Logs::OnSpeed), &m_thread);
+    m_runConn = dmq::databus::DataBus::Subscribe<RunStatusMsg>(topics::STATUS_RUN, dmq::MakeDelegate(this, &Logs::OnRunStatus), &m_thread);
+    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, dmq::MakeDelegate(this, &Logs::OnFault), &m_thread);
+    m_actuatorConn = dmq::databus::DataBus::Subscribe<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, dmq::MakeDelegate(this, &Logs::OnActuator), &m_thread);
+    m_sensorConn = dmq::databus::DataBus::Subscribe<SensorStatusMsg>(topics::STATUS_SENSOR, dmq::MakeDelegate(this, &Logs::OnSensor), &m_thread);
 
     // Start a 5-second internal heartbeat for the log thread itself
     m_heartbeatTimer = std::make_unique<Timer>();
     m_heartbeatConn = m_heartbeatTimer->OnExpired.Connect(dmq::MakeDelegate(this, &Logs::LogHeartbeat, m_thread));
     m_heartbeatTimer->Start(std::chrono::seconds(5));
+}
+
+void Logs::OnInit() {
+    m_file.open("logs.txt", std::ios::out | std::ios::trunc);
+    WriteToFile("--- Logging System Initializing ---");
+    WriteToFile("--- Logging Thread Started ---");
+}
+
+void Logs::OnStart(StartProcessMsg msg) {
+    dmq::xostringstream ss;
+    ss << "[CMD] START Process Command (Seq: " << msg.seq << ")";
+    WriteToFile(ss.str().c_str());
+}
+
+void Logs::OnStop(StopProcessMsg msg) {
+    dmq::xostringstream ss;
+    ss << "[CMD] ABORT Process Command (Seq: " << msg.seq << ")";
+    WriteToFile(ss.str().c_str());
+}
+
+void Logs::OnSpeed(CentrifugeSpeedMsg msg) {
+    dmq::xostringstream ss;
+    ss << "[STATUS] Centrifuge Speed: " << msg.rpm << " RPM (Seq: " << msg.seq << ")";
+    WriteToFile(ss.str().c_str());
+}
+
+void Logs::OnRunStatus(RunStatusMsg msg) {
+    const char* status_text = "UNKNOWN";
+    switch (msg.status) {
+        case RunStatus::IDLE:       status_text = "IDLE";       break;
+        case RunStatus::PROCESSING: status_text = "PROCESSING"; break;
+        case RunStatus::ABORTING:   status_text = "ABORTING";   break;
+        case RunStatus::FAULT:      status_text = "FAULT";      break;
+    }
+    dmq::xostringstream ss;
+    ss << "[STATUS] System State: " << status_text;
+    WriteToFile(ss.str().c_str());
+}
+
+void Logs::OnFault(FaultMsg msg) {
+    const char* reason = "UNKNOWN";
+    dmq::xostringstream ss;
+    switch (msg.faultCode) {
+        case FAULT_OVERSPEED:        reason = "CENTRIFUGE OVERSPEED";      break;
+        case FAULT_SAFETY_LOST:      reason = "SAFETY HEARTBEAT LOST";     break;
+        case FAULT_CONTROLLER_LOST:  reason = "CONTROLLER HEARTBEAT LOST"; break;
+        case FAULT_GUI_LOST:         reason = "GUI HEARTBEAT LOST";        break;
+        case FAULT_AIR_INLET:        reason = "AIR INLET DETECTED";        break;
+        case FAULT_BLOCKAGE:         reason = "PRESSURE BLOCKAGE";         break;
+        default:
+            ss << "UNKNOWN (Code: " << msg.faultCode << ")";
+            WriteToFile((dmq::xstring("[CRITICAL] FAULT DETECTED: ") + ss.str()).c_str());
+            return;
+    }
+    WriteToFile((dmq::xstring("[CRITICAL] FAULT DETECTED: ") + reason).c_str());
+}
+
+void Logs::OnActuator(ActuatorStatusMsg msg) {
+    dmq::xostringstream ss;
+    if (msg.type == ActuatorType::VALVE) {
+        ss << "[HW] Valve " << (int)msg.id << " changed to " << (msg.value ? "OPEN" : "CLOSED");
+    } else {
+        ss << "[HW] Pump " << (int)msg.id << " speed changed to " << (int)msg.value << "%";
+    }
+    WriteToFile(ss.str().c_str());
+}
+
+void Logs::OnSensor(SensorStatusMsg msg) {
+    dmq::xostringstream ss;
+    if (msg.type == SensorType::PRESSURE) {
+        ss << "[HW] Pressure Sensor: " << msg.value;
+    } else {
+        ss << "[HW] Air Detector: " << (msg.value ? "AIR" : "FLUID");
+    }
+    WriteToFile(ss.str().c_str());
 }
 
 void Logs::LogHeartbeat() {
@@ -110,14 +129,16 @@ void Logs::LogHeartbeat() {
 
 void Logs::Shutdown() {
     // Write shutdown log and close file on the logging thread before exiting
-    (void)dmq::MakeDelegate([this]() {
-        WriteToFile("--- Logging Shutdown ---");
-        if (m_file.is_open()) {
-            m_file.close();
-        }
-    }, m_thread).AsyncInvoke();
+    (void)dmq::MakeDelegate(this, &Logs::OnShutdown, m_thread).AsyncInvoke();
 
     m_thread.ExitThread();
+}
+
+void Logs::OnShutdown() {
+    WriteToFile("--- Logging Shutdown ---");
+    if (m_file.is_open()) {
+        m_file.close();
+    }
 }
 
 void Logs::WriteToFile(const std::string& msg) {

@@ -56,28 +56,31 @@ void System::SetupLocalSubscriptions() {
     // Intentional safety latch: once faulted, the fault is NOT cleared automatically.
     // Recovery requires a deliberate operator action (system restart). This prevents
     // the safety node from silently resuming enforcement after a fault event.
-    m_speedConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, [this](CentrifugeSpeedMsg msg) {
-        if (!m_speedGuard.IsNewer(msg.seq)) {
-            return;
-        }
+    m_speedConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, dmq::MakeDelegate(this, &System::OnSpeed), &m_thread);
+    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, dmq::MakeDelegate(this, &System::OnFault), &m_thread);
+}
 
-        if (msg.rpm > MAX_CENTRIFUGE_RPM) {
-            if (!m_faulted) {
-                m_faulted = true;
-                printf("Safety: CRITICAL - Centrifuge speed exceeded limit! (%u RPM). TRIGGERING FAULT.\n", msg.rpm);
-                dmq::databus::DataBus::Publish<FaultMsg>(topics::FAULT, { FAULT_OVERSPEED });
-            } else {
-                printf("Safety: Overspeed still active (%u RPM). System already faulted.\n", msg.rpm);
-            }
-        }
-    }, &m_thread);
+void System::OnSpeed(CentrifugeSpeedMsg msg) {
+    if (!m_speedGuard.IsNewer(msg.seq)) {
+        return;
+    }
 
-    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [this](FaultMsg) {
-        // NOTE: IsNewer() guard intentionally omitted for faults. Prioritize safety
-        // over ordering; a "nuisance trip" from an old fault is safer than missing 
-        // a trip due to a sequencing race.
-        m_faulted = true;
-    }, &m_thread);
+    if (msg.rpm > MAX_CENTRIFUGE_RPM) {
+        if (!m_faulted) {
+            m_faulted = true;
+            printf("Safety: CRITICAL - Centrifuge speed exceeded limit! (%u RPM). TRIGGERING FAULT.\n", msg.rpm);
+            dmq::databus::DataBus::Publish<FaultMsg>(topics::FAULT, { FAULT_OVERSPEED });
+        } else {
+            printf("Safety: Overspeed still active (%u RPM). System already faulted.\n", msg.rpm);
+        }
+    }
+}
+
+void System::OnFault(FaultMsg) {
+    // NOTE: IsNewer() guard intentionally omitted for faults. Prioritize safety
+    // over ordering; a "nuisance trip" from an old fault is safer than missing 
+    // a trip due to a sequencing race.
+    m_faulted = true;
 }
 
 void System::SetupNetwork() {

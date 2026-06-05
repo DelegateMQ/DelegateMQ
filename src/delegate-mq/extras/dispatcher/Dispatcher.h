@@ -33,6 +33,7 @@ namespace dmq {
 /// @brief Dispatcher sends data to the transport for transmission to the endpoint.
 class Dispatcher : public dmq::IDispatcher
 {
+    XALLOCATOR
 public:
     Dispatcher() = default;
     ~Dispatcher() = default;

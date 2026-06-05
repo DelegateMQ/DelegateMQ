@@ -18,6 +18,7 @@ namespace util {
 /// This class handles periodic publication of a local heartbeat and monitors 
 /// multiple remote heartbeat topics for "Loss of Signal" (LOS) conditions.
 class Heartbeat {
+    XALLOCATOR
 public:
     /// @param name The human-readable name of this node (for logging).
     /// @param localTopic The topic this node publishes its heartbeat on.
@@ -40,6 +41,7 @@ public:
 
 private:
     void OnTimerExpired();
+    void OnHeartbeatReceived(const HeartbeatMsg&);
     void OnMonitorTimeout(const std::string& nodeName, FaultCode faultCode);
     void TriggerFault(const std::string& nodeName, FaultCode faultCode);
 
@@ -53,7 +55,11 @@ private:
 
     struct Monitor {
         std::string name;
+        FaultCode faultCode;
+        Heartbeat* parent;
         std::unique_ptr<dmq::databus::DeadlineSubscription<HeartbeatMsg>> subscription;
+
+        void OnTimeout() { parent->OnMonitorTimeout(name, faultCode); }
     };
     std::array<Monitor, MAX_HEARTBEAT_MONITORS> m_monitors{};
     size_t m_monitorCount = 0;

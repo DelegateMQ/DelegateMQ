@@ -70,12 +70,16 @@ int main(int argc, char* argv[]) {
 #ifdef DMQ_DATABUS_TOOLS
     SpyBridge::StartMulticast("239.1.1.1", 9999, localIP);
     NodeBridge::StartMulticast("ShapesServer", "239.1.1.1", 9998, localIP);
-    dmq::databus::DataBus::RegisterStringifier<ShapeMsg>(SystemTopic::Square, [](const ShapeMsg& m) {
-        return "Square X=" + std::to_string(m.x) + " Y=" + std::to_string(m.y);
-    });
-    dmq::databus::DataBus::RegisterStringifier<ShapeMsg>(SystemTopic::Circle, [](const ShapeMsg& m) {
-        return "Circle X=" + std::to_string(m.x) + " Y=" + std::to_string(m.y);
-    });
+    dmq::databus::DataBus::RegisterStringifier<ShapeMsg>(SystemTopic::Square, dmq::MakeDelegate([](const ShapeMsg& m) -> dmq::xstring {
+        dmq::xostringstream ss;
+        ss << "Square X=" << m.x << " Y=" << m.y;
+        return ss.str();
+    }));
+    dmq::databus::DataBus::RegisterStringifier<ShapeMsg>(SystemTopic::Circle, dmq::MakeDelegate([](const ShapeMsg& m) -> dmq::xstring {
+        dmq::xostringstream ss;
+        ss << "Circle X=" << m.x << " Y=" << m.y;
+        return ss.str();
+    }));
 #endif
 
     ServerState s;

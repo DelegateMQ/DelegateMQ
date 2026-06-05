@@ -72,8 +72,8 @@ public:
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Statistics captured for thread monitoring.
     struct ThreadStats {
-        std::string cpu_name;
-        std::string thread_name;
+        dmq::xstring cpu_name;
+        dmq::xstring thread_name;
         size_t queue_depth;           // Current depth
         size_t queue_depth_max_window;// Max depth since last snapshot
         size_t queue_depth_max_all;   // All-time max depth
@@ -121,7 +121,7 @@ public:
     virtual bool IsCurrentThread() override;
 
     /// Get thread name
-    std::string GetThreadName() { return THREAD_NAME; }
+    dmq::xstring GetThreadName() { return THREAD_NAME; }
 
     /// Get size of thread message queue.
     size_t GetQueueSize();
@@ -189,8 +189,8 @@ private:
         std::vector<std::shared_ptr<ThreadMsg>>,
         ThreadMsgComparator> m_queue;
 
-    const std::string THREAD_NAME;
-    const std::string CPU_NAME;
+    const dmq::xstring THREAD_NAME;
+    const dmq::xstring CPU_NAME;
 
     // Max queue size for back pressure (0 = unlimited)
     const size_t MAX_QUEUE_SIZE;

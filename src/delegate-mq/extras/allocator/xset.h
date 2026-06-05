@@ -4,12 +4,16 @@
 #include "stl_allocator.h"
 #include <set>
 
+namespace dmq {
+
 // xset uses a fix-block memory allocator
 template <typename Key, typename Compare = std::less<Key>, typename Alloc = stl_allocator<Key>>
 using xset = std::set<Key, Compare, Alloc>;
 
 template <typename Key, typename Compare = std::less<Key>, typename Alloc = stl_allocator<Key>>
 using xmultiset = std::multiset<Key, Compare, Alloc>;
+
+} // namespace dmq
 
 #if 0  // Deprecated
 template<class _Kty,

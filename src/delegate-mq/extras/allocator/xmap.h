@@ -4,12 +4,16 @@
 #include "stl_allocator.h"
 #include <map>
 
+namespace dmq {
+
 // xmap uses a fix-block memory allocator
 template <typename Key, typename Value, typename Alloc = stl_allocator<std::pair<const Key, Value>>>
 using xmap = std::map<Key, Value, std::less<Key>, Alloc>;
 
 template <typename Key, typename Value, typename Alloc = stl_allocator<std::pair<const Key, Value>>>
 using xmultimap = std::multimap<Key, Value, std::less<Key>, Alloc>;
+
+} // namespace dmq
 
 #if 0  // Deprecated
 template<class _Kty,

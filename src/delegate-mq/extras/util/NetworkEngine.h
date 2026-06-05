@@ -350,12 +350,12 @@ private:
     dmq::transport::SerialTransport& m_sendTransport;
     dmq::transport::SerialTransport& m_recvTransport;
 
-    // Reliability Layers
+    Reliability Layers
     RetryMonitor m_retryMonitor;
     ReliableTransport m_reliableTransport;
-#endif
+    #endif
 
-    xmap<dmq::DelegateRemoteId, dmq::IRemoteInvoker*> m_receiveIdMap;
+    dmq::xmap<dmq::DelegateRemoteId, dmq::IRemoteInvoker*> m_receiveIdMap;
     dmq::ScopedConnection m_statusConn;
 
     static const std::chrono::milliseconds SEND_TIMEOUT;

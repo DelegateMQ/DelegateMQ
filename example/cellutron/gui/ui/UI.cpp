@@ -44,72 +44,28 @@ void UI::Start() {
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 
     // 2. Setup DataBus Subscriptions
-    auto statusConn = dmq::databus::DataBus::Subscribe<CentrifugeStatusMsg>(topics::STATUS_CENTRIFUGE, [this](CentrifugeStatusMsg msg) {
-        auto* screen = ScreenInteractive::Active();
-        if (screen) screen->PostEvent(Event::Custom);
-    }, &m_thread);
+    auto statusConn = dmq::databus::DataBus::Subscribe<CentrifugeStatusMsg>(topics::STATUS_CENTRIFUGE, dmq::MakeDelegate(this, &UI::OnCentrifugeStatus), &m_thread);
 
     dmq::databus::QoS rpmQos;
     rpmQos.minSeparation = std::chrono::milliseconds(40);
-    auto cmdConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::RPM, [this](CentrifugeSpeedMsg msg) {
-        m_currentRpm = msg.rpm;
-        auto* screen = ScreenInteractive::Active();
-        if (screen) screen->PostEvent(Event::Custom);
-    }, &m_thread, rpmQos);
+    auto cmdConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::RPM, dmq::MakeDelegate(this, &UI::OnRpm), &m_thread, rpmQos);
 
-    auto runConn = dmq::databus::DataBus::Subscribe<RunStatusMsg>(topics::STATUS_RUN, [this](RunStatusMsg msg) {
-        std::string status_text;
-        switch (msg.status) {
-            case RunStatus::IDLE: status_text = "IDLE"; break;
-            case RunStatus::PROCESSING: status_text = "PROCESSING"; break;
-            case RunStatus::ABORTING: status_text = "ABORTING"; break;
-            case RunStatus::FAULT: status_text = "FAULT"; break;
-        }
-        AddLog("Status Changed: " + status_text);
-        m_runStatus = msg.status;
-        auto* screen = ScreenInteractive::Active();
-        if (screen) screen->PostEvent(Event::Custom);
-    }, &m_thread);
+    auto runConn = dmq::databus::DataBus::Subscribe<RunStatusMsg>(topics::STATUS_RUN, dmq::MakeDelegate(this, &UI::OnRunStatus), &m_thread);
 
-    auto pumpConn = dmq::databus::DataBus::Subscribe<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, [this](ActuatorStatusMsg msg) {
-        if (msg.type == ActuatorType::PUMP && msg.id == 1) {
-            m_currentPumpSpeed = msg.value;
-            auto* screen = ScreenInteractive::Active();
-            if (screen) screen->PostEvent(Event::Custom);
-        }
-    }, &m_thread);
+    auto pumpConn = dmq::databus::DataBus::Subscribe<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, dmq::MakeDelegate(this, &UI::OnActuatorStatus), &m_thread);
 
-    auto faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [this](FaultMsg msg) {
-        AddLog(">>> CRITICAL FAULT RECEIVED <<<");
-        m_runStatus = RunStatus::FAULT;
-        m_currentRpm = 0;
-        m_currentPumpSpeed = 0;
-        auto* screen = ScreenInteractive::Active();
-        if (screen) screen->PostEvent(Event::Custom);
-    }, &m_thread);
+    auto faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, dmq::MakeDelegate(this, &UI::OnFault), &m_thread);
 
     // 3. Controller Presence Watchdog: Monitor periodic heartbeat for offline detection
-    m_controllerWatchdog = std::make_unique<dmq::databus::DeadlineSubscription<HeartbeatMsg>>(
+    // Use explicit 'new' to ensure the XALLOCATOR overloaded operator new is called.
+    // std::make_unique and std::make_shared bypass class-specific operator new.
+    m_controllerWatchdog.reset(new dmq::databus::DeadlineSubscription<HeartbeatMsg>(
         topics::CONTROLLER_HEARTBEAT,
         HEARTBEAT_TIMEOUT,
-        [this](const HeartbeatMsg&) {
-            // Heartbeat received -> Controller is online
-            if (m_isOffline.load()) {
-                m_isOffline = false;
-                auto* screen = ScreenInteractive::Active();
-                if (screen) screen->PostEvent(Event::Custom);
-            }
-        },
-        [this]() {
-            // No heartbeat for HEARTBEAT_TIMEOUT -> Controller is offline
-            m_isOffline = true;
-            m_currentRpm = 0;
-            m_currentPumpSpeed = 0;
-            auto* screen = ScreenInteractive::Active();
-            if (screen) screen->PostEvent(Event::Custom);
-        },
+        dmq::MakeDelegate(this, &UI::OnHeartbeat),
+        dmq::MakeDelegate(this, &UI::OnControllerTimeout),
         &m_thread
-    );
+    ));
 
     // 4. Build FTXUI Components
     std::string btnLabel = " START ";
@@ -223,6 +179,66 @@ void UI::Start() {
 
     // 6. Cleanup after UI exit
     Shutdown();
+}
+
+void UI::OnCentrifugeStatus(CentrifugeStatusMsg msg) {
+    auto* screen = ScreenInteractive::Active();
+    if (screen) screen->PostEvent(Event::Custom);
+}
+
+void UI::OnRpm(CentrifugeSpeedMsg msg) {
+    m_currentRpm = msg.rpm;
+    auto* screen = ScreenInteractive::Active();
+    if (screen) screen->PostEvent(Event::Custom);
+}
+
+void UI::OnRunStatus(RunStatusMsg msg) {
+    std::string status_text;
+    switch (msg.status) {
+        case RunStatus::IDLE: status_text = "IDLE"; break;
+        case RunStatus::PROCESSING: status_text = "PROCESSING"; break;
+        case RunStatus::ABORTING: status_text = "ABORTING"; break;
+        case RunStatus::FAULT: status_text = "FAULT"; break;
+    }
+    AddLog("Status Changed: " + status_text);
+    m_runStatus = msg.status;
+    auto* screen = ScreenInteractive::Active();
+    if (screen) screen->PostEvent(Event::Custom);
+}
+
+void UI::OnActuatorStatus(ActuatorStatusMsg msg) {
+    if (msg.type == ActuatorType::PUMP && msg.id == 1) {
+        m_currentPumpSpeed = msg.value;
+        auto* screen = ScreenInteractive::Active();
+        if (screen) screen->PostEvent(Event::Custom);
+    }
+}
+
+void UI::OnFault(FaultMsg msg) {
+    AddLog(">>> CRITICAL FAULT RECEIVED <<<");
+    m_runStatus = RunStatus::FAULT;
+    m_currentRpm = 0;
+    m_currentPumpSpeed = 0;
+    auto* screen = ScreenInteractive::Active();
+    if (screen) screen->PostEvent(Event::Custom);
+}
+
+void UI::OnHeartbeat(const HeartbeatMsg&) {
+    // Heartbeat received -> Controller is online
+    if (m_isOffline.load()) {
+        m_isOffline = false;
+        auto* screen = ScreenInteractive::Active();
+        if (screen) screen->PostEvent(Event::Custom);
+    }
+}
+
+void UI::OnControllerTimeout() {
+    // No heartbeat for HEARTBEAT_TIMEOUT -> Controller is offline
+    m_isOffline = true;
+    m_currentRpm = 0;
+    m_currentPumpSpeed = 0;
+    auto* screen = ScreenInteractive::Active();
+    if (screen) screen->PostEvent(Event::Custom);
 }
 
 void UI::Shutdown() {

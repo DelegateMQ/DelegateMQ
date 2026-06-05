@@ -151,7 +151,7 @@ private:
         IncomingTopicAdder adder;
     };
 
-    xmap<dmq::xstring, RemoteNode> m_remoteNodes;
+    dmq::xmap<dmq::xstring, RemoteNode> m_remoteNodes;
     std::array<OutgoingTopic, MAX_OUTGOING_TOPICS> m_outgoingTopics{};
     size_t m_outgoingTopicCount = 0;
     std::array<IncomingTopic, MAX_INCOMING_TOPICS> m_incomingTopics{};

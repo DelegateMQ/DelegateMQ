@@ -22,6 +22,7 @@ struct RemoteEndpoint; // Not defined
 template <class TClass, class RetType, class... Args>
 struct RemoteEndpoint<TClass, RetType(Args...)>
 {
+    XALLOCATOR
     /// @brief The `DelegateMemberRemote` object that handles the remote invocation.
     dmq::DelegateMemberRemote<TClass, RetType(Args...)> delegate;
 
@@ -51,6 +52,7 @@ struct RemoteEndpoint<TClass, RetType(Args...)>
 template <class RetType, class... Args>
 struct RemoteEndpoint<void, RetType(Args...)>
 {
+    XALLOCATOR
     /// @brief The `DelegateFreeRemote` object that handles the remote invocation.
     dmq::DelegateFreeRemote<RetType(Args...)> delegate;
 

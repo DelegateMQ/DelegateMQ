@@ -161,7 +161,7 @@ private:
     dmq::transport::ITransport& m_transport;
     TransportMonitor& m_monitor;
     const int m_maxRetries;
-    xmap<uint16_t, RetryEntry> m_retryStore;
+    dmq::xmap<uint16_t, RetryEntry> m_retryStore;
     dmq::RecursiveMutex m_lock;
     dmq::ScopedConnection m_connection;
 };

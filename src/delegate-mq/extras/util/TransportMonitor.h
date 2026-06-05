@@ -180,7 +180,7 @@ private:
 
     struct ExpiredItem { uint16_t seq; TimeoutData data; };
 
-    xmap<uint16_t, TimeoutData> m_pending;
+    dmq::xmap<uint16_t, TimeoutData> m_pending;
     std::array<ExpiredItem, dmq::MAX_TIMER_EXPIRED> m_expiredItems{};
     const dmq::Duration TRANSPORT_TIMEOUT;
     dmq::RecursiveMutex m_lock;

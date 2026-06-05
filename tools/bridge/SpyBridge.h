@@ -35,14 +35,15 @@ private:
     enum class TransportType { UNICAST, MULTICAST };
 
     static void Init(const std::string& address, uint16_t port, TransportType type, const std::string& nodeId, const std::string& localInterface = "");
+    static void OnMonitorPacket(const dmq::databus::SpyPacket& packet);
 
     struct Instance {
         std::unique_ptr<dmq::os::Thread> thread;
         dmq::ScopedConnection monitorConn;
         UdpSocket telemetrySocket;
-        std::string address;
-        std::string localInterface;
-        std::string nodeId;
+        dmq::xstring address;
+        dmq::xstring localInterface;
+        dmq::xstring nodeId;
         uint16_t port = 0;
         TransportType type = TransportType::UNICAST;
     };

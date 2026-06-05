@@ -7,6 +7,9 @@
 
 namespace cellutron {
 
+struct CentrifugeSpeedMsg;
+struct FaultMsg;
+
 /// @brief Top-level system coordinator for the Safety node.
 class System {
 public:
@@ -31,6 +34,9 @@ private:
     void SetupLocalSubscriptions();
     void SetupNetwork();
     void SetupWatchdog();
+
+    void OnSpeed(CentrifugeSpeedMsg msg);
+    void OnFault(FaultMsg msg);
 
     dmq::os::Thread m_thread;
 

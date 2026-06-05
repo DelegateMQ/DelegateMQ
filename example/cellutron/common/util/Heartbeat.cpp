@@ -28,20 +28,26 @@ void Heartbeat::Start()
 
 void Heartbeat::MonitorNode(const char* remoteTopic, FaultCode faultCode, const std::string& nodeName)
 {
-    auto sub = std::make_unique<dmq::databus::DeadlineSubscription<HeartbeatMsg>>(
+    if (m_monitorCount >= m_monitors.size()) {
+        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+        return;
+    }
+
+    Monitor& monitor = m_monitors[m_monitorCount++];
+    monitor.name = nodeName;
+    monitor.faultCode = faultCode;
+    monitor.parent = this;
+
+    // Use explicit 'new' to ensure the XALLOCATOR overloaded operator new is called.
+    // std::make_unique and std::make_shared bypass class-specific operator new.
+    // Use delegates instead of lambdas per project standards.
+    monitor.subscription.reset(new dmq::databus::DeadlineSubscription<HeartbeatMsg>(
         remoteTopic,
         HEARTBEAT_TIMEOUT,
-        [](const HeartbeatMsg&) { /* No-op on success */ },
-        [this, nodeName, faultCode]() {
-            this->OnMonitorTimeout(nodeName, faultCode);
-        },
+        dmq::MakeDelegate(this, &Heartbeat::OnHeartbeatReceived),
+        dmq::MakeDelegate(&monitor, &Monitor::OnTimeout),
         &m_thread
-    );
-
-    if (m_monitorCount >= m_monitors.size())
-        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-    else
-        m_monitors[m_monitorCount++] = { nodeName, std::move(sub) };
+    ));
 }
 
 void Heartbeat::Tick(uint32_t ms)
@@ -52,6 +58,11 @@ void Heartbeat::Tick(uint32_t ms)
 void Heartbeat::OnTimerExpired()
 {
     dmq::databus::DataBus::Publish<HeartbeatMsg>(m_localTopic, { ++m_counter });
+}
+
+void Heartbeat::OnHeartbeatReceived(const HeartbeatMsg&)
+{
+    // No-op
 }
 
 void Heartbeat::OnMonitorTimeout(const std::string& nodeName, FaultCode faultCode)

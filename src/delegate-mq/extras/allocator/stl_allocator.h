@@ -8,6 +8,8 @@
 #include <memory>    // For std::allocator and std::allocator_traits
 #include <utility>   // For std::forward
 
+namespace dmq {
+
 // Forward declaration for stl_allocator<void>
 template <typename T>
 class stl_allocator;
@@ -68,5 +70,7 @@ inline bool operator==(const stl_allocator<T>&, const stl_allocator<U>&) { retur
 
 template <typename T, typename U>
 inline bool operator!=(const stl_allocator<T>&, const stl_allocator<U>&) { return false; }
+
+} // namespace dmq
 
 #endif 

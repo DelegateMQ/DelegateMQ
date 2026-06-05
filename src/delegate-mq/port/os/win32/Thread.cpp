@@ -18,8 +18,8 @@ using namespace dmq::util;
 // Thread
 //----------------------------------------------------------------------------
 Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
-    : THREAD_NAME(threadName)
-    , CPU_NAME(cpuName)
+    : THREAD_NAME(threadName.c_str())
+    , CPU_NAME(cpuName.c_str())
     , MAX_QUEUE_SIZE(maxQueueSize)
     , FULL_POLICY(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)

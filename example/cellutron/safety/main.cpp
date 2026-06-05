@@ -98,18 +98,22 @@ extern "C" void vApplicationGetTimerTaskMemory(StaticTask_t** p, StackType_t** s
 // Safety Monitor Task
 // ---------------------------------------------------------------------------
 
+static void OnUnhandledTopic(const dmq::xstring& topic) {
+    printf("SAFETY WARNING: Unhandled topic: %s\n", topic.c_str());
+}
+
+static void OnTechnicalError(const dmq::xstring& topic, dmq::DelegateError error) {
+    printf("SAFETY ERROR: Technical failure on topic: %s, Error: %d\n", topic.c_str(), (int)error);
+}
+
 static void vSafetyTask(void* /*pvParams*/) {
     cellutron::System::GetInstance().Initialize();
 
     // Catch unhandled topics (sent but no subscribers)
-    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([](const dmq::xstring& topic) {
-        printf("SAFETY WARNING: Unhandled topic: %s\n", topic.c_str());
-    });
+    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled(dmq::MakeDelegate(&OnUnhandledTopic));
 
     // Catch technical errors (e.g. serialization failures)
-    static auto errorConn = dmq::databus::DataBus::SubscribeError([](const dmq::xstring& topic, dmq::DelegateError error) {
-        printf("SAFETY ERROR: Technical failure on topic: %s, Error: %d\n", topic.c_str(), (int)error);
-    });
+    static auto errorConn = dmq::databus::DataBus::SubscribeError(dmq::MakeDelegate(&OnTechnicalError));
 
     for (;;) {
         cellutron::System::GetInstance().Tick(100);

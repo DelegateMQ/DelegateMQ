@@ -64,11 +64,11 @@ int main(int argc, char* argv[]) {
 
 #ifdef DMQ_DATABUS_TOOLS
     SpyBridge::StartMulticast("239.1.1.1", 9999, localIP);
-    dmq::databus::DataBus::RegisterStringifier<DataMsg>(SystemTopic::DataMsg, [](const DataMsg& msg) {
-        std::ostringstream ss;
+    dmq::databus::DataBus::RegisterStringifier<DataMsg>(SystemTopic::DataMsg, dmq::MakeDelegate([](const DataMsg& msg) -> dmq::xstring {
+        dmq::xostringstream ss;
         ss << "Multicast Data: " << msg.actuators.size() << " actuators, " << msg.sensors.size() << " sensors";
         return ss.str();
-    });
+    }));
 #endif
 
     ServerState s;

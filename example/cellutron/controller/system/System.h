@@ -8,6 +8,10 @@
 
 namespace cellutron {
 
+struct StartProcessMsg;
+struct StopProcessMsg;
+struct FaultMsg;
+
 /// @brief Top-level system coordinator for the Controller node.
 /// 
 /// Handles initialization of all subsystems (Process, Actuators, Sensors),
@@ -42,6 +46,10 @@ private:
     void SetupLocalSubscriptions();
     void SetupNetwork();
     void SetupWatchdog();
+
+    void OnStart(StartProcessMsg msg);
+    void OnStop(StopProcessMsg msg);
+    void OnFault(FaultMsg msg);
 
     dmq::os::Thread m_thread;
 
