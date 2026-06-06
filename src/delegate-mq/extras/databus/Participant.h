@@ -247,10 +247,10 @@ private:
     dmq::transport::ITransport* m_transport;
     dmq::IThread* m_sendThread = nullptr;
     dmq::RecursiveMutex m_mutex;
-    xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
-    xmap<dmq::DelegateRemoteId, ChannelInvoker> m_channels;
-    xmap<dmq::DelegateRemoteId, std::type_index> m_channelTypes;
-    xmap<dmq::xstring, uint8_t> m_reportedErrors;
+    dmq::xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
+    dmq::xmap<dmq::DelegateRemoteId, ChannelInvoker> m_channels;
+    dmq::xmap<dmq::DelegateRemoteId, std::type_index> m_channelTypes;
+    dmq::xmap<dmq::xstring, uint8_t> m_reportedErrors;
     dmq::Signal<void(const dmq::xstring&, dmq::DelegateError)> m_errorSignal;
 
     // --- Duplicate Filtering ---
@@ -270,7 +270,7 @@ private:
             return false;
         }
     };
-    xmap<dmq::DelegateRemoteId, SeqHistory> m_history;
+    dmq::xmap<dmq::DelegateRemoteId, SeqHistory> m_history;
     dmq::xstringstream m_inputStream;
 };
 

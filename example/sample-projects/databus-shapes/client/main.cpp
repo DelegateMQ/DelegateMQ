@@ -114,8 +114,8 @@ int main(int argc, char* argv[]) {
     dmq::databus::DeadlineSubscription<ShapeMsg> deadlineSquare{
         SystemTopic::Square,
         std::chrono::milliseconds(1000),
-        [](const ShapeMsg&) {},  // data handled by connSquare above
-        onServerSilent
+        dmq::MakeDelegate([](const ShapeMsg&) {}),  // data handled by connSquare above
+        dmq::MakeDelegate(onServerSilent)
     };
 
     // Background thread: receive multicast data and drive the deadline timer.

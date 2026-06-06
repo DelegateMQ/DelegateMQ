@@ -26,6 +26,9 @@
 namespace dmq {
 
 template <class R>
+class UnicastDelegate;
+
+template <class R>
 class Signal;
 
 // ---------------------------------------------------------------------------
@@ -164,7 +167,7 @@ public:
     /// @return A `ScopedConnection`. Let it go out of scope to auto-disconnect,
     ///         or call `Disconnect()` manually.
     [[nodiscard]] ScopedConnection Connect(const DelegateType& delegate) {
-        auto copy  = std::shared_ptr<DelegateType>(delegate.Clone(), std::default_delete<DelegateType>(), dmq::stl_allocator<DelegateType>());
+        auto copy = std::shared_ptr<DelegateType>(delegate.Clone(), std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
         if (!copy)
             BAD_ALLOC();
         auto state = m_state;
@@ -180,6 +183,13 @@ public:
                     state->delegates.remove(copy);  // shared_ptr identity comparison
             }
         ));
+    }
+
+    /// @brief Subscribe a UnicastDelegate and return a RAII connection handle.
+    [[nodiscard]] ScopedConnection Connect(const UnicastDelegate<RetType(Args...)>& delegate) {
+        if (delegate.GetDelegate())
+            return Connect(*delegate.GetDelegate());
+        return {};
     }
 
     /// @brief Invoke all connected delegates.

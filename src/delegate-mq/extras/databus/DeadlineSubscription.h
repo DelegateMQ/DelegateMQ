@@ -51,21 +51,22 @@
 /// dmq::DeadlineSubscription<SensorData> m_watch{
 ///     "sensor/temp",
 ///     std::chrono::milliseconds(500),
-///     [](const SensorData& d) { /* handle data */ },
-///     []()                    { /* deadline missed — sensor silent */ },
+///     dmq::MakeDelegate([](const SensorData& d) { /* handle data */ }),
+///     dmq::MakeDelegate([]()                    { /* deadline missed — sensor silent */ }),
 ///     &m_workerThread
 /// };
 /// @endcode
 
 #include "DataBus.h"
 #include "extras/util/Timer.h"
-#include <functional>
+#include "delegate/UnicastDelegate.h"
 #include <string>
 
 namespace dmq::databus {
 
 template <typename T>
 class DeadlineSubscription {
+    XALLOCATOR
 public:
     /// Construct a deadline-monitored DataBus subscription.
     ///
@@ -79,8 +80,8 @@ public:
     DeadlineSubscription(
         const dmq::xstring& topic,
         dmq::Duration deadline,
-        std::function<void(const T&)> handler,
-        std::function<void()> onMissed,
+        dmq::UnicastDelegate<void(const T&)> handler,
+        dmq::UnicastDelegate<void()> onMissed,
         dmq::IThread* thread = nullptr)
         : m_deadline(deadline), m_handler(std::move(handler)), m_onMissed(std::move(onMissed))
     {
@@ -122,8 +123,8 @@ private:
     // then m_timerConn disconnects (onMissed removed from timer signal),
     // then m_timer destructs (removed from global timer list).
     dmq::Duration m_deadline;
-    std::function<void(const T&)> m_handler;
-    std::function<void()> m_onMissed;
+    dmq::UnicastDelegate<void(const T&)> m_handler;
+    dmq::UnicastDelegate<void()> m_onMissed;
     dmq::util::Timer m_timer;
     dmq::ScopedConnection m_timerConn;
     dmq::ScopedConnection m_conn;

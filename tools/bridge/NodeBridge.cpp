@@ -22,14 +22,14 @@
 
 void NodeBridge::Start(const std::string& nodeId, const std::string& address, uint16_t port) {
     auto& instance = GetInstance();
-    instance.nodeId = nodeId;
+    instance.nodeId = nodeId.c_str();
     instance.type = TransportType::UNICAST;
     InitTelemetry(address, port, false);
 }
 
 void NodeBridge::StartMulticast(const std::string& nodeId, const std::string& groupAddr, uint16_t port, const std::string& localInterface) {
     auto& instance = GetInstance();
-    instance.nodeId = nodeId;
+    instance.nodeId = nodeId.c_str();
     instance.type = TransportType::MULTICAST;
     InitTelemetry(groupAddr, port, true, localInterface);
 }
@@ -38,9 +38,9 @@ void NodeBridge::InitTelemetry(const std::string& address, uint16_t port, bool i
     auto& instance = GetInstance();
     if (instance.thread) return;
 
-    instance.address = address;
+    instance.address = address.c_str();
     instance.port = port;
-    instance.localInterface = localInterface;
+    instance.localInterface = localInterface.c_str();
     instance.isMulticast = isMulticast;
     instance.startTime = std::chrono::steady_clock::now();
 
@@ -53,34 +53,14 @@ void NodeBridge::InitTelemetry(const std::string& address, uint16_t port, bool i
     instance.thread->CreateThread();
 
     // Subscribe to DataBus::Monitor to auto-discover topics. Asynchronous delivery to NodeBridge thread.
-    instance.monitorConn = dmq::databus::DataBus::Monitor([](const dmq::databus::SpyPacket& packet) {
-        auto& inst = GetInstance();
-        inst.totalMsgCount++;
-        // Explicit conversion from dmq::xstring to std::string for the set
-        inst.topics.insert(packet.topic.c_str());
-    }, instance.thread.get());
+    instance.monitorConn = dmq::databus::DataBus::Monitor(dmq::MakeDelegate(&OnMonitorPacket), instance.thread.get());
 
     static dmq::util::ThreadStatsPacketSerializer serializer;
     dmq::databus::DataBus::RegisterSerializer<dmq::util::ThreadStatsPacket>("ThreadStats", serializer);
-    dmq::databus::DataBus::RegisterStringifier<dmq::util::ThreadStatsPacket>("ThreadStats", [](const dmq::util::ThreadStatsPacket& p) {
-        return dmq::util::ThreadStatsPacketToString(p);
-    });
+    dmq::databus::DataBus::RegisterStringifier<dmq::util::ThreadStatsPacket>("ThreadStats", dmq::MakeDelegate(&OnThreadStatsStringify));
 
     // Subscribe to ThreadStats. Asynchronous delivery to NodeBridge thread.
-    instance.threadStatsConn = dmq::databus::DataBus::Subscribe<dmq::util::ThreadStatsPacket>("ThreadStats", [](const dmq::util::ThreadStatsPacket& packet) {
-        auto& inst = GetInstance();
-        std::ostringstream oss(std::ios::binary);
-        static dmq::util::ThreadStatsPacketSerializer ser;
-        ser.Write(oss, packet);
-        if (oss.good()) {
-            const std::string& body = oss.str();
-            std::string buf;
-            buf.reserve(1 + body.size());
-            buf.push_back(static_cast<char>(dmq::PacketType::ThreadStats));
-            buf.append(body);
-            inst.telemetrySocket.Send(buf.data(), buf.size());
-        }
-    }, instance.thread.get());
+    instance.threadStatsConn = dmq::databus::DataBus::Subscribe<dmq::util::ThreadStatsPacket>("ThreadStats", dmq::MakeDelegate(&OnThreadStats), instance.thread.get());
 
     instance.telemetrySocket.Create();
     if (isMulticast && !localInterface.empty() && localInterface != "0.0.0.0") {
@@ -101,6 +81,31 @@ void NodeBridge::InitTelemetry(const std::string& address, uint16_t port, bool i
     instance.heartbeatTimer.Start(std::chrono::milliseconds(HEARTBEAT_INTERVAL_MS));
 }
 
+void NodeBridge::OnMonitorPacket(const dmq::databus::SpyPacket& packet) {
+    auto& inst = GetInstance();
+    inst.totalMsgCount++;
+    inst.topics.insert(packet.topic);
+}
+
+void NodeBridge::OnThreadStats(const dmq::util::ThreadStatsPacket& packet) {
+    auto& inst = GetInstance();
+    dmq::xostringstream oss(std::ios::binary);
+    static dmq::util::ThreadStatsPacketSerializer ser;
+    ser.Write(oss, packet);
+    if (oss.good()) {
+        const dmq::xstring& body = oss.str();
+        dmq::xstring buf;
+        buf.reserve(1 + body.size());
+        buf.push_back(static_cast<char>(dmq::PacketType::ThreadStats));
+        buf.append(body);
+        inst.telemetrySocket.Send(buf.data(), buf.size());
+    }
+}
+
+dmq::xstring NodeBridge::OnThreadStatsStringify(const dmq::util::ThreadStatsPacket& packet) {
+    return dmq::util::ThreadStatsPacketToString(packet);
+}
+
 void NodeBridge::SendHeartbeat() {
     auto& instance = GetInstance();
     
@@ -113,20 +118,20 @@ void NodeBridge::SendHeartbeat() {
         std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - instance.startTime).count());
 
-    std::string joined;
+    dmq::xstring joined;
     for (const auto& t : instance.topics) {
         if (!joined.empty()) joined += ';';
         joined += t;
     }
-    packet.topicsStr = std::move(joined);
+    packet.topicsStr = joined.c_str();
 
     serialize ms;
-    std::ostringstream oss(std::ios::binary);
+    dmq::xostringstream oss(std::ios::binary);
     ms.write(oss, packet);
 
     if (oss.good()) {
-        const std::string& body = oss.str();
-        std::string buf;
+        const dmq::xstring& body = oss.str();
+        dmq::xstring buf;
         buf.reserve(1 + body.size());
         buf.push_back(static_cast<char>(dmq::PacketType::NodeInfo));
         buf.append(body);

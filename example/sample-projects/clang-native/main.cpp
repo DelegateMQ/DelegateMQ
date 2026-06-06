@@ -113,13 +113,13 @@ int main()
         d2(20);
         AssertPass(g_callCount == 1, "Member function delegate invoked");
 
-        // Lambda via std::function
+        // Lambda via MakeDelegate
         g_callCount = 0;
         int capture = 99;
-        auto d3 = MakeDelegate(std::function<void(int)>([&capture](int val) {
+        auto d3 = MakeDelegate([&capture](int val) {
             cout << "  Lambda called: " << val << " (capture=" << capture << ")" << endl;
             g_callCount++;
-        }));
+        });
         d3(30);
         AssertPass(g_callCount == 1, "Lambda delegate invoked");
 

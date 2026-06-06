@@ -125,7 +125,7 @@ static void PacedDispatch_OnStuckFires()
     PacedDispatch gate;
     std::shared_ptr<DispatchToken> liveToken;
     std::atomic<int> stuckCount{ 0 };
-    gate.OnStuck = [&stuckCount]() { stuckCount.fetch_add(1); };
+    gate.OnStuck = dmq::MakeDelegate([&stuckCount]() { stuckCount.fetch_add(1); });
 
     gate.TryFire([&liveToken](std::shared_ptr<DispatchToken> t) { liveToken = t; });
 
