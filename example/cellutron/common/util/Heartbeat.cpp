@@ -37,7 +37,7 @@ void Heartbeat::MonitorNode(const char* remoteTopic, FaultCode faultCode, const 
     monitor.parent = this;
 
     // Use explicit 'new' to ensure the XALLOCATOR overloaded operator new is called.
-    // std::make_unique and std::make_shared bypass class-specific operator new.
+    // std::make_unique and dmq::xmake_shared bypass class-specific operator new.
     // Use delegates instead of lambdas per project standards.
     monitor.subscription.reset(new dmq::databus::DeadlineSubscription<HeartbeatMsg>(
         remoteTopic,

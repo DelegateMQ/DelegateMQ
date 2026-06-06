@@ -58,7 +58,7 @@ void UI::Start() {
 
     // 3. Controller Presence Watchdog: Monitor periodic heartbeat for offline detection
     // Use explicit 'new' to ensure the XALLOCATOR overloaded operator new is called.
-    // std::make_unique and std::make_shared bypass class-specific operator new.
+    // std::make_unique and dmq::xmake_shared bypass class-specific operator new.
     m_controllerWatchdog.reset(new dmq::databus::DeadlineSubscription<HeartbeatMsg>(
         topics::CONTROLLER_HEARTBEAT,
         HEARTBEAT_TIMEOUT,

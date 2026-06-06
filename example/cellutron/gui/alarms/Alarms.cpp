@@ -34,7 +34,7 @@ void Alarms::Initialize() {
 
     // 3. Setup Watchdog for safety heartbeat
     // Use explicit 'new' to ensure the XALLOCATOR overloaded operator new is called.
-    // std::make_unique and std::make_shared bypass class-specific operator new.
+    // std::make_unique and dmq::xmake_shared bypass class-specific operator new.
     m_safetyWatchdog.reset(new dmq::databus::DeadlineSubscription<HeartbeatMsg>(
         topics::SAFETY_HEARTBEAT,
         HEARTBEAT_TIMEOUT,

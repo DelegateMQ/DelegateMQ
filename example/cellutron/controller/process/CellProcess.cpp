@@ -238,40 +238,40 @@ STATE_DEFINE(cellutron::process::CellProcess, FillSolutionA, NoEventData)
     printf("CellProcess: ST_FILL_SOLUTION_A\n");
     dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::PROCESSING });
     // Use Pump ID 1, Valve 1, Forward
-    m_pumpProcess.Start(std::make_shared<PumpData>(1, 50, std::chrono::seconds(2), false));
+    m_pumpProcess.Start(dmq::xmake_shared<PumpData>(1, 50, std::chrono::seconds(2), false));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, FillSolutionB, NoEventData)
 {
     printf("CellProcess: ST_FILL_SOLUTION_B\n");
     // Use Pump ID 1, Valve 2, Forward
-    m_pumpProcess.Start(std::make_shared<PumpData>(2, 50, std::chrono::seconds(2), false));
+    m_pumpProcess.Start(dmq::xmake_shared<PumpData>(2, 50, std::chrono::seconds(2), false));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, FillCells, NoEventData)
 {
     printf("CellProcess: ST_FILL_CELLS\n");
     // Use Pump ID 1, Valve 3, Forward
-    m_pumpProcess.Start(std::make_shared<PumpData>(3, 25, std::chrono::seconds(2), false));
+    m_pumpProcess.Start(dmq::xmake_shared<PumpData>(3, 25, std::chrono::seconds(2), false));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, SpinUp, NoEventData)
 {
     printf("CellProcess: ST_SPIN_UP (Starting Centrifuge Ramp)\n");
-    m_centrifuge.StartRamp(std::make_shared<actuators::Centrifuge::RampData>(MAX_CENTRIFUGE_RPM, std::chrono::milliseconds(5000)));
+    m_centrifuge.StartRamp(dmq::xmake_shared<actuators::Centrifuge::RampData>(MAX_CENTRIFUGE_RPM, std::chrono::milliseconds(5000)));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, SpinDown, NoEventData)
 {
     printf("CellProcess: ST_SPIN_DOWN (Decelerating Centrifuge)\n");
-    m_centrifuge.StopRamp(std::make_shared<actuators::Centrifuge::RampData>(0, std::chrono::milliseconds(5000)));
+    m_centrifuge.StopRamp(dmq::xmake_shared<actuators::Centrifuge::RampData>(0, std::chrono::milliseconds(5000)));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, Drain, NoEventData)
 {
     printf("CellProcess: ST_DRAIN\n");
     // Use Pump ID 1, Valve 4, Reverse
-    m_pumpProcess.Start(std::make_shared<PumpData>(4, 100, std::chrono::seconds(3), true));
+    m_pumpProcess.Start(dmq::xmake_shared<PumpData>(4, 100, std::chrono::seconds(3), true));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, Complete, NoEventData)
@@ -290,7 +290,7 @@ STATE_DEFINE(cellutron::process::CellProcess, Aborting, NoEventData)
     actuators::Actuators::GetInstance().SetPump(1, 0);
 
     // Stop centrifuge ramp
-    m_centrifuge.StopRamp(std::make_shared<actuators::Centrifuge::RampData>(0, std::chrono::milliseconds(1000)));
+    m_centrifuge.StopRamp(dmq::xmake_shared<actuators::Centrifuge::RampData>(0, std::chrono::milliseconds(1000)));
 
     // Set a safety timeout to ensure we return to IDLE even if centrifuge already stopped
     m_timer.Start(std::chrono::milliseconds(2000));
@@ -304,7 +304,7 @@ STATE_DEFINE(cellutron::process::CellProcess, Fault, NoEventData)
     // Stop single pump
     actuators::Actuators::GetInstance().SetPump(1, 0);
     
-    m_centrifuge.StopRamp(std::make_shared<actuators::Centrifuge::RampData>(0, std::chrono::milliseconds(2000)));
+    m_centrifuge.StopRamp(dmq::xmake_shared<actuators::Centrifuge::RampData>(0, std::chrono::milliseconds(2000)));
 }
 
 } // namespace process
