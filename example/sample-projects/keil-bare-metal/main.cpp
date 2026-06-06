@@ -10,14 +10,14 @@
 #include "DelegateMQ.h"
 
 // C linkage version (called from C files and by the C++ overload below)
-extern "C" void FaultHandler(const char* file, unsigned short line)
+extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 {
-		printf("FAULT: %s line %u\r\n", file, (unsigned int)line);
+		printf("FAULT: %s line %u\r\n", file, static_cast<unsigned int>(line));
 		// TODO: add UART flush, LED blink, or hardware watchdog kick as needed
 		while (1);  // halt — let watchdog reset or attach debugger
 }
 
-extern "C" void WatchdogHandler(const char* threadName)
+extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
 {
 		printf("WATCHDOG EXPIRED: %s\r\n", threadName);
 		while (1);
@@ -25,6 +25,7 @@ extern "C" void WatchdogHandler(const char* threadName)
 
 // C++ overload — delegates to the C version above
 namespace dmq::util {
+		[[noreturn]]
 		void FaultHandler(const char* file, unsigned short line)
 		{
 				::FaultHandler(file, line);

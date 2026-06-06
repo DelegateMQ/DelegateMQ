@@ -22,7 +22,7 @@ void ThreadMonitor::Register(dmq::os::Thread* thread) {
     if (instance.m_threadCount < dmq::MAX_WATCHDOG_THREADS)
         instance.m_threads[instance.m_threadCount++] = thread;
     else
-        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+        ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
 }
 
 void ThreadMonitor::Deregister(dmq::os::Thread* thread) {
@@ -81,10 +81,10 @@ void ThreadMonitor::MonitorLoop() {
         ThreadStatsPacket packet;
         packet.cpu_name = s.cpu_name;
         packet.thread_name = s.thread_name;
-        packet.queue_depth = (uint32_t)s.queue_depth;
-        packet.queue_depth_max_window = (uint32_t)s.queue_depth_max_window;
-        packet.queue_depth_max_all = (uint32_t)s.queue_depth_max_all;
-        packet.queue_size_limit = (uint32_t)s.queue_size_limit;
+        packet.queue_depth = static_cast<uint32_t>(s.queue_depth);
+        packet.queue_depth_max_window = static_cast<uint32_t>(s.queue_depth_max_window);
+        packet.queue_depth_max_all = static_cast<uint32_t>(s.queue_depth_max_all);
+        packet.queue_size_limit = static_cast<uint32_t>(s.queue_size_limit);
         packet.latency_avg_ms = s.latency_avg_ms;
         packet.latency_max_window_ms = s.latency_max_window_ms;
         packet.latency_max_all_ms = s.latency_max_all_ms;

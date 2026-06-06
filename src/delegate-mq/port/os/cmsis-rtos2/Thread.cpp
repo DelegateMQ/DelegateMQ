@@ -413,11 +413,11 @@ void Thread::Run()
                 }
                 catch (const std::exception& e) {
                     printf("[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
                 }
                 catch (...) {
                     printf("[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
@@ -466,22 +466,22 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.queue_size_limit = m_queueSize;
     
     if (m_latencyCountWindow > 0) {
-        stats.latency_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count() / (m_latencyCountWindow * 1000.0f);
+        stats.latency_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count()) / (m_latencyCountWindow * 1000.0f);
     } else {
         stats.latency_avg_ms = 0.0f;
     }
 
-    stats.latency_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count() / 1000.0f;
-    stats.latency_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count() / 1000.0f;
+    stats.latency_max_window_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count()) / 1000.0f;
+    stats.latency_max_all_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count()) / 1000.0f;
 
     if (m_invokeCountWindow > 0) {
-        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (m_invokeCountWindow * 1000.0f);
+        stats.invoke_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count()) / (m_invokeCountWindow * 1000.0f);
     } else {
         stats.invoke_avg_ms = 0.0f;
     }
 
-    stats.invoke_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxWindow).count() / 1000.0f;
-    stats.invoke_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count() / 1000.0f;
+    stats.invoke_max_window_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxWindow).count()) / 1000.0f;
+    stats.invoke_max_all_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count()) / 1000.0f;
 
     stats.dispatch_count = m_dispatchCountAll;
 

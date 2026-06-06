@@ -63,7 +63,7 @@ static void PrintStackTraceWindows(HANDLE hThread, const char* threadName) {
         if (stackFrame.AddrPC.Offset == 0 || frameCount++ > 50) break;
 
         char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-        PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
+        PSYMBOL_INFO pSymbol = reinterpret_cast<PSYMBOL_INFO>(buffer);
         pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         pSymbol->MaxNameLen = MAX_SYM_NAME;
 
@@ -152,12 +152,12 @@ static void PrintStackTraceLinux() {
 //----------------------------------------------------------------------------
 // FaultHandler
 //----------------------------------------------------------------------------
-void FaultHandler(const char* file, unsigned short line)
+DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 {
     // 1. PRINT FIRST
     printf("\n************************************************\n");
     printf("FaultHandler called. Application terminated.\n");
-    printf("File: %s Line: %u\n", file, (unsigned int)line);
+    printf("File: %s Line: %u\n", file, static_cast<unsigned int>(line));
     printf("************************************************\n");
     fflush(stdout);
 
@@ -185,7 +185,7 @@ void FaultHandler(const char* file, unsigned short line)
     fflush(stdout);
     abort();
 #else
-    printf("FaultHandler: %s line %u\r\n", file, (unsigned int)line);
+    printf("FaultHandler: %s line %u\r\n", file, static_cast<unsigned int>(line));
     fflush(stdout);
     while(1);
 #endif
@@ -193,17 +193,20 @@ void FaultHandler(const char* file, unsigned short line)
 
 } // namespace dmq::util
 
-extern "C" void FaultHandler(const char* file, unsigned short line)
+extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 {
     dmq::util::FaultHandler(file, line);
 }
 
-extern "C" void WatchdogHandler(const char* threadName)
+extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
 {
 #if defined(_WIN32) || defined(__linux__)
     std::cout << "\n************************************************" << std::endl;
     std::cout << "WATCHDOG EXPIRED: " << threadName << std::endl;
     std::cout << "************************************************\n" << std::endl;
-    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+    dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
+#else
+    printf("WATCHDOG EXPIRED: %s\r\n", threadName);
+    while (1);
 #endif
 }

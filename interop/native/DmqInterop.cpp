@@ -153,21 +153,25 @@ namespace {
 // Provide implementation for the library's fault and watchdog handlers.
 // Since we filtered out Fault.cpp, we must provide these to avoid linker errors.
 namespace dmq::util {
-    void FaultHandler(const char* file, unsigned short line) {
+    DMQ_NORETURN void FaultHandler(const char* file, unsigned short line) {
         std::stringstream ss;
         ss << "DelegateMQ Fault at " << file << ":" << line;
         RaiseError(ss.str());
+        std::cerr << ss.str() << std::endl;
+        abort();
     }
 }
 
-extern "C" void FaultHandler(const char* file, unsigned short line) {
+extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line) {
     dmq::util::FaultHandler(file, line);
 }
 
-extern "C" void WatchdogHandler(const char* threadName) {
+extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName) {
     std::stringstream ss;
     ss << "DelegateMQ Watchdog Expired: " << threadName;
     RaiseError(ss.str());
+    std::cerr << ss.str() << std::endl;
+    abort();
 }
 
 extern "C" {

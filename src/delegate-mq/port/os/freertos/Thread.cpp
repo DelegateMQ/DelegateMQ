@@ -214,7 +214,7 @@ bool Thread::IsCurrentThread()
 size_t Thread::GetQueueSize()
 {
     if (m_queue) {
-        return (size_t)uxQueueMessagesWaiting(m_queue);
+        return static_cast<size_t>(uxQueueMessagesWaiting(m_queue));
     }
     return 0;
 }
@@ -227,7 +227,7 @@ void Thread::Sleep(dmq::Duration timeout) {
 void Thread::SetThreadPriority(int priority) {
     m_priority = priority;
     if (m_thread) {
-        vTaskPrioritySet(m_thread, (UBaseType_t)m_priority);
+        vTaskPrioritySet(m_thread, static_cast<UBaseType_t>(m_priority));
     }
 }
 
@@ -405,11 +405,11 @@ void Thread::Run()
                 }
                 catch (const std::exception& e) {
                     printf("[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
                 }
                 catch (...) {
                     printf("[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
