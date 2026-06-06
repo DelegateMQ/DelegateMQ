@@ -113,10 +113,12 @@ $(function(){initNavTree('_delegate_opt_8h.html',''); initResizable(true); });
 <code>#include &lt;chrono&gt;</code><br />
 <code>#include &quot;<a class="el" href="_bare_metal_clock_8h_source.html">port/os/bare-metal/BareMetalClock.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="_fault_8h_source.html">extras/util/Fault.h</a>&quot;</code><br />
-<code>#include &lt;cassert&gt;</code><br />
 <code>#include &lt;string&gt;</code><br />
 <code>#include &lt;list&gt;</code><br />
 <code>#include &lt;map&gt;</code><br />
+<code>#include &lt;set&gt;</code><br />
+<code>#include &lt;queue&gt;</code><br />
+<code>#include &lt;deque&gt;</code><br />
 <code>#include &lt;sstream&gt;</code><br />
 <code>#include &lt;memory&gt;</code><br />
 <code>#include &lt;utility&gt;</code><br />
@@ -172,18 +174,30 @@ Typedefs</h2></td></tr>
 <tr class="memitem:a3630077fab3ab296436584a9b6dab522" id="r_a3630077fab3ab296436584a9b6dab522"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:a3630077fab3ab296436584a9b6dab522"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a3630077fab3ab296436584a9b6dab522">dmq::LockGuard</a> = <a class="el" href="classdmq_1_1_portable_lock_guard.html">PortableLockGuard</a>&lt;T&gt;</td></tr>
 <tr class="separator:a3630077fab3ab296436584a9b6dab522"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa67d7309f9b005cc369e448ec28f8129" id="r_aa67d7309f9b005cc369e448ec28f8129"><td class="memItemLeft" align="right" valign="top">typedef std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a></td></tr>
+<tr class="memitem:aa4b87fada2ddb0bb1f438c6985fe2fe3" id="r_aa4b87fada2ddb0bb1f438c6985fe2fe3"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
+<tr class="memitem:aa4b87fada2ddb0bb1f438c6985fe2fe3"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespacedmq.html#aa4b87fada2ddb0bb1f438c6985fe2fe3">dmq::stl_allocator</a> = std::allocator&lt;T&gt;</td></tr>
+<tr class="separator:aa4b87fada2ddb0bb1f438c6985fe2fe3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa67d7309f9b005cc369e448ec28f8129" id="r_aa67d7309f9b005cc369e448ec28f8129"><td class="memItemLeft" align="right" valign="top">typedef std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a></td></tr>
 <tr class="separator:aa67d7309f9b005cc369e448ec28f8129"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a96216b70259f3d7e0a6462222e96e3b0" id="r_a96216b70259f3d7e0a6462222e96e3b0"><td class="memItemLeft" align="right" valign="top">typedef std::basic_stringstream&lt; char, std::char_traits&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a></td></tr>
+<tr class="memitem:a96216b70259f3d7e0a6462222e96e3b0" id="r_a96216b70259f3d7e0a6462222e96e3b0"><td class="memItemLeft" align="right" valign="top">typedef std::basic_stringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a></td></tr>
 <tr class="separator:a96216b70259f3d7e0a6462222e96e3b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a11cea01eb8d1af200d992657af94c7fb" id="r_a11cea01eb8d1af200d992657af94c7fb"><td class="memItemLeft" align="right" valign="top">typedef std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></td></tr>
+<tr class="memitem:a11cea01eb8d1af200d992657af94c7fb" id="r_a11cea01eb8d1af200d992657af94c7fb"><td class="memItemLeft" align="right" valign="top">typedef std::basic_string&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></td></tr>
 <tr class="separator:a11cea01eb8d1af200d992657af94c7fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a469c70e22b4e113778864ed7568d7474" id="r_a469c70e22b4e113778864ed7568d7474"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
-<tr class="memitem:a469c70e22b4e113778864ed7568d7474"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a469c70e22b4e113778864ed7568d7474">xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
-<tr class="separator:a469c70e22b4e113778864ed7568d7474"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae6e99a0ad5b40dd413347112d7049833" id="r_ae6e99a0ad5b40dd413347112d7049833"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
-<tr class="memitem:ae6e99a0ad5b40dd413347112d7049833"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
-<tr class="separator:ae6e99a0ad5b40dd413347112d7049833"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ca6fd2638dd10cb9e042e693fb9ed17" id="r_a1ca6fd2638dd10cb9e042e693fb9ed17"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
+<tr class="memitem:a1ca6fd2638dd10cb9e042e693fb9ed17"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
+<tr class="separator:a1ca6fd2638dd10cb9e042e693fb9ed17"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9c5cd9ddb0dde09d411fa3cee898e1aa" id="r_a9c5cd9ddb0dde09d411fa3cee898e1aa"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
+<tr class="memitem:a9c5cd9ddb0dde09d411fa3cee898e1aa"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a9c5cd9ddb0dde09d411fa3cee898e1aa">dmq::xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
+<tr class="separator:a9c5cd9ddb0dde09d411fa3cee898e1aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a563dc954d3b33c43a22924e77bb1db3a" id="r_a563dc954d3b33c43a22924e77bb1db3a"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Alloc  = stl_allocator&lt;Key&gt;&gt; </td></tr>
+<tr class="memitem:a563dc954d3b33c43a22924e77bb1db3a"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespacedmq.html#a563dc954d3b33c43a22924e77bb1db3a">dmq::xset</a> = std::set&lt;Key, Compare, Alloc&gt;</td></tr>
+<tr class="separator:a563dc954d3b33c43a22924e77bb1db3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa18cb5e12db99190c7c306d2279609a5" id="r_aa18cb5e12db99190c7c306d2279609a5"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Alloc  = stl_allocator&lt;Key&gt;&gt; </td></tr>
+<tr class="memitem:aa18cb5e12db99190c7c306d2279609a5"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespacedmq.html#aa18cb5e12db99190c7c306d2279609a5">dmq::xmultiset</a> = std::multiset&lt;Key, Compare, Alloc&gt;</td></tr>
+<tr class="separator:aa18cb5e12db99190c7c306d2279609a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae2af94a83aa5eba0f3ceaf625a0d1fd8" id="r_ae2af94a83aa5eba0f3ceaf625a0d1fd8"><td class="memTemplParams" colspan="2">template&lt;typename T , typename Container  = std::deque&lt;T, stl_allocator&lt;T&gt;&gt;&gt; </td></tr>
+<tr class="memitem:ae2af94a83aa5eba0f3ceaf625a0d1fd8"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="namespacedmq.html#ae2af94a83aa5eba0f3ceaf625a0d1fd8">dmq::xqueue</a> = std::queue&lt;T, Container&gt;</td></tr>
+<tr class="separator:ae2af94a83aa5eba0f3ceaf625a0d1fd8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -240,7 +254,8 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">assert(<span class="keyword">false</span> &amp;&amp; <span class="stringliteral">&quot;Memory allocation failed!&quot;</span>)</div>
+<b>Value:</b><div class="fragment"><div class="line"><a class="code hl_define" href="_fault_8h.html#aa7d0e59ffa296a184e6496bc44ff46e9">ASSERT</a>()</div>
+<div class="ttc" id="a_fault_8h_html_aa7d0e59ffa296a184e6496bc44ff46e9"><div class="ttname"><a href="_fault_8h.html#aa7d0e59ffa296a184e6496bc44ff46e9">ASSERT</a></div><div class="ttdeci">#define ASSERT()</div><div class="ttdef"><b>Definition</b> Fault.h:41</div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -334,39 +349,6 @@ Variables</h2></td></tr>
       <table class="memname">
         <tr>
           <td class="memname">#define XALLOCATOR</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<h2 class="groupheader">Typedef Documentation</h2>
-<a id="a469c70e22b4e113778864ed7568d7474" name="a469c70e22b4e113778864ed7568d7474"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a469c70e22b4e113778864ed7568d7474">&#9670;&#160;</a></span>xmap</h2>
-
-<div class="memitem">
-<div class="memproto">
-<div class="memtemplate">
-template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </div>
-      <table class="memname">
-        <tr>
-          <td class="memname">using <a class="el" href="#a469c70e22b4e113778864ed7568d7474">xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="ae6e99a0ad5b40dd413347112d7049833" name="ae6e99a0ad5b40dd413347112d7049833"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae6e99a0ad5b40dd413347112d7049833">&#9670;&#160;</a></span>xmultimap</h2>
-
-<div class="memitem">
-<div class="memproto">
-<div class="memtemplate">
-template&lt;typename Key , typename Value , typename Alloc  = std::allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </div>
-      <table class="memname">
-        <tr>
-          <td class="memname">using <a class="el" href="#ae6e99a0ad5b40dd413347112d7049833">xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td>
         </tr>
       </table>
 </div><div class="memdoc">

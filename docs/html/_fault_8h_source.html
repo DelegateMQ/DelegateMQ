@@ -103,43 +103,56 @@ $(function(){initNavTree('_fault_8h_source.html',''); initResizable(true); });
 <div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="preprocessor">#define _FAULT_H</span></div>
 <div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span> </div>
 <div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="keyword">namespace </span><a class="code hl_namespace" href="namespacedmq_1_1util.html">dmq::util</a> {</div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span>    <span class="keywordtype">void</span> <a class="code hl_function" href="namespacedmq_1_1util.html#a796fbb70ad51b93abcaaae2eab31461f">FaultHandler</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* file, <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> line);</div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span>}</div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span> </div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>    <span class="keywordtype">void</span> <a class="code hl_function" href="_fault_8h.html#ae8ba6ae99ec4c653d7e81c7c2477c9c4">FaultHandler</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* file, <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> line);</div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>    <span class="keywordtype">void</span> <a class="code hl_function" href="_fault_8h.html#ac894bcaaa37861f2045f1aa75eb5b525">WatchdogHandler</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* threadName);</div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>}</div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span> </div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#define ASSERT() \</span></div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">    dmq::util::FaultHandler(__FILE__, (unsigned short) __LINE__)</span></div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span> </div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="preprocessor">#define ASSERT_TRUE(condition) \</span></div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">    do {if (!(condition)) dmq::util::FaultHandler(__FILE__, (unsigned short) __LINE__);} while (0)</span></div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="preprocessor">#else</span></div>
-<div class="foldopen" id="foldopen00029" data-start="" data-end="">
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno"><a class="line" href="_fault_8h.html#aa7d0e59ffa296a184e6496bc44ff46e9">   29</a></span><span class="preprocessor">#define ASSERT() \</span></div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">    FaultHandler(__FILE__, (unsigned short) __LINE__)</span></div>
+<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">    #define DMQ_NORETURN [[noreturn]]</span></div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#elif defined(__STDC_VERSION__) &amp;&amp; __STDC_VERSION__ &gt;= 201112L</span></div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">    #define DMQ_NORETURN _Noreturn</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#elif defined(__GNUC__) || defined(__clang__)</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">    #define DMQ_NORETURN __attribute__((noreturn))</span></div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#elif defined(_MSC_VER)</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">    #define DMQ_NORETURN __declspec(noreturn)</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno"><a class="line" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">   13</a></span><span class="preprocessor">    #define DMQ_NORETURN</span></div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span> </div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="keyword">namespace </span><a class="code hl_namespace" href="namespacedmq_1_1util.html">dmq::util</a> {</div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    <a class="code hl_define" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> <span class="keywordtype">void</span> <a class="code hl_function" href="namespacedmq_1_1util.html#abaf9c27796c911e9a9988c6312fe17dd">FaultHandler</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* file, <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> line);</div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>}</div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <a class="code hl_define" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> <span class="keywordtype">void</span> <a class="code hl_function" href="_fault_8h.html#a30524881a9a5e7de22a5a1176e565267">FaultHandler</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* file, <span class="keywordtype">unsigned</span> <span class="keywordtype">short</span> line);</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>    <a class="code hl_define" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> <span class="keywordtype">void</span> <a class="code hl_function" href="_fault_8h.html#a6edab153b507f714c362f997ad002323">WatchdogHandler</a>(<span class="keyword">const</span> <span class="keywordtype">char</span>* threadName);</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>}</div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span> </div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="preprocessor">#define ASSERT() \</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="preprocessor">    dmq::util::FaultHandler(__FILE__, static_cast&lt;unsigned short&gt;(__LINE__))</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span> </div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="preprocessor">#define ASSERT_TRUE(condition) \</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="preprocessor">    do {if (!(condition)) dmq::util::FaultHandler(__FILE__, static_cast&lt;unsigned short&gt;(__LINE__));} while (0)</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="preprocessor">#else</span></div>
+<div class="foldopen" id="foldopen00041" data-start="" data-end="">
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno"><a class="line" href="_fault_8h.html#aa7d0e59ffa296a184e6496bc44ff46e9">   41</a></span><span class="preprocessor">#define ASSERT() \</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">    FaultHandler(__FILE__, (unsigned short) __LINE__)</span></div>
 </div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> </div>
-<div class="foldopen" id="foldopen00032" data-start="" data-end="">
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno"><a class="line" href="_fault_8h.html#ae9244bfbda562e8b798789b001993fa5">   32</a></span><span class="preprocessor">#define ASSERT_TRUE(condition) \</span></div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="preprocessor">    do {if (!(condition)) FaultHandler(__FILE__, (unsigned short) __LINE__);} while (0)</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
+<div class="foldopen" id="foldopen00044" data-start="" data-end="">
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno"><a class="line" href="_fault_8h.html#ae9244bfbda562e8b798789b001993fa5">   44</a></span><span class="preprocessor">#define ASSERT_TRUE(condition) \</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="preprocessor">    do {if (!(condition)) FaultHandler(__FILE__, (unsigned short) __LINE__);} while (0)</span></div>
 </div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span> </div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="preprocessor">#endif </span></div>
-<div class="ttc" id="a_fault_8h_html_ac894bcaaa37861f2045f1aa75eb5b525"><div class="ttname"><a href="_fault_8h.html#ac894bcaaa37861f2045f1aa75eb5b525">WatchdogHandler</a></div><div class="ttdeci">void WatchdogHandler(const char *threadName)</div><div class="ttdef"><b>Definition</b> Fault.cpp:53</div></div>
-<div class="ttc" id="a_fault_8h_html_ae8ba6ae99ec4c653d7e81c7c2477c9c4"><div class="ttname"><a href="_fault_8h.html#ae8ba6ae99ec4c653d7e81c7c2477c9c4">FaultHandler</a></div><div class="ttdeci">void FaultHandler(const char *file, unsigned short line)</div><div class="ttdef"><b>Definition</b> Fault.cpp:48</div></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="preprocessor">#endif </span></div>
+<div class="ttc" id="a_fault_8h_html_a30524881a9a5e7de22a5a1176e565267"><div class="ttname"><a href="_fault_8h.html#a30524881a9a5e7de22a5a1176e565267">FaultHandler</a></div><div class="ttdeci">DMQ_NORETURN void FaultHandler(const char *file, unsigned short line)</div><div class="ttdef"><b>Definition</b> Fault.cpp:196</div></div>
+<div class="ttc" id="a_fault_8h_html_a6edab153b507f714c362f997ad002323"><div class="ttname"><a href="_fault_8h.html#a6edab153b507f714c362f997ad002323">WatchdogHandler</a></div><div class="ttdeci">DMQ_NORETURN void WatchdogHandler(const char *threadName)</div><div class="ttdef"><b>Definition</b> Fault.cpp:201</div></div>
+<div class="ttc" id="a_fault_8h_html_abb4b8c7704f9e59a61ba0e4ffbc7121d"><div class="ttname"><a href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a></div><div class="ttdeci">#define DMQ_NORETURN</div><div class="ttdef"><b>Definition</b> Fault.h:13</div></div>
 <div class="ttc" id="anamespacedmq_1_1util_html"><div class="ttname"><a href="namespacedmq_1_1util.html">dmq::util</a></div><div class="ttdoc">RAII wrapper to initialize and cleanup network stacks. Instantiate this ONCE at the top of main().</div><div class="ttdef"><b>Definition</b> AsyncInvoke.h:37</div></div>
-<div class="ttc" id="anamespacedmq_1_1util_html_a796fbb70ad51b93abcaaae2eab31461f"><div class="ttname"><a href="namespacedmq_1_1util.html#a796fbb70ad51b93abcaaae2eab31461f">dmq::util::FaultHandler</a></div><div class="ttdeci">void FaultHandler(const char *file, unsigned short line)</div><div class="ttdef"><b>Definition</b> Fault.cpp:18</div></div>
+<div class="ttc" id="anamespacedmq_1_1util_html_abaf9c27796c911e9a9988c6312fe17dd"><div class="ttname"><a href="namespacedmq_1_1util.html#abaf9c27796c911e9a9988c6312fe17dd">dmq::util::FaultHandler</a></div><div class="ttdeci">DMQ_NORETURN void FaultHandler(const char *file, unsigned short line)</div><div class="ttdef"><b>Definition</b> Fault.cpp:155</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

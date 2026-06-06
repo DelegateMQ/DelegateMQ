@@ -124,220 +124,220 @@ $(function(){initNavTree('_participant_8h_source.html',''); initResizable(true);
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="comment">// will outlive the Participant instance.</span></div>
 <div class="foldopen" id="foldopen00024" data-start="{" data-end="};">
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html">   24</a></span><span class="keyword">class </span><a class="code hl_class" href="classdmq_1_1databus_1_1_participant.html">Participant</a> {</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#a93f63d4bc97bf0ccdf1aa9f5112cb327">   25</a></span>    <span class="keyword">friend</span> <span class="keyword">class </span><a class="code hl_class" href="classdmq_1_1databus_1_1_data_bus.html">DataBus</a>;</div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="keyword">public</span>:</div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#afed07b7a3e6b3791ba25451ab8deed27">   27</a></span>    <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#afed07b7a3e6b3791ba25451ab8deed27">Participant</a>(<a class="code hl_class" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a>&amp; transport) : m_transport(&amp;transport) {}</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span> </div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>    <span class="comment">// Set a thread to serialize all outgoing sends.</span></div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    <span class="comment">// When set, Send() posts the channel invocation to this thread rather than</span></div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    <span class="comment">// executing inline on the caller&#39;s thread. This provides two benefits:</span></div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    <span class="comment">//   1. Thread safety: concurrent Publish() calls from multiple threads are</span></div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    <span class="comment">//      safe — each send is queued rather than racing on the shared stream.</span></div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="comment">//   2. Non-blocking callers: blocking I/O in the transport cannot stall</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <span class="comment">//      unrelated publishing threads.</span></div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    <span class="comment">// Without a send thread, concurrent calls to Send() for the same remote ID</span></div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="comment">// are a data race on the channel&#39;s internal stream buffer.</span></div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ae119f0d610334a73b0f239bc4a35fbbf">   38</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ae119f0d610334a73b0f239bc4a35fbbf">SetSendThread</a>(<a class="code hl_class" href="classdmq_1_1_i_thread.html">dmq::IThread</a>* thread) { m_sendThread = thread; }</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    <span class="comment">// Add a remote topic mapping.</span></div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="comment">// When local DataBus publishes to &#39;topic&#39;, it will be sent to this participant using &#39;remoteId&#39;.</span></div>
-<div class="foldopen" id="foldopen00042" data-start="{" data-end="}">
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ab15d3d4c9ce6dc5bbd6269d1b18a2610">   42</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ab15d3d4c9ce6dc5bbd6269d1b18a2610">AddRemoteTopic</a>(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic, <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId) {</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>        m_topicToRemoteId[topic] = remoteId;</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    }</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    <a class="code hl_define" href="_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c">XALLOCATOR</a></div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#a93f63d4bc97bf0ccdf1aa9f5112cb327">   26</a></span>    <span class="keyword">friend</span> <span class="keyword">class </span><a class="code hl_class" href="classdmq_1_1databus_1_1_data_bus.html">DataBus</a>;</div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="keyword">public</span>:</div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#afed07b7a3e6b3791ba25451ab8deed27">   28</a></span>    <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#afed07b7a3e6b3791ba25451ab8deed27">Participant</a>(<a class="code hl_class" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a>&amp; transport) : m_transport(&amp;transport) {}</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span> </div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    <span class="comment">// Set a thread to serialize all outgoing sends.</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    <span class="comment">// When set, Send() posts the channel invocation to this thread rather than</span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    <span class="comment">// executing inline on the caller&#39;s thread. This provides two benefits:</span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    <span class="comment">//   1. Thread safety: concurrent Publish() calls from multiple threads are</span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="comment">//      safe — each send is queued rather than racing on the shared stream.</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <span class="comment">//   2. Non-blocking callers: blocking I/O in the transport cannot stall</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    <span class="comment">//      unrelated publishing threads.</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="comment">// Without a send thread, concurrent calls to Send() for the same remote ID</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <span class="comment">// are a data race on the channel&#39;s internal stream buffer.</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ae119f0d610334a73b0f239bc4a35fbbf">   39</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ae119f0d610334a73b0f239bc4a35fbbf">SetSendThread</a>(<a class="code hl_class" href="classdmq_1_1_i_thread.html">dmq::IThread</a>* thread) { m_sendThread = thread; }</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="comment">// Add a remote topic mapping.</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    <span class="comment">// When local DataBus publishes to &#39;topic&#39;, it will be sent to this participant using &#39;remoteId&#39;.</span></div>
+<div class="foldopen" id="foldopen00043" data-start="{" data-end="}">
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ab15d3d4c9ce6dc5bbd6269d1b18a2610">   43</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ab15d3d4c9ce6dc5bbd6269d1b18a2610">AddRemoteTopic</a>(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic, <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId) {</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>        m_topicToRemoteId[topic] = remoteId;</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    }</div>
 </div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span> </div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="comment">// Subscribe to technical errors (serialization/dispatch) for this participant.</span></div>
-<div class="foldopen" id="foldopen00048" data-start="{" data-end="}">
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#aa187c0295ae2eac817159c6dd43ef66a">   48</a></span>    <a class="code hl_class" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#aa187c0295ae2eac817159c6dd43ef66a">SubscribeError</a>(std::function&lt;<span class="keywordtype">void</span>(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp;, <a class="code hl_enumeration" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a>)&gt; func) {</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        <span class="keywordflow">return</span> m_errorSignal.Connect(<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(std::move(func)));</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    }</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="comment">// Subscribe to technical errors (serialization/dispatch) for this participant.</span></div>
+<div class="foldopen" id="foldopen00049" data-start="{" data-end="}">
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#aa187c0295ae2eac817159c6dd43ef66a">   49</a></span>    [[nodiscard]] <a class="code hl_class" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#aa187c0295ae2eac817159c6dd43ef66a">SubscribeError</a>(std::function&lt;<span class="keywordtype">void</span>(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp;, <a class="code hl_enumeration" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a>)&gt; func) {</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>        <span class="keywordflow">return</span> m_errorSignal.Connect(<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(std::move(func)));</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    }</div>
 </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span> </div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <span class="comment">// Process incoming data from the transport.</span></div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <span class="comment">// @return The result code from ITransport::Receive.</span></div>
-<div class="foldopen" id="foldopen00054" data-start="{" data-end="}">
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#af26cc9f1e28013456363a90a0765c792">   54</a></span>    <span class="keywordtype">int</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#af26cc9f1e28013456363a90a0765c792">ProcessIncoming</a>() {</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>        <span class="comment">// Clear the stream for reuse to avoid heap growth</span></div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        m_inputStream.str(<span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        m_inputStream.clear();</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>        <a class="code hl_class" href="classdmq_1_1transport_1_1_dmq_header.html">dmq::transport::DmqHeader</a> header;</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        <a class="code hl_class" href="classdmq_1_1_i_remote_invoker.html">dmq::IRemoteInvoker</a>* invoker = <span class="keyword">nullptr</span>;</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>        <span class="keywordtype">int</span> result = m_transport-&gt;<a class="code hl_function" href="classdmq_1_1transport_1_1_i_transport.html#af4e2c4b6ebf329affc6297556491c038">Receive</a>(m_inputStream, header);</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        <span class="keywordflow">if</span> (result == 0) {</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>            <span class="comment">// Validate header marker</span></div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            <span class="keywordflow">if</span> (header.<a class="code hl_function" href="classdmq_1_1transport_1_1_dmq_header.html#ae30d9bfd4efe84fe3899028b5c7803ce">GetMarker</a>() != <a class="code hl_variable" href="classdmq_1_1transport_1_1_dmq_header.html#a088efbf5363e25a09ba45516667d294b">dmq::transport::DmqHeader::MARKER</a>) {</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>                <span class="keywordflow">return</span> -1; <span class="comment">// Protocol error</span></div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>            }</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span> </div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>            <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> <span class="keywordtype">id</span> = header.<a class="code hl_function" href="classdmq_1_1transport_1_1_dmq_header.html#a7f5c3fd9d5bb569afb86a73512d5f12b">GetId</a>();</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>            uint16_t seqNum = header.<a class="code hl_function" href="classdmq_1_1transport_1_1_dmq_header.html#a80c3b88e1fab1fe7acf4171cdf1699d4">GetSeqNum</a>();</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>            <span class="comment">// Filter out duplicate messages (retries)</span></div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            <span class="keywordflow">if</span> (<span class="keywordtype">id</span> != <a class="code hl_variable" href="namespacedmq.html#a621e40ea0fde57bf5426750dab582f0b">dmq::ACK_REMOTE_ID</a>) {</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>                std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>                <span class="keywordflow">if</span> (m_history[<span class="keywordtype">id</span>].is_duplicate(seqNum)) {</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>                    <span class="keywordflow">return</span> 0; <span class="comment">// Silently drop duplicate</span></div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>                }</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>            }</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>            std::shared_ptr&lt;void&gt; channelLifetime; <span class="comment">// keeps channel alive across lock gap</span></div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>            {</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>                std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>                <span class="keyword">auto</span> it = m_channels.find(<span class="keywordtype">id</span>);</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>                <span class="keywordflow">if</span> (it != m_channels.end()) {</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>                    channelLifetime = it-&gt;second.channel;</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>                    invoker = it-&gt;second.invoker;</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>                }</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>            }</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span> </div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>            <span class="comment">// Invoke outside the lock to prevent deadlocks and allow re-entry</span></div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>            <span class="keywordflow">if</span> (invoker) {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>                invoker-&gt;<a class="code hl_function" href="classdmq_1_1_i_remote_invoker.html#a4ff0d6e3d1d355d645524a84176b2822">Invoke</a>(m_inputStream);</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>            }</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        }</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        <span class="keywordflow">return</span> result;</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    }</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <span class="comment">// Process incoming data from the transport.</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <span class="comment">// @return The result code from ITransport::Receive.</span></div>
+<div class="foldopen" id="foldopen00055" data-start="{" data-end="}">
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#af26cc9f1e28013456363a90a0765c792">   55</a></span>    <span class="keywordtype">int</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#af26cc9f1e28013456363a90a0765c792">ProcessIncoming</a>() {</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        <span class="comment">// Clear the stream for reuse to avoid heap growth</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        m_inputStream.str(<span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>        m_inputStream.clear();</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        <a class="code hl_class" href="classdmq_1_1transport_1_1_dmq_header.html">dmq::transport::DmqHeader</a> header;</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        <a class="code hl_class" href="classdmq_1_1_i_remote_invoker.html">dmq::IRemoteInvoker</a>* invoker = <span class="keyword">nullptr</span>;</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        <span class="keywordtype">int</span> result = m_transport-&gt;<a class="code hl_function" href="classdmq_1_1transport_1_1_i_transport.html#af4e2c4b6ebf329affc6297556491c038">Receive</a>(m_inputStream, header);</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>        <span class="keywordflow">if</span> (result == 0) {</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            <span class="comment">// Validate header marker</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>            <span class="keywordflow">if</span> (header.<a class="code hl_function" href="classdmq_1_1transport_1_1_dmq_header.html#ae30d9bfd4efe84fe3899028b5c7803ce">GetMarker</a>() != <a class="code hl_variable" href="classdmq_1_1transport_1_1_dmq_header.html#a088efbf5363e25a09ba45516667d294b">dmq::transport::DmqHeader::MARKER</a>) {</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>                <span class="keywordflow">return</span> -1; <span class="comment">// Protocol error</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>            }</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span> </div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>            <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> <span class="keywordtype">id</span> = header.<a class="code hl_function" href="classdmq_1_1transport_1_1_dmq_header.html#a7f5c3fd9d5bb569afb86a73512d5f12b">GetId</a>();</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>            uint16_t seqNum = header.<a class="code hl_function" href="classdmq_1_1transport_1_1_dmq_header.html#a80c3b88e1fab1fe7acf4171cdf1699d4">GetSeqNum</a>();</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            <span class="comment">// Filter out duplicate messages (retries)</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>            <span class="keywordflow">if</span> (<span class="keywordtype">id</span> != <a class="code hl_variable" href="namespacedmq.html#a621e40ea0fde57bf5426750dab582f0b">dmq::ACK_REMOTE_ID</a>) {</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>                std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>                <span class="keywordflow">if</span> (m_history[<span class="keywordtype">id</span>].is_duplicate(seqNum)) {</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>                    <span class="keywordflow">return</span> 0; <span class="comment">// Silently drop duplicate</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>                }</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>            }</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span> </div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>            std::shared_ptr&lt;void&gt; channelLifetime; <span class="comment">// keeps channel alive across lock gap</span></div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>            {</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>                std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>                <span class="keyword">auto</span> it = m_channels.find(<span class="keywordtype">id</span>);</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>                <span class="keywordflow">if</span> (it != m_channels.end()) {</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>                    channelLifetime = it-&gt;second.channel;</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>                    invoker = it-&gt;second.invoker;</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>                }</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>            }</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span> </div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>            <span class="comment">// Invoke outside the lock to prevent deadlocks and allow re-entry</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>            <span class="keywordflow">if</span> (invoker) {</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>                invoker-&gt;<a class="code hl_function" href="classdmq_1_1_i_remote_invoker.html#a4ff0d6e3d1d355d645524a84176b2822">Invoke</a>(m_inputStream);</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>            }</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        }</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        <span class="keywordflow">return</span> result;</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    }</div>
 </div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span> </div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    <span class="comment">// Send data for a topic.</span></div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="comment">// If a send thread was set via SetSendThread(), the channel invocation is</span></div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="comment">// dispatched asynchronously to that thread. Otherwise it executes inline.</span></div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
-<div class="foldopen" id="foldopen00102" data-start="{" data-end="}">
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ab28ecf97de7a5e7cc4a959aa79f91c47">  102</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ab28ecf97de7a5e7cc4a959aa79f91c47">Send</a>(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic, <span class="keyword">const</span> T&amp; data, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer) {</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId;</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>        <span class="keywordflow">if</span> (GetRemoteId(topic, remoteId)) {</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>            <span class="keyword">auto</span> channel = GetOrCreateChannel&lt;T&gt;(remoteId, serializer);</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>            <span class="keywordflow">if</span> (channel) {</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>                <span class="keywordflow">if</span> (m_sendThread) {</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>                    <span class="comment">// Use a member function to avoid potential shared_ptr circular </span></div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>                    <span class="comment">// references. Pass arguments to AsyncInvoke.</span></div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>                    (void)<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(<span class="keyword">this</span>, &amp;<a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">Participant::AsyncSend&lt;T&gt;</a>, *m_sendThread).AsyncInvoke(channel, data);</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>                } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>                    (*channel)(data);</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>                }</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>            }</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        }</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    }</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span> </div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="comment">// Send data for a topic.</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="comment">// If a send thread was set via SetSendThread(), the channel invocation is</span></div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="comment">// dispatched asynchronously to that thread. Otherwise it executes inline.</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
+<div class="foldopen" id="foldopen00103" data-start="{" data-end="}">
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ab28ecf97de7a5e7cc4a959aa79f91c47">  103</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ab28ecf97de7a5e7cc4a959aa79f91c47">Send</a>(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic, <span class="keyword">const</span> T&amp; data, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer) {</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>        <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId;</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>        <span class="keywordflow">if</span> (GetRemoteId(topic, remoteId)) {</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>            <span class="keyword">auto</span> channel = GetOrCreateChannel&lt;T&gt;(remoteId, serializer);</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>            <span class="keywordflow">if</span> (channel) {</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>                <span class="keywordflow">if</span> (m_sendThread) {</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>                    <span class="comment">// Use a member function to avoid potential shared_ptr circular </span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>                    <span class="comment">// references. Pass arguments to AsyncInvoke.</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>                    (void)<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(<span class="keyword">this</span>, &amp;<a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">Participant::AsyncSend&lt;T&gt;</a>, *m_sendThread).AsyncInvoke(channel, data);</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>                } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>                    (*channel)(data);</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>                }</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>            }</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        }</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    }</div>
 </div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span> </div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
-<div class="foldopen" id="foldopen00122" data-start="{" data-end="}">
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">  122</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">AsyncSend</a>(std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;<span class="keywordtype">void</span>(T)&gt;&gt; channel, T data) {</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        <span class="keywordflow">if</span> (channel) {</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>            (*channel)(data);</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        }</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    }</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span> </div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
+<div class="foldopen" id="foldopen00123" data-start="{" data-end="}">
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">  123</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">AsyncSend</a>(std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;<span class="keywordtype">void</span>(T)&gt;&gt; channel, T data) {</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        <span class="keywordflow">if</span> (channel) {</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>            (*channel)(data);</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        }</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    }</div>
 </div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span> </div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    <span class="comment">// Register a local handler for a remote topic using a `std::function`.</span></div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
-<div class="foldopen" id="foldopen00130" data-start="{" data-end="}">
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#a2029a33755db718eafadfeec4d45e10b">  130</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#a2029a33755db718eafadfeec4d45e10b">RegisterHandler</a>(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer, std::function&lt;<span class="keywordtype">void</span>(T)&gt; func) {</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        <span class="keyword">auto</span> channel = <a class="code hl_function" href="namespacedmq.html#a9ee8623ed66c2814916b42dcf49418f1">dmq::xmake_shared</a>&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt;(*m_transport, serializer);</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span> </div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <span class="comment">// Use Bind() to register the callback for incoming calls.</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        channel-&gt;Bind(func, remoteId);</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span> </div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>        AttachErrorHandler(channel);</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span> </div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        m_channels[remoteId] = { channel, channel-&gt;GetEndpoint() };</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        m_channelTypes.emplace(remoteId, std::type_index(<span class="keyword">typeid</span>(T)));</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    }</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span> </div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    <span class="comment">// Register a local handler for a remote topic using a `std::function`.</span></div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
+<div class="foldopen" id="foldopen00131" data-start="{" data-end="}">
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#a2029a33755db718eafadfeec4d45e10b">  131</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#a2029a33755db718eafadfeec4d45e10b">RegisterHandler</a>(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer, std::function&lt;<span class="keywordtype">void</span>(T)&gt; func) {</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <span class="keyword">auto</span> channel = <a class="code hl_function" href="namespacedmq.html#a9ee8623ed66c2814916b42dcf49418f1">dmq::xmake_shared</a>&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt;(*m_transport, serializer);</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span> </div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="comment">// Use Bind() to register the callback for incoming calls.</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>        channel-&gt;Bind(func, remoteId);</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>        AttachErrorHandler(channel);</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span> </div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        m_channels[remoteId] = { channel, channel-&gt;GetEndpoint() };</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        m_channelTypes.emplace(remoteId, std::type_index(<span class="keyword">typeid</span>(T)));</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    }</div>
 </div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span> </div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    <span class="comment">// Register a local handler for a remote topic using a raw lambda or functor.</span></div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    template &lt;typename T, typename F, typename = std::enable_if_t&lt;dmq::trait::is_callable&lt;F&gt;::value&gt;&gt;</div>
-<div class="foldopen" id="foldopen00145" data-start="{" data-end="}">
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ab56976f2cce735ecf159260213ac50a5">  145</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ab56976f2cce735ecf159260213ac50a5">RegisterHandler</a>(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer, F&amp;&amp; func) {</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>        <span class="keyword">auto</span> channel = <a class="code hl_function" href="namespacedmq.html#a9ee8623ed66c2814916b42dcf49418f1">dmq::xmake_shared</a>&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt;(*m_transport, serializer);</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span> </div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        <span class="comment">// Use Bind() to register the callback for incoming calls.</span></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        channel-&gt;Bind(std::forward&lt;F&gt;(func), remoteId);</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span> </div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        AttachErrorHandler(channel);</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span> </div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        m_channels[remoteId] = { channel, channel-&gt;GetEndpoint() };</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        m_channelTypes.emplace(remoteId, std::type_index(<span class="keyword">typeid</span>(T)));</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    }</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span> </div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    <span class="comment">// Register a local handler for a remote topic using a raw lambda or functor.</span></div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    template &lt;typename T, typename F, typename = std::enable_if_t&lt;dmq::trait::is_callable&lt;F&gt;::value&gt;&gt;</div>
+<div class="foldopen" id="foldopen00146" data-start="{" data-end="}">
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno"><a class="line" href="classdmq_1_1databus_1_1_participant.html#ab56976f2cce735ecf159260213ac50a5">  146</a></span>    <span class="keywordtype">void</span> <a class="code hl_function" href="classdmq_1_1databus_1_1_participant.html#ab56976f2cce735ecf159260213ac50a5">RegisterHandler</a>(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer, F&amp;&amp; func) {</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>        <span class="keyword">auto</span> channel = <a class="code hl_function" href="namespacedmq.html#a9ee8623ed66c2814916b42dcf49418f1">dmq::xmake_shared</a>&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt;(*m_transport, serializer);</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span> </div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <span class="comment">// Use Bind() to register the callback for incoming calls.</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>        channel-&gt;Bind(std::forward&lt;F&gt;(func), remoteId);</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span> </div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        AttachErrorHandler(channel);</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span> </div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        m_channels[remoteId] = { channel, channel-&gt;GetEndpoint() };</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>        m_channelTypes.emplace(remoteId, std::type_index(<span class="keyword">typeid</span>(T)));</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    }</div>
 </div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span> </div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="keyword">private</span>:</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    <span class="comment">// Get the remote ID for a topic.</span></div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    <span class="keywordtype">bool</span> GetRemoteId(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic, <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a>&amp; remoteId) {</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        <span class="keyword">auto</span> it = m_topicToRemoteId.find(topic);</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        <span class="keywordflow">if</span> (it != m_topicToRemoteId.end()) {</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>            remoteId = it-&gt;second;</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>            <span class="keywordflow">return</span> <span class="keyword">true</span>;</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>        }</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>        <span class="keywordflow">return</span> <span class="keyword">false</span>;</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    }</div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span> </div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <span class="comment">// Get the topic name for a remote ID (error path only — linear scan is fine).</span></div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="keywordtype">bool</span> GetTopicName(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic) {</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        <span class="keywordflow">for</span> (<span class="keyword">auto</span>&amp; [t, <span class="keywordtype">id</span>] : m_topicToRemoteId) {</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>            <span class="keywordflow">if</span> (<span class="keywordtype">id</span> == remoteId) { topic = t; <span class="keywordflow">return</span> <span class="keyword">true</span>; }</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        }</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        <span class="keywordflow">return</span> <span class="keyword">false</span>;</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    }</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span> </div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <span class="keywordtype">void</span> AttachErrorHandler(std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;<span class="keywordtype">void</span>(T)&gt;&gt;&amp; channel) {</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>        channel-&gt;SetErrorHandler(<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(<span class="keyword">this</span>, &amp;Participant::OnChannelError));</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    }</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span> </div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    <span class="keywordtype">void</span> OnChannelError(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> <span class="keywordtype">id</span>, <a class="code hl_enumeration" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a> error, <a class="code hl_typedef" href="namespacedmq.html#a4bcc300237d5cb854a800a19ccc0400a">dmq::DelegateErrorAux</a>) {</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        <span class="keywordflow">if</span> (error == <a class="code hl_enumvalue" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757dad0749aaba8b833466dfcbb0428e4f89c">dmq::DelegateError::SUCCESS</a>) <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordtype">bool</span> shouldFire = <span class="keyword">false</span>;</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> topic;</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        {</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>            std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>            <span class="keywordflow">for</span> (<span class="keyword">auto</span>&amp; [t, rid] : m_topicToRemoteId) {</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>                <span class="keywordflow">if</span> (rid == <span class="keywordtype">id</span>) { topic = t; <span class="keywordflow">break</span>; }</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>            }</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>            <span class="keywordflow">if</span> (!topic.empty()) {</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>                uint8_t bit = uint8_t(1u &lt;&lt; <span class="keyword">static_cast&lt;</span><span class="keywordtype">int</span><span class="keyword">&gt;</span>(error));</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>                <span class="keyword">auto</span>&amp; bits = m_reportedErrors[topic];</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>                <span class="keywordflow">if</span> (!(bits &amp; bit)) {</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>                    bits |= bit;</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>                    shouldFire = <span class="keyword">true</span>;</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>                }</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>            }</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        }</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        <span class="keywordflow">if</span> (shouldFire)</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>            m_errorSignal(topic, error);</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    }</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span> </div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    <span class="keywordtype">void</span> ResetErrors() {</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>        m_reportedErrors.clear();</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    }</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span> </div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    <span class="keyword">struct </span>ChannelInvoker {</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>        std::shared_ptr&lt;void&gt; channel;</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>        <a class="code hl_class" href="classdmq_1_1_i_remote_invoker.html">dmq::IRemoteInvoker</a>* invoker = <span class="keyword">nullptr</span>;</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    };</div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span> </div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt; GetOrCreateChannel(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer) {</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>        std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt; channel;</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span> </div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>        <span class="keyword">auto</span> it = m_channels.find(remoteId);</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        <span class="keywordflow">if</span> (it != m_channels.end()) {</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>            <span class="comment">// Type safety: catch remoteId reused with a different T</span></div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>            <span class="keyword">auto</span> itType = m_channelTypes.find(remoteId);</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>            <span class="keywordflow">if</span> (itType != m_channelTypes.end() &amp;&amp; itType-&gt;second != std::type_index(<span class="keyword">typeid</span>(T))) {</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>                <a class="code hl_function" href="namespacedmq_1_1util.html#a796fbb70ad51b93abcaaae2eab31461f">::dmq::util::FaultHandler</a>(__FILE__, (<span class="keywordtype">unsigned</span> <span class="keywordtype">short</span>)__LINE__);</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>                <span class="keywordflow">return</span> <span class="keyword">nullptr</span>;</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span> </div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="keyword">private</span>:</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    <span class="comment">// Get the remote ID for a topic.</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    <span class="keywordtype">bool</span> GetRemoteId(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic, <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a>&amp; remoteId) {</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        <span class="keyword">auto</span> it = m_topicToRemoteId.find(topic);</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="keywordflow">if</span> (it != m_topicToRemoteId.end()) {</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>            remoteId = it-&gt;second;</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>            <span class="keywordflow">return</span> <span class="keyword">true</span>;</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>        }</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>        <span class="keywordflow">return</span> <span class="keyword">false</span>;</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    }</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span> </div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="comment">// Get the topic name for a remote ID (error path only — linear scan is fine).</span></div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    <span class="keywordtype">bool</span> GetTopicName(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp; topic) {</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="keywordflow">for</span> (<span class="keyword">auto</span>&amp; [t, <span class="keywordtype">id</span>] : m_topicToRemoteId) {</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>            <span class="keywordflow">if</span> (<span class="keywordtype">id</span> == remoteId) { topic = t; <span class="keywordflow">return</span> <span class="keyword">true</span>; }</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        }</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        <span class="keywordflow">return</span> <span class="keyword">false</span>;</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    }</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span> </div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    <span class="keywordtype">void</span> AttachErrorHandler(std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;<span class="keywordtype">void</span>(T)&gt;&gt;&amp; channel) {</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>        channel-&gt;SetErrorHandler(<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(<span class="keyword">this</span>, &amp;Participant::OnChannelError));</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    }</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span> </div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordtype">void</span> OnChannelError(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> <span class="keywordtype">id</span>, <a class="code hl_enumeration" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a> error, <a class="code hl_typedef" href="namespacedmq.html#a4bcc300237d5cb854a800a19ccc0400a">dmq::DelegateErrorAux</a>) {</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">if</span> (error == <a class="code hl_enumvalue" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757dad0749aaba8b833466dfcbb0428e4f89c">dmq::DelegateError::SUCCESS</a>) <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        <span class="keywordtype">bool</span> shouldFire = <span class="keyword">false</span>;</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> topic;</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>        {</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>            std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>            <span class="keywordflow">for</span> (<span class="keyword">auto</span>&amp; [t, rid] : m_topicToRemoteId) {</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                <span class="keywordflow">if</span> (rid == <span class="keywordtype">id</span>) { topic = t; <span class="keywordflow">break</span>; }</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>            }</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>            <span class="keywordflow">if</span> (!topic.empty()) {</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>                uint8_t bit = uint8_t(1u &lt;&lt; <span class="keyword">static_cast&lt;</span><span class="keywordtype">int</span><span class="keyword">&gt;</span>(error));</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>                <span class="keyword">auto</span>&amp; bits = m_reportedErrors[topic];</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>                <span class="keywordflow">if</span> (!(bits &amp; bit)) {</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>                    bits |= bit;</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>                    shouldFire = <span class="keyword">true</span>;</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>                }</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>            }</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        }</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>        <span class="keywordflow">if</span> (shouldFire)</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>            m_errorSignal(topic, error);</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    }</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span> </div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    <span class="keywordtype">void</span> ResetErrors() {</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>        m_reportedErrors.clear();</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    }</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="keyword">struct </span>ChannelInvoker {</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>        std::shared_ptr&lt;void&gt; channel;</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>        <a class="code hl_class" href="classdmq_1_1_i_remote_invoker.html">dmq::IRemoteInvoker</a>* invoker = <span class="keyword">nullptr</span>;</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    };</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span> </div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    <span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt; GetOrCreateChannel(<a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(T)&gt;&amp; serializer) {</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>        std::lock_guard&lt;dmq::RecursiveMutex&gt; lock(m_mutex);</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>        std::shared_ptr&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt; channel;</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span> </div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        <span class="keyword">auto</span> it = m_channels.find(remoteId);</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>        <span class="keywordflow">if</span> (it != m_channels.end()) {</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>            <span class="comment">// Type safety: catch remoteId reused with a different T</span></div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>            <span class="keyword">auto</span> itType = m_channelTypes.find(remoteId);</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>            <span class="keywordflow">if</span> (itType != m_channelTypes.end()) {</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>                <a class="code hl_define" href="_fault_8h.html#ae9244bfbda562e8b798789b001993fa5">ASSERT_TRUE</a>(itType-&gt;second == std::type_index(<span class="keyword">typeid</span>(T)));</div>
 <div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>            }</div>
 <div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>            channel = std::static_pointer_cast&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(T)&gt;&gt;(it-&gt;second.channel);</div>
 <div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        } <span class="keywordflow">else</span> {</div>
@@ -359,10 +359,10 @@ $(function(){initNavTree('_participant_8h_source.html',''); initResizable(true);
 <div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    <a class="code hl_class" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a>* m_transport;</div>
 <div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    <a class="code hl_class" href="classdmq_1_1_i_thread.html">dmq::IThread</a>* m_sendThread = <span class="keyword">nullptr</span>;</div>
 <div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    <a class="code hl_struct" href="structdmq_1_1_null_mutex.html">dmq::RecursiveMutex</a> m_mutex;</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <a class="code hl_typedef" href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap&lt;dmq::xstring, dmq::DelegateRemoteId&gt;</a> m_topicToRemoteId;</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    <a class="code hl_typedef" href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap&lt;dmq::DelegateRemoteId, ChannelInvoker&gt;</a> m_channels;</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    <a class="code hl_typedef" href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap&lt;dmq::DelegateRemoteId, std::type_index&gt;</a> m_channelTypes;</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    <a class="code hl_typedef" href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap&lt;dmq::xstring, uint8_t&gt;</a> m_reportedErrors;</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <a class="code hl_typedef" href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap&lt;dmq::xstring, dmq::DelegateRemoteId&gt;</a> m_topicToRemoteId;</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    <a class="code hl_typedef" href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap&lt;dmq::DelegateRemoteId, ChannelInvoker&gt;</a> m_channels;</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    <a class="code hl_typedef" href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap&lt;dmq::DelegateRemoteId, std::type_index&gt;</a> m_channelTypes;</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    <a class="code hl_typedef" href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap&lt;dmq::xstring, uint8_t&gt;</a> m_reportedErrors;</div>
 <div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <a class="code hl_class" href="classdmq_1_1_signal.html">dmq::Signal</a>&lt;void(<span class="keyword">const</span> <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&amp;, <a class="code hl_enumeration" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a>)&gt; m_errorSignal;</div>
 <div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span> </div>
 <div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    <span class="comment">// --- Duplicate Filtering ---</span></div>
@@ -382,7 +382,7 @@ $(function(){initNavTree('_participant_8h_source.html',''); initResizable(true);
 <div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>            <span class="keywordflow">return</span> <span class="keyword">false</span>;</div>
 <div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>        }</div>
 <div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    };</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <a class="code hl_typedef" href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap&lt;dmq::DelegateRemoteId, SeqHistory&gt;</a> m_history;</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <a class="code hl_typedef" href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap&lt;dmq::DelegateRemoteId, SeqHistory&gt;</a> m_history;</div>
 <div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    <a class="code hl_typedef" href="namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a> m_inputStream;</div>
 <div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>};</div>
 </div>
@@ -394,10 +394,11 @@ $(function(){initNavTree('_participant_8h_source.html',''); initResizable(true);
 <div class="ttc" id="a_delegate_async_8h_html"><div class="ttname"><a href="_delegate_async_8h.html">DelegateAsync.h</a></div><div class="ttdoc">Delegate &quot;`Async`&quot; series of classes used to invoke a function asynchronously.</div></div>
 <div class="ttc" id="a_delegate_m_q_config___default_8h_html_a0499d73ff51679990e0ccd89252e4231"><div class="ttname"><a href="_delegate_m_q_config___default_8h.html#a0499d73ff51679990e0ccd89252e4231">DMQ_SEQ_HISTORY_SIZE</a></div><div class="ttdeci">#define DMQ_SEQ_HISTORY_SIZE</div><div class="ttdef"><b>Definition</b> DelegateMQConfig_Default.h:33</div></div>
 <div class="ttc" id="a_delegate_opt_8h_html"><div class="ttname"><a href="_delegate_opt_8h.html">DelegateOpt.h</a></div><div class="ttdoc">Delegate library options header file.</div></div>
-<div class="ttc" id="a_delegate_opt_8h_html_a469c70e22b4e113778864ed7568d7474"><div class="ttname"><a href="_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474">xmap</a></div><div class="ttdeci">std::map&lt; Key, Value, std::less&lt; Key &gt;, Alloc &gt; xmap</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:337</div></div>
+<div class="ttc" id="a_delegate_opt_8h_html_a5e800c556290ed548055177c33a66f5c"><div class="ttname"><a href="_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c">XALLOCATOR</a></div><div class="ttdeci">#define XALLOCATOR</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:304</div></div>
 <div class="ttc" id="a_delegate_remote_8h_html"><div class="ttname"><a href="_delegate_remote_8h.html">DelegateRemote.h</a></div><div class="ttdoc">Delegate &quot;`Remote`&quot; series of classes used to invoke a function remotely (i.e. different CPU,...</div></div>
 <div class="ttc" id="a_dmq_header_8h_html"><div class="ttname"><a href="_dmq_header_8h.html">DmqHeader.h</a></div></div>
 <div class="ttc" id="a_fault_8h_html"><div class="ttname"><a href="_fault_8h.html">Fault.h</a></div></div>
+<div class="ttc" id="a_fault_8h_html_ae9244bfbda562e8b798789b001993fa5"><div class="ttname"><a href="_fault_8h.html#ae9244bfbda562e8b798789b001993fa5">ASSERT_TRUE</a></div><div class="ttdeci">#define ASSERT_TRUE(condition)</div><div class="ttdef"><b>Definition</b> Fault.h:44</div></div>
 <div class="ttc" id="a_i_transport_8h_html"><div class="ttname"><a href="_i_transport_8h.html">ITransport.h</a></div></div>
 <div class="ttc" id="a_remote_channel_8h_html"><div class="ttname"><a href="_remote_channel_8h.html">RemoteChannel.h</a></div><div class="ttdoc">Aggregates transport, serializer, dispatcher, and stream into a single object, mirroring how IThread/...</div></div>
 <div class="ttc" id="aclassdmq_1_1_i_remote_invoker_html"><div class="ttname"><a href="classdmq_1_1_i_remote_invoker.html">dmq::IRemoteInvoker</a></div><div class="ttdoc">Abstract base class to support remote delegate function invoke to a remote system....</div><div class="ttdef"><b>Definition</b> IInvoker.h:31</div></div>
@@ -405,19 +406,19 @@ $(function(){initNavTree('_participant_8h_source.html',''); initResizable(true);
 <div class="ttc" id="aclassdmq_1_1_i_serializer_html"><div class="ttname"><a href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a></div><div class="ttdef"><b>Definition</b> ISerializer.h:14</div></div>
 <div class="ttc" id="aclassdmq_1_1_i_thread_html"><div class="ttname"><a href="classdmq_1_1_i_thread.html">dmq::IThread</a></div><div class="ttdoc">A base class for a delegate enabled execution thread. Implemented by application code if asynchronous...</div><div class="ttdef"><b>Definition</b> IThread.h:22</div></div>
 <div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
-<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:104</div></div>
-<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:29</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html">dmq::databus::DataBus</a></div><div class="ttdef"><b>Definition</b> DataBus.h:91</div></div>
+<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:107</div></div>
+<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:32</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html">dmq::databus::DataBus</a></div><div class="ttdef"><b>Definition</b> DataBus.h:90</div></div>
 <div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html">dmq::databus::Participant</a></div><div class="ttdef"><b>Definition</b> Participant.h:24</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_a161c0ee5db7d39ca07355a4d835a2121"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">dmq::databus::Participant::AsyncSend</a></div><div class="ttdeci">void AsyncSend(std::shared_ptr&lt; dmq::RemoteChannel&lt; void(T)&gt; &gt; channel, T data)</div><div class="ttdoc">Internal helper to execute a remote send on a background thread.</div><div class="ttdef"><b>Definition</b> Participant.h:122</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_a2029a33755db718eafadfeec4d45e10b"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#a2029a33755db718eafadfeec4d45e10b">dmq::databus::Participant::RegisterHandler</a></div><div class="ttdeci">void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer&lt; void(T)&gt; &amp;serializer, std::function&lt; void(T)&gt; func)</div><div class="ttdef"><b>Definition</b> Participant.h:130</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_aa187c0295ae2eac817159c6dd43ef66a"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#aa187c0295ae2eac817159c6dd43ef66a">dmq::databus::Participant::SubscribeError</a></div><div class="ttdeci">dmq::ScopedConnection SubscribeError(std::function&lt; void(const dmq::xstring &amp;, dmq::DelegateError)&gt; func)</div><div class="ttdef"><b>Definition</b> Participant.h:48</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ab15d3d4c9ce6dc5bbd6269d1b18a2610"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ab15d3d4c9ce6dc5bbd6269d1b18a2610">dmq::databus::Participant::AddRemoteTopic</a></div><div class="ttdeci">void AddRemoteTopic(const dmq::xstring &amp;topic, dmq::DelegateRemoteId remoteId)</div><div class="ttdef"><b>Definition</b> Participant.h:42</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ab28ecf97de7a5e7cc4a959aa79f91c47"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ab28ecf97de7a5e7cc4a959aa79f91c47">dmq::databus::Participant::Send</a></div><div class="ttdeci">void Send(const dmq::xstring &amp;topic, const T &amp;data, dmq::ISerializer&lt; void(T)&gt; &amp;serializer)</div><div class="ttdef"><b>Definition</b> Participant.h:102</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ab56976f2cce735ecf159260213ac50a5"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ab56976f2cce735ecf159260213ac50a5">dmq::databus::Participant::RegisterHandler</a></div><div class="ttdeci">void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer&lt; void(T)&gt; &amp;serializer, F &amp;&amp;func)</div><div class="ttdef"><b>Definition</b> Participant.h:145</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ae119f0d610334a73b0f239bc4a35fbbf"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ae119f0d610334a73b0f239bc4a35fbbf">dmq::databus::Participant::SetSendThread</a></div><div class="ttdeci">void SetSendThread(dmq::IThread *thread)</div><div class="ttdef"><b>Definition</b> Participant.h:38</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_af26cc9f1e28013456363a90a0765c792"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#af26cc9f1e28013456363a90a0765c792">dmq::databus::Participant::ProcessIncoming</a></div><div class="ttdeci">int ProcessIncoming()</div><div class="ttdef"><b>Definition</b> Participant.h:54</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_afed07b7a3e6b3791ba25451ab8deed27"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#afed07b7a3e6b3791ba25451ab8deed27">dmq::databus::Participant::Participant</a></div><div class="ttdeci">Participant(dmq::transport::ITransport &amp;transport)</div><div class="ttdef"><b>Definition</b> Participant.h:27</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_a161c0ee5db7d39ca07355a4d835a2121"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121">dmq::databus::Participant::AsyncSend</a></div><div class="ttdeci">void AsyncSend(std::shared_ptr&lt; dmq::RemoteChannel&lt; void(T)&gt; &gt; channel, T data)</div><div class="ttdoc">Internal helper to execute a remote send on a background thread.</div><div class="ttdef"><b>Definition</b> Participant.h:123</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_a2029a33755db718eafadfeec4d45e10b"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#a2029a33755db718eafadfeec4d45e10b">dmq::databus::Participant::RegisterHandler</a></div><div class="ttdeci">void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer&lt; void(T)&gt; &amp;serializer, std::function&lt; void(T)&gt; func)</div><div class="ttdef"><b>Definition</b> Participant.h:131</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_aa187c0295ae2eac817159c6dd43ef66a"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#aa187c0295ae2eac817159c6dd43ef66a">dmq::databus::Participant::SubscribeError</a></div><div class="ttdeci">dmq::ScopedConnection SubscribeError(std::function&lt; void(const dmq::xstring &amp;, dmq::DelegateError)&gt; func)</div><div class="ttdef"><b>Definition</b> Participant.h:49</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ab15d3d4c9ce6dc5bbd6269d1b18a2610"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ab15d3d4c9ce6dc5bbd6269d1b18a2610">dmq::databus::Participant::AddRemoteTopic</a></div><div class="ttdeci">void AddRemoteTopic(const dmq::xstring &amp;topic, dmq::DelegateRemoteId remoteId)</div><div class="ttdef"><b>Definition</b> Participant.h:43</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ab28ecf97de7a5e7cc4a959aa79f91c47"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ab28ecf97de7a5e7cc4a959aa79f91c47">dmq::databus::Participant::Send</a></div><div class="ttdeci">void Send(const dmq::xstring &amp;topic, const T &amp;data, dmq::ISerializer&lt; void(T)&gt; &amp;serializer)</div><div class="ttdef"><b>Definition</b> Participant.h:103</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ab56976f2cce735ecf159260213ac50a5"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ab56976f2cce735ecf159260213ac50a5">dmq::databus::Participant::RegisterHandler</a></div><div class="ttdeci">void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer&lt; void(T)&gt; &amp;serializer, F &amp;&amp;func)</div><div class="ttdef"><b>Definition</b> Participant.h:146</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_ae119f0d610334a73b0f239bc4a35fbbf"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#ae119f0d610334a73b0f239bc4a35fbbf">dmq::databus::Participant::SetSendThread</a></div><div class="ttdeci">void SetSendThread(dmq::IThread *thread)</div><div class="ttdef"><b>Definition</b> Participant.h:39</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_af26cc9f1e28013456363a90a0765c792"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#af26cc9f1e28013456363a90a0765c792">dmq::databus::Participant::ProcessIncoming</a></div><div class="ttdeci">int ProcessIncoming()</div><div class="ttdef"><b>Definition</b> Participant.h:55</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_participant_html_afed07b7a3e6b3791ba25451ab8deed27"><div class="ttname"><a href="classdmq_1_1databus_1_1_participant.html#afed07b7a3e6b3791ba25451ab8deed27">dmq::databus::Participant::Participant</a></div><div class="ttdeci">Participant(dmq::transport::ITransport &amp;transport)</div><div class="ttdef"><b>Definition</b> Participant.h:28</div></div>
 <div class="ttc" id="aclassdmq_1_1transport_1_1_dmq_header_html"><div class="ttname"><a href="classdmq_1_1transport_1_1_dmq_header.html">dmq::transport::DmqHeader</a></div><div class="ttdoc">Header for remote delegate messages.</div><div class="ttdef"><b>Definition</b> DmqHeader.h:18</div></div>
 <div class="ttc" id="aclassdmq_1_1transport_1_1_dmq_header_html_a088efbf5363e25a09ba45516667d294b"><div class="ttname"><a href="classdmq_1_1transport_1_1_dmq_header.html#a088efbf5363e25a09ba45516667d294b">dmq::transport::DmqHeader::MARKER</a></div><div class="ttdeci">static const uint16_t MARKER</div><div class="ttdef"><b>Definition</b> DmqHeader.h:21</div></div>
 <div class="ttc" id="aclassdmq_1_1transport_1_1_dmq_header_html_a7f5c3fd9d5bb569afb86a73512d5f12b"><div class="ttname"><a href="classdmq_1_1transport_1_1_dmq_header.html#a7f5c3fd9d5bb569afb86a73512d5f12b">dmq::transport::DmqHeader::GetId</a></div><div class="ttdeci">uint16_t GetId() const</div><div class="ttdef"><b>Definition</b> DmqHeader.h:35</div></div>
@@ -426,16 +427,16 @@ $(function(){initNavTree('_participant_8h_source.html',''); initResizable(true);
 <div class="ttc" id="aclassdmq_1_1transport_1_1_i_transport_html"><div class="ttname"><a href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a></div><div class="ttdoc">DelegateMQ transport interface.</div><div class="ttdef"><b>Definition</b> ITransport.h:12</div></div>
 <div class="ttc" id="aclassdmq_1_1transport_1_1_i_transport_html_af4e2c4b6ebf329affc6297556491c038"><div class="ttname"><a href="classdmq_1_1transport_1_1_i_transport.html#af4e2c4b6ebf329affc6297556491c038">dmq::transport::ITransport::Receive</a></div><div class="ttdeci">virtual int Receive(dmq::xstringstream &amp;is, DmqHeader &amp;header)=0</div></div>
 <div class="ttc" id="anamespacedmq_1_1databus_html"><div class="ttname"><a href="namespacedmq_1_1databus.html">dmq::databus</a></div><div class="ttdef"><b>Definition</b> DataBus.h:24</div></div>
-<div class="ttc" id="anamespacedmq_1_1util_html_a796fbb70ad51b93abcaaae2eab31461f"><div class="ttname"><a href="namespacedmq_1_1util.html#a796fbb70ad51b93abcaaae2eab31461f">dmq::util::FaultHandler</a></div><div class="ttdeci">void FaultHandler(const char *file, unsigned short line)</div><div class="ttdef"><b>Definition</b> Fault.cpp:18</div></div>
-<div class="ttc" id="anamespacedmq_html_a11cea01eb8d1af200d992657af94c7fb"><div class="ttname"><a href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></div><div class="ttdeci">std::string xstring</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:314</div></div>
+<div class="ttc" id="anamespacedmq_html_a11cea01eb8d1af200d992657af94c7fb"><div class="ttname"><a href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></div><div class="ttdeci">std::basic_string&lt; char, std::char_traits&lt; char &gt;, stl_allocator&lt; char &gt; &gt; xstring</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:321</div></div>
+<div class="ttc" id="anamespacedmq_html_a1ca6fd2638dd10cb9e042e693fb9ed17"><div class="ttname"><a href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap</a></div><div class="ttdeci">std::map&lt; Key, Value, std::less&lt; Key &gt;, Alloc &gt; xmap</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:343</div></div>
 <div class="ttc" id="anamespacedmq_html_a4bcc300237d5cb854a800a19ccc0400a"><div class="ttname"><a href="namespacedmq.html#a4bcc300237d5cb854a800a19ccc0400a">dmq::DelegateErrorAux</a></div><div class="ttdeci">int DelegateErrorAux</div><div class="ttdef"><b>Definition</b> DelegateRemote.h:71</div></div>
 <div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:12</div></div>
 <div class="ttc" id="anamespacedmq_html_a621e40ea0fde57bf5426750dab582f0b"><div class="ttname"><a href="namespacedmq.html#a621e40ea0fde57bf5426750dab582f0b">dmq::ACK_REMOTE_ID</a></div><div class="ttdeci">const uint16_t ACK_REMOTE_ID</div><div class="ttdef"><b>Definition</b> IDispatcher.h:14</div></div>
 <div class="ttc" id="anamespacedmq_html_a62ea8a73887af62d409322557b4e757d"><div class="ttname"><a href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a></div><div class="ttdeci">DelegateError</div><div class="ttdef"><b>Definition</b> DelegateRemote.h:60</div></div>
 <div class="ttc" id="anamespacedmq_html_a62ea8a73887af62d409322557b4e757dad0749aaba8b833466dfcbb0428e4f89c"><div class="ttname"><a href="namespacedmq.html#a62ea8a73887af62d409322557b4e757dad0749aaba8b833466dfcbb0428e4f89c">dmq::DelegateError::SUCCESS</a></div><div class="ttdeci">@ SUCCESS</div></div>
 <div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:888</div></div>
-<div class="ttc" id="anamespacedmq_html_a96216b70259f3d7e0a6462222e96e3b0"><div class="ttname"><a href="namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a></div><div class="ttdeci">std::basic_stringstream&lt; char, std::char_traits&lt; char &gt; &gt; xstringstream</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:312</div></div>
-<div class="ttc" id="anamespacedmq_html_a9ee8623ed66c2814916b42dcf49418f1"><div class="ttname"><a href="namespacedmq.html#a9ee8623ed66c2814916b42dcf49418f1">dmq::xmake_shared</a></div><div class="ttdeci">std::shared_ptr&lt; T &gt; xmake_shared(Args &amp;&amp;... args)</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:318</div></div>
+<div class="ttc" id="anamespacedmq_html_a96216b70259f3d7e0a6462222e96e3b0"><div class="ttname"><a href="namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a></div><div class="ttdeci">std::basic_stringstream&lt; char, std::char_traits&lt; char &gt;, stl_allocator&lt; char &gt; &gt; xstringstream</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:319</div></div>
+<div class="ttc" id="anamespacedmq_html_a9ee8623ed66c2814916b42dcf49418f1"><div class="ttname"><a href="namespacedmq.html#a9ee8623ed66c2814916b42dcf49418f1">dmq::xmake_shared</a></div><div class="ttdeci">std::shared_ptr&lt; T &gt; xmake_shared(Args &amp;&amp;... args)</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:325</div></div>
 <div class="ttc" id="astructdmq_1_1_null_mutex_html"><div class="ttname"><a href="structdmq_1_1_null_mutex.html">dmq::NullMutex</a></div><div class="ttdef"><b>Definition</b> DelegateOpt.h:244</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

@@ -133,6 +133,8 @@ Signals</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
+<tr class="memitem:a88e6b39c4f6a44fe716f1d9f9079bc9d" id="r_a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">Thread</a> (const char *threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const char *cpuName=&quot;&quot;)</td></tr>
+<tr class="separator:a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af737d663e46d8d7b26dfeddfff49ce28" id="r_af737d663e46d8d7b26dfeddfff49ce28"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af737d663e46d8d7b26dfeddfff49ce28">Thread</a> (const std::string &amp;threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const std::string &amp;cpuName=&quot;&quot;)</td></tr>
 <tr class="separator:af737d663e46d8d7b26dfeddfff49ce28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a76dd178e9c173a836546afd4c89cde40" id="r_a76dd178e9c173a836546afd4c89cde40"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a76dd178e9c173a836546afd4c89cde40">~Thread</a> ()</td></tr>
@@ -151,8 +153,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a44676fa0bff6d02186556baa37c071d1" id="r_a44676fa0bff6d02186556baa37c071d1"><td class="memItemLeft" align="right" valign="top">osPriority_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a44676fa0bff6d02186556baa37c071d1">GetThreadPriority</a> ()</td></tr>
 <tr class="memdesc:a44676fa0bff6d02186556baa37c071d1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get current priority.  <br /></td></tr>
 <tr class="separator:a44676fa0bff6d02186556baa37c071d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab47f2d18676c0da23e705db648f78df1" id="r_ab47f2d18676c0da23e705db648f78df1"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab47f2d18676c0da23e705db648f78df1">GetThreadName</a> ()</td></tr>
-<tr class="separator:ab47f2d18676c0da23e705db648f78df1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a998f04923b5cd9c197acf05df93c5d77" id="r_a998f04923b5cd9c197acf05df93c5d77"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a998f04923b5cd9c197acf05df93c5d77">GetThreadName</a> ()</td></tr>
+<tr class="separator:a998f04923b5cd9c197acf05df93c5d77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afd5b3545689f8ac70bb9ff102d6ae19d" id="r_afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd5b3545689f8ac70bb9ff102d6ae19d">GetQueueSize</a> ()</td></tr>
 <tr class="memdesc:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get current queue size.  <br /></td></tr>
 <tr class="separator:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -161,6 +163,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad10989ae3c1703c5dad4bdfdf1a26431" id="r_ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad10989ae3c1703c5dad4bdfdf1a26431">ThreadCheck</a> ()</td></tr>
 <tr class="memdesc:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="mdescLeft">&#160;</td><td class="mdescRight">Manually update the watchdog alive timestamp.  <br /></td></tr>
 <tr class="separator:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88e6b39c4f6a44fe716f1d9f9079bc9d" id="r_a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">Thread</a> (const char *threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const char *cpuName=&quot;&quot;)</td></tr>
+<tr class="separator:a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af737d663e46d8d7b26dfeddfff49ce28" id="r_af737d663e46d8d7b26dfeddfff49ce28"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af737d663e46d8d7b26dfeddfff49ce28">Thread</a> (const std::string &amp;threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const std::string &amp;cpuName=&quot;&quot;)</td></tr>
 <tr class="separator:af737d663e46d8d7b26dfeddfff49ce28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a76dd178e9c173a836546afd4c89cde40" id="r_a76dd178e9c173a836546afd4c89cde40"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a76dd178e9c173a836546afd4c89cde40">~Thread</a> ()</td></tr>
@@ -180,9 +184,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:abb8278aab1f8b34a558c571cf36ce443" id="r_abb8278aab1f8b34a558c571cf36ce443"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abb8278aab1f8b34a558c571cf36ce443">IsCurrentThread</a> () override</td></tr>
 <tr class="memdesc:abb8278aab1f8b34a558c571cf36ce443"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns true if the calling thread is this thread.  <br /></td></tr>
 <tr class="separator:abb8278aab1f8b34a558c571cf36ce443"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab47f2d18676c0da23e705db648f78df1" id="r_ab47f2d18676c0da23e705db648f78df1"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab47f2d18676c0da23e705db648f78df1">GetThreadName</a> ()</td></tr>
-<tr class="memdesc:ab47f2d18676c0da23e705db648f78df1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
-<tr class="separator:ab47f2d18676c0da23e705db648f78df1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a998f04923b5cd9c197acf05df93c5d77" id="r_a998f04923b5cd9c197acf05df93c5d77"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a998f04923b5cd9c197acf05df93c5d77">GetThreadName</a> ()</td></tr>
+<tr class="memdesc:a998f04923b5cd9c197acf05df93c5d77"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
+<tr class="separator:a998f04923b5cd9c197acf05df93c5d77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afd5b3545689f8ac70bb9ff102d6ae19d" id="r_afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd5b3545689f8ac70bb9ff102d6ae19d">GetQueueSize</a> ()</td></tr>
 <tr class="memdesc:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get current queue size.  <br /></td></tr>
 <tr class="separator:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -195,6 +199,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad10989ae3c1703c5dad4bdfdf1a26431" id="r_ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad10989ae3c1703c5dad4bdfdf1a26431">ThreadCheck</a> ()</td></tr>
 <tr class="memdesc:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="mdescLeft">&#160;</td><td class="mdescRight">Manually update the watchdog alive timestamp.  <br /></td></tr>
 <tr class="separator:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88e6b39c4f6a44fe716f1d9f9079bc9d" id="r_a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">Thread</a> (const char *threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const char *cpuName=&quot;&quot;)</td></tr>
+<tr class="separator:a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af737d663e46d8d7b26dfeddfff49ce28" id="r_af737d663e46d8d7b26dfeddfff49ce28"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af737d663e46d8d7b26dfeddfff49ce28">Thread</a> (const std::string &amp;threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const std::string &amp;cpuName=&quot;&quot;)</td></tr>
 <tr class="separator:af737d663e46d8d7b26dfeddfff49ce28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a76dd178e9c173a836546afd4c89cde40" id="r_a76dd178e9c173a836546afd4c89cde40"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a76dd178e9c173a836546afd4c89cde40">~Thread</a> ()</td></tr>
@@ -211,8 +217,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:abb8278aab1f8b34a558c571cf36ce443" id="r_abb8278aab1f8b34a558c571cf36ce443"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abb8278aab1f8b34a558c571cf36ce443">IsCurrentThread</a> () override</td></tr>
 <tr class="memdesc:abb8278aab1f8b34a558c571cf36ce443"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns true if the calling thread is this thread.  <br /></td></tr>
 <tr class="separator:abb8278aab1f8b34a558c571cf36ce443"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afefdf8212bda114e315542b173ac70ab" id="r_afefdf8212bda114e315542b173ac70ab"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afefdf8212bda114e315542b173ac70ab">GetThreadName</a> () const</td></tr>
-<tr class="separator:afefdf8212bda114e315542b173ac70ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:affb481c51db0b2f920beaf4606ffcc9d" id="r_affb481c51db0b2f920beaf4606ffcc9d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#affb481c51db0b2f920beaf4606ffcc9d">GetThreadName</a> () const</td></tr>
+<tr class="separator:affb481c51db0b2f920beaf4606ffcc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a38d9fa51d26f1b9ac42431ebeefad42a" id="r_a38d9fa51d26f1b9ac42431ebeefad42a"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a38d9fa51d26f1b9ac42431ebeefad42a">GetQueueSize</a> () const</td></tr>
 <tr class="memdesc:a38d9fa51d26f1b9ac42431ebeefad42a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get current queue size.  <br /></td></tr>
 <tr class="separator:a38d9fa51d26f1b9ac42431ebeefad42a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -221,6 +227,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad10989ae3c1703c5dad4bdfdf1a26431" id="r_ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad10989ae3c1703c5dad4bdfdf1a26431">ThreadCheck</a> ()</td></tr>
 <tr class="memdesc:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="mdescLeft">&#160;</td><td class="mdescRight">Manually update the watchdog alive timestamp.  <br /></td></tr>
 <tr class="separator:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88e6b39c4f6a44fe716f1d9f9079bc9d" id="r_a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">Thread</a> (const char *threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const char *cpuName=&quot;&quot;)</td></tr>
+<tr class="separator:a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af737d663e46d8d7b26dfeddfff49ce28" id="r_af737d663e46d8d7b26dfeddfff49ce28"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af737d663e46d8d7b26dfeddfff49ce28">Thread</a> (const std::string &amp;threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const std::string &amp;cpuName=&quot;&quot;)</td></tr>
 <tr class="separator:af737d663e46d8d7b26dfeddfff49ce28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a76dd178e9c173a836546afd4c89cde40" id="r_a76dd178e9c173a836546afd4c89cde40"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a76dd178e9c173a836546afd4c89cde40">~Thread</a> ()</td></tr>
@@ -237,9 +245,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:abb8278aab1f8b34a558c571cf36ce443" id="r_abb8278aab1f8b34a558c571cf36ce443"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abb8278aab1f8b34a558c571cf36ce443">IsCurrentThread</a> () override</td></tr>
 <tr class="memdesc:abb8278aab1f8b34a558c571cf36ce443"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns true if the calling thread is this thread.  <br /></td></tr>
 <tr class="separator:abb8278aab1f8b34a558c571cf36ce443"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab47f2d18676c0da23e705db648f78df1" id="r_ab47f2d18676c0da23e705db648f78df1"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab47f2d18676c0da23e705db648f78df1">GetThreadName</a> ()</td></tr>
-<tr class="memdesc:ab47f2d18676c0da23e705db648f78df1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
-<tr class="separator:ab47f2d18676c0da23e705db648f78df1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a998f04923b5cd9c197acf05df93c5d77" id="r_a998f04923b5cd9c197acf05df93c5d77"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a998f04923b5cd9c197acf05df93c5d77">GetThreadName</a> ()</td></tr>
+<tr class="memdesc:a998f04923b5cd9c197acf05df93c5d77"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
+<tr class="separator:a998f04923b5cd9c197acf05df93c5d77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afd5b3545689f8ac70bb9ff102d6ae19d" id="r_afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd5b3545689f8ac70bb9ff102d6ae19d">GetQueueSize</a> ()</td></tr>
 <tr class="memdesc:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of thread message queue.  <br /></td></tr>
 <tr class="separator:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -248,6 +256,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad10989ae3c1703c5dad4bdfdf1a26431" id="r_ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad10989ae3c1703c5dad4bdfdf1a26431">ThreadCheck</a> ()</td></tr>
 <tr class="memdesc:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="mdescLeft">&#160;</td><td class="mdescRight">Manually update the watchdog alive timestamp.  <br /></td></tr>
 <tr class="separator:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88e6b39c4f6a44fe716f1d9f9079bc9d" id="r_a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">Thread</a> (const char *threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const char *cpuName=&quot;&quot;)</td></tr>
+<tr class="separator:a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af737d663e46d8d7b26dfeddfff49ce28" id="r_af737d663e46d8d7b26dfeddfff49ce28"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af737d663e46d8d7b26dfeddfff49ce28">Thread</a> (const std::string &amp;threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const std::string &amp;cpuName=&quot;&quot;)</td></tr>
 <tr class="separator:af737d663e46d8d7b26dfeddfff49ce28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a76dd178e9c173a836546afd4c89cde40" id="r_a76dd178e9c173a836546afd4c89cde40"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a76dd178e9c173a836546afd4c89cde40">~Thread</a> ()</td></tr>
@@ -269,9 +279,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a44676fa0bff6d02186556baa37c071d1" id="r_a44676fa0bff6d02186556baa37c071d1"><td class="memItemLeft" align="right" valign="top">UINT&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a44676fa0bff6d02186556baa37c071d1">GetThreadPriority</a> ()</td></tr>
 <tr class="memdesc:a44676fa0bff6d02186556baa37c071d1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get current priority.  <br /></td></tr>
 <tr class="separator:a44676fa0bff6d02186556baa37c071d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab47f2d18676c0da23e705db648f78df1" id="r_ab47f2d18676c0da23e705db648f78df1"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab47f2d18676c0da23e705db648f78df1">GetThreadName</a> ()</td></tr>
-<tr class="memdesc:ab47f2d18676c0da23e705db648f78df1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
-<tr class="separator:ab47f2d18676c0da23e705db648f78df1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a998f04923b5cd9c197acf05df93c5d77" id="r_a998f04923b5cd9c197acf05df93c5d77"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a998f04923b5cd9c197acf05df93c5d77">GetThreadName</a> ()</td></tr>
+<tr class="memdesc:a998f04923b5cd9c197acf05df93c5d77"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
+<tr class="separator:a998f04923b5cd9c197acf05df93c5d77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afd5b3545689f8ac70bb9ff102d6ae19d" id="r_afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd5b3545689f8ac70bb9ff102d6ae19d">GetQueueSize</a> ()</td></tr>
 <tr class="memdesc:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get current queue size.  <br /></td></tr>
 <tr class="separator:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -280,6 +290,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad10989ae3c1703c5dad4bdfdf1a26431" id="r_ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad10989ae3c1703c5dad4bdfdf1a26431">ThreadCheck</a> ()</td></tr>
 <tr class="memdesc:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="mdescLeft">&#160;</td><td class="mdescRight">Manually update the watchdog alive timestamp.  <br /></td></tr>
 <tr class="separator:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88e6b39c4f6a44fe716f1d9f9079bc9d" id="r_a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">Thread</a> (const char *threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const char *cpuName=&quot;&quot;)</td></tr>
+<tr class="separator:a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af737d663e46d8d7b26dfeddfff49ce28" id="r_af737d663e46d8d7b26dfeddfff49ce28"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af737d663e46d8d7b26dfeddfff49ce28">Thread</a> (const std::string &amp;threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const std::string &amp;cpuName=&quot;&quot;)</td></tr>
 <tr class="separator:af737d663e46d8d7b26dfeddfff49ce28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8c242a6385e7b33fc1c4725c5a13272c" id="r_a8c242a6385e7b33fc1c4725c5a13272c"><td class="memItemLeft" align="right" valign="top">virtual&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a8c242a6385e7b33fc1c4725c5a13272c">~Thread</a> ()</td></tr>
@@ -296,9 +308,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:abb8278aab1f8b34a558c571cf36ce443" id="r_abb8278aab1f8b34a558c571cf36ce443"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abb8278aab1f8b34a558c571cf36ce443">IsCurrentThread</a> () override</td></tr>
 <tr class="memdesc:abb8278aab1f8b34a558c571cf36ce443"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns true if the calling thread is this thread.  <br /></td></tr>
 <tr class="separator:abb8278aab1f8b34a558c571cf36ce443"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab47f2d18676c0da23e705db648f78df1" id="r_ab47f2d18676c0da23e705db648f78df1"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab47f2d18676c0da23e705db648f78df1">GetThreadName</a> ()</td></tr>
-<tr class="memdesc:ab47f2d18676c0da23e705db648f78df1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
-<tr class="separator:ab47f2d18676c0da23e705db648f78df1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a998f04923b5cd9c197acf05df93c5d77" id="r_a998f04923b5cd9c197acf05df93c5d77"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a998f04923b5cd9c197acf05df93c5d77">GetThreadName</a> ()</td></tr>
+<tr class="memdesc:a998f04923b5cd9c197acf05df93c5d77"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get thread name.  <br /></td></tr>
+<tr class="separator:a998f04923b5cd9c197acf05df93c5d77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afd5b3545689f8ac70bb9ff102d6ae19d" id="r_afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd5b3545689f8ac70bb9ff102d6ae19d">GetQueueSize</a> ()</td></tr>
 <tr class="memdesc:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of thread message queue.  <br /></td></tr>
 <tr class="separator:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -307,6 +319,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:ad10989ae3c1703c5dad4bdfdf1a26431" id="r_ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad10989ae3c1703c5dad4bdfdf1a26431">ThreadCheck</a> ()</td></tr>
 <tr class="memdesc:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="mdescLeft">&#160;</td><td class="mdescRight">Manually update the watchdog alive timestamp.  <br /></td></tr>
 <tr class="separator:ad10989ae3c1703c5dad4bdfdf1a26431"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88e6b39c4f6a44fe716f1d9f9079bc9d" id="r_a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">Thread</a> (const char *threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const char *cpuName=&quot;&quot;)</td></tr>
+<tr class="separator:a88e6b39c4f6a44fe716f1d9f9079bc9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af737d663e46d8d7b26dfeddfff49ce28" id="r_af737d663e46d8d7b26dfeddfff49ce28"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af737d663e46d8d7b26dfeddfff49ce28">Thread</a> (const std::string &amp;threadName, size_t maxQueueSize=0, <a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a> fullPolicy=<a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a>, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> dispatchTimeout=<a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a>, const std::string &amp;cpuName=&quot;&quot;)</td></tr>
 <tr class="separator:af737d663e46d8d7b26dfeddfff49ce28"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a76dd178e9c173a836546afd4c89cde40" id="r_a76dd178e9c173a836546afd4c89cde40"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a76dd178e9c173a836546afd4c89cde40">~Thread</a> ()</td></tr>
@@ -322,8 +336,8 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:abb8278aab1f8b34a558c571cf36ce443"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a59d6ebfe2cead390ee44abf297be7157" id="r_a59d6ebfe2cead390ee44abf297be7157"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a59d6ebfe2cead390ee44abf297be7157">SetThreadPriority</a> (int priority)</td></tr>
 <tr class="separator:a59d6ebfe2cead390ee44abf297be7157"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab47f2d18676c0da23e705db648f78df1" id="r_ab47f2d18676c0da23e705db648f78df1"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab47f2d18676c0da23e705db648f78df1">GetThreadName</a> ()</td></tr>
-<tr class="separator:ab47f2d18676c0da23e705db648f78df1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a998f04923b5cd9c197acf05df93c5d77" id="r_a998f04923b5cd9c197acf05df93c5d77"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a998f04923b5cd9c197acf05df93c5d77">GetThreadName</a> ()</td></tr>
+<tr class="separator:a998f04923b5cd9c197acf05df93c5d77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afd5b3545689f8ac70bb9ff102d6ae19d" id="r_afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd5b3545689f8ac70bb9ff102d6ae19d">GetQueueSize</a> ()</td></tr>
 <tr class="memdesc:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get current queue size.  <br /></td></tr>
 <tr class="separator:afd5b3545689f8ac70bb9ff102d6ae19d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -414,11 +428,60 @@ Static Public Attributes</h2></td></tr>
 <p>Windows-native thread for systems using the Win32 API.</p>
 <p>The <a class="el" href="classdmq_1_1os_1_1_thread.html" title="Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).">Thread</a> class creates a worker thread capable of dispatching and invoking asynchronous delegates. </p>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[1/7]</span></h2>
+<a id="a88e6b39c4f6a44fe716f1d9f9079bc9d" name="a88e6b39c4f6a44fe716f1d9f9079bc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">&#9670;&#160;</a></span>Thread() <span class="overload">[1/14]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::os::Thread::Thread </td>
+          <td>(</td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>maxQueueSize</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a></td>          <td class="paramname"><span class="paramname"><em>fullPolicy</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a></td>          <td class="paramname"><span class="paramname"><em>dispatchTimeout</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">threadName</td><td>Name for the thread </td></tr>
+    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
+    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
+    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
+    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[2/14]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dmq::os::Thread::Thread </td>
@@ -446,17 +509,12 @@ Static Public Attributes</h2></td></tr>
           <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
-<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">threadName</td><td>Name for the thread </td></tr>
-    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
-    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
-    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
-    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -477,11 +535,60 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[2/7]</span></h2>
+<a id="a88e6b39c4f6a44fe716f1d9f9079bc9d" name="a88e6b39c4f6a44fe716f1d9f9079bc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">&#9670;&#160;</a></span>Thread() <span class="overload">[3/14]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::os::Thread::Thread </td>
+          <td>(</td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>maxQueueSize</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a></td>          <td class="paramname"><span class="paramname"><em>fullPolicy</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a></td>          <td class="paramname"><span class="paramname"><em>dispatchTimeout</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">threadName</td><td>Name for the FreeRTOS task </td></tr>
+    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
+    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
+    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
+    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[4/14]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dmq::os::Thread::Thread </td>
@@ -509,17 +616,12 @@ Static Public Attributes</h2></td></tr>
           <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
-<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">threadName</td><td>Name for the FreeRTOS task </td></tr>
-    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
-    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
-    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
-    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -542,11 +644,60 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[3/7]</span></h2>
+<a id="a88e6b39c4f6a44fe716f1d9f9079bc9d" name="a88e6b39c4f6a44fe716f1d9f9079bc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">&#9670;&#160;</a></span>Thread() <span class="overload">[5/14]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::os::Thread::Thread </td>
+          <td>(</td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>maxQueueSize</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a></td>          <td class="paramname"><span class="paramname"><em>fullPolicy</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a></td>          <td class="paramname"><span class="paramname"><em>dispatchTimeout</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">threadName</td><td>Name for debugging (QObject::objectName) </td></tr>
+    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
+    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
+    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
+    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[6/14]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dmq::os::Thread::Thread </td>
@@ -574,17 +725,12 @@ Static Public Attributes</h2></td></tr>
           <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
-<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">threadName</td><td>Name for debugging (QObject::objectName) </td></tr>
-    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
-    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
-    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
-    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -607,11 +753,60 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[4/7]</span></h2>
+<a id="a88e6b39c4f6a44fe716f1d9f9079bc9d" name="a88e6b39c4f6a44fe716f1d9f9079bc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">&#9670;&#160;</a></span>Thread() <span class="overload">[7/14]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::os::Thread::Thread </td>
+          <td>(</td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>maxQueueSize</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a></td>          <td class="paramname"><span class="paramname"><em>fullPolicy</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a></td>          <td class="paramname"><span class="paramname"><em>dispatchTimeout</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">threadName</td><td>The name of the thread for debugging. </td></tr>
+    <tr><td class="paramname">maxQueueSize</td><td>The maximum number of messages allowed in the queue. 0 means unlimited (no back pressure). </td></tr>
+    <tr><td class="paramname">fullPolicy</td><td>When the queue is full: FAULT (default), DROP, or TIMEOUT. Only meaningful when maxQueueSize &gt; 0. </td></tr>
+    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
+    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[8/14]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dmq::os::Thread::Thread </td>
@@ -639,17 +834,12 @@ Static Public Attributes</h2></td></tr>
           <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
-<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">threadName</td><td>The name of the thread for debugging. </td></tr>
-    <tr><td class="paramname">maxQueueSize</td><td>The maximum number of messages allowed in the queue. 0 means unlimited (no back pressure). </td></tr>
-    <tr><td class="paramname">fullPolicy</td><td>When the queue is full: FAULT (default), DROP, or TIMEOUT. Only meaningful when maxQueueSize &gt; 0. </td></tr>
-    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
-    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -672,11 +862,60 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[5/7]</span></h2>
+<a id="a88e6b39c4f6a44fe716f1d9f9079bc9d" name="a88e6b39c4f6a44fe716f1d9f9079bc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">&#9670;&#160;</a></span>Thread() <span class="overload">[9/14]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::os::Thread::Thread </td>
+          <td>(</td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>maxQueueSize</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a></td>          <td class="paramname"><span class="paramname"><em>fullPolicy</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a></td>          <td class="paramname"><span class="paramname"><em>dispatchTimeout</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">threadName</td><td>Name for the ThreadX thread </td></tr>
+    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
+    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
+    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
+    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[10/14]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dmq::os::Thread::Thread </td>
@@ -704,17 +943,12 @@ Static Public Attributes</h2></td></tr>
           <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
-<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">threadName</td><td>Name for the ThreadX thread </td></tr>
-    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
-    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
-    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
-    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -737,11 +971,60 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[6/7]</span></h2>
+<a id="a88e6b39c4f6a44fe716f1d9f9079bc9d" name="a88e6b39c4f6a44fe716f1d9f9079bc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">&#9670;&#160;</a></span>Thread() <span class="overload">[11/14]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::os::Thread::Thread </td>
+          <td>(</td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>maxQueueSize</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a></td>          <td class="paramname"><span class="paramname"><em>fullPolicy</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a></td>          <td class="paramname"><span class="paramname"><em>dispatchTimeout</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">threadName</td><td>The name of the thread for debugging. </td></tr>
+    <tr><td class="paramname">maxQueueSize</td><td>The maximum number of messages allowed in the queue. 0 means unlimited (no back pressure). </td></tr>
+    <tr><td class="paramname">fullPolicy</td><td>When the queue is full: FAULT (default), DROP, or TIMEOUT. Only meaningful when maxQueueSize &gt; 0. </td></tr>
+    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
+    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[12/14]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dmq::os::Thread::Thread </td>
@@ -769,17 +1052,12 @@ Static Public Attributes</h2></td></tr>
           <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
-<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">threadName</td><td>The name of the thread for debugging. </td></tr>
-    <tr><td class="paramname">maxQueueSize</td><td>The maximum number of messages allowed in the queue. 0 means unlimited (no back pressure). </td></tr>
-    <tr><td class="paramname">fullPolicy</td><td>When the queue is full: FAULT (default), DROP, or TIMEOUT. Only meaningful when maxQueueSize &gt; 0. </td></tr>
-    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
-    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -810,11 +1088,60 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[7/7]</span></h2>
+<a id="a88e6b39c4f6a44fe716f1d9f9079bc9d" name="a88e6b39c4f6a44fe716f1d9f9079bc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88e6b39c4f6a44fe716f1d9f9079bc9d">&#9670;&#160;</a></span>Thread() <span class="overload">[13/14]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::os::Thread::Thread </td>
+          <td>(</td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>maxQueueSize</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030">FullPolicy</a></td>          <td class="paramname"><span class="paramname"><em>fullPolicy</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72">FullPolicy::FAULT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a></td>          <td class="paramname"><span class="paramname"><em>dispatchTimeout</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">threadName</td><td>Name for the Zephyr thread </td></tr>
+    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
+    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
+    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
+    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="af737d663e46d8d7b26dfeddfff49ce28" name="af737d663e46d8d7b26dfeddfff49ce28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af737d663e46d8d7b26dfeddfff49ce28">&#9670;&#160;</a></span>Thread() <span class="overload">[14/14]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">dmq::os::Thread::Thread </td>
@@ -842,17 +1169,12 @@ Static Public Attributes</h2></td></tr>
           <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>cpuName</em></span><span class="paramdefsep"> = </span><span class="paramdefval">&quot;&quot;</span>&#160;)</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
-<p>Constructor </p><dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">threadName</td><td>Name for the Zephyr thread </td></tr>
-    <tr><td class="paramname">maxQueueSize</td><td>Max number of messages in queue (0 = Default <a class="el" href="namespacedmq.html#a93973750d3ed0b71b524081d9f2e3f35" title="Default internal queue size for all dmq::os::Thread ports. Override via DMQ_DEFAULT_QUEUE_SIZE in del...">dmq::DEFAULT_QUEUE_SIZE</a>) </td></tr>
-    <tr><td class="paramname">fullPolicy</td><td>Action when queue is full: FAULT (default), DROP, or TIMEOUT. </td></tr>
-    <tr><td class="paramname">dispatchTimeout</td><td>Duration to wait before giving up when policy is TIMEOUT. </td></tr>
-    <tr><td class="paramname">cpuName</td><td>Optional CPU/Core name grouping for monitoring tools. </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -1814,8 +2136,8 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="ab47f2d18676c0da23e705db648f78df1" name="ab47f2d18676c0da23e705db648f78df1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab47f2d18676c0da23e705db648f78df1">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[1/7]</span></h2>
+<a id="a998f04923b5cd9c197acf05df93c5d77" name="a998f04923b5cd9c197acf05df93c5d77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a998f04923b5cd9c197acf05df93c5d77">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[1/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1824,7 +2146,7 @@ Static Public Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string dmq::os::Thread::GetThreadName </td>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::os::Thread::GetThreadName </td>
           <td>(</td>
           <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
           <td></td>
@@ -1839,8 +2161,8 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="ab47f2d18676c0da23e705db648f78df1" name="ab47f2d18676c0da23e705db648f78df1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab47f2d18676c0da23e705db648f78df1">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[2/7]</span></h2>
+<a id="a998f04923b5cd9c197acf05df93c5d77" name="a998f04923b5cd9c197acf05df93c5d77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a998f04923b5cd9c197acf05df93c5d77">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[2/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1849,34 +2171,7 @@ Static Public Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string dmq::os::Thread::GetThreadName </td>
-          <td>(</td>
-          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>Get thread name. </p>
-
-</div>
-</div>
-<a id="ab47f2d18676c0da23e705db648f78df1" name="ab47f2d18676c0da23e705db648f78df1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab47f2d18676c0da23e705db648f78df1">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[3/7]</span></h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::string dmq::os::Thread::GetThreadName </td>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::os::Thread::GetThreadName </td>
           <td>(</td>
           <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
           <td></td>
@@ -1893,8 +2188,8 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="ab47f2d18676c0da23e705db648f78df1" name="ab47f2d18676c0da23e705db648f78df1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab47f2d18676c0da23e705db648f78df1">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[4/7]</span></h2>
+<a id="a998f04923b5cd9c197acf05df93c5d77" name="a998f04923b5cd9c197acf05df93c5d77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a998f04923b5cd9c197acf05df93c5d77">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[3/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1903,7 +2198,7 @@ Static Public Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string dmq::os::Thread::GetThreadName </td>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::os::Thread::GetThreadName </td>
           <td>(</td>
           <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
           <td></td>
@@ -1920,8 +2215,8 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="ab47f2d18676c0da23e705db648f78df1" name="ab47f2d18676c0da23e705db648f78df1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab47f2d18676c0da23e705db648f78df1">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[5/7]</span></h2>
+<a id="a998f04923b5cd9c197acf05df93c5d77" name="a998f04923b5cd9c197acf05df93c5d77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a998f04923b5cd9c197acf05df93c5d77">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[4/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1930,7 +2225,7 @@ Static Public Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string dmq::os::Thread::GetThreadName </td>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::os::Thread::GetThreadName </td>
           <td>(</td>
           <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
           <td></td>
@@ -1947,8 +2242,8 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="ab47f2d18676c0da23e705db648f78df1" name="ab47f2d18676c0da23e705db648f78df1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab47f2d18676c0da23e705db648f78df1">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[6/7]</span></h2>
+<a id="a998f04923b5cd9c197acf05df93c5d77" name="a998f04923b5cd9c197acf05df93c5d77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a998f04923b5cd9c197acf05df93c5d77">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[5/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1957,7 +2252,34 @@ Static Public Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string dmq::os::Thread::GetThreadName </td>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::os::Thread::GetThreadName </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Get thread name. </p>
+
+</div>
+</div>
+<a id="a998f04923b5cd9c197acf05df93c5d77" name="a998f04923b5cd9c197acf05df93c5d77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a998f04923b5cd9c197acf05df93c5d77">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[6/7]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::os::Thread::GetThreadName </td>
           <td>(</td>
           <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
           <td></td>
@@ -1972,8 +2294,8 @@ Static Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<a id="afefdf8212bda114e315542b173ac70ab" name="afefdf8212bda114e315542b173ac70ab"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afefdf8212bda114e315542b173ac70ab">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[7/7]</span></h2>
+<a id="affb481c51db0b2f920beaf4606ffcc9d" name="affb481c51db0b2f920beaf4606ffcc9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#affb481c51db0b2f920beaf4606ffcc9d">&#9670;&#160;</a></span>GetThreadName() <span class="overload">[7/7]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1982,7 +2304,7 @@ Static Public Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string dmq::os::Thread::GetThreadName </td>
+          <td class="memname"><a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> dmq::os::Thread::GetThreadName </td>
           <td>(</td>
           <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
           <td> const</td>

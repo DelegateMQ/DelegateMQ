@@ -131,6 +131,12 @@ Namespaces</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Classes</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_allocator.html">Allocator</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_allocator_pool.html">AllocatorPool</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdmq_1_1_block_header.html">BlockHeader</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_delegate.html">Delegate</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4.html">Delegate&lt; RetType(Args...)&gt;</a></td></tr>
@@ -285,6 +291,10 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html">Signal&lt; RetType(Args...)&gt;</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Thread-safe multicast delegate returning RAII connection handles.  <a href="classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1stl__allocator_3_01void_01_4.html">stl_allocator&lt; void &gt;</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html">UnicastDelegate&lt; RetType(Args...)&gt;</a></td></tr>
@@ -317,12 +327,30 @@ Typedefs</h2></td></tr>
 <tr class="memitem:a3630077fab3ab296436584a9b6dab522" id="r_a3630077fab3ab296436584a9b6dab522"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:a3630077fab3ab296436584a9b6dab522"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a3630077fab3ab296436584a9b6dab522">LockGuard</a> = <a class="el" href="classdmq_1_1_portable_lock_guard.html">PortableLockGuard</a>&lt;T&gt;</td></tr>
 <tr class="separator:a3630077fab3ab296436584a9b6dab522"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa67d7309f9b005cc369e448ec28f8129" id="r_aa67d7309f9b005cc369e448ec28f8129"><td class="memItemLeft" align="right" valign="top">typedef std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa67d7309f9b005cc369e448ec28f8129">xostringstream</a></td></tr>
+<tr class="memitem:aa4b87fada2ddb0bb1f438c6985fe2fe3" id="r_aa4b87fada2ddb0bb1f438c6985fe2fe3"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
+<tr class="memitem:aa4b87fada2ddb0bb1f438c6985fe2fe3"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aa4b87fada2ddb0bb1f438c6985fe2fe3">stl_allocator</a> = std::allocator&lt;T&gt;</td></tr>
+<tr class="separator:aa4b87fada2ddb0bb1f438c6985fe2fe3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa67d7309f9b005cc369e448ec28f8129" id="r_aa67d7309f9b005cc369e448ec28f8129"><td class="memItemLeft" align="right" valign="top">typedef std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa67d7309f9b005cc369e448ec28f8129">xostringstream</a></td></tr>
 <tr class="separator:aa67d7309f9b005cc369e448ec28f8129"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a96216b70259f3d7e0a6462222e96e3b0" id="r_a96216b70259f3d7e0a6462222e96e3b0"><td class="memItemLeft" align="right" valign="top">typedef std::basic_stringstream&lt; char, std::char_traits&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a96216b70259f3d7e0a6462222e96e3b0">xstringstream</a></td></tr>
+<tr class="memitem:a96216b70259f3d7e0a6462222e96e3b0" id="r_a96216b70259f3d7e0a6462222e96e3b0"><td class="memItemLeft" align="right" valign="top">typedef std::basic_stringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a96216b70259f3d7e0a6462222e96e3b0">xstringstream</a></td></tr>
 <tr class="separator:a96216b70259f3d7e0a6462222e96e3b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a11cea01eb8d1af200d992657af94c7fb" id="r_a11cea01eb8d1af200d992657af94c7fb"><td class="memItemLeft" align="right" valign="top">typedef std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a11cea01eb8d1af200d992657af94c7fb">xstring</a></td></tr>
+<tr class="memitem:a11cea01eb8d1af200d992657af94c7fb" id="r_a11cea01eb8d1af200d992657af94c7fb"><td class="memItemLeft" align="right" valign="top">typedef std::basic_string&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a11cea01eb8d1af200d992657af94c7fb">xstring</a></td></tr>
 <tr class="separator:a11cea01eb8d1af200d992657af94c7fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ca6fd2638dd10cb9e042e693fb9ed17" id="r_a1ca6fd2638dd10cb9e042e693fb9ed17"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
+<tr class="memitem:a1ca6fd2638dd10cb9e042e693fb9ed17"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a1ca6fd2638dd10cb9e042e693fb9ed17">xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
+<tr class="separator:a1ca6fd2638dd10cb9e042e693fb9ed17"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9c5cd9ddb0dde09d411fa3cee898e1aa" id="r_a9c5cd9ddb0dde09d411fa3cee898e1aa"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Value , typename Alloc  = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </td></tr>
+<tr class="memitem:a9c5cd9ddb0dde09d411fa3cee898e1aa"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a9c5cd9ddb0dde09d411fa3cee898e1aa">xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td></tr>
+<tr class="separator:a9c5cd9ddb0dde09d411fa3cee898e1aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a563dc954d3b33c43a22924e77bb1db3a" id="r_a563dc954d3b33c43a22924e77bb1db3a"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Alloc  = stl_allocator&lt;Key&gt;&gt; </td></tr>
+<tr class="memitem:a563dc954d3b33c43a22924e77bb1db3a"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a563dc954d3b33c43a22924e77bb1db3a">xset</a> = std::set&lt;Key, Compare, Alloc&gt;</td></tr>
+<tr class="separator:a563dc954d3b33c43a22924e77bb1db3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa18cb5e12db99190c7c306d2279609a5" id="r_aa18cb5e12db99190c7c306d2279609a5"><td class="memTemplParams" colspan="2">template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Alloc  = stl_allocator&lt;Key&gt;&gt; </td></tr>
+<tr class="memitem:aa18cb5e12db99190c7c306d2279609a5"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aa18cb5e12db99190c7c306d2279609a5">xmultiset</a> = std::multiset&lt;Key, Compare, Alloc&gt;</td></tr>
+<tr class="separator:aa18cb5e12db99190c7c306d2279609a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae2af94a83aa5eba0f3ceaf625a0d1fd8" id="r_ae2af94a83aa5eba0f3ceaf625a0d1fd8"><td class="memTemplParams" colspan="2">template&lt;typename T , typename Container  = std::deque&lt;T, stl_allocator&lt;T&gt;&gt;&gt; </td></tr>
+<tr class="memitem:ae2af94a83aa5eba0f3ceaf625a0d1fd8"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ae2af94a83aa5eba0f3ceaf625a0d1fd8">xqueue</a> = std::queue&lt;T, Container&gt;</td></tr>
+<tr class="separator:ae2af94a83aa5eba0f3ceaf625a0d1fd8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4bcc300237d5cb854a800a19ccc0400a" id="r_a4bcc300237d5cb854a800a19ccc0400a"><td class="memItemLeft" align="right" valign="top">typedef int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a4bcc300237d5cb854a800a19ccc0400a">DelegateErrorAux</a></td></tr>
 <tr class="separator:a4bcc300237d5cb854a800a19ccc0400a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa5033450a33d262cadf38fc666741732" id="r_aa5033450a33d262cadf38fc666741732"><td class="memTemplParams" colspan="2">template&lt;size_t N, class... Args&gt; </td></tr>
@@ -463,6 +491,15 @@ Functions</h2></td></tr>
 <tr class="memitem:a98d422bc615570f6e05bcf1d92317309"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a98d422bc615570f6e05bcf1d92317309">make_tuple_heap</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1heap__arg__deleter__base.html">heap_arg_deleter_base</a> &gt; &gt; &amp;heapArgs, std::tuple&lt; Ts... &gt; tup, Arg1 arg1, Args... args)</td></tr>
 <tr class="memdesc:a98d422bc615570f6e05bcf1d92317309"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a tuple with all tuple elements created on the heap using <code>operator new()</code>.  <br /></td></tr>
 <tr class="separator:a98d422bc615570f6e05bcf1d92317309"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0ec5ce8da9b4d572cc4fbe2ab465974" id="r_ab0ec5ce8da9b4d572cc4fbe2ab465974"><td class="memTemplParams" colspan="2">template&lt;typename T , typename U &gt; </td></tr>
+<tr class="memitem:ab0ec5ce8da9b4d572cc4fbe2ab465974"><td class="memTemplItemLeft" align="right" valign="top">bool&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab0ec5ce8da9b4d572cc4fbe2ab465974">operator==</a> (const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; T &gt; &amp;, const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; U &gt; &amp;)</td></tr>
+<tr class="separator:ab0ec5ce8da9b4d572cc4fbe2ab465974"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3a3481568ef3def162505f3c669ea725" id="r_a3a3481568ef3def162505f3c669ea725"><td class="memTemplParams" colspan="2">template&lt;typename T , typename U &gt; </td></tr>
+<tr class="memitem:a3a3481568ef3def162505f3c669ea725"><td class="memTemplItemLeft" align="right" valign="top">bool&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a3a3481568ef3def162505f3c669ea725">operator!=</a> (const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; T &gt; &amp;, const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; U &gt; &amp;)</td></tr>
+<tr class="separator:a3a3481568ef3def162505f3c669ea725"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a76d4b9857eda4ac6d55966549da6c8b4" id="r_a76d4b9857eda4ac6d55966549da6c8b4"><td class="memTemplParams" colspan="2">template&lt;class T &gt; </td></tr>
+<tr class="memitem:a76d4b9857eda4ac6d55966549da6c8b4"><td class="memTemplItemLeft" align="right" valign="top">T&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a76d4b9857eda4ac6d55966549da6c8b4">nexthigher</a> (T k)</td></tr>
+<tr class="separator:a76d4b9857eda4ac6d55966549da6c8b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aae24f48dcafb137b7c909f9c0fdb7574" id="r_aae24f48dcafb137b7c909f9c0fdb7574"><td class="memTemplParams" colspan="2">template&lt;class RetType , class... Args&gt; </td></tr>
 <tr class="memitem:aae24f48dcafb137b7c909f9c0fdb7574"><td class="memTemplItemLeft" align="right" valign="top">&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aae24f48dcafb137b7c909f9c0fdb7574">RemoteChannel</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">transport::ITransport</a> &amp;, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;) -&gt; RemoteChannel&lt; RetType(Args...)&gt;</td></tr>
 <tr class="memdesc:aae24f48dcafb137b7c909f9c0fdb7574"><td class="mdescLeft">&#160;</td><td class="mdescRight">C++17 deduction guide — lets the compiler deduce <code>Sig</code> from the serializer type.  <br /></td></tr>
@@ -642,6 +679,22 @@ template&lt;typename T &gt; </div>
 
 </div>
 </div>
+<a id="aa4b87fada2ddb0bb1f438c6985fe2fe3" name="aa4b87fada2ddb0bb1f438c6985fe2fe3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa4b87fada2ddb0bb1f438c6985fe2fe3">&#9670;&#160;</a></span>stl_allocator</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T &gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using dmq::stl_allocator = std::allocator&lt;T&gt;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a8ff86233aa2d05f03cada0b63ebf8aef" name="a8ff86233aa2d05f03cada0b63ebf8aef"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a8ff86233aa2d05f03cada0b63ebf8aef">&#9670;&#160;</a></span>TimePoint</h2>
 
@@ -672,6 +725,54 @@ template&lt;typename T , typename Alloc  = stl_allocator&lt;T&gt;&gt; </div>
 
 </div>
 </div>
+<a id="a1ca6fd2638dd10cb9e042e693fb9ed17" name="a1ca6fd2638dd10cb9e042e693fb9ed17"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ca6fd2638dd10cb9e042e693fb9ed17">&#9670;&#160;</a></span>xmap</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename Key , typename Value , typename Alloc  = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap</a> = std::map&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a9c5cd9ddb0dde09d411fa3cee898e1aa" name="a9c5cd9ddb0dde09d411fa3cee898e1aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9c5cd9ddb0dde09d411fa3cee898e1aa">&#9670;&#160;</a></span>xmultimap</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename Key , typename Value , typename Alloc  = stl_allocator&lt;std::pair&lt;const Key, Value&gt;&gt;&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#a9c5cd9ddb0dde09d411fa3cee898e1aa">dmq::xmultimap</a> = std::multimap&lt;Key, Value, std::less&lt;Key&gt;, Alloc&gt;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="aa18cb5e12db99190c7c306d2279609a5" name="aa18cb5e12db99190c7c306d2279609a5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa18cb5e12db99190c7c306d2279609a5">&#9670;&#160;</a></span>xmultiset</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Alloc  = stl_allocator&lt;Key&gt;&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#aa18cb5e12db99190c7c306d2279609a5">dmq::xmultiset</a> = std::multiset&lt;Key, Compare, Alloc&gt;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="aa67d7309f9b005cc369e448ec28f8129" name="aa67d7309f9b005cc369e448ec28f8129"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aa67d7309f9b005cc369e448ec28f8129">&#9670;&#160;</a></span>xostringstream</h2>
 
@@ -679,7 +780,39 @@ template&lt;typename T , typename Alloc  = stl_allocator&lt;T&gt;&gt; </div>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classstl__allocator.html">stl_allocator</a>&lt; char &gt; &gt; <a class="el" href="#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a></td>
+          <td class="memname">typedef std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt; <a class="el" href="#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ae2af94a83aa5eba0f3ceaf625a0d1fd8" name="ae2af94a83aa5eba0f3ceaf625a0d1fd8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae2af94a83aa5eba0f3ceaf625a0d1fd8">&#9670;&#160;</a></span>xqueue</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T , typename Container  = std::deque&lt;T, stl_allocator&lt;T&gt;&gt;&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#ae2af94a83aa5eba0f3ceaf625a0d1fd8">dmq::xqueue</a> = std::queue&lt;T, Container&gt;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a563dc954d3b33c43a22924e77bb1db3a" name="a563dc954d3b33c43a22924e77bb1db3a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a563dc954d3b33c43a22924e77bb1db3a">&#9670;&#160;</a></span>xset</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Alloc  = stl_allocator&lt;Key&gt;&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#a563dc954d3b33c43a22924e77bb1db3a">dmq::xset</a> = std::set&lt;Key, Compare, Alloc&gt;</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -693,7 +826,7 @@ template&lt;typename T , typename Alloc  = stl_allocator&lt;T&gt;&gt; </div>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef std::basic_string&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classstl__allocator.html">stl_allocator</a>&lt; char &gt; &gt; <a class="el" href="#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></td>
+          <td class="memname">typedef std::basic_string&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt; <a class="el" href="#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -707,7 +840,7 @@ template&lt;typename T , typename Alloc  = stl_allocator&lt;T&gt;&gt; </div>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef std::basic_stringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classstl__allocator.html">stl_allocator</a>&lt; char &gt; &gt; <a class="el" href="#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a></td>
+          <td class="memname">typedef std::basic_stringstream&lt; char, std::char_traits&lt; char &gt;, <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; char &gt; &gt; <a class="el" href="#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -2007,6 +2140,95 @@ template&lt;class TClass , class RetType , class... Args&gt; </div>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A fully configured <code><a class="el" href="classdmq_1_1_delegate_member_remote.html">DelegateMemberRemote</a></code>. </dd></dl>
+
+</div>
+</div>
+<a id="a76d4b9857eda4ac6d55966549da6c8b4" name="a76d4b9857eda4ac6d55966549da6c8b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a76d4b9857eda4ac6d55966549da6c8b4">&#9670;&#160;</a></span>nexthigher()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class T &gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">T dmq::nexthigher </td>
+          <td>(</td>
+          <td class="paramtype">T</td>          <td class="paramname"><span class="paramname"><em>k</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Returns the next higher powers of two. For instance, pass in 12 and the value returned would be 16. </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">k</td><td>- numeric value to compute the next higher power of two. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The next higher power of two based on the input k. <br  />
+ </dd></dl>
+
+</div>
+</div>
+<a id="a3a3481568ef3def162505f3c669ea725" name="a3a3481568ef3def162505f3c669ea725"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3a3481568ef3def162505f3c669ea725">&#9670;&#160;</a></span>operator!=()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T , typename U &gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dmq::operator!= </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; T &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; U &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ab0ec5ce8da9b4d572cc4fbe2ab465974" name="ab0ec5ce8da9b4d572cc4fbe2ab465974"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab0ec5ce8da9b4d572cc4fbe2ab465974">&#9670;&#160;</a></span>operator==()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T , typename U &gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dmq::operator== </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; T &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1stl__allocator.html">stl_allocator</a>&lt; U &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
 
 </div>
 </div>

@@ -97,6 +97,7 @@ $(function(){initNavTree('xallocator_8h.html',''); initResizable(true); });
 
 <div class="header">
   <div class="summary">
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">xallocator.h File Reference</div></div>
 </div><!--header-->
@@ -106,9 +107,17 @@ $(function(){initNavTree('xallocator_8h.html',''); initResizable(true); });
 </div>
 <p><a href="xallocator_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:af1502bfec5bbe6bdf90cd2a56b3c3c9b" id="r_af1502bfec5bbe6bdf90cd2a56b3c3c9b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af1502bfec5bbe6bdf90cd2a56b3c3c9b">XALLOC_BLOCK_HEADER_SIZE</a>&#160;&#160;&#160;(sizeof(void*) &gt; 4 ? 16 : 8)</td></tr>
+<tr class="separator:af1502bfec5bbe6bdf90cd2a56b3c3c9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0dcb13b24098b9cc1cb542913029b6aa" id="r_a0dcb13b24098b9cc1cb542913029b6aa"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a0dcb13b24098b9cc1cb542913029b6aa">XALLOC_BLOCK_FOOTER_SIZE</a>&#160;&#160;&#160;0</td></tr>
+<tr class="separator:a0dcb13b24098b9cc1cb542913029b6aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a2ef0f77be4ef8dcbed8bfc80791d29a7" id="r_a2ef0f77be4ef8dcbed8bfc80791d29a7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2ef0f77be4ef8dcbed8bfc80791d29a7">xalloc_init</a> ()</td></tr>
+<tr class="memdesc:a2ef0f77be4ef8dcbed8bfc80791d29a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Forward declaration of Allocator class.  <br /></td></tr>
 <tr class="separator:a2ef0f77be4ef8dcbed8bfc80791d29a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab15c84ed4c7ef8268c3e1e3ca40ac261" id="r_ab15c84ed4c7ef8268c3e1e3ca40ac261"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab15c84ed4c7ef8268c3e1e3ca40ac261">xalloc_destroy</a> ()</td></tr>
 <tr class="separator:ab15c84ed4c7ef8268c3e1e3ca40ac261"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -122,6 +131,35 @@ Functions</h2></td></tr>
 <tr class="memdesc:a9afc43dc6a9e7f37b31984837bce5e6e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Output allocator statistics to the standard output.  <br /></td></tr>
 <tr class="separator:a9afc43dc6a9e7f37b31984837bce5e6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a0dcb13b24098b9cc1cb542913029b6aa" name="a0dcb13b24098b9cc1cb542913029b6aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0dcb13b24098b9cc1cb542913029b6aa">&#9670;&#160;</a></span>XALLOC_BLOCK_FOOTER_SIZE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define XALLOC_BLOCK_FOOTER_SIZE&#160;&#160;&#160;0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="af1502bfec5bbe6bdf90cd2a56b3c3c9b" name="af1502bfec5bbe6bdf90cd2a56b3c3c9b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af1502bfec5bbe6bdf90cd2a56b3c3c9b">&#9670;&#160;</a></span>XALLOC_BLOCK_HEADER_SIZE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define XALLOC_BLOCK_HEADER_SIZE&#160;&#160;&#160;(sizeof(void*) &gt; 4 ? 16 : 8)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ab15c84ed4c7ef8268c3e1e3ca40ac261" name="ab15c84ed4c7ef8268c3e1e3ca40ac261"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab15c84ed4c7ef8268c3e1e3ca40ac261">&#9670;&#160;</a></span>xalloc_destroy()</h2>
@@ -158,7 +196,9 @@ Functions</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<p>This function must be called exactly one time before the operating system threading starts. If using xallocator exclusively in C files within your application code, you must call this function before the OS starts. If using C++, client code does not call xalloc_init. Let XallocInitDestroy() call xalloc_init automatically. Embedded systems that never exit can call <a class="el" href="xallocator_8cpp.html#a2ef0f77be4ef8dcbed8bfc80791d29a7">xalloc_init()</a> manually at startup and eliminate XallocInitDestroy usage. When the system is still single threaded at startup, the xallocator API does not need mutex protection.</p>
+
+<p>Forward declaration of Allocator class. </p>
+<p>This function must be called exactly one time before the operating system threading starts. If using xallocator exclusively in C files within your application code, you must call this function before the OS starts. If using C++, client code does not call xalloc_init. Let XallocInitDestroy() call xalloc_init automatically. Embedded systems that never exit can call <a class="el" href="xallocator_8cpp.html#a2ef0f77be4ef8dcbed8bfc80791d29a7" title="Forward declaration of Allocator class.">xalloc_init()</a> manually at startup and eliminate XallocInitDestroy usage. When the system is still single threaded at startup, the xallocator API does not need mutex protection.</p>
 <p>This function must be called exactly one time <em>before</em> any other xallocator API is called. XallocInitDestroy constructor calls this function automatically. <br  />
  </p>
 
@@ -227,7 +267,14 @@ Functions</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<p>Allocate a block of memory </p><dl class="params"><dt>Parameters</dt><dd>
+<p>Get an Allocator instance based upon the client's requested block size. </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>- the client's requested block size. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>An Allocator instance that handles blocks of the requested size. Allocate a block of memory </dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>- the size of the block to allocate. <br  />
 </td></tr>

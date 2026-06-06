@@ -106,23 +106,28 @@ $(function(){initNavTree('xqueue_8h_source.html',''); initResizable(true); });
 <div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#include &lt;queue&gt;</span></div>
 <div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#include &lt;list&gt;</span></div>
 <div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span> </div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="comment">// xqueue uses a fix-block memory allocator</span></div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="keyword">template</span> &lt;<span class="keyword">typename</span> T, <span class="keyword">typename</span> Alloc = stl_allocator&lt;T&gt;&gt;</div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno"><a class="line" href="xqueue_8h.html#ab491ae9d713da6cb9faba7cead6a03e0">   10</a></span><span class="keyword">using </span><a class="code hl_typedef" href="xqueue_8h.html#ab491ae9d713da6cb9faba7cead6a03e0">xqueue</a> = std::queue&lt;T, std::deque&lt;T, Alloc&gt;&gt;;</div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span> </div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="preprocessor">#if 0  </span><span class="comment">// Deprecated</span></div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="keyword">template</span>&lt;<span class="keyword">class </span>_Tp,</div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span>    <span class="keyword">class </span>_Sequence = std::list&lt;_Tp, stl_allocator&lt;_Tp&gt; &gt; &gt;</div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span>    <span class="keyword">class </span><a class="code hl_typedef" href="xqueue_8h.html#ab491ae9d713da6cb9faba7cead6a03e0">xqueue</a></div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>        : <span class="keyword">public</span> std::queue&lt;_Tp, _Sequence&gt;</div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>    {</div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    };</div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span> </div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span> </div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="keyword">namespace </span><a class="code hl_namespace" href="namespacedmq.html">dmq</a> {</div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="comment">// xqueue uses a fix-block memory allocator</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="keyword">template</span> &lt;<span class="keyword">typename</span> T, <span class="keyword">typename</span> Alloc = stl_allocator&lt;T&gt;&gt;</div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="keyword">using </span><a class="code hl_typedef" href="namespacedmq.html#ae2af94a83aa5eba0f3ceaf625a0d1fd8">xqueue</a> = std::queue&lt;T, std::deque&lt;T, Alloc&gt;&gt;;</div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span> </div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span>} <span class="comment">// namespace dmq</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span> </div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="preprocessor">#if 0  </span><span class="comment">// Deprecated</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="keyword">template</span>&lt;<span class="keyword">class </span>_Tp,</div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    <span class="keyword">class </span>_Sequence = std::list&lt;_Tp, stl_allocator&lt;_Tp&gt; &gt; &gt;</div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <span class="keyword">class </span><a class="code hl_typedef" href="namespacedmq.html#ae2af94a83aa5eba0f3ceaf625a0d1fd8">xqueue</a></div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>        : <span class="keyword">public</span> std::queue&lt;_Tp, _Sequence&gt;</div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    {</div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    };</div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span> </div>
+<div class="ttc" id="anamespacedmq_html"><div class="ttname"><a href="namespacedmq.html">dmq</a></div><div class="ttdoc">The delegate library namespace.</div><div class="ttdef"><b>Definition</b> Delegate.h:27</div></div>
+<div class="ttc" id="anamespacedmq_html_ae2af94a83aa5eba0f3ceaf625a0d1fd8"><div class="ttname"><a href="namespacedmq.html#ae2af94a83aa5eba0f3ceaf625a0d1fd8">dmq::xqueue</a></div><div class="ttdeci">std::queue&lt; T, Container &gt; xqueue</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:357</div></div>
 <div class="ttc" id="astl__allocator_8h_html"><div class="ttname"><a href="stl__allocator_8h.html">stl_allocator.h</a></div></div>
-<div class="ttc" id="axqueue_8h_html_ab491ae9d713da6cb9faba7cead6a03e0"><div class="ttname"><a href="xqueue_8h.html#ab491ae9d713da6cb9faba7cead6a03e0">xqueue</a></div><div class="ttdeci">std::queue&lt; T, std::deque&lt; T, Alloc &gt; &gt; xqueue</div><div class="ttdef"><b>Definition</b> xqueue.h:10</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

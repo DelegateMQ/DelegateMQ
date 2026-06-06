@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.12.0"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>DelegateMQ: dmq::databus::detail::Filter&lt; T, F, P &gt; Class Template Reference</title>
+<title>DelegateMQ: dmq::databus::detail::Filter&lt; T &gt; Class Template Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -99,7 +99,7 @@ $(function(){initNavTree('classdmq_1_1databus_1_1detail_1_1_filter.html',''); in
   <div class="summary">
 <a href="#pub-methods">Public Member Functions</a> &#124;
 <a href="classdmq_1_1databus_1_1detail_1_1_filter-members.html">List of all members</a>  </div>
-  <div class="headertitle"><div class="title">dmq::databus::detail::Filter&lt; T, F, P &gt; Class Template Reference</div></div>
+  <div class="headertitle"><div class="title">dmq::databus::detail::Filter&lt; T &gt; Class Template Reference</div></div>
 </div><!--header-->
 <div class="contents">
 
@@ -107,32 +107,32 @@ $(function(){initNavTree('classdmq_1_1databus_1_1detail_1_1_filter.html',''); in
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:adccebb89c1d56dd60fe4b076c3e4f994" id="r_adccebb89c1d56dd60fe4b076c3e4f994"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#adccebb89c1d56dd60fe4b076c3e4f994">Filter</a> (F func, P predicate)</td></tr>
-<tr class="separator:adccebb89c1d56dd60fe4b076c3e4f994"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8d6b25520ebbbfd34efc6758726b5003" id="r_a8d6b25520ebbbfd34efc6758726b5003"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a8d6b25520ebbbfd34efc6758726b5003">Invoke</a> (T data)</td></tr>
-<tr class="separator:a8d6b25520ebbbfd34efc6758726b5003"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ace83a3ec75c9deb9f816634fc3af43dd" id="r_ace83a3ec75c9deb9f816634fc3af43dd"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ace83a3ec75c9deb9f816634fc3af43dd">Filter</a> (<a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; void(const T &amp;)&gt; func, <a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; bool(const T &amp;)&gt; predicate)</td></tr>
+<tr class="separator:ace83a3ec75c9deb9f816634fc3af43dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3bc3f783ea81839194e64db569d81106" id="r_a3bc3f783ea81839194e64db569d81106"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a3bc3f783ea81839194e64db569d81106">Invoke</a> (const T &amp;data)</td></tr>
+<tr class="separator:a3bc3f783ea81839194e64db569d81106"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="adccebb89c1d56dd60fe4b076c3e4f994" name="adccebb89c1d56dd60fe4b076c3e4f994"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adccebb89c1d56dd60fe4b076c3e4f994">&#9670;&#160;</a></span>Filter()</h2>
+<a id="ace83a3ec75c9deb9f816634fc3af43dd" name="ace83a3ec75c9deb9f816634fc3af43dd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ace83a3ec75c9deb9f816634fc3af43dd">&#9670;&#160;</a></span>Filter()</h2>
 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename T , typename F , typename P &gt; </div>
+template&lt;typename T &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="classdmq_1_1databus_1_1detail_1_1_filter.html">dmq::databus::detail::Filter</a>&lt; T, F, P &gt;::Filter </td>
+          <td class="memname"><a class="el" href="classdmq_1_1databus_1_1detail_1_1_filter.html">dmq::databus::detail::Filter</a>&lt; T &gt;::Filter </td>
           <td>(</td>
-          <td class="paramtype">F</td>          <td class="paramname"><span class="paramname"><em>func</em></span>, </td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; void(const T &amp;)&gt;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">P</td>          <td class="paramname"><span class="paramname"><em>predicate</em></span>&#160;)</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; bool(const T &amp;)&gt;</td>          <td class="paramname"><span class="paramname"><em>predicate</em></span>&#160;)</td>
         </tr>
       </table>
   </td>
@@ -145,21 +145,21 @@ template&lt;typename T , typename F , typename P &gt; </div>
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
-<a id="a8d6b25520ebbbfd34efc6758726b5003" name="a8d6b25520ebbbfd34efc6758726b5003"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8d6b25520ebbbfd34efc6758726b5003">&#9670;&#160;</a></span>Invoke()</h2>
+<a id="a3bc3f783ea81839194e64db569d81106" name="a3bc3f783ea81839194e64db569d81106"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3bc3f783ea81839194e64db569d81106">&#9670;&#160;</a></span>Invoke()</h2>
 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename T , typename F , typename P &gt; </div>
+template&lt;typename T &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">void <a class="el" href="classdmq_1_1databus_1_1detail_1_1_filter.html">dmq::databus::detail::Filter</a>&lt; T, F, P &gt;::Invoke </td>
+          <td class="memname">void <a class="el" href="classdmq_1_1databus_1_1detail_1_1_filter.html">dmq::databus::detail::Filter</a>&lt; T &gt;::Invoke </td>
           <td>(</td>
-          <td class="paramtype">T</td>          <td class="paramname"><span class="paramname"><em>data</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>data</em></span></td><td>)</td>
           <td></td>
         </tr>
       </table>

@@ -1,12 +1,12 @@
 var searchData=
 [
   ['xlist_0',['xlist',['../namespacedmq.html#aae84dcbaa4b069e6462569ba395e2b80',1,'dmq']]],
-  ['xmap_1',['xmap',['../_delegate_opt_8h.html#a469c70e22b4e113778864ed7568d7474',1,'xmap:&#160;DelegateOpt.h'],['../xmap_8h.html#a469c70e22b4e113778864ed7568d7474',1,'xmap:&#160;xmap.h']]],
-  ['xmultimap_2',['xmultimap',['../_delegate_opt_8h.html#ae6e99a0ad5b40dd413347112d7049833',1,'xmultimap:&#160;DelegateOpt.h'],['../xmap_8h.html#ae6e99a0ad5b40dd413347112d7049833',1,'xmultimap:&#160;xmap.h']]],
-  ['xmultiset_3',['xmultiset',['../xset_8h.html#ae58e845a30ad7ec68502a4a9a90aa2ba',1,'xset.h']]],
+  ['xmap_1',['xmap',['../namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17',1,'dmq']]],
+  ['xmultimap_2',['xmultimap',['../namespacedmq.html#a9c5cd9ddb0dde09d411fa3cee898e1aa',1,'dmq']]],
+  ['xmultiset_3',['xmultiset',['../namespacedmq.html#aa18cb5e12db99190c7c306d2279609a5',1,'dmq']]],
   ['xostringstream_4',['xostringstream',['../namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129',1,'dmq']]],
-  ['xqueue_5',['xqueue',['../xqueue_8h.html#ab491ae9d713da6cb9faba7cead6a03e0',1,'xqueue.h']]],
-  ['xset_6',['xset',['../xset_8h.html#a3c4b96ae2ee586e687c2f29a8cd2f6b1',1,'xset.h']]],
+  ['xqueue_5',['xqueue',['../namespacedmq.html#ae2af94a83aa5eba0f3ceaf625a0d1fd8',1,'dmq']]],
+  ['xset_6',['xset',['../namespacedmq.html#a563dc954d3b33c43a22924e77bb1db3a',1,'dmq']]],
   ['xstring_7',['xstring',['../namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb',1,'dmq']]],
   ['xstringstream_8',['xstringstream',['../namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0',1,'dmq']]]
 ];
