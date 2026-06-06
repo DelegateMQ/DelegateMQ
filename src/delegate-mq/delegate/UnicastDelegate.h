@@ -54,17 +54,17 @@ public:
 
     /// Invoke the bound target.
     /// @param[in] args The arguments used when invoking the target function
-    /// @return The target function return value. 
-    RetType operator()(Args... args) {
+    /// @return The target function return value.
+    RetType operator()(Args... args) const {
         if (m_delegate)
             return (*m_delegate)(args...);	// Invoke delegate callback
         else
             return RetType();
     }
 
-    /// Invoke the bound target functions. 
+    /// Invoke the bound target functions.
     /// @param[in] args The arguments used when invoking the target function
-    void Broadcast(Args... args) {
+    void Broadcast(Args... args) const {
         (*this)(args...);
     }
 

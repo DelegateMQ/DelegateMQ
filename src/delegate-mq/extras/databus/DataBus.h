@@ -24,9 +24,7 @@
 namespace dmq::databus {
 
 namespace detail {
-    // Helper class to implement QoS rate limiting without heavy lambda captures.
-    // Storing state in a class and capturing only a shared_ptr in std::function 
-    // ensures the delegate fits within Small Buffer Optimization (SBO).
+    // Helper class to implement QoS rate limiting without lambda captures.
     template <typename T>
     class RateLimiter {
         XALLOCATOR
@@ -216,10 +214,7 @@ public:
         // Establish connection OUTSIDE the global DataBus lock to prevent
         // lock inversion deadlocks. Signal::Connect() is already thread-safe.
         if (thread) {
-            auto udShared = dmq::xmake_shared<dmq::UnicastDelegate<void(const SpyPacket&)>>(std::move(ud));
-            auto del = dmq::MakeDelegate(
-                std::function<void(const SpyPacket&)>([udShared](const SpyPacket& p) { (*udShared)(p); }),
-                *thread);
+            auto del = dmq::MakeDelegate(std::function<void(const SpyPacket&)>(std::move(ud)), *thread);
             del.SetPriority(priority);
             return instance.m_monitorSignal.Connect(std::move(del));
         } else {
@@ -321,12 +316,7 @@ private:
         using AsyncDelType = dmq::DelegateFunctionAsync<void(const T&)>;
         std::optional<AsyncDelType> asyncDel;
         if (thread) {
-            // xmake_shared + const lambda bridges UnicastDelegate (non-const operator()) into
-            // std::function without hitting the is_callable SFINAE functor path on MSVC.
-            auto udShared = dmq::xmake_shared<dmq::UnicastDelegate<void(const T&)>>(std::move(typedFunc));
-            asyncDel.emplace(dmq::MakeDelegate(
-                std::function<void(const T&)>([udShared](const T& data) { (*udShared)(data); }),
-                *thread));
+            asyncDel.emplace(dmq::MakeDelegate(std::function<void(const T&)>(std::move(typedFunc)), *thread));
             conn = signal->Connect(*asyncDel);
         } else {
             conn = signal->Connect(typedFunc);

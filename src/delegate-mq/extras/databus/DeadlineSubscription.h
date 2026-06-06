@@ -51,8 +51,8 @@
 /// dmq::DeadlineSubscription<SensorData> m_watch{
 ///     "sensor/temp",
 ///     std::chrono::milliseconds(500),
-///     dmq::MakeDelegate([](const SensorData& d) { /* handle data */ }),
-///     dmq::MakeDelegate([]()                    { /* deadline missed — sensor silent */ }),
+///     [](const SensorData& d) { /* handle data */ },
+///     []()                    { /* deadline missed — sensor silent */ },
 ///     &m_workerThread
 /// };
 /// @endcode
@@ -72,19 +72,32 @@ public:
     ///
     /// @param topic     DataBus topic to subscribe to.
     /// @param deadline  Maximum allowed interval between deliveries. Must be > 0.
-    /// @param handler   Called on each data delivery.
+    /// @param handler   Called on each data delivery. Accepts any callable (lambda,
+    ///                  function pointer, member delegate, UnicastDelegate).
     /// @param onMissed  Called when no delivery arrives within the deadline window.
+    ///                  Accepts any callable with signature void().
     /// @param thread    Optional worker thread for both callbacks. If nullptr,
     ///                  handler fires on the publisher's thread and onMissed fires
     ///                  on the Timer::ProcessTimers() thread.
+    template <typename H, typename M>
     DeadlineSubscription(
         const dmq::xstring& topic,
         dmq::Duration deadline,
-        dmq::UnicastDelegate<void(const T&)> handler,
-        dmq::UnicastDelegate<void()> onMissed,
+        H&& handler,
+        M&& onMissed,
         dmq::IThread* thread = nullptr)
-        : m_deadline(deadline), m_handler(std::move(handler)), m_onMissed(std::move(onMissed))
+        : m_deadline(deadline)
     {
+        if constexpr (std::is_base_of_v<dmq::Delegate<void(const T&)>, std::decay_t<H>>)
+            m_handler = std::forward<H>(handler);
+        else
+            m_handler = dmq::DelegateFunction<void(const T&)>(std::forward<H>(handler));
+
+        if constexpr (std::is_base_of_v<dmq::Delegate<void()>, std::decay_t<M>>)
+            m_onMissed = std::forward<M>(onMissed);
+        else
+            m_onMissed = dmq::DelegateFunction<void()>(std::forward<M>(onMissed));
+
         // Connect onMissed to the timer expiry signal, dispatching to thread if provided
         if (thread) {
             m_timerConn = m_timer.OnExpired.Connect(
