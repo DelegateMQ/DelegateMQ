@@ -61,7 +61,7 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
+Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : m_threadName(threadName)
     , m_cpuName(cpuName)
     , m_maxQueueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
@@ -99,7 +99,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_thread)
     {
         m_thread = new QThread();
-        m_thread->setObjectName(QString::fromStdString(m_threadName));
+        m_thread->setObjectName(QString::fromUtf8(m_threadName.c_str()));
 
         // Create worker and move it to the new thread
         m_worker = new Worker(this);

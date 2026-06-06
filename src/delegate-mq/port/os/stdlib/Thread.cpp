@@ -27,7 +27,7 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
+Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : m_thread(std::nullopt)
     , m_exit(false)
     , THREAD_NAME(threadName)
@@ -156,7 +156,7 @@ void Thread::Sleep(dmq::Duration timeout) {
 //----------------------------------------------------------------------------
 // SetThreadName
 //----------------------------------------------------------------------------
-void Thread::SetThreadName(std::thread::native_handle_type handle, const std::string& name)
+void Thread::SetThreadName(std::thread::native_handle_type handle, const dmq::xstring& name)
 {
 #ifdef _WIN32
     // Set the thread name so it shows in the Visual Studio Debug Location toolbar

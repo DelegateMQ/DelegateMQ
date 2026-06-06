@@ -129,7 +129,7 @@ static void check_alignment(void* ptr)
 	// On 64-bit systems, we expect 8 or 16-byte alignment.
 	if ((address & (sizeof(void*) - 1)) != 0)
 	{
-		assert(false && "xmalloc returning misaligned memory");
+		ASSERT();
 	}
 }
 #endif

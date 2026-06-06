@@ -29,6 +29,7 @@
 #include <QWaitCondition>
 #include <memory>
 #include <atomic>
+#include <string>
 
 namespace dmq::os {
 
@@ -74,8 +75,8 @@ public:
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Statistics captured for thread monitoring.
     struct ThreadStats {
-        std::string cpu_name;
-        std::string thread_name;
+        dmq::xstring cpu_name;
+        dmq::xstring thread_name;
         size_t queue_depth;           // Current depth
         size_t queue_depth_max_window;// Max depth since last snapshot
         size_t queue_depth_max_all;   // All-time max depth
@@ -99,8 +100,12 @@ public:
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
+    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
+
     Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
-           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "");
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
+        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
     /// Destructor
     ~Thread();
@@ -123,7 +128,7 @@ public:
     /// Returns true if the calling thread is this thread
     virtual bool IsCurrentThread() override;
 
-    std::string GetThreadName() const { return m_threadName; }
+    dmq::xstring GetThreadName() const { return m_threadName; }
 
     /// Get current queue size
     size_t GetQueueSize() const { return m_queueSize.load(); }
@@ -175,8 +180,8 @@ private:
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock();
 
-    const std::string m_threadName;
-    const std::string m_cpuName;
+    const dmq::xstring m_threadName;
+    const dmq::xstring m_cpuName;
     const size_t m_maxQueueSize;
     const FullPolicy m_fullPolicy;
     const dmq::Duration m_dispatchTimeout;
