@@ -25,6 +25,31 @@ extern "C" void SysTick_Handler(void) {
 }
 
 // --------------------------------------------------------------------------
+// PORT FUNCTIONS
+// --------------------------------------------------------------------------
+
+// C linkage version (called from C files and by the C++ overload below)
+extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
+{
+    printf("FAULT: %s line %u\r\n", file, static_cast<unsigned int>(line));
+    while (1);  // halt
+}
+
+extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
+{
+    printf("WATCHDOG EXPIRED: %s\r\n", threadName);
+    while (1);
+}
+
+// C++ overload — delegates to the C version above
+namespace dmq::util {
+    DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
+    {
+        ::FaultHandler(file, line);
+    }
+}
+
+// --------------------------------------------------------------------------
 // CALLBACK FUNCTIONS
 // --------------------------------------------------------------------------
 void FreeFunction(int val) {
@@ -34,7 +59,7 @@ void FreeFunction(int val) {
 class TestHandler {
 public:
     void MemberFunc(int val) {
-        printf("  [Callback] MemberFunc called! Value: %d (Instance: %p)\n", val, this);
+        printf("  [Callback] MemberFunc called! Value: %d (Instance: %p)\n", val, static_cast<void*>(this));
     }
 };
 
