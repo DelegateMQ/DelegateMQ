@@ -446,11 +446,11 @@ void Thread::Process()
                         }
                         catch (const std::exception& e) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
-                            dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                            ASSERT();
                         }
                         catch (...) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled unknown exception in delegate callback." << std::endl;
-                            dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                            ASSERT();
                         }
 #else
                         bool success = invoker->Invoke(delegateMsg);
@@ -478,7 +478,7 @@ void Thread::Process()
             }
 
             default:
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                ASSERT();
                 break;
         }
         // msg goes out of scope here — may trigger self-destruction of 'this'.

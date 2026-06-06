@@ -1,5 +1,6 @@
 #include "Network.h"
 #include "Constants.h"
+#include "extras/util/Fault.h"
 #include "extras/util/ThreadMonitor.h"
 #include "extras/util/TimerDelegate.h"
 #include <iostream>
@@ -144,10 +145,8 @@ void Network::AddRemoteNode(const dmq::xstring& nodeName, const dmq::xstring& ad
         }
     }
 
-    if (m_remoteNodes.size() >= MAX_REMOTE_NODES)
-        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-    else
-        m_remoteNodes[nodeName] = std::move(node);
+    ASSERT_TRUE(m_remoteNodes.size() < MAX_REMOTE_NODES);
+    m_remoteNodes[nodeName] = std::move(node);
 }
 
 void Network::ReceiverThread() {

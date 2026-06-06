@@ -198,9 +198,7 @@ public:
     // priority without a thread is a programming error and triggers FaultHandler.
     template <typename F>
     [[nodiscard]] static dmq::ScopedConnection Monitor(F&& func, dmq::IThread* thread = nullptr, dmq::Priority priority = dmq::Priority::NORMAL) {
-        if (!thread && priority != dmq::Priority::NORMAL) {
-            ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
-        }
+        ASSERT_TRUE(thread || priority == dmq::Priority::NORMAL);
 
         dmq::UnicastDelegate<void(const SpyPacket&)> ud;
         if constexpr (std::is_base_of_v<dmq::Delegate<void(const SpyPacket&)>, std::decay_t<F>>)
@@ -383,8 +381,8 @@ private:
             // 1. Type safety: verify T matches the registered type for this topic.
             // Must be first — before any writes — so a mismatch never corrupts LVC.
             auto itType = m_typeIndices.find(topic);
-            if (itType != m_typeIndices.end() && itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
+            if (itType != m_typeIndices.end()) {
+                ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
             }
 
             // 2. Update LVC ONLY if enabled for this topic to save memory.
@@ -483,13 +481,10 @@ private:
             dmq::MakeDelegate(this, &DataBus::InternalReportError));
 
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-        if (m_participantCount < dmq::MAX_PARTICIPANTS) {
-            m_participantErrorConnections[m_participantCount] = std::move(conn);
-            m_participants[m_participantCount++] = participant;
-        }
-        else
-            ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
-            }
+        ASSERT_TRUE(m_participantCount < dmq::MAX_PARTICIPANTS);
+        m_participantErrorConnections[m_participantCount] = std::move(conn);
+        m_participants[m_participantCount++] = participant;
+    }
 
     template <typename T>
     void InternalRegisterSerializer(const dmq::xstring& topic, dmq::ISerializer<void(T)>& serializer) {
@@ -497,9 +492,7 @@ private:
 
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
-            if (itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
-            }
+            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
@@ -514,9 +507,7 @@ private:
         // Runtime Type Safety: Ensure topic is not registered with multiple types
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
-            if (itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
-            }
+            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
@@ -554,10 +545,8 @@ private:
         // Assume lock is held by caller
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
-            if (itType->second != std::type_index(typeid(T))) {
-                // Runtime Type Safety: Catch same topic string used with different types
-                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
-            }
+            // Runtime Type Safety: Catch same topic string used with different types
+            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }

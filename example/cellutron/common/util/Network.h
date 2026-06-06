@@ -60,10 +60,8 @@ public:
     template <typename T>
     void RegisterOutgoingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, Reliability reliability = Reliability::UNRELIABLE) {
         dmq::databus::DataBus::RegisterSerializer<T>(topic, serializer);
-        if (m_outgoingTopicCount >= m_outgoingTopics.size())
-            ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-        else
-            m_outgoingTopics[m_outgoingTopicCount++] = {topic, remoteId, reliability};
+        ASSERT_TRUE(m_outgoingTopicCount < m_outgoingTopics.size());
+        m_outgoingTopics[m_outgoingTopicCount++] = {topic, remoteId, reliability};
         
         // Add to all existing remote nodes
         for (auto& [name, node] : m_remoteNodes) {
@@ -80,10 +78,8 @@ public:
     /// Register an incoming topic from the network.
     template <typename T>
     void RegisterIncomingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer) {
-        if (m_incomingTopicCount >= m_incomingTopics.size())
-            ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-        else
-            m_incomingTopics[m_incomingTopicCount++] = {topic, remoteId, (void*)&serializer,
+        ASSERT_TRUE(m_incomingTopicCount < m_incomingTopics.size());
+        m_incomingTopics[m_incomingTopicCount++] = {topic, remoteId, (void*)&serializer,
                 [](void* ser, const dmq::xstring& t, dmq::DelegateRemoteId rid, dmq::databus::Participant& p) {
                     dmq::databus::DataBus::AddIncomingTopic<T>(t, rid, p, *(dmq::ISerializer<void(T)>*)ser);
                 }

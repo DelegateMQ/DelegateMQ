@@ -405,11 +405,11 @@ void Thread::Run()
                 }
                 catch (const std::exception& e) {
                     printf("[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
-                    dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
+                    ASSERT();
                 }
                 catch (...) {
                     printf("[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
-                    dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
+                    ASSERT();
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);

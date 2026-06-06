@@ -1,5 +1,6 @@
 #include "Heartbeat.h"
 #include "messages/FaultMsg.h"
+#include "extras/util/Fault.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -28,10 +29,7 @@ void Heartbeat::Start()
 
 void Heartbeat::MonitorNode(const char* remoteTopic, FaultCode faultCode, const std::string& nodeName)
 {
-    if (m_monitorCount >= m_monitors.size()) {
-        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-        return;
-    }
+    ASSERT_TRUE(m_monitorCount < m_monitors.size());
 
     Monitor& monitor = m_monitors[m_monitorCount++];
     monitor.name = nodeName;
