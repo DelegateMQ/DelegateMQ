@@ -199,8 +199,7 @@ public:
     template <typename F>
     [[nodiscard]] static dmq::ScopedConnection Monitor(F&& func, dmq::IThread* thread = nullptr, dmq::Priority priority = dmq::Priority::NORMAL) {
         if (!thread && priority != dmq::Priority::NORMAL) {
-            ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-            return {};
+            ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
         }
 
         dmq::UnicastDelegate<void(const SpyPacket&)> ud;
@@ -385,8 +384,7 @@ private:
             // Must be first — before any writes — so a mismatch never corrupts LVC.
             auto itType = m_typeIndices.find(topic);
             if (itType != m_typeIndices.end() && itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return;
+                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
             }
 
             // 2. Update LVC ONLY if enabled for this topic to save memory.
@@ -490,8 +488,8 @@ private:
             m_participants[m_participantCount++] = participant;
         }
         else
-            ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-    }
+            ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
+            }
 
     template <typename T>
     void InternalRegisterSerializer(const dmq::xstring& topic, dmq::ISerializer<void(T)>& serializer) {
@@ -500,8 +498,7 @@ private:
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
             if (itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return;
+                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
             }
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
@@ -518,8 +515,7 @@ private:
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
             if (itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return;
+                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
             }
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
@@ -560,8 +556,7 @@ private:
         if (itType != m_typeIndices.end()) {
             if (itType->second != std::type_index(typeid(T))) {
                 // Runtime Type Safety: Catch same topic string used with different types
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return nullptr; 
+                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
             }
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));

@@ -224,8 +224,7 @@ private:
             // Type safety: catch remoteId reused with a different T
             auto itType = m_channelTypes.find(remoteId);
             if (itType != m_channelTypes.end() && itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return nullptr;
+                ::dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));
             }
             channel = std::static_pointer_cast<dmq::RemoteChannel<void(T)>>(it->second.channel);
         } else {

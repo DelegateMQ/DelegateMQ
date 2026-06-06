@@ -317,7 +317,6 @@ extern "C" dmq::Allocator* xallocator_get_allocator(size_t size)
 				dmq::get_mutex().unlock();
 				delete allocator;
 				ASSERT();
-				return NULL;
 			}
 			existing = allocator;
 		}
