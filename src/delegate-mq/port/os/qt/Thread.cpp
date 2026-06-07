@@ -162,10 +162,15 @@ void Thread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
-    auto delta = now - lastAlive;
-    if (delta > m_watchdogTimeout.load())
+    auto watchdogTimeout = m_watchdogTimeout.load();
+
+    if (watchdogTimeout.count() > 0)
     {
-        WatchdogHandler(m_threadName.c_str());
+        auto delta = now - lastAlive;
+        if (delta > watchdogTimeout)
+        {
+            WatchdogHandler(m_threadName.c_str());
+        }
     }
 }
 

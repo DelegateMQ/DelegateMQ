@@ -319,13 +319,15 @@ void Thread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
+    auto watchdogTimeout = m_watchdogTimeout.load();
 
-    auto delta = now - lastAlive;
-
-    // Watchdog expired?
-    if (delta > m_watchdogTimeout.load())
+    if (watchdogTimeout.count() > 0)
     {
-        WatchdogHandler(THREAD_NAME.c_str());
+        auto delta = now - lastAlive;
+        if (delta > watchdogTimeout)
+        {
+            WatchdogHandler(THREAD_NAME.c_str());
+        }
     }
 }
 
