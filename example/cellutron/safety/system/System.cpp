@@ -28,6 +28,7 @@ void System::Initialize() {
     
     // Register thread for monitoring
     ThreadMonitor::Register(&m_thread);
+    ThreadMonitor::Enable();
 
 #ifndef DMQ_THREAD_STDLIB
     m_thread.SetThreadPriority(PRIORITY_PROCESS);

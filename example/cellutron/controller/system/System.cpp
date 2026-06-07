@@ -29,6 +29,7 @@ void System::Initialize() {
 
     // Register thread for monitoring
     ThreadMonitor::Register(&m_thread);
+    ThreadMonitor::Enable();
 
     // 1. Create System Thread
 #ifndef DMQ_THREAD_STDLIB

@@ -8,12 +8,12 @@
 [![conan Clang](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_clang.yml/badge.svg)](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_clang.yml)
 [![conan Windows](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_windows.yml/badge.svg)](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_windows.yml)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)
-![Header Only](https://img.shields.io/badge/header--only-yes-brightgreen)
+![Header Only](https://img.shields.io/badge/core-header--only-brightgreen)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20RTOS%20%7C%20Bare--Metal-informational)
 
 # Delegates in C++
 
-DelegateMQ is a C++ header-only library for invoking any callable (e.g., function, method, lambda):
+DelegateMQ is a C++ library with a header-only core for invoking any callable (e.g., function, method, lambda):
 
 * Synchronously
 * Asynchronously (Blocking and non-blocking)
@@ -294,7 +294,7 @@ public:
         : m_channel(transport, ser)
     {
         m_channel.Bind(this, &MsgReceiver::OnMsg, MSG_ID);
-        dmq::RegisterEndpoint(MSG_ID, m_channel.GetEndpoint());  // app-defined routing table
+        m_networkEngine.RegisterEndpoint(MSG_ID, m_channel.GetEndpoint()); // route incoming packets to this channel
     }
 
 private:

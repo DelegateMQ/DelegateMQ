@@ -1,5 +1,6 @@
 #include "Process.h"
 #include "actuators/Actuators.h"
+#include "extras/util/ThreadMonitor.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -13,6 +14,7 @@ Process::~Process() { Shutdown(); }
 
 void Process::Initialize()
 {
+    dmq::util::ThreadMonitor::Register(&m_thread);
     m_thread.SetThreadPriority(PRIORITY_PROCESS);
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
     m_pumpProcess.SetThread(m_thread);

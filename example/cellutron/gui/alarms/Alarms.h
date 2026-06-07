@@ -51,7 +51,7 @@ private:
     bool CanOverrideActiveAlarm(uint32_t code);
 
     // Standardized thread name for Active Object subsystem
-    dmq::os::Thread m_thread{"AlarmsThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::DROP};
+    dmq::os::Thread m_thread{"AlarmsThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::DROP, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI"};
 
     dmq::ScopedConnection m_faultConn;
     dmq::ScopedConnection m_runStatusConn;

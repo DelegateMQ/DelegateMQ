@@ -1,6 +1,7 @@
 #include "Alarms.h"
 #include "Constants.h"
 #include "messages/RunStatusMsg.h"
+#include "extras/util/ThreadMonitor.h"
 #include <iostream>
 
 using namespace dmq;
@@ -11,6 +12,7 @@ namespace cellutron {
 namespace util {
 
 void Alarms::Initialize() {
+    dmq::util::ThreadMonitor::Register(&m_thread);
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
     m_ticksWaited = 0;
 
