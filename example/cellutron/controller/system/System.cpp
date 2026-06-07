@@ -2,10 +2,11 @@
 #include "process/Process.h"
 #include "actuators/Actuators.h"
 #include "sensors/Sensors.h"
-#include "Network.h"
 #include "RemoteConfig.h"
 #include "Constants.h"
 #include "extras/util/ThreadMonitor.h"
+#include "SpyBridge.h"
+#include "NodeBridge.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -28,7 +29,6 @@ void System::Initialize() {
 
     // Register thread for monitoring
     ThreadMonitor::Register(&m_thread);
-    ThreadMonitor::Enable();
 
     // 1. Create System Thread
 #ifndef DMQ_THREAD_STDLIB
@@ -60,7 +60,7 @@ void System::Initialize() {
 
 void System::Shutdown() {
     m_thread.ExitThread();
-    util::Network::GetInstance().Shutdown();
+    m_network.Stop();
 }
 
 void System::Tick(uint32_t ms) {
@@ -98,33 +98,35 @@ void System::OnFault(FaultMsg msg) {
 }
 
 void System::SetupNetwork() {
-    util::Network::GetInstance().Initialize(5011, 5021, "Controller", "Controller"); 
-    
-    // Incoming from Network
-    util::Network::GetInstance().RegisterIncomingTopic<StartProcessMsg>(topics::CMD_RUN, RID_START_PROCESS, serStart);
-    util::Network::GetInstance().RegisterIncomingTopic<StopProcessMsg>(topics::CMD_ABORT, RID_STOP_PROCESS, serStop);
-    util::Network::GetInstance().RegisterIncomingTopic<FaultMsg>(topics::FAULT, RID_FAULT_EVENT, serFault);
-    util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::SAFETY_HEARTBEAT, RID_SAFETY_HB, serHeartbeat);
-    util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::GUI_HEARTBEAT, RID_GUI_HB, serHeartbeat);
+    SpyBridge::Start("127.0.0.1", 9999, "Controller");
+    NodeBridge::StartMulticast("Controller", "239.1.1.1", 9998);
 
-    // Setup Outgoing Topics
-    util::Network::GetInstance().AddRemoteNode("GUI", "127.0.0.1", 5010, 5020);
-    util::Network::GetInstance().AddRemoteNode("Safety", "127.0.0.1", 5013, 5023);
+    m_network.Start("Controller", /*listenPort=*/5011);
 
-    // Commands and critical status use TCP for guaranteed delivery
-    util::Network::GetInstance().RegisterOutgoingTopic<RunStatusMsg>(topics::STATUS_RUN, RID_RUN_STATUS, serRun, util::Network::Reliability::TCP);
-    util::Network::GetInstance().RegisterOutgoingTopic<FaultMsg>(topics::FAULT, RID_FAULT_EVENT, serFault, util::Network::Reliability::TCP);
-    
-    // Telemetry uses UDP for low overhead
-    util::Network::GetInstance().RegisterOutgoingTopic<HeartbeatMsg>(topics::CONTROLLER_HEARTBEAT, RID_CONTROLLER_HB, serHeartbeat);
-    util::Network::GetInstance().RegisterOutgoingTopic<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
-    util::Network::GetInstance().RegisterOutgoingTopic<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, RID_ACTUATOR_STATUS, serActuator);
-    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::STATUS_SENSOR, RID_SENSOR_STATUS, serSensor);
-    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::AIR_INLET, RID_SENSOR_STATUS, serSensor);
-    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::AIR_OUTLET, RID_SENSOR_STATUS, serSensor);
-    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::PRESSURE_INLET, RID_SENSOR_STATUS, serSensor);
-    util::Network::GetInstance().RegisterOutgoingTopic<SensorStatusMsg>(topics::PRESSURE_OUTLET, RID_SENSOR_STATUS, serSensor);
-    util::Network::GetInstance().RegisterOutgoingTopic<CentrifugeSpeedMsg>(topics::RPM, RID_CENTRIFUGE_STATUS, serSpeed);
+    // Incoming Topics
+    m_network.Receive<StartProcessMsg>(topics::CMD_RUN,            RID_START_PROCESS,   serStart);
+    m_network.Receive<StopProcessMsg> (topics::CMD_ABORT,          RID_STOP_PROCESS,    serStop);
+    m_network.Receive<FaultMsg>       (topics::FAULT,              RID_FAULT_EVENT,     serFault);
+    m_network.Receive<HeartbeatMsg>   (topics::SAFETY_HEARTBEAT,   RID_SAFETY_HB,       serHeartbeat);
+    m_network.Receive<HeartbeatMsg>   (topics::GUI_HEARTBEAT,      RID_GUI_HB,          serHeartbeat);
+
+    // Remote peers
+    m_network.AddPeer("GUI",    "127.0.0.1", /*udpPort=*/5010);
+    m_network.AddPeer("Safety", "127.0.0.1", /*udpPort=*/5013);
+
+    // Outgoing Topics — critical messages use RELIABLE (ACK + retry); telemetry uses UNRELIABLE
+    using Rel = dmq::databus::Reliability;
+    m_network.Send<RunStatusMsg>     (topics::STATUS_RUN,           RID_RUN_STATUS,       serRun,      Rel::RELIABLE);
+    m_network.Send<FaultMsg>         (topics::FAULT,                RID_FAULT_EVENT,      serFault,    Rel::RELIABLE);
+    m_network.Send<HeartbeatMsg>     (topics::CONTROLLER_HEARTBEAT, RID_CONTROLLER_HB,    serHeartbeat);
+    m_network.Send<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
+    m_network.Send<ActuatorStatusMsg>(topics::STATUS_ACTUATOR,      RID_ACTUATOR_STATUS,  serActuator);
+    m_network.Send<SensorStatusMsg>  (topics::STATUS_SENSOR,        RID_SENSOR_STATUS,    serSensor);
+    m_network.Send<SensorStatusMsg>  (topics::AIR_INLET,            RID_SENSOR_STATUS,    serSensor);
+    m_network.Send<SensorStatusMsg>  (topics::AIR_OUTLET,           RID_SENSOR_STATUS,    serSensor);
+    m_network.Send<SensorStatusMsg>  (topics::PRESSURE_INLET,       RID_SENSOR_STATUS,    serSensor);
+    m_network.Send<SensorStatusMsg>  (topics::PRESSURE_OUTLET,      RID_SENSOR_STATUS,    serSensor);
+    m_network.Send<CentrifugeSpeedMsg>(topics::RPM,                 RID_CENTRIFUGE_STATUS, serSpeed);
 }
 
 void System::SetupWatchdog() {

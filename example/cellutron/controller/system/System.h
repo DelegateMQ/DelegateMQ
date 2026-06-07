@@ -4,7 +4,7 @@
 #include "DelegateMQ.h"
 #include "util/Heartbeat.h"
 #include "util/MessageGuard.h"
-#include <memory>
+#include "util/NetworkTypes.h"
 
 namespace cellutron {
 
@@ -52,6 +52,8 @@ private:
     void OnFault(FaultMsg msg);
 
     dmq::os::Thread m_thread;
+
+    Network m_network;
 
     // Connections to the local DataBus
     dmq::ScopedConnection m_startConn;

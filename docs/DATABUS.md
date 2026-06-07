@@ -8,6 +8,7 @@
 
 - [DataBus](#databus)
   - [Table of Contents](#table-of-contents)
+  - [Quickstart](#quickstart)
   - [Core Concepts](#core-concepts)
   - [Design Philosophy](#design-philosophy)
   - [Pub/Sub vs. RPC](#pubsub-vs-rpc)
@@ -50,6 +51,52 @@
     - [CPU-B Setup (Bridge Node)](#cpu-b-setup-bridge-node)
     - [MCU-C / MCU-D Setup](#mcu-c--mcu-d-setup)
     - [Reliability Summary for This Topology](#reliability-summary-for-this-topology)
+
+---
+
+## Quickstart
+
+Three steps to send data between components:
+
+**1. Define a message type**
+```cpp
+// Any serializable struct — inherit serialize::I to support remote transport
+struct TemperatureMsg : public serialize::I {
+    float celsius = 0.0f;
+    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, celsius); }
+    std::istream& read (serialize& ms, std::istream& is) override { return ms.read (is, celsius); }
+};
+```
+
+**2. Subscribe**
+```cpp
+// Connection owns the subscription — must stay in scope while callbacks are wanted
+auto conn = dmq::databus::DataBus::Subscribe<TemperatureMsg>(
+    "sensor/temperature",
+    [](const TemperatureMsg& msg) {
+        printf("Temp: %.1f C\n", msg.celsius);
+    });
+```
+
+**3. Publish**
+```cpp
+TemperatureMsg msg;
+msg.celsius = 36.6f;
+dmq::databus::DataBus::Publish("sensor/temperature", msg);
+// → subscriber lambda fires immediately on the calling thread
+```
+
+> **Connection lifetime**: `Subscribe` returns a `dmq::ScopedConnection`. Letting it go out of scope silently unsubscribes — store it in a member variable or container.
+
+To dispatch to a specific thread instead of the caller's thread:
+```cpp
+auto conn = dmq::databus::DataBus::Subscribe<TemperatureMsg>(
+    "sensor/temperature",
+    dmq::MakeDelegate(&MySensor::OnTemp, this),
+    &m_workerThread);   // callback executes on m_workerThread, not the publisher's thread
+```
+
+To span multiple processes or physical nodes over a network, see [Remote Distribution](#remote-distribution) and the [Example: Multi-Node Topology](#example-multi-node-topology).
 
 ---
 

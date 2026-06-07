@@ -1,5 +1,4 @@
 #include "System.h"
-#include "Network.h"
 #include "ui/UI.h"
 #include "logs/Logs.h"
 #include "alarms/Alarms.h"
@@ -7,6 +6,8 @@
 #include "Constants.h"
 #include "extras/util/ThreadMonitor.h"
 #include "extras/util/ThreadMonitorSer.h"
+#include "SpyBridge.h"
+#include "NodeBridge.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -60,7 +61,7 @@ void System::Shutdown() {
 
         util::Alarms::GetInstance().Shutdown();
         util::Logs::GetInstance().Shutdown();
-        util::Network::GetInstance().Shutdown();
+        m_network.Stop();
     }
 }
 
@@ -69,28 +70,31 @@ void System::Tick(uint32_t ms) {
 }
 
 void System::SetupNetwork() {
-    util::Network::GetInstance().Initialize(5010, 5020, "GUI", "GUI"); 
+    SpyBridge::Start("127.0.0.1", 9999, "GUI");
+    NodeBridge::StartMulticast("GUI", "239.1.1.1", 9998);
+
+    m_network.Start("GUI", /*listenPort=*/5010);
+
     // Incoming Topics
-    util::Network::GetInstance().RegisterIncomingTopic<RunStatusMsg>(topics::STATUS_RUN, RID_RUN_STATUS, serRun);
-    util::Network::GetInstance().RegisterIncomingTopic<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
-    util::Network::GetInstance().RegisterIncomingTopic<CentrifugeSpeedMsg>(topics::RPM, RID_CENTRIFUGE_STATUS, serSpeed);
-    util::Network::GetInstance().RegisterIncomingTopic<FaultMsg>(topics::FAULT, RID_FAULT_EVENT, serFault);
-    util::Network::GetInstance().RegisterIncomingTopic<ActuatorStatusMsg>(topics::STATUS_ACTUATOR, RID_ACTUATOR_STATUS, serActuator);
-    util::Network::GetInstance().RegisterIncomingTopic<SensorStatusMsg>(topics::STATUS_SENSOR, RID_SENSOR_STATUS, serSensor);
-    util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::SAFETY_HEARTBEAT, RID_SAFETY_HB, serHeartbeat);
-    util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::CONTROLLER_HEARTBEAT, RID_CONTROLLER_HB, serHeartbeat);
+    m_network.Receive<RunStatusMsg>      (topics::STATUS_RUN,          RID_RUN_STATUS,       serRun);
+    m_network.Receive<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
+    m_network.Receive<CentrifugeSpeedMsg>(topics::RPM,                  RID_CENTRIFUGE_STATUS, serSpeed);
+    m_network.Receive<FaultMsg>          (topics::FAULT,               RID_FAULT_EVENT,      serFault);
+    m_network.Receive<ActuatorStatusMsg> (topics::STATUS_ACTUATOR,     RID_ACTUATOR_STATUS,  serActuator);
+    m_network.Receive<SensorStatusMsg>   (topics::STATUS_SENSOR,       RID_SENSOR_STATUS,    serSensor);
+    m_network.Receive<HeartbeatMsg>      (topics::SAFETY_HEARTBEAT,    RID_SAFETY_HB,        serHeartbeat);
+    m_network.Receive<HeartbeatMsg>      (topics::CONTROLLER_HEARTBEAT, RID_CONTROLLER_HB,   serHeartbeat);
 
-    // Outgoing Topics
-    util::Network::GetInstance().AddRemoteNode("Controller", "127.0.0.1", 5011, 5021);
-    util::Network::GetInstance().AddRemoteNode("Safety", "127.0.0.1", 5013, 5023);
+    // Remote peers
+    m_network.AddPeer("Controller", "127.0.0.1", /*udpPort=*/5011);
+    m_network.AddPeer("Safety",     "127.0.0.1", /*udpPort=*/5013);
 
-    // Commands and critical status use TCP for guaranteed delivery
-    util::Network::GetInstance().RegisterOutgoingTopic<StartProcessMsg>(topics::CMD_RUN, RID_START_PROCESS, serStart, util::Network::Reliability::TCP);
-    util::Network::GetInstance().RegisterOutgoingTopic<StopProcessMsg>(topics::CMD_ABORT, RID_STOP_PROCESS, serStop, util::Network::Reliability::TCP);
-    util::Network::GetInstance().RegisterOutgoingTopic<FaultMsg>(topics::FAULT, RID_FAULT_EVENT, serFault, util::Network::Reliability::TCP);
-    
-    // Heartbeat uses UDP for low overhead
-    util::Network::GetInstance().RegisterOutgoingTopic<HeartbeatMsg>(topics::GUI_HEARTBEAT, RID_GUI_HB, serHeartbeat);
+    // Outgoing Topics — commands use RELIABLE (ACK + retry); heartbeat uses UNRELIABLE
+    using Rel = dmq::databus::Reliability;
+    m_network.Send<StartProcessMsg>(topics::CMD_RUN,      RID_START_PROCESS, serStart,    Rel::RELIABLE);
+    m_network.Send<StopProcessMsg> (topics::CMD_ABORT,    RID_STOP_PROCESS,  serStop,     Rel::RELIABLE);
+    m_network.Send<FaultMsg>       (topics::FAULT,        RID_FAULT_EVENT,   serFault,    Rel::RELIABLE);
+    m_network.Send<HeartbeatMsg>   (topics::GUI_HEARTBEAT, RID_GUI_HB,       serHeartbeat);
 }
 
 void System::SetupWatchdog() {

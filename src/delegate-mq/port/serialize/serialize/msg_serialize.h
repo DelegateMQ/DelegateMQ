@@ -462,7 +462,11 @@ public:
     template <typename Traits, typename Alloc>
     std::ostream& write(std::ostream& os, const std::basic_string<char, Traits, Alloc>& s)
     {
-        ASSERT_TRUE(s.size() <= MAX_STRING_SIZE);
+        if (s.size() > MAX_STRING_SIZE) {
+            raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(s.size());
         write_type(os, Type::STRING);
         write(os, size, false);
@@ -490,7 +494,11 @@ public:
     template <typename Traits, typename Alloc>
     std::ostream& write(std::ostream& os, const std::basic_string<wchar_t, Traits, Alloc>& s)
     {
-        ASSERT_TRUE(s.size() <= MAX_STRING_SIZE);
+        if (s.size() > MAX_STRING_SIZE) {
+            raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(s.size());
         write_type(os, Type::WSTRING);
         write(os, size, false);
@@ -554,7 +562,11 @@ public:
     /// @return The output stream
     std::ostream& write(std::ostream& os, std::vector<bool>& container)
     {
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::VECTOR);
         write(os, size, false);
@@ -773,7 +785,11 @@ public:
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::VECTOR);
         write(os, size, false);
@@ -829,7 +845,11 @@ public:
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::VECTOR);
         write(os, size, false);
@@ -910,7 +930,11 @@ public:
     {
         static_assert(!serialize_traits::is_shared_ptr<V>::value, "Type V must not be a shared_ptr type");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::MAP);
         write(os, size, false);
@@ -969,7 +993,11 @@ public:
     {
         static_assert(std::is_base_of<serialize::I, V>::value, "Type V must be derived from serialize::I");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::MAP);
         write(os, size, false);
@@ -1052,7 +1080,11 @@ public:
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::SET);
         write(os, size, false);
@@ -1109,7 +1141,11 @@ public:
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::SET);
         write(os, size, false);
@@ -1187,7 +1223,11 @@ public:
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::LIST);
         write(os, size, false);
@@ -1244,7 +1284,11 @@ public:
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
-        ASSERT_TRUE(container.size() <= MAX_CONTAINER_SIZE);
+        if (container.size() > MAX_CONTAINER_SIZE) {
+            raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
+            os.setstate(std::ios::failbit);
+            return os;
+        }
         uint16_t size = static_cast<uint16_t>(container.size());
         write_type(os, Type::LIST);
         write(os, size, false);
@@ -1390,7 +1434,7 @@ private:
     }
 
     // Maximum sizes allowed by parser
-    static const uint16_t MAX_STRING_SIZE = 256;
+    static const uint16_t MAX_STRING_SIZE = 1024;
     static const uint16_t MAX_CONTAINER_SIZE = 64;
 
     // Keep wchar_t serialize size consistent on any platform
