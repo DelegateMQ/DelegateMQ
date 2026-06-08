@@ -163,6 +163,8 @@ public:
     class I
     {
     public:
+        virtual ~I() = default;
+
         /// Inheriting class implements the write function. Write each
         /// class member to the ostream. Write in the same order as read().
         /// Each level within the hierarchy must implement. Ensure base

@@ -213,7 +213,7 @@ public:
 
         int addrLen = sizeof(m_addr);
         int size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, (sockaddr*)&m_addr, &addrLen);
-        if (size == SOCKET_ERROR || size < DmqHeader::HEADER_SIZE)
+        if (size == SOCKET_ERROR || size < static_cast<int>(DmqHeader::HEADER_SIZE))
         {
             return -1;
         }
