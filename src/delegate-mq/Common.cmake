@@ -15,7 +15,8 @@ if (MSVC)
     add_compile_definitions(FMT_MSVC_CRT_ITERATORS=0)
     add_compile_definitions(_SECURE_SCL=0)
 else()
-    set(DMQ_STRICT_FLAGS "-Wall" "-Wextra" "-Werror" "-Wpedantic" "-Wconversion" "-Wshadow")
+    # Add -rdynamic to ensure function names are available in stack traces on Linux
+    set(DMQ_STRICT_FLAGS "-Wall" "-Wextra" "-Werror" "-Wpedantic" "-Wconversion" "-Wshadow" "-rdynamic")
 endif()
 
 

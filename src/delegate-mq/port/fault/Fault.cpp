@@ -18,12 +18,56 @@
 
 #ifdef __linux__
 #include <execinfo.h>
+#include <csignal>
+#include <unistd.h>
 #endif
 
 namespace dmq::util {
 
+#ifdef __linux__
+static void LinuxSignalHandler(int sig) {
+    const char* name = "Unknown Signal";
+    switch (sig) {
+        case SIGSEGV: name = "SIGSEGV (Segmentation Fault)"; break;
+        case SIGABRT: name = "SIGABRT (Abort)"; break;
+        case SIGFPE:  name = "SIGFPE (Floating Point Exception)"; break;
+        case SIGILL:  name = "SIGILL (Illegal Instruction)"; break;
+        case SIGBUS:  name = "SIGBUS (Bus Error)"; break;
+        case SIGTERM: name = "SIGTERM (Termination Request)"; break;
+    }
+    FaultHandler(name, (unsigned short)sig);
+}
+
+void InstallCrashHandlers() {
+    std::signal(SIGSEGV, LinuxSignalHandler);
+    std::signal(SIGABRT, LinuxSignalHandler);
+    std::signal(SIGFPE,  LinuxSignalHandler);
+    std::signal(SIGILL,  LinuxSignalHandler);
+    std::signal(SIGBUS,  LinuxSignalHandler);
+    std::signal(SIGTERM, LinuxSignalHandler);
+}
+#endif
+
+#ifdef _WIN32
+LONG WINAPI WindowsExceptionFilter(EXCEPTION_POINTERS* pExceptionPointers) {
+    (void)pExceptionPointers;
+    FaultHandler("Windows Unhandled Exception", 0);
+}
+
+void InstallCrashHandlers() {
+    SetUnhandledExceptionFilter(WindowsExceptionFilter);
+}
+#endif
+
+#if !defined(_WIN32) && !defined(__linux__)
+void InstallCrashHandlers() {
+    // Stub for other platforms
+}
+#endif
+
 #ifdef _WIN32
 static void PrintStackTraceWindows(HANDLE hThread, const char* threadName) {
+
     DWORD tid = GetThreadId(hThread);
     printf("\n--- Stack Trace: %s (TID: %lu) ---\n", (threadName ? threadName : "Unknown"), tid);
     fflush(stdout);
@@ -180,7 +224,18 @@ DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 #endif
 
     // 4. Force exit
-#if defined(_WIN32) || defined(__linux__)
+#if defined(__linux__)
+    printf("\nTerminating application...\n");
+    fflush(stdout);
+
+    // If we are in a terminal, prevent it from closing immediately
+    if (isatty(fileno(stdin))) {
+        printf("Press Enter to exit...");
+        fflush(stdout);
+        (void)getchar();
+    }
+    abort();
+#elif defined(_WIN32)
     printf("\nTerminating application...\n");
     fflush(stdout);
     abort();
@@ -196,6 +251,11 @@ DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 {
     dmq::util::FaultHandler(file, line);
+}
+
+extern "C" void InstallCrashHandlers()
+{
+    dmq::util::InstallCrashHandlers();
 }
 
 extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)

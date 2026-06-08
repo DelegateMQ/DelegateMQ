@@ -19,6 +19,9 @@ namespace dmq::util {
 	/// @param[in] file - the file name that the software assertion occurred on
 	/// @param[in] line - the line number that the software assertion occurred on
 	DMQ_NORETURN void FaultHandler(const char* file, unsigned short line);
+
+    /// Install OS-specific crash handlers to capture and report critical errors.
+    void InstallCrashHandlers();
 }
 #endif
 
@@ -27,6 +30,7 @@ extern "C" {
 #endif
 	DMQ_NORETURN void FaultHandler(const char* file, unsigned short line);
 	DMQ_NORETURN void WatchdogHandler(const char* threadName);
+    void InstallCrashHandlers();
 #ifdef __cplusplus
 }
 #endif
