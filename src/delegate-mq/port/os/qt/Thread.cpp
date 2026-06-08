@@ -375,7 +375,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.latency_max_all_ms = 0.0f;
 
     if (m_invokeCountWindow > 0) {
-        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (m_invokeCountWindow * 1000.0f);
+        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (static_cast<float>(m_invokeCountWindow) * 1000.0f);
     } else {
         stats.invoke_avg_ms = 0.0f;
     }

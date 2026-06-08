@@ -463,7 +463,7 @@ Thread::ThreadStats Thread::SnapshotStats()
         m_latencyTotalWindow = 0;
 
         if (count > 0) {
-            stats.latency_avg_ms = (float)total / (count * 1000000.0f);
+            stats.latency_avg_ms = (float)total / (static_cast<float>(count) * 1000000.0f);
         } else {
             stats.latency_avg_ms = 0.0f;
         }
@@ -478,7 +478,7 @@ Thread::ThreadStats Thread::SnapshotStats()
         m_invokeTotalWindow = 0;
 
         if (iCount > 0) {
-            stats.invoke_avg_ms = (float)iTotal / (iCount * 1000000.0f);
+            stats.invoke_avg_ms = (float)iTotal / (static_cast<float>(iCount) * 1000000.0f);
         } else {
             stats.invoke_avg_ms = 0.0f;
         }

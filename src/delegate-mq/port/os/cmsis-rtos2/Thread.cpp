@@ -471,7 +471,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.queue_size_limit = m_queueSize;
     
     if (m_latencyCountWindow > 0) {
-        stats.latency_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count()) / (m_latencyCountWindow * 1000.0f);
+        stats.latency_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count()) / (static_cast<float>(m_latencyCountWindow) * 1000.0f);
     } else {
         stats.latency_avg_ms = 0.0f;
     }
@@ -480,7 +480,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.latency_max_all_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count()) / 1000.0f;
 
     if (m_invokeCountWindow > 0) {
-        stats.invoke_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count()) / (m_invokeCountWindow * 1000.0f);
+        stats.invoke_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count()) / (static_cast<float>(m_invokeCountWindow) * 1000.0f);
     } else {
         stats.invoke_avg_ms = 0.0f;
     }
