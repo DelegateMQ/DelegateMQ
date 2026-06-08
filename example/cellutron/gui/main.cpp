@@ -41,6 +41,7 @@ static void OnWatchdog() {
 }
 
 int main() {
+    ::InstallCrashHandlers();
     static dmq::util::NetworkContext networkContext;
     std::cout << "Cellutron GUI Processor starting..." << std::endl;
 

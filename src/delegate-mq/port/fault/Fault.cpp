@@ -228,12 +228,23 @@ DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
     printf("\nTerminating application...\n");
     fflush(stdout);
 
-    // If we are in a terminal, prevent it from closing immediately
-    if (isatty(fileno(stdin))) {
-        printf("Press Enter to exit...");
-        fflush(stdout);
+    // When running via terminal wrappers (like xterm -e), the console closes 
+    // immediately on exit. Wait for input to allow the user to read the crash info.
+    // Note: isatty() can return false when stdin is redirected by the wrapper.
+    printf("Press Enter to exit (or wait 60s)...");
+    fflush(stdout);
+
+    // Set a timeout on stdin so we don't hang forever in CI/headless
+    struct timeval tv;
+    fd_set fds;
+    tv.tv_sec = 60;
+    tv.tv_usec = 0;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
         (void)getchar();
     }
+    
     abort();
 #elif defined(_WIN32)
     printf("\nTerminating application...\n");

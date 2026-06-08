@@ -135,6 +135,7 @@ static void vWatchdogTask(void* /*pvParams*/) {
 }
 
 int main(void) {
+    ::InstallCrashHandlers();
     prvInitialiseHeap();
     static dmq::util::NetworkContext networkContext;
     printf("Cellutron Safety Processor starting (FreeRTOS Simulator)...\n");
