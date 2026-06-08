@@ -105,8 +105,8 @@ int NetworkEngine::Initialize(const std::string& sendIp, int sendPort, const std
     err += m_sendTransport.Create(Win32UdpTransport::Type::PUB, sendIp.c_str(), static_cast<USHORT>(sendPort));
     err += m_recvTransport.Create(Win32UdpTransport::Type::SUB, recvIp.c_str(), static_cast<USHORT>(recvPort));
 #elif defined(DMQ_TRANSPORT_LINUX_UDP)
-    err += m_sendTransport.Create(LinuxUdpTransport::Type::PUB, sendIp.c_str(), sendPort);
-    err += m_recvTransport.Create(LinuxUdpTransport::Type::SUB, recvIp.c_str(), recvPort);
+    err += m_sendTransport.Create(LinuxUdpTransport::Type::PUB, sendIp.c_str(), static_cast<uint16_t>(sendPort));
+    err += m_recvTransport.Create(LinuxUdpTransport::Type::SUB, recvIp.c_str(), static_cast<uint16_t>(recvPort));
 #endif
 
     m_statusConn = m_transportMonitor.OnSendStatus.Connect(dmq::MakeDelegate(this, &NetworkEngine::InternalStatusHandler));
