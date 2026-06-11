@@ -205,12 +205,6 @@ public:
             
         if (sent != (ssize_t)totalSize) return -1;
 
-        // Always track the message (unless it is an ACK)
-        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
-                return -1;
-            }
-        }
         return 0;
     }
 
@@ -270,7 +264,7 @@ public:
             if (m_transportMonitor)
                 m_transportMonitor->Remove(header.GetSeqNum());
         }
-        else if (m_transportMonitor && m_sendTransport)
+        else if (m_sendTransport && m_type == Type::SUB)
         {
             // Send ACK using a small stack buffer to avoid any heap
             uint16_t a_marker = htons(DmqHeader::MARKER);

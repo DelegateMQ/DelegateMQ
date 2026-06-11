@@ -186,12 +186,6 @@ public:
         }
         else
         {
-            if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
-            {
-                if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
-                    return -1;
-                }
-            }
             return EXIT_SUCCESS;
         }
     }

@@ -193,13 +193,6 @@ public:
             std::cerr << "Win32UdpTransport: ERROR - sendto failed with " << WSAGetLastError() << std::endl;
         }
 
-        // Always track the message (unless it is an ACK)
-        if (err != SOCKET_ERROR && header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
-                return -1;
-            }
-        }
-
         return (err == SOCKET_ERROR) ? -1 : 0;
     }
 
@@ -211,8 +204,11 @@ public:
             return -1;
         }
 
-        int addrLen = sizeof(m_addr);
-        int size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, (sockaddr*)&m_addr, &addrLen);
+        sockaddr_in fromAddr{};
+        int addrLen = sizeof(fromAddr);
+        int size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, (sockaddr*)&fromAddr, &addrLen);
+        if (m_type == Type::SUB)
+            m_addr = fromAddr;
         if (size == SOCKET_ERROR || size < static_cast<int>(DmqHeader::HEADER_SIZE))
         {
             return -1;
@@ -249,7 +245,7 @@ public:
             if (m_transportMonitor)
                 m_transportMonitor->Remove(header.GetSeqNum());
         }
-        else if (m_transportMonitor && m_sendTransport)
+        else if (m_sendTransport && m_type == Type::SUB)
         {
             // Send ACK using a small stack buffer to avoid any heap
             uint16_t a_marker = htons(DmqHeader::MARKER);
@@ -263,7 +259,8 @@ public:
             memcpy(ackBuf + 4, &a_seqNum, 2);
             memcpy(ackBuf + 6, &a_length, 2);
 
-            sendto(m_socket, ackBuf, static_cast<int>(DmqHeader::HEADER_SIZE), 0, (sockaddr*)&m_addr, sizeof(m_addr));
+            sockaddr_in targetAddr = (m_type == Type::SUB) ? fromAddr : m_addr;
+            sendto(m_socket, ackBuf, static_cast<int>(DmqHeader::HEADER_SIZE), 0, (sockaddr*)&targetAddr, sizeof(targetAddr));
         }
 
         return 0;

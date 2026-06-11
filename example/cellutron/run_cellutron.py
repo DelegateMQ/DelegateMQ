@@ -65,8 +65,15 @@ def main():
         default="Release",
         help="Build configuration to launch for main apps (default: Release)"
     )
+    parser.add_argument(
+        "--log", 
+        choices=["on", "off"], 
+        default="on",
+        help="Enable or disable DMQ Spy logging to spy_logs.txt (default: on)"
+    )
     args_parsed = parser.parse_args()
     config = args_parsed.config
+    log_enabled = args_parsed.log == "on"
 
     # Linux Cleanup: Kill any orphan processes from previous runs
     if (not IS_WINDOWS) and (os.environ.get("SKIP_CLEANUP") != "1"):
@@ -82,6 +89,10 @@ def main():
     base_path = os.path.dirname(os.path.abspath(__file__))
     
     # Tool definitions (without fixed config path)
+    spy_args = ["9999"]
+    if log_enabled:
+        spy_args += ["--log", "spy_logs.txt"]
+
     tools_definitions = [
         {
             "name": "DMQ Monitor", 
@@ -96,7 +107,7 @@ def main():
         {
             "name": "DMQ Spy", 
             "exe": f"dmq-spy{EXE_SUFFIX}",
-            "args": ["9999", "--log", "spy_logs.txt"]
+            "args": spy_args
         },
     ]
 
@@ -146,7 +157,7 @@ def main():
 
         if exe_path:
             # Special case: Clean up log for DMQ Spy in its specific directory
-            if "dmq-spy" in tool["exe"]:
+            if "dmq-spy" in tool["exe"] and log_enabled:
                 spy_log = os.path.join(os.path.dirname(exe_path), "spy_logs.txt")
                 if os.path.exists(spy_log):
                     try:

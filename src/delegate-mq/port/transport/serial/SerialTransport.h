@@ -125,12 +125,6 @@ public:
         int result = sp_blocking_write(m_port, packetData.c_str(), packetData.length(), 1000);
         if (result != (int)packetData.length()) return -1;
 
-        if (headerCopy.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-            if (m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId()) == false) {
-                return -1;
-            }
-        }
-
         return 0;
     }
 

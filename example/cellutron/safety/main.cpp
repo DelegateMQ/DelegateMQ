@@ -46,9 +46,9 @@ using namespace cellutron;
 // ---------------------------------------------------------------------------
 // Heap initialisation
 // ---------------------------------------------------------------------------
-#define mainREGION_1_SIZE   (512 * 1024)
-#define mainREGION_2_SIZE   (256 * 1024)
-#define mainREGION_3_SIZE   (256 * 1024)
+#define mainREGION_1_SIZE   (256 * 1024)
+#define mainREGION_2_SIZE   (128 * 1024)
+#define mainREGION_3_SIZE   (128 * 1024)
 
 alignas(16) static uint8_t ucHeap1[mainREGION_1_SIZE];
 alignas(16) static uint8_t ucHeap2[mainREGION_2_SIZE];
@@ -75,15 +75,15 @@ extern "C" void vApplicationIdleHook(void) {
 #endif
 }
 extern "C" void vApplicationTickHook(void) {}
-extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS Safety: Malloc Failed!\n"); for (;;); }
+extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS Safety: Malloc Failed!\n"); ASSERT(); }
 extern "C" void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
     printf("FreeRTOS Safety: STACK OVERFLOW in task '%s'!\n", pcTaskName);
-    for (;;);
+    ASSERT();
 }
 extern "C" void vApplicationDaemonTaskStartupHook(void) {}
 extern "C" void vAssertCalled(unsigned long ulLine, const char* const pcFileName) {
     printf("FreeRTOS Safety: ASSERT FAIL at %s:%lu\n", pcFileName, ulLine);
-    for (;;);
+    ASSERT();
 }
 extern "C" void vApplicationGetIdleTaskMemory(StaticTask_t** p, StackType_t** s, configSTACK_DEPTH_TYPE* sz) {
     static StaticTask_t x; static StackType_t st[configMINIMAL_STACK_SIZE];

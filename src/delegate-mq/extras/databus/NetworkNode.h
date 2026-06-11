@@ -115,6 +115,10 @@ public:
             return false;
         }
         m_recvTransport.SetRecvTimeout(std::chrono::milliseconds(1));
+        // Allow the SUB socket to send ACKs back to senders of RELIABLE messages.
+        // The `else if (m_sendTransport)` gate in Receive() requires a non-null
+        // m_sendTransport; using self means ACKs go out via sendto on this socket.
+        m_recvTransport.SetSendTransport(&m_recvTransport);
 
         m_recvParticipant = dmq::xmake_shared<Participant>(m_recvTransport);
 
@@ -187,6 +191,18 @@ public:
             printf("NetworkNode: ERROR - failed to connect to peer '%s' at %s:%u\n", name, addr, port);
             return;
         }
+
+        // Wire the transport monitor so Send() calls TransportMonitor::Add(seqNum)
+        // and incoming ACKs call TransportMonitor::Remove(seqNum). Without this,
+        // m_pending stays empty, Process() never fires timeouts, and RetryMonitor
+        // entries are never erased.
+        node.rawTransport.SetTransportMonitor(&node.transportMonitor);
+
+        // Allow Receive() to be called on the PUB socket so ReceiverThread can drain
+        // ACKs. Remote peers send ACKs to our PUB socket's OS-assigned ephemeral port
+        // (the source address they saw when the message arrived), not to our SUB listen
+        // port. Without this, Remove() is never called and m_pending fills to cap.
+        node.rawTransport.SetRecvTransport(&node.rawTransport);
 
         // Two-phase init: wire the reliability stack using stable member addresses.
         // RemoteNode is stored by value in std::array — elements never relocate.
@@ -296,6 +312,21 @@ private:
         if (m_recvParticipant) {
             for (int i = 0; i < MAX_WORK; ++i)
                 if (m_recvParticipant->ProcessIncoming() != 0) break;
+        }
+
+        // Drain ACKs that arrived on each peer's PUB socket (ephemeral source port).
+        // Remote peers send ACKs to the source address they received from, which is
+        // our PUB socket's OS-assigned port — not our SUB listen port. Receive() on
+        // the PUB socket calls TransportMonitor::Remove(seqNum) when an ACK arrives,
+        // firing SUCCESS so RetryMonitor erases the entry. The 2 ms recv timeout on
+        // PUB sockets keeps each poll fast when there is nothing to receive.
+        for (size_t i = 0; i < m_peerCount; ++i) {
+            if (!m_peers[i].active) continue;
+            for (int k = 0; k < MAX_WORK; ++k) {
+                dmq::transport::DmqHeader ackHeader;
+                dmq::xstringstream ackStream(std::ios::in | std::ios::out | std::ios::binary);
+                if (m_peers[i].rawTransport.Receive(ackStream, ackHeader) != 0) break;
+            }
         }
 
         // Throttled: run TransportMonitor::Process() ~10 times per second.

@@ -84,18 +84,29 @@ public:
         ASSERT_TRUE(m_transport != nullptr);
         // Critical Section: Store the packet for retry before sending.
         // If Send() fails we remove the entry immediately so it doesn't leak.
+        uint32_t key = (static_cast<uint32_t>(header.GetId()) << 16) | header.GetSeqNum();
         {
             std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
             RetryEntry entry;
             entry.attemptsRemaining = m_maxRetries;
             entry.header = header;
             entry.packetData = os.str(); // Copy data
-            m_retryStore[header.GetSeqNum()] = entry;
+            m_retryStore[key] = entry;
         }
 
         // Non-Critical Section: Send via Transport.
         // We must NOT hold m_lock while calling Send().
         // Send() calls TransportMonitor::Add(), which takes its own lock.
+        bool added = true;
+        if (m_monitor)
+            added = m_monitor->Add(header.GetSeqNum(), header.GetId());
+        
+        if (!added) {
+            std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+            m_retryStore.erase(key);
+            return -1;
+        }
+
         int result = m_transport->Send(os, header);
 
         // If the send failed, TransportMonitor::Add() was never called so
@@ -104,7 +115,7 @@ public:
         if (result != 0)
         {
             std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
-            m_retryStore.erase(header.GetSeqNum());
+            m_retryStore.erase(key);
         }
 
         return result;
@@ -113,17 +124,17 @@ public:
 private:
     void OnStatusChanged(dmq::DelegateRemoteId id, uint16_t seqNum, TransportMonitor::Status status)
     {
-        (void)id;
         // Variables to hold data for the retry OUTSIDE the lock
         bool shouldRetry = false;
         dmq::xstring retryPayload;
         dmq::transport::DmqHeader retryHeader;
+        uint32_t key = (static_cast<uint32_t>(id) << 16) | seqNum;
 
         {
             // 1. Critical Section: Read/Modify Map ONLY
             const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
 
-            auto it = m_retryStore.find(seqNum);
+            auto it = m_retryStore.find(key);
             if (it == m_retryStore.end()) return;
 
             if (status == TransportMonitor::Status::SUCCESS)
@@ -158,14 +169,24 @@ private:
         {
             dmq::xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
             os.write(retryPayload.data(), retryPayload.size());
-            m_transport->Send(os, retryHeader);
+            
+            bool added = true;
+            if (m_monitor)
+                added = m_monitor->Add(retryHeader.GetSeqNum(), retryHeader.GetId());
+            
+            if (added) {
+                m_transport->Send(os, retryHeader);
+            } else {
+                std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+                m_retryStore.erase(key);
+            }
         }
     }
 
     dmq::transport::ITransport* m_transport = nullptr;
     TransportMonitor*           m_monitor   = nullptr;
     int                         m_maxRetries = 3;
-    dmq::xmap<uint16_t, RetryEntry> m_retryStore;
+    dmq::xmap<uint32_t, RetryEntry> m_retryStore;
     dmq::RecursiveMutex m_lock;
     dmq::ScopedConnection m_connection;
 };

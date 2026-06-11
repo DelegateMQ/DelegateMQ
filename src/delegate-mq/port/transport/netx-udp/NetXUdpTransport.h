@@ -215,10 +215,6 @@ public:
             return -1;
         }
 
-        // 5. Track Reliability (after successful send only)
-        if (headerCopy.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
-            m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId());
-
         tx_mutex_put(&m_mutex);
         return 0;
 
