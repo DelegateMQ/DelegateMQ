@@ -1,10 +1,11 @@
 #include "System.h"
-#include "Network.h"
 #include "RemoteConfig.h"
 #include "Constants.h"
 #include "messages/CentrifugeSpeedMsg.h"
 #include "messages/FaultMsg.h"
 #include "extras/util/ThreadMonitor.h"
+#include "SpyBridge.h"
+#include "NodeBridge.h"
 #include <cstdio>
 
 using namespace dmq;
@@ -45,7 +46,7 @@ void System::Initialize() {
 
 void System::Shutdown() {
     m_thread.ExitThread();
-    util::Network::GetInstance().Shutdown();
+    m_network.Stop();
 }
 
 void System::Tick(uint32_t ms) {
@@ -56,45 +57,53 @@ void System::SetupLocalSubscriptions() {
     // Intentional safety latch: once faulted, the fault is NOT cleared automatically.
     // Recovery requires a deliberate operator action (system restart). This prevents
     // the safety node from silently resuming enforcement after a fault event.
-    m_speedConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, [this](CentrifugeSpeedMsg msg) {
-        if (!m_speedGuard.IsNewer(msg.seq)) {
-            return;
-        }
+    m_speedConn = dmq::databus::DataBus::Subscribe<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, dmq::MakeDelegate(this, &System::OnSpeed), &m_thread);
+    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, dmq::MakeDelegate(this, &System::OnFault), &m_thread);
+}
 
-        if (msg.rpm > MAX_CENTRIFUGE_RPM) {
-            if (!m_faulted) {
-                m_faulted = true;
-                printf("Safety: CRITICAL - Centrifuge speed exceeded limit! (%u RPM). TRIGGERING FAULT.\n", msg.rpm);
-                dmq::databus::DataBus::Publish<FaultMsg>(topics::FAULT, { FAULT_OVERSPEED });
-            } else {
-                printf("Safety: Overspeed still active (%u RPM). System already faulted.\n", msg.rpm);
-            }
-        }
-    }, &m_thread);
+void System::OnSpeed(CentrifugeSpeedMsg msg) {
+    if (!m_speedGuard.IsNewer(msg.seq)) {
+        return;
+    }
 
-    m_faultConn = dmq::databus::DataBus::Subscribe<FaultMsg>(topics::FAULT, [this](FaultMsg) {
-        // NOTE: IsNewer() guard intentionally omitted for faults. Prioritize safety
-        // over ordering; a "nuisance trip" from an old fault is safer than missing 
-        // a trip due to a sequencing race.
-        m_faulted = true;
-    }, &m_thread);
+    if (msg.rpm > MAX_CENTRIFUGE_RPM) {
+        if (!m_faulted) {
+            m_faulted = true;
+            printf("Safety: CRITICAL - Centrifuge speed exceeded limit! (%u RPM). TRIGGERING FAULT.\n", msg.rpm);
+            dmq::databus::DataBus::Publish<FaultMsg>(topics::FAULT, { FAULT_OVERSPEED });
+        } else {
+            printf("Safety: Overspeed still active (%u RPM). System already faulted.\n", msg.rpm);
+        }
+    }
+}
+
+void System::OnFault(FaultMsg) {
+    // NOTE: IsNewer() guard intentionally omitted for faults. Prioritize safety
+    // over ordering; a "nuisance trip" from an old fault is safer than missing 
+    // a trip due to a sequencing race.
+    m_faulted = true;
 }
 
 void System::SetupNetwork() {
-    util::Network::GetInstance().Initialize(5013, 5023, "Safety", "Safety"); 
-    util::Network::GetInstance().RegisterIncomingTopic<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
-    util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::CONTROLLER_HEARTBEAT, RID_CONTROLLER_HB, serHeartbeat);
-    util::Network::GetInstance().RegisterIncomingTopic<HeartbeatMsg>(topics::GUI_HEARTBEAT, RID_GUI_HB, serHeartbeat);
-    util::Network::GetInstance().RegisterIncomingTopic<FaultMsg>(topics::FAULT, RID_FAULT_EVENT, serFault);
+    SpyBridge::Start("127.0.0.1", 9999, "Safety");
+    NodeBridge::StartMulticast("Safety", "239.1.1.1", 9998);
 
-    util::Network::GetInstance().AddRemoteNode("Controller", "127.0.0.1", 5011, 5021);
-    util::Network::GetInstance().AddRemoteNode("GUI", "127.0.0.1", 5010, 5020);
+    m_network.Start("Safety", /*listenPort=*/5013);
 
-    // Faults use TCP for guaranteed delivery
-    util::Network::GetInstance().RegisterOutgoingTopic<FaultMsg>(topics::FAULT, RID_FAULT_EVENT, serFault, util::Network::Reliability::TCP);
-    
-    // Heartbeat uses UDP for low overhead
-    util::Network::GetInstance().RegisterOutgoingTopic<HeartbeatMsg>(topics::SAFETY_HEARTBEAT, RID_SAFETY_HB, serHeartbeat);
+    // Incoming Topics
+    m_network.Receive<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);
+    m_network.Receive<HeartbeatMsg>      (topics::CONTROLLER_HEARTBEAT,  RID_CONTROLLER_HB,   serHeartbeat);
+    m_network.Receive<HeartbeatMsg>      (topics::GUI_HEARTBEAT,          RID_GUI_HB,          serHeartbeat);
+    m_network.Receive<FaultMsg>          (topics::FAULT,                  RID_FAULT_EVENT,     serFault);
+
+    // Remote peers
+    m_network.AddPeer("Controller", "127.0.0.1", /*udpPort=*/5011);
+    m_network.AddPeer("GUI",        "127.0.0.1", /*udpPort=*/5010);
+
+    // Outgoing Topics
+    using Rel = dmq::databus::Reliability;
+    m_network.Send<FaultMsg>    (topics::FAULT,            RID_FAULT_EVENT, serFault,    Rel::RELIABLE);
+    m_network.Send<HeartbeatMsg>(topics::SAFETY_HEARTBEAT, RID_SAFETY_HB,  serHeartbeat);
 }
 
 void System::SetupWatchdog() {

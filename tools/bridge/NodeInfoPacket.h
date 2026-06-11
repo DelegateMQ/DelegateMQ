@@ -5,8 +5,8 @@
 #ifndef NODE_INFO_PACKET_H
 #define NODE_INFO_PACKET_H
 
-#include <string>
 #include <cstdint>
+#include "delegate/DelegateOpt.h"
 #include "port/serialize/serialize/msg_serialize.h"
 
 namespace dmq {
@@ -14,18 +14,20 @@ namespace dmq {
 enum class PacketType : uint8_t {
     NodeInfo    = 1,
     ThreadStats = 2,
+    SpyData     = 3,
 };
 
 /// @brief Heartbeat packet broadcast by NodeBridge to identify a node on the DataBus network.
 /// @details Periodically serialized and transmitted by NodeBridge. The dmq-monitor console
 /// listens for these packets and builds a live view of all active nodes.
 struct NodeInfoPacket : public serialize::I {
-    std::string nodeId;        ///< User-assigned node name (e.g. "SensorNode-1")
-    std::string hostname;      ///< Machine hostname
-    std::string ipAddress;     ///< Self-reported IP address
+    XALLOCATOR
+    dmq::xstring nodeId;        ///< User-assigned node name (e.g. "SensorNode-1")
+    dmq::xstring hostname;      ///< Machine hostname
+    dmq::xstring ipAddress;     ///< Self-reported IP address
     uint64_t    uptimeMs    = 0;    ///< Milliseconds since NodeBridge::Start()
     uint32_t    totalMsgCount = 0;  ///< Total DataBus messages published since start
-    std::string topicsStr;     ///< Semicolon-delimited topics (e.g. "sensor/temp;system/status")
+    dmq::xstring topicsStr;     ///< Semicolon-delimited topics (e.g. "sensor/temp;system/status")
 
     std::ostream& write(serialize& ms, std::ostream& os) override {
         ms.write(os, nodeId);

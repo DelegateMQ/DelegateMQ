@@ -17,9 +17,10 @@ Rules for modifying the `delegate-mq` library itself. Apply these whenever addin
 
 Do not `#include` allocator or platform headers directly in library files. `DelegateOpt.h` gates everything behind build options:
 
-- `DMQ_ALLOCATOR` — fixed-block allocator (`xmap`, `xlist`, `xstring`, `xsstream`, `stl_allocator`, `xnew`, `xmake_shared`)
+- `DMQ_ALLOCATOR` — fixed-block allocator (`xmap`, `xlist`, `xstring`, `xsstream`, `dmq::stl_allocator`, `xnew`, `xmake_shared`)
 - `DMQ_THREAD_*` — OS/mutex/clock selection
 - `DMQ_ASSERTS` — assert vs. exception error handling
+- `DMQ_STRICT` — enable strict compiler warnings and errors
 
 To add a new allocator-gated type (e.g., `xunordered_map`):
 1. Add the header under `extras/allocator/`.
@@ -29,18 +30,18 @@ To add a new allocator-gated type (e.g., `xunordered_map`):
 
 ## Fixed-Size Containers and Bounds
 
-When a fixed-size container is full, call `::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__)` — do not silently drop, resize, or assert-only. This is the established pattern for capacity violations (see `DataBus::InternalAddParticipant`).
+When a fixed-size container is full, call `ASSERT_TRUE(condition)` or `ASSERT()` — do not silently drop, resize, or throw. This is the established pattern for capacity violations (see `DataBus::InternalAddParticipant`).
 
 ## Exception vs. Assert (`DMQ_ASSERTS` / `BAD_ALLOC`)
 
 The library supports two error-handling modes, selected at build time:
 
 - **Without `DMQ_ASSERTS`** (desktop default): allocation failures throw `std::bad_alloc`; exceptions are enabled.
-- **With `DMQ_ASSERTS`** (embedded default, or when `__cpp_exceptions` is absent): `BAD_ALLOC()` calls `assert(false)`. Exceptions are disabled. `DelegateOpt.h` auto-enables `DMQ_ASSERTS` when the compiler has no exception support.
+- **With `DMQ_ASSERTS`** (embedded default, or when `__cpp_exceptions` is absent): `BAD_ALLOC()` calls `dmq::util::FaultHandler`. Exceptions are disabled. `DelegateOpt.h` auto-enables `DMQ_ASSERTS` when the compiler has no exception support.
 
 Rules:
 - Always use the `BAD_ALLOC()` macro for allocation failure paths — never write `throw std::bad_alloc()` directly or bare `assert`.
-- Use `FaultHandler` for invariant/capacity violations (wrong type, full container, protocol error) — these are hard faults, not recoverable errors.
+- Use `ASSERT()` or `ASSERT_TRUE(condition)` for invariant/capacity violations (wrong type, full container, protocol error) — these are hard faults, not recoverable errors.
 - Use `dmq::DelegateError` + `SetErrorHandler` for soft operational errors (serialization failure, dispatch timeout) — these are recoverable and reported to the caller.
 - Never add `try`/`catch` inside library internals; exception handling is the application's responsibility.
 

@@ -449,9 +449,9 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#endif
-
+#else
         return RetType();
+#endif
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -885,9 +885,9 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#endif
-
+#else
         return RetType();
+#endif
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -1238,9 +1238,9 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#endif
-
+#else
         return RetType();
+#endif
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -1593,9 +1593,9 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#endif
-
+#else
         return RetType();
+#endif
 #else
         // Standard C++ behavior with Exception Handling
         try {

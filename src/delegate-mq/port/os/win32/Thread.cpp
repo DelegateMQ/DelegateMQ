@@ -17,7 +17,7 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
+Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
     , MAX_QUEUE_SIZE(maxQueueSize)
@@ -287,11 +287,11 @@ void Thread::Process()
                 }
                 catch (const std::exception& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    ASSERT();
                 }
                 catch (...) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled unknown exception in delegate callback." << std::endl;
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    ASSERT();
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
@@ -419,13 +419,15 @@ void Thread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
+    auto watchdogTimeout = m_watchdogTimeout.load();
 
-    auto delta = now - lastAlive;
-
-    // Watchdog expired?
-    if (delta > m_watchdogTimeout.load())
+    if (watchdogTimeout.count() > 0)
     {
-        WatchdogHandler(THREAD_NAME.c_str());
+        auto delta = now - lastAlive;
+        if (delta > watchdogTimeout)
+        {
+            WatchdogHandler(THREAD_NAME.c_str());
+        }
     }
 }
 
@@ -471,7 +473,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.queue_size_limit = MAX_QUEUE_SIZE;
     
     if (m_latencyCountWindow > 0) {
-        stats.latency_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count() / (m_latencyCountWindow * 1000.0f);
+        stats.latency_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count() / (static_cast<float>(m_latencyCountWindow) * 1000.0f);
     } else {
         stats.latency_avg_ms = 0.0f;
     }
@@ -480,7 +482,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.latency_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count() / 1000.0f;
 
     if (m_invokeCountWindow > 0) {
-        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (m_invokeCountWindow * 1000.0f);
+        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (static_cast<float>(m_invokeCountWindow) * 1000.0f);
     } else {
         stats.invoke_avg_ms = 0.0f;
     }

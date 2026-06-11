@@ -46,9 +46,9 @@ using namespace cellutron;
 // ---------------------------------------------------------------------------
 // Heap initialisation
 // ---------------------------------------------------------------------------
-#define mainREGION_1_SIZE   (512 * 1024)
-#define mainREGION_2_SIZE   (256 * 1024)
-#define mainREGION_3_SIZE   (256 * 1024)
+#define mainREGION_1_SIZE   (256 * 1024)
+#define mainREGION_2_SIZE   (128 * 1024)
+#define mainREGION_3_SIZE   (128 * 1024)
 
 alignas(16) static uint8_t ucHeap1[mainREGION_1_SIZE];
 alignas(16) static uint8_t ucHeap2[mainREGION_2_SIZE];
@@ -75,15 +75,15 @@ extern "C" void vApplicationIdleHook(void) {
 #endif
 }
 extern "C" void vApplicationTickHook(void) {}
-extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS Safety: Malloc Failed!\n"); for (;;); }
+extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS Safety: Malloc Failed!\n"); ASSERT(); }
 extern "C" void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
     printf("FreeRTOS Safety: STACK OVERFLOW in task '%s'!\n", pcTaskName);
-    for (;;);
+    ASSERT();
 }
 extern "C" void vApplicationDaemonTaskStartupHook(void) {}
 extern "C" void vAssertCalled(unsigned long ulLine, const char* const pcFileName) {
     printf("FreeRTOS Safety: ASSERT FAIL at %s:%lu\n", pcFileName, ulLine);
-    for (;;);
+    ASSERT();
 }
 extern "C" void vApplicationGetIdleTaskMemory(StaticTask_t** p, StackType_t** s, configSTACK_DEPTH_TYPE* sz) {
     static StaticTask_t x; static StackType_t st[configMINIMAL_STACK_SIZE];
@@ -98,18 +98,22 @@ extern "C" void vApplicationGetTimerTaskMemory(StaticTask_t** p, StackType_t** s
 // Safety Monitor Task
 // ---------------------------------------------------------------------------
 
+static void OnUnhandledTopic(const dmq::xstring& topic) {
+    printf("SAFETY WARNING: Unhandled topic: %s\n", topic.c_str());
+}
+
+static void OnTechnicalError(const dmq::xstring& topic, dmq::DelegateError error) {
+    printf("SAFETY ERROR: Technical failure on topic: %s, Error: %d\n", topic.c_str(), (int)error);
+}
+
 static void vSafetyTask(void* /*pvParams*/) {
     cellutron::System::GetInstance().Initialize();
 
     // Catch unhandled topics (sent but no subscribers)
-    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([](const dmq::xstring& topic) {
-        printf("SAFETY WARNING: Unhandled topic: %s\n", topic.c_str());
-    });
+    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled(dmq::MakeDelegate(&OnUnhandledTopic));
 
     // Catch technical errors (e.g. serialization failures)
-    static auto errorConn = dmq::databus::DataBus::SubscribeError([](const dmq::xstring& topic, dmq::DelegateError error) {
-        printf("SAFETY ERROR: Technical failure on topic: %s, Error: %d\n", topic.c_str(), (int)error);
-    });
+    static auto errorConn = dmq::databus::DataBus::SubscribeError(dmq::MakeDelegate(&OnTechnicalError));
 
     for (;;) {
         cellutron::System::GetInstance().Tick(100);
@@ -131,6 +135,7 @@ static void vWatchdogTask(void* /*pvParams*/) {
 }
 
 int main(void) {
+    ::InstallCrashHandlers();
     prvInitialiseHeap();
     static dmq::util::NetworkContext networkContext;
     printf("Cellutron Safety Processor starting (FreeRTOS Simulator)...\n");

@@ -85,6 +85,7 @@ class RemoteChannel; // Not defined
 template <class RetType, class... Args>
 class RemoteChannel<RetType(Args...)>
 {
+    XALLOCATOR
 public:
     /// @brief Construct a RemoteChannel.
     /// @param[in] transport  The transport used to send serialized data. Caller owns it.

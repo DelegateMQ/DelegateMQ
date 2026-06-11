@@ -22,8 +22,7 @@ set(TOOLS_SRC_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/src")
 file(GLOB_RECURSE ALL_COMMON_SOURCES CONFIGURE_DEPENDS "${CELLUTRON_COMMON_DIR}/*.h" "${CELLUTRON_COMMON_DIR}/*.cpp" "${CELLUTRON_COMMON_DIR}/*.c")
 set(COMMON_SOURCES ${ALL_COMMON_SOURCES})
 
-# Ensure util files are included
-list(APPEND COMMON_SOURCES "${CELLUTRON_COMMON_DIR}/util/Network.cpp")
+# NetworkNode is header-only; only RemoteConfig.cpp needs explicit inclusion
 list(APPEND COMMON_SOURCES "${CELLUTRON_COMMON_DIR}/util/RemoteConfig.cpp")
 list(APPEND COMMON_SOURCES "${TOOLS_BRIDGE_DIR}/SpyBridge.cpp")
 list(APPEND COMMON_SOURCES "${TOOLS_BRIDGE_DIR}/NodeBridge.cpp")

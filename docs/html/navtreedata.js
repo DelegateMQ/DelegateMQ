@@ -55,7 +55,6 @@ var NAVTREE =
         [ "All", "globals.html", null ],
         [ "Functions", "globals_func.html", null ],
         [ "Variables", "globals_vars.html", null ],
-        [ "Typedefs", "globals_type.html", null ],
         [ "Macros", "globals_defs.html", null ]
       ] ]
     ] ]
@@ -65,19 +64,20 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "_allocator_8cpp.html",
-"_win32_udp_transport_8h.html",
-"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af9aa80fdccc5fd783a8e90c39b50cbe2",
-"classdmq_1_1_delegate_member_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#afd2a8314abf70d86574f66542099f6e6",
-"classdmq_1_1_delegate_member_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a4c3606cc50df42a8086afe833332c797",
-"classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#abe82ad0f01e86f110ec05f14153abe50",
-"classdmq_1_1heap__arg__deleter__base.html",
-"classdmq_1_1os_1_1_thread_msg.html#a2f885c53281e0225f94816fd09482154",
-"classdmq_1_1transport_1_1_mqtt_transport.html#a5affbe362f59e1ef6077d7f12c1826c4",
-"classdmq_1_1transport_1_1_win32_tcp_transport.html#a026836460f7992726db10b7a5f800f61a3d27c95bfdbea691b250894d96852844",
-"classserialize.html#abfa1e7d4f910e89b3464a228da71d889",
-"namespacedmq.html#a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594",
-"qt_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030a070a0fb40f6c308ab544b227660aadff",
-"structdmq_1_1util_1_1_retry_monitor_1_1_retry_entry.html#a7ab160f1cae4d8a010a70e93eb6cc5ad"
+"_unicast_delegate_safe_8h.html",
+"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a788db856552838d5f41c336deb39a01c",
+"classdmq_1_1_delegate_member_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a9e4b86d397dc05c29f6c9374fe0e39fd",
+"classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#acd218c2768e92f62f032692216a7e2d3",
+"classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html",
+"classdmq_1_1detail_1_1_connection.html#a84e3aaaa90ad3e2606287c3be266a5bf",
+"classdmq_1_1os_1_1_thread.html#ad10989ae3c1703c5dad4bdfdf1a26431",
+"classdmq_1_1transport_1_1_linux_tcp_transport.html#a043a74ba222721959175fa4e90949c69",
+"classdmq_1_1transport_1_1_stm32_uart_transport.html#a89d4a29cacd47ff428fc7b66b4145b06",
+"classdmq_1_1util_1_1_timer_delegate.html#a13543dcbdd4a5819d02801798baeac96",
+"functions_i.html",
+"namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030abf8f3be424eb6a72b21549fbb24ffb57",
+"structdmq_1_1os_1_1_thread_x_clock.html#a7b662f537c262abd95a2737d16fe133a",
+"zephyr_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030abf8f3be424eb6a72b21549fbb24ffb57"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

@@ -4,6 +4,7 @@
 #include "DelegateMQ.h"
 #include "messages/HeartbeatMsg.h"
 #include "messages/FaultMsg.h"
+#include "messages/RunStatusMsg.h"
 #include "util/MessageGuard.h"
 #include "extras/databus/DeadlineSubscription.h"
 #include <string>
@@ -40,8 +41,17 @@ private:
 
     void SetAlarm(const std::string& message, bool active);
 
+    void OnTimerExpired();
+    void OnHeartbeatSuccess(const HeartbeatMsg&) {}
+    void OnSafetyWatchdogTimeout();
+    void OnControllerWatchdogTimeout();
+    void OnFault(FaultMsg msg);
+    void OnRunStatus(RunStatusMsg msg);
+    bool OnRunStatusFilter(const RunStatusMsg& msg);
+    bool CanOverrideActiveAlarm(uint32_t code);
+
     // Standardized thread name for Active Object subsystem
-    dmq::os::Thread m_thread{"AlarmsThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::DROP};
+    dmq::os::Thread m_thread{"AlarmsThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::DROP, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI"};
 
     dmq::ScopedConnection m_faultConn;
     dmq::ScopedConnection m_runStatusConn;

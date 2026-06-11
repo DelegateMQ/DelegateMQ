@@ -75,23 +75,34 @@ namespace dmq::util {
 /// to the physical transport.
 class ReliableTransport : public dmq::transport::ITransport
 {
+    XALLOCATOR
 public:
-    ReliableTransport(dmq::transport::ITransport& transport, RetryMonitor& retry) 
-        : m_transport(transport), m_retry(retry) {}
+    ReliableTransport() = default;
 
-    /// @brief Sends data via the RetryMonitor to ensure reliability.
-    virtual int Send(dmq::xostringstream& os, const dmq::transport::DmqHeader& header) override {
-        return m_retry.SendWithRetry(os, header);
+    ReliableTransport(dmq::transport::ITransport& transport, RetryMonitor& retry)
+    {
+        Init(transport, retry);
     }
 
-    /// @brief Pass-through for receiving data.
+    void Init(dmq::transport::ITransport& transport, RetryMonitor& retry)
+    {
+        m_transport = &transport;
+        m_retry     = &retry;
+    }
+
+    virtual int Send(dmq::xostringstream& os, const dmq::transport::DmqHeader& header) override {
+        ASSERT_TRUE(m_retry != nullptr);
+        return m_retry->SendWithRetry(os, header);
+    }
+
     virtual int Receive(dmq::xstringstream& is, dmq::transport::DmqHeader& header) override {
-        return m_transport.Receive(is, header);
+        ASSERT_TRUE(m_transport != nullptr);
+        return m_transport->Receive(is, header);
     }
 
 private:
-    dmq::transport::ITransport& m_transport;
-    RetryMonitor& m_retry;
+    dmq::transport::ITransport* m_transport = nullptr;
+    RetryMonitor*               m_retry     = nullptr;
 };
 
 } // namespace dmq::util

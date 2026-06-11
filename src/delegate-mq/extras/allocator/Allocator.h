@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <stddef.h>
 
+namespace dmq {
+
 /// @see https://github.com/endurodave/Allocator
 /// David Lafreniere
 class Allocator
@@ -103,6 +105,8 @@ private:
 	char m_memory[sizeof(T) * Objects];
 };
 
+} // namespace dmq
+
 // macro to provide header file interface
 #define DECLARE_ALLOCATOR \
     public: \
@@ -113,11 +117,11 @@ private:
             _allocator.Deallocate(pObject); \
         } \
     private: \
-        static Allocator _allocator; 
+        static dmq::Allocator _allocator; 
 
 // macro to provide source file interface
 #define IMPLEMENT_ALLOCATOR(class, objects, memory) \
-	Allocator class::_allocator(sizeof(class), objects, memory, #class);
+	dmq::Allocator class::_allocator(sizeof(class), objects, memory, #class);
 
 #endif
 

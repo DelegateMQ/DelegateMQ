@@ -107,14 +107,14 @@ $(function(){initNavTree('classdmq_1_1databus_1_1detail_1_1_rate_limiter.html','
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:ace8ba2c172110a145eac6a616ba905a5" id="r_ace8ba2c172110a145eac6a616ba905a5"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ace8ba2c172110a145eac6a616ba905a5">RateLimiter</a> (std::function&lt; void(T)&gt; func, uint32_t minSepRep)</td></tr>
-<tr class="separator:ace8ba2c172110a145eac6a616ba905a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab45d6c360f86ed7baf9b3b80c9a16915" id="r_ab45d6c360f86ed7baf9b3b80c9a16915"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab45d6c360f86ed7baf9b3b80c9a16915">Invoke</a> (T data)</td></tr>
-<tr class="separator:ab45d6c360f86ed7baf9b3b80c9a16915"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b0b534af83384b5576ef8e112c97367" id="r_a2b0b534af83384b5576ef8e112c97367"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2b0b534af83384b5576ef8e112c97367">RateLimiter</a> (<a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; void(const T &amp;)&gt; func, uint32_t minSepRep)</td></tr>
+<tr class="separator:a2b0b534af83384b5576ef8e112c97367"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a559a9e6e2dc3dc845f8d1d7d6dd17ec6" id="r_a559a9e6e2dc3dc845f8d1d7d6dd17ec6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a559a9e6e2dc3dc845f8d1d7d6dd17ec6">Invoke</a> (const T &amp;data)</td></tr>
+<tr class="separator:a559a9e6e2dc3dc845f8d1d7d6dd17ec6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="ace8ba2c172110a145eac6a616ba905a5" name="ace8ba2c172110a145eac6a616ba905a5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ace8ba2c172110a145eac6a616ba905a5">&#9670;&#160;</a></span>RateLimiter()</h2>
+<a id="a2b0b534af83384b5576ef8e112c97367" name="a2b0b534af83384b5576ef8e112c97367"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b0b534af83384b5576ef8e112c97367">&#9670;&#160;</a></span>RateLimiter()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -127,7 +127,7 @@ template&lt;typename T &gt; </div>
         <tr>
           <td class="memname"><a class="el" href="classdmq_1_1databus_1_1detail_1_1_rate_limiter.html">dmq::databus::detail::RateLimiter</a>&lt; T &gt;::RateLimiter </td>
           <td>(</td>
-          <td class="paramtype">std::function&lt; void(T)&gt;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>, </td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; void(const T &amp;)&gt;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -145,8 +145,8 @@ template&lt;typename T &gt; </div>
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
-<a id="ab45d6c360f86ed7baf9b3b80c9a16915" name="ab45d6c360f86ed7baf9b3b80c9a16915"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab45d6c360f86ed7baf9b3b80c9a16915">&#9670;&#160;</a></span>Invoke()</h2>
+<a id="a559a9e6e2dc3dc845f8d1d7d6dd17ec6" name="a559a9e6e2dc3dc845f8d1d7d6dd17ec6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a559a9e6e2dc3dc845f8d1d7d6dd17ec6">&#9670;&#160;</a></span>Invoke()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -159,7 +159,7 @@ template&lt;typename T &gt; </div>
         <tr>
           <td class="memname">void <a class="el" href="classdmq_1_1databus_1_1detail_1_1_rate_limiter.html">dmq::databus::detail::RateLimiter</a>&lt; T &gt;::Invoke </td>
           <td>(</td>
-          <td class="paramtype">T</td>          <td class="paramname"><span class="paramname"><em>data</em></span></td><td>)</td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>data</em></span></td><td>)</td>
           <td></td>
         </tr>
       </table>

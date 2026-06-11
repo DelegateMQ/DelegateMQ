@@ -33,7 +33,7 @@ public:
         if (rhs.m_delegate) {
             auto delegateClone = rhs.m_delegate->Clone();
             if (!delegateClone) BAD_ALLOC();
-            m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+            m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
         }
     }
 
@@ -51,19 +51,20 @@ public:
         *this = std::move(d);
     }
 
+
     /// Invoke the bound target.
     /// @param[in] args The arguments used when invoking the target function
-    /// @return The target function return value. 
-    RetType operator()(Args... args) {
+    /// @return The target function return value.
+    RetType operator()(Args... args) const {
         if (m_delegate)
             return (*m_delegate)(args...);	// Invoke delegate callback
         else
             return RetType();
     }
 
-    /// Invoke the bound target functions. 
+    /// Invoke the bound target functions.
     /// @param[in] args The arguments used when invoking the target function
-    void Broadcast(Args... args) {
+    void Broadcast(Args... args) const {
         (*this)(args...);
     }
 
@@ -72,15 +73,16 @@ public:
     void operator=(const DelegateType& rhs) {
         auto delegateClone = rhs.Clone();
         if (!delegateClone) BAD_ALLOC();
-        m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+        m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
     }
 
     /// Assign a delegate to the container.
     /// @param[in] rhs A delegate target to assign
     void operator=(DelegateType&& rhs) {
+        // Clone() even on rvalue: no move API exists across the polymorphic delegate hierarchy.
         auto delegateClone = rhs.Clone();
         if (!delegateClone) BAD_ALLOC();
-        m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+        m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
     }
 
     /// @brief Assignment operator that assigns the state of one object to another.
@@ -91,7 +93,7 @@ public:
             if (rhs.m_delegate) {
                 auto delegateClone = rhs.m_delegate->Clone();
                 if (!delegateClone) BAD_ALLOC();
-                m_delegate = std::shared_ptr<DelegateType>(delegateClone);
+                m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
             }
             else {
                 m_delegate = nullptr;
@@ -127,6 +129,10 @@ public:
     /// @brief Implicit conversion operator to `bool`.
     /// @return `true` if the container is not empty, `false` if the container is empty.
     explicit operator bool() const { return !Empty(); }
+
+    /// @brief Get the underlying delegate.
+    /// @return The underlying delegate pointer, or nullptr if empty.
+    const DelegateType* GetDelegate() const { return m_delegate.get(); }
 
 protected:
     /// Registered delegate.

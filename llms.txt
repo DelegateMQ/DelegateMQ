@@ -78,7 +78,7 @@ channel(42);  // serialized and sent over the network
 
 ```cpp
 auto conn = dmq::databus::DataBus::Subscribe<float>(
-    "sensor/temp", [](float v) { use(v); }, workerThread);
+    "sensor/temp", [](const float& v) { use(v); }, workerThread);
 dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 ```
 
@@ -88,6 +88,7 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 - Async delegates are queued to the target thread's priority queue; the thread's `Process()` loop dequeues and invokes.
 - Non-blocking async (`DelegateAsync`) deep-copies all arguments to the heap so the caller can return immediately without stack lifetime risk.
 - Blocking async (`DelegateAsyncWait`) passes arguments on the stack; the caller blocks until the target thread completes.
+- Thread constructor parameters `threadName` and `cpuName` are `const char*` at the binary interface (with `std::string` inline overloads).
 - Thread queue full policy is configurable per thread via `dmq::os::FullPolicy`: `DROP` (discard), `TIMEOUT` (wait then drop), or `FAULT` (assert/halt).
 
 ## Object Lifetime Safety

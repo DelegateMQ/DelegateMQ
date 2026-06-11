@@ -12,7 +12,7 @@ var searchData=
   ['netx_5fswap16_9',['netx_swap16',['../_net_x_udp_transport_8h.html#aea7647f18005bba70081db0b65993e10',1,'NetXUdpTransport.h']]],
   ['netxudptransport_10',['NetXUdpTransport',['../classdmq_1_1transport_1_1_net_x_udp_transport.html',1,'dmq::transport::NetXUdpTransport'],['../classdmq_1_1transport_1_1_net_x_udp_transport.html#a785d08e6325deb6eb13122f4602bef8c',1,'dmq::transport::NetXUdpTransport::NetXUdpTransport()']]],
   ['netxudptransport_2eh_11',['NetXUdpTransport.h',['../_net_x_udp_transport_8h.html',1,'']]],
-  ['nexthigher_12',['nexthigher',['../xallocator_8cpp.html#a229bdfd69b1fe7d0ad297e789824019e',1,'xallocator.cpp']]],
+  ['nexthigher_12',['nexthigher',['../namespacedmq.html#a76d4b9857eda4ac6d55966549da6c8b4',1,'dmq']]],
   ['nngtransport_13',['NngTransport',['../classdmq_1_1transport_1_1_nng_transport.html',1,'dmq::transport::NngTransport'],['../classdmq_1_1transport_1_1_nng_transport.html#afee19f4addde23c886f0a2a677e18f02',1,'dmq::transport::NngTransport::NngTransport()']]],
   ['nngtransport_2eh_14',['NngTransport.h',['../_nng_transport_8h.html',1,'']]],
   ['nodeid_15',['nodeId',['../structdmq_1_1databus_1_1_spy_packet.html#a54cc5518bbd49c20177a033e3509915f',1,'dmq::databus::SpyPacket']]],

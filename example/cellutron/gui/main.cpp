@@ -18,44 +18,53 @@
 
 using namespace cellutron;
 
+static void OnUnhandledTopic(const dmq::xstring& topic) {
+    std::cout << "GUI WARNING: Unhandled topic: " << topic.c_str() << std::endl;
+}
+
+static void OnTechnicalError(const dmq::xstring& topic, dmq::DelegateError error) {
+    std::cerr << "GUI ERROR: Technical failure on topic: " << topic.c_str() << ", Error: " << (int)error << std::endl;
+}
+
+static void OnTick() {
+    while (true) {
+        cellutron::System::GetInstance().Tick(50);
+        dmq::os::Thread::Sleep(std::chrono::milliseconds(50));
+    }
+}
+
+static void OnWatchdog() {
+    while (true) {
+        dmq::os::Thread::WatchdogCheckAll();
+        dmq::os::Thread::Sleep(std::chrono::milliseconds(100));
+    }
+}
+
 int main() {
+    ::InstallCrashHandlers();
     static dmq::util::NetworkContext networkContext;
     std::cout << "Cellutron GUI Processor starting..." << std::endl;
 
     cellutron::System::GetInstance().Initialize();
 
     // Catch unhandled topics (sent but no subscribers)
-    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled([](const dmq::xstring& topic) {
-        std::cout << "GUI WARNING: Unhandled topic: " << topic.c_str() << std::endl;
-    });
+    static auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled(dmq::MakeDelegate(&OnUnhandledTopic));
 
     // Catch technical errors (e.g. serialization failures)
-    static auto errorConn = dmq::databus::DataBus::SubscribeError([](const dmq::xstring& topic, dmq::DelegateError error) {
-        std::cerr << "GUI ERROR: Technical failure on topic: " << topic.c_str() << ", Error: " << (int)error << std::endl;
-    });
+    static auto errorConn = dmq::databus::DataBus::SubscribeError(dmq::MakeDelegate(&OnTechnicalError));
 
     // Start a background thread to tick the system (heartbeat warmup, etc.)
     // since UI::Start() is a blocking call.
     static dmq::os::Thread tickThread{"TickThread"};
     tickThread.CreateThread();
 
-    dmq::MakeDelegate([]() {
-        while (true) {
-            cellutron::System::GetInstance().Tick(50);
-            dmq::os::Thread::Sleep(std::chrono::milliseconds(50));
-        }
-    }, tickThread).AsyncInvoke();
+    dmq::MakeDelegate(&OnTick, tickThread).AsyncInvoke();
 
     // Start a watchdog thread
     static dmq::os::Thread watchdogThread{"Watchdog", 0, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI"};
     watchdogThread.CreateThread();
 
-    dmq::MakeDelegate([]() {
-        while (true) {
-            dmq::os::Thread::WatchdogCheckAll();
-            dmq::os::Thread::Sleep(std::chrono::milliseconds(100));
-        }
-    }, watchdogThread).AsyncInvoke();
+    dmq::MakeDelegate(&OnWatchdog, watchdogThread).AsyncInvoke();
 
     // 4. Start the User Interface (blocks until UI exit)
     cellutron::gui::UI::GetInstance().Start();

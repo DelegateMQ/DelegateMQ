@@ -22,6 +22,7 @@ struct RemoteEndpoint; // Not defined
 template <class TClass, class RetType, class... Args>
 struct RemoteEndpoint<TClass, RetType(Args...)>
 {
+    XALLOCATOR
     /// @brief The `DelegateMemberRemote` object that handles the remote invocation.
     dmq::DelegateMemberRemote<TClass, RetType(Args...)> delegate;
 
@@ -37,10 +38,10 @@ struct RemoteEndpoint<TClass, RetType(Args...)>
     /// @brief Constructor to initialize the remote endpoint.
     /// @param[in] obj A shared pointer to the instance of `TClass`.
     /// @param[in] func A pointer to the member function of `TClass`.
-    /// @param[in] transport The transport to be used for remote communication.
-    /// @param[in] id The remote identifier for this endpoint.
-    RemoteEndpoint(std::shared_ptr<TClass> obj, RetType(TClass::* func)(Args...), dmq::transport::ITransport& transport, dmq::DelegateRemoteId id)
-        : delegate(obj, func, id), transport(&transport), stream(std::ios::in | std::ios::out | std::ios::binary), id(id)
+    /// @param[in] _transport The transport to be used for remote communication.
+    /// @param[in] _id The remote identifier for this endpoint.
+    RemoteEndpoint(std::shared_ptr<TClass> obj, RetType(TClass::* func)(Args...), dmq::transport::ITransport& _transport, dmq::DelegateRemoteId _id)
+        : delegate(obj, func, _id), transport(&_transport), stream(std::ios::in | std::ios::out | std::ios::binary), id(_id)
     {
     }
 };
@@ -51,6 +52,7 @@ struct RemoteEndpoint<TClass, RetType(Args...)>
 template <class RetType, class... Args>
 struct RemoteEndpoint<void, RetType(Args...)>
 {
+    XALLOCATOR
     /// @brief The `DelegateFreeRemote` object that handles the remote invocation.
     dmq::DelegateFreeRemote<RetType(Args...)> delegate;
 
@@ -65,10 +67,10 @@ struct RemoteEndpoint<void, RetType(Args...)>
 
     /// @brief Constructor to initialize the remote endpoint for a free function.
     /// @param[in] func A pointer to the free function.
-    /// @param[in] transport The transport to be used for remote communication.
-    /// @param[in] id The remote identifier for this endpoint.
-    RemoteEndpoint(RetType(*func)(Args...), dmq::transport::ITransport& transport, dmq::DelegateRemoteId id)
-        : delegate(func, id), transport(&transport), stream(std::ios::in | std::ios::out | std::ios::binary), id(id)
+    /// @param[in] _transport The transport to be used for remote communication.
+    /// @param[in] _id The remote identifier for this endpoint.
+    RemoteEndpoint(RetType(*func)(Args...), dmq::transport::ITransport& _transport, dmq::DelegateRemoteId _id)
+        : delegate(func, _id), transport(&_transport), stream(std::ios::in | std::ios::out | std::ios::binary), id(_id)
     {
     }
 };

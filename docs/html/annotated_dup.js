@@ -104,6 +104,9 @@ var annotated_dup =
         [ "TimerDelegate", "classdmq_1_1util_1_1_timer_delegate.html", "classdmq_1_1util_1_1_timer_delegate" ],
         [ "TransportMonitor", "classdmq_1_1util_1_1_transport_monitor.html", "classdmq_1_1util_1_1_transport_monitor" ]
       ] ],
+      [ "Allocator", "classdmq_1_1_allocator.html", "classdmq_1_1_allocator" ],
+      [ "AllocatorPool", "classdmq_1_1_allocator_pool.html", "classdmq_1_1_allocator_pool" ],
+      [ "BlockHeader", "structdmq_1_1_block_header.html", "structdmq_1_1_block_header" ],
       [ "Delegate", "classdmq_1_1_delegate.html", null ],
       [ "Delegate< RetType(Args...)>", "classdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4" ],
       [ "DelegateAsyncMsg", "classdmq_1_1_delegate_async_msg.html", "classdmq_1_1_delegate_async_msg" ],
@@ -165,6 +168,8 @@ var annotated_dup =
       [ "ScopedLock", "classdmq_1_1_scoped_lock.html", "classdmq_1_1_scoped_lock" ],
       [ "Signal", "classdmq_1_1_signal.html", null ],
       [ "Signal< RetType(Args...)>", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4" ],
+      [ "stl_allocator", "classdmq_1_1stl__allocator.html", "classdmq_1_1stl__allocator" ],
+      [ "stl_allocator< void >", "classdmq_1_1stl__allocator_3_01void_01_4.html", "classdmq_1_1stl__allocator_3_01void_01_4" ],
       [ "UnicastDelegate", "classdmq_1_1_unicast_delegate.html", null ],
       [ "UnicastDelegate< RetType(Args...)>", "classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4" ],
       [ "UnicastDelegateSafe", "classdmq_1_1_unicast_delegate_safe.html", null ],
@@ -188,9 +193,5 @@ var annotated_dup =
       [ "is_unsupported_container< std::unordered_multimap< Key, T, Hash, KeyEqual, Alloc > >", "structserialize__traits_1_1is__unsupported__container_3_01std_1_1unordered__multimap_3_01_key_00571da480b2217d8490b18a0bcc496eb2.html", null ],
       [ "is_unsupported_container< std::unordered_multiset< T, Hash, KeyEqual, Alloc > >", "structserialize__traits_1_1is__unsupported__container_3_01std_1_1unordered__multiset_3_01_t_00_062a8fb1713695d62e688ecb3f56d982b.html", null ]
     ] ],
-    [ "Allocator", "class_allocator.html", "class_allocator" ],
-    [ "AllocatorPool", "class_allocator_pool.html", "class_allocator_pool" ],
-    [ "serialize", "classserialize.html", "classserialize" ],
-    [ "stl_allocator", "classstl__allocator.html", "classstl__allocator" ],
-    [ "stl_allocator< void >", "classstl__allocator_3_01void_01_4.html", "classstl__allocator_3_01void_01_4" ]
+    [ "serialize", "classserialize.html", "classserialize" ]
 ];

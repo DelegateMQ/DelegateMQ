@@ -107,8 +107,9 @@ $(function(){initNavTree('classdmq_1_1databus_1_1_deadline_subscription.html',''
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:af9c0267fc5d3ae7c835381a6cc609c88" id="r_af9c0267fc5d3ae7c835381a6cc609c88"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af9c0267fc5d3ae7c835381a6cc609c88">DeadlineSubscription</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> deadline, std::function&lt; void(const T &amp;)&gt; handler, std::function&lt; void()&gt; onMissed, <a class="el" href="classdmq_1_1_i_thread.html">dmq::IThread</a> *thread=nullptr)</td></tr>
-<tr class="separator:af9c0267fc5d3ae7c835381a6cc609c88"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acbfd54e4f7cf8dbf252d87e0951de76c" id="r_acbfd54e4f7cf8dbf252d87e0951de76c"><td class="memTemplParams" colspan="2">template&lt;typename H , typename M &gt; </td></tr>
+<tr class="memitem:acbfd54e4f7cf8dbf252d87e0951de76c"><td class="memTemplItemLeft" align="right" valign="top">&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#acbfd54e4f7cf8dbf252d87e0951de76c">DeadlineSubscription</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, <a class="el" href="namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f">dmq::Duration</a> deadline, H &amp;&amp;handler, M &amp;&amp;onMissed, <a class="el" href="classdmq_1_1_i_thread.html">dmq::IThread</a> *thread=nullptr)</td></tr>
+<tr class="separator:acbfd54e4f7cf8dbf252d87e0951de76c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afeccb6dba753190cbca03d01855c0e05" id="r_afeccb6dba753190cbca03d01855c0e05"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afeccb6dba753190cbca03d01855c0e05">~DeadlineSubscription</a> ()=default</td></tr>
 <tr class="separator:afeccb6dba753190cbca03d01855c0e05"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a123199e5acc3c7fffa071de305604e0e" id="r_a123199e5acc3c7fffa071de305604e0e"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a123199e5acc3c7fffa071de305604e0e">DeadlineSubscription</a> (const <a class="el" href="classdmq_1_1databus_1_1_deadline_subscription.html">DeadlineSubscription</a> &amp;)=delete</td></tr>
@@ -121,13 +122,15 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a3b4e383b1c94b1c2fa88d345e61424f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="af9c0267fc5d3ae7c835381a6cc609c88" name="af9c0267fc5d3ae7c835381a6cc609c88"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af9c0267fc5d3ae7c835381a6cc609c88">&#9670;&#160;</a></span>DeadlineSubscription() <span class="overload">[1/3]</span></h2>
+<a id="acbfd54e4f7cf8dbf252d87e0951de76c" name="acbfd54e4f7cf8dbf252d87e0951de76c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acbfd54e4f7cf8dbf252d87e0951de76c">&#9670;&#160;</a></span>DeadlineSubscription() <span class="overload">[1/3]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
 template&lt;typename T &gt; </div>
+<div class="memtemplate">
+template&lt;typename H , typename M &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -145,12 +148,12 @@ template&lt;typename T &gt; </div>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">std::function&lt; void(const T &amp;)&gt;</td>          <td class="paramname"><span class="paramname"><em>handler</em></span>, </td>
+          <td class="paramtype">H &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>handler</em></span>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">std::function&lt; void()&gt;</td>          <td class="paramname"><span class="paramname"><em>onMissed</em></span>, </td>
+          <td class="paramtype">M &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>onMissed</em></span>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -169,8 +172,8 @@ template&lt;typename T &gt; </div>
   <table class="params">
     <tr><td class="paramname">topic</td><td><a class="el" href="classdmq_1_1databus_1_1_data_bus.html">DataBus</a> topic to subscribe to. </td></tr>
     <tr><td class="paramname">deadline</td><td>Maximum allowed interval between deliveries. Must be &gt; 0. </td></tr>
-    <tr><td class="paramname">handler</td><td>Called on each data delivery. </td></tr>
-    <tr><td class="paramname">onMissed</td><td>Called when no delivery arrives within the deadline window. </td></tr>
+    <tr><td class="paramname">handler</td><td>Called on each data delivery. Accepts any callable (lambda, function pointer, member delegate, <a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a>). </td></tr>
+    <tr><td class="paramname">onMissed</td><td>Called when no delivery arrives within the deadline window. Accepts any callable with signature void(). </td></tr>
     <tr><td class="paramname">thread</td><td>Optional worker thread for both callbacks. If nullptr, handler fires on the publisher's thread and onMissed fires on the Timer::ProcessTimers() thread. </td></tr>
   </table>
   </dd>

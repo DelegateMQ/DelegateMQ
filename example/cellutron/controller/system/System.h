@@ -4,9 +4,13 @@
 #include "DelegateMQ.h"
 #include "util/Heartbeat.h"
 #include "util/MessageGuard.h"
-#include <memory>
+#include "util/NetworkTypes.h"
 
 namespace cellutron {
+
+struct StartProcessMsg;
+struct StopProcessMsg;
+struct FaultMsg;
 
 /// @brief Top-level system coordinator for the Controller node.
 /// 
@@ -43,7 +47,13 @@ private:
     void SetupNetwork();
     void SetupWatchdog();
 
+    void OnStart(StartProcessMsg msg);
+    void OnStop(StopProcessMsg msg);
+    void OnFault(FaultMsg msg);
+
     dmq::os::Thread m_thread;
+
+    Network m_network;
 
     // Connections to the local DataBus
     dmq::ScopedConnection m_startConn;

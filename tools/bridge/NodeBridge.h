@@ -56,19 +56,23 @@ private:
     static void InitTelemetry(const std::string& address, uint16_t port, bool isMulticast, const std::string& localInterface = "");
     static void SendHeartbeat();
 
+    static void OnMonitorPacket(const dmq::databus::SpyPacket& packet);
+    static void OnThreadStats(const dmq::util::ThreadStatsPacket& packet);
+    static dmq::xstring OnThreadStatsStringify(const dmq::util::ThreadStatsPacket& packet);
+
     struct Instance {
         std::unique_ptr<dmq::os::Thread> thread;
         
-        std::string nodeId;
-        std::string hostname;
-        std::string ipAddress;
-        std::string address;
-        std::string localInterface;
+        dmq::xstring nodeId;
+        dmq::xstring hostname;
+        dmq::xstring ipAddress;
+        dmq::xstring address;
+        dmq::xstring localInterface;
         uint16_t port = 0;
         TransportType type = TransportType::UNICAST;
 
         std::atomic<uint32_t> totalMsgCount{0};
-        std::set<std::string> topics;
+        dmq::xset<dmq::xstring> topics;
 
         dmq::ScopedConnection monitorConn;
         dmq::ScopedConnection threadStatsConn;

@@ -199,12 +199,12 @@ $(function(){initNavTree('_multicast_delegate_8h_source.html',''); initResizable
 <div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        <span class="comment">// No exceptions: Direct execution. </span></div>
 <div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        <span class="comment">// If shared_ptr or vector allocation fails here on embedded, </span></div>
 <div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        <span class="comment">// standard behavior is usually an abort() or system reset.</span></div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone);</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone, std::default_delete&lt;DelegateType&gt;(), <a class="code hl_class" href="classdmq_1_1stl__allocator.html">::dmq::stl_allocator</a>&lt;std::remove_const_t&lt;DelegateType&gt;&gt;());</div>
 <div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        m_delegates.push_back(std::forward&lt;std::shared_ptr&lt;DelegateType&gt;&gt;(sharedDelegate));</div>
 <div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="preprocessor">#else</span></div>
 <div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        <span class="comment">// Exceptions enabled: Safe to try-catch.</span></div>
 <div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="keywordflow">try</span> {</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>            std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone);</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>            std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone, std::default_delete&lt;DelegateType&gt;(), <a class="code hl_class" href="classdmq_1_1stl__allocator.html">::dmq::stl_allocator</a>&lt;std::remove_const_t&lt;DelegateType&gt;&gt;());</div>
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>            m_delegates.push_back(std::forward&lt;std::shared_ptr&lt;DelegateType&gt;&gt;(sharedDelegate));</div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        }</div>
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <span class="keywordflow">catch</span> (<span class="keyword">const</span> std::bad_alloc&amp;) {</div>
@@ -256,12 +256,12 @@ $(function(){initNavTree('_multicast_delegate_8h_source.html',''); initResizable
 <div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span> </div>
 <div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="preprocessor">#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)</span></div>
 <div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>            <span class="comment">// No exceptions: Direct execution.</span></div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>            std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone);</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>            std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone, std::default_delete&lt;DelegateType&gt;(), <a class="code hl_class" href="classdmq_1_1stl__allocator.html">::dmq::stl_allocator</a>&lt;std::remove_const_t&lt;DelegateType&gt;&gt;());</div>
 <div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>            m_delegates.push_back(sharedDelegate);</div>
 <div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span><span class="preprocessor">#else</span></div>
 <div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>            <span class="comment">// Exceptions enabled: Safe to try-catch.</span></div>
 <div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>            <span class="keywordflow">try</span> {</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>                std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone);</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>                std::shared_ptr&lt;DelegateType&gt; sharedDelegate(delegateClone, std::default_delete&lt;DelegateType&gt;(), <a class="code hl_class" href="classdmq_1_1stl__allocator.html">::dmq::stl_allocator</a>&lt;std::remove_const_t&lt;DelegateType&gt;&gt;());</div>
 <div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>                m_delegates.push_back(sharedDelegate);</div>
 <div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>            }</div>
 <div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>            <span class="keywordflow">catch</span> (<span class="keyword">const</span> std::bad_alloc&amp;) {</div>
@@ -313,7 +313,7 @@ $(function(){initNavTree('_multicast_delegate_8h_source.html',''); initResizable
 <div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span> </div>
 <div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="a_delegate_8h_html"><div class="ttname"><a href="_delegate_8h.html">Delegate.h</a></div><div class="ttdoc">Delegate series of classes are used to invoke a function synchronously.</div></div>
-<div class="ttc" id="a_delegate_opt_8h_html_abe89b46e296c7421855410a08d6d31fe"><div class="ttname"><a href="_delegate_opt_8h.html#abe89b46e296c7421855410a08d6d31fe">BAD_ALLOC</a></div><div class="ttdeci">#define BAD_ALLOC()</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:268</div></div>
+<div class="ttc" id="a_delegate_opt_8h_html_abe89b46e296c7421855410a08d6d31fe"><div class="ttname"><a href="_delegate_opt_8h.html#abe89b46e296c7421855410a08d6d31fe">BAD_ALLOC</a></div><div class="ttdeci">#define BAD_ALLOC()</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:267</div></div>
 <div class="ttc" id="aclassdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4_html"><div class="ttname"><a href="classdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4.html">dmq::Delegate&lt; RetType(Args...)&gt;</a></div><div class="ttdoc">Template base class for all delegates.</div><div class="ttdef"><b>Definition</b> Delegate.h:140</div></div>
 <div class="ttc" id="aclassdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4_html_a5cfbba0822b289f1b02f2df6150c1e6c"><div class="ttname"><a href="classdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a5cfbba0822b289f1b02f2df6150c1e6c">dmq::Delegate&lt; RetType(Args...)&gt;::Clone</a></div><div class="ttdeci">virtual Delegate * Clone() const override=0</div><div class="ttdoc">Clone an instance of a Delegate instance.</div></div>
 <div class="ttc" id="aclassdmq_1_1_delegate_html"><div class="ttname"><a href="classdmq_1_1_delegate.html">dmq::Delegate</a></div><div class="ttdef"><b>Definition</b> Delegate.h:134</div></div>
@@ -339,7 +339,8 @@ $(function(){initNavTree('_multicast_delegate_8h_source.html',''); initResizable
 <div class="ttc" id="aclassdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4_html_aee98990608421c3cc610c2a3b65ae962"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#aee98990608421c3cc610c2a3b65ae962">dmq::MulticastDelegate&lt; RetType(Args...)&gt;::operator+=</a></div><div class="ttdeci">void operator+=(DelegateType &amp;&amp;delegate)</div><div class="ttdef"><b>Definition</b> MulticastDelegate.h:81</div></div>
 <div class="ttc" id="aclassdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4_html_af1835a0e980f8cab2953655edc1c7e38"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#af1835a0e980f8cab2953655edc1c7e38">dmq::MulticastDelegate&lt; RetType(Args...)&gt;::operator-=</a></div><div class="ttdeci">void operator-=(DelegateType &amp;&amp;delegate)</div><div class="ttdef"><b>Definition</b> MulticastDelegate.h:89</div></div>
 <div class="ttc" id="aclassdmq_1_1_multicast_delegate_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate.html">dmq::MulticastDelegate</a></div><div class="ttdef"><b>Definition</b> MulticastDelegate.h:17</div></div>
-<div class="ttc" id="aclassdmq_1_1xlist_html"><div class="ttname"><a href="classdmq_1_1xlist.html">dmq::xlist</a></div><div class="ttdef"><b>Definition</b> DelegateOpt.h:305</div></div>
+<div class="ttc" id="aclassdmq_1_1stl__allocator_html"><div class="ttname"><a href="classdmq_1_1stl__allocator.html">dmq::stl_allocator</a></div><div class="ttdef"><b>Definition</b> stl_allocator.h:31</div></div>
+<div class="ttc" id="aclassdmq_1_1xlist_html"><div class="ttname"><a href="classdmq_1_1xlist.html">dmq::xlist</a></div><div class="ttdef"><b>Definition</b> DelegateOpt.h:312</div></div>
 <div class="ttc" id="anamespacedmq_html"><div class="ttname"><a href="namespacedmq.html">dmq</a></div><div class="ttdoc">The delegate library namespace.</div><div class="ttdef"><b>Definition</b> Delegate.h:27</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

@@ -4,8 +4,12 @@
 #include "DelegateMQ.h"
 #include "util/Heartbeat.h"
 #include "util/MessageGuard.h"
+#include "util/NetworkTypes.h"
 
 namespace cellutron {
+
+struct CentrifugeSpeedMsg;
+struct FaultMsg;
 
 /// @brief Top-level system coordinator for the Safety node.
 class System {
@@ -32,7 +36,12 @@ private:
     void SetupNetwork();
     void SetupWatchdog();
 
+    void OnSpeed(CentrifugeSpeedMsg msg);
+    void OnFault(FaultMsg msg);
+
     dmq::os::Thread m_thread;
+
+    Network m_network;
 
     dmq::ScopedConnection m_speedConn;
     dmq::ScopedConnection m_faultConn;

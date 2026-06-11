@@ -13,17 +13,20 @@
 /// * **Lifetime-safe disconnect** — calling `Disconnect()` (or letting a `ScopedConnection`
 ///   go out of scope) after the Signal is destroyed is always a safe no-op.
 ///
-/// Internally, Signal stores its subscriber list in a heap-allocated `State` block shared
-/// with the disconnect lambdas via `shared_ptr`. The destructor marks the block dead under
-/// the mutex, so any concurrent disconnect that races with destruction simply sees the
-/// dead flag and returns without touching the list.
+/// Internally, Signal stores its subscriber list in a heap-allocated `State` block. Each
+/// `Connection` holds two `shared_ptr<void>` context fields (state and delegate copy) plus
+/// a raw `DisconnectImpl` function pointer. The destructor marks the block dead under the
+/// mutex, so any concurrent disconnect that races with destruction simply sees the dead flag
+/// and returns without touching the list.
 
 #include "DelegateOpt.h"
 #include "Delegate.h"
-#include <functional>
 #include <memory>
 
 namespace dmq {
+
+template <class R>
+class UnicastDelegate;
 
 template <class R>
 class Signal;
@@ -35,55 +38,64 @@ namespace detail {
 
 /// @brief Move-only subscription token. Internal implementation detail of Signal.
 /// Users should store `ScopedConnection`, not `Connection` directly.
+///
+/// Stores two type-erased `shared_ptr<void>` contexts (signal state and delegate copy)
+/// plus a raw `DisconnectFn` function pointer. No `std::function` heap allocation.
 class Connection {
 public:
+    using DisconnectFn = void(*)(const std::shared_ptr<void>&, const std::shared_ptr<void>&);
+
     Connection() = default;
 
-    template<typename DisconnectFunc>
-    Connection(std::weak_ptr<void> watcher, DisconnectFunc&& func)
-        : m_watcher(watcher)
-        , m_disconnect(std::forward<DisconnectFunc>(func))
+    Connection(std::shared_ptr<void> ctx1, std::shared_ptr<void> ctx2, DisconnectFn fn) noexcept
+        : m_ctx1(std::move(ctx1))
+        , m_ctx2(std::move(ctx2))
+        , m_disconnect_fn(fn)
         , m_connected(true) {}
 
     Connection(const Connection&) = delete;
     Connection& operator=(const Connection&) = delete;
 
     Connection(Connection&& other) noexcept
-        : m_watcher(std::move(other.m_watcher))
-        , m_disconnect(std::move(other.m_disconnect))
+        : m_ctx1(std::move(other.m_ctx1))
+        , m_ctx2(std::move(other.m_ctx2))
+        , m_disconnect_fn(other.m_disconnect_fn)
         , m_connected(other.m_connected) {
         other.m_connected = false;
-        other.m_disconnect = nullptr;
+        other.m_disconnect_fn = nullptr;
     }
 
     Connection& operator=(Connection&& other) noexcept {
         if (this != &other) {
             Disconnect();
-            m_watcher    = std::move(other.m_watcher);
-            m_disconnect = std::move(other.m_disconnect);
-            m_connected  = other.m_connected;
-            other.m_connected  = false;
-            other.m_disconnect = nullptr;
+            m_ctx1 = std::move(other.m_ctx1);
+            m_ctx2 = std::move(other.m_ctx2);
+            m_disconnect_fn = other.m_disconnect_fn;
+            m_connected = other.m_connected;
+            other.m_connected = false;
+            other.m_disconnect_fn = nullptr;
         }
         return *this;
     }
 
     ~Connection() {}
 
-    bool IsConnected() const { return m_connected && !m_watcher.expired(); }
+    bool IsConnected() const { return m_connected; }
 
     void Disconnect() {
         if (!m_connected) return;
-        if (!m_watcher.expired() && m_disconnect)
-            m_disconnect();
-        m_disconnect = nullptr;
-        m_watcher.reset();
+        if (m_disconnect_fn)
+            m_disconnect_fn(m_ctx1, m_ctx2);
+        m_ctx1.reset();
+        m_ctx2.reset();
+        m_disconnect_fn = nullptr;
         m_connected = false;
     }
 
 private:
-    std::weak_ptr<void>  m_watcher;
-    std::function<void()> m_disconnect;
+    std::shared_ptr<void> m_ctx1;
+    std::shared_ptr<void> m_ctx2;
+    DisconnectFn m_disconnect_fn = nullptr;
     bool m_connected = false;
     XALLOCATOR
 };
@@ -164,22 +176,25 @@ public:
     /// @return A `ScopedConnection`. Let it go out of scope to auto-disconnect,
     ///         or call `Disconnect()` manually.
     [[nodiscard]] ScopedConnection Connect(const DelegateType& delegate) {
-        auto copy  = std::shared_ptr<DelegateType>(delegate.Clone());
+        auto copy = std::shared_ptr<DelegateType>(delegate.Clone(), std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
         if (!copy)
             BAD_ALLOC();
-        auto state = m_state;
         {
-            dmq::LockGuard<RecursiveMutex> lock(state->mtx);
-            state->delegates.push_back(copy);
+            dmq::LockGuard<RecursiveMutex> lock(m_state->mtx);
+            m_state->delegates.push_back(copy);
         }
         return ScopedConnection(detail::Connection(
-            std::weak_ptr<void>(state),
-            [state, copy]() {
-                dmq::LockGuard<RecursiveMutex> lock(state->mtx);
-                if (state->alive)
-                    state->delegates.remove(copy);  // shared_ptr identity comparison
-            }
+            std::static_pointer_cast<void>(m_state),
+            std::static_pointer_cast<void>(copy),
+            &Signal::DisconnectImpl
         ));
+    }
+
+    /// @brief Subscribe a UnicastDelegate and return a RAII connection handle.
+    [[nodiscard]] ScopedConnection Connect(const UnicastDelegate<RetType(Args...)>& delegate) {
+        if (delegate.GetDelegate())
+            return Connect(*delegate.GetDelegate());
+        return {};
     }
 
     /// @brief Invoke all connected delegates.
@@ -246,6 +261,14 @@ public:
     XALLOCATOR
 
 private:
+    static void DisconnectImpl(const std::shared_ptr<void>& stateVoid, const std::shared_ptr<void>& copyVoid) {
+        auto* state = static_cast<State*>(stateVoid.get());
+        auto copy = std::static_pointer_cast<DelegateType>(copyVoid);
+        dmq::LockGuard<RecursiveMutex> lock(state->mtx);
+        if (state->alive)
+            state->delegates.remove(copy);
+    }
+
     struct State {
         mutable RecursiveMutex mtx;
         bool alive = true;

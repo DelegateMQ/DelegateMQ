@@ -44,8 +44,8 @@ int DataBusDeadlineTestMain()
         DeadlineSubscription<int> sub{
             "deadline/topic",
             std::chrono::milliseconds(100),
-            [&](const int&) { deliveryCount++; },
-            [&]()           { missedCount++; }
+            dmq::MakeDelegate([&](const int&) { deliveryCount++; }),
+            dmq::MakeDelegate([&]()           { missedCount++; })
         };
 
         // Publish well within the deadline window
@@ -70,8 +70,8 @@ int DataBusDeadlineTestMain()
         DeadlineSubscription<int> sub{
             "deadline/topic",
             std::chrono::milliseconds(50),
-            [](const int&) {},
-            [&]() { missedCount++; }
+            dmq::MakeDelegate([](const int&) {}),
+            dmq::MakeDelegate([&]() { missedCount++; })
         };
 
         // One delivery resets the timer, then go silent
@@ -93,8 +93,8 @@ int DataBusDeadlineTestMain()
         DeadlineSubscription<int> sub{
             "deadline/topic",
             std::chrono::milliseconds(50),
-            [](const int&) {},
-            [&]() { missedCount++; }
+            dmq::MakeDelegate([](const int&) {}),
+            dmq::MakeDelegate([&]() { missedCount++; })
         };
 
         // No publish at all
@@ -115,8 +115,8 @@ int DataBusDeadlineTestMain()
         DeadlineSubscription<int> sub{
             "deadline/topic",
             std::chrono::milliseconds(50),
-            [](const int&) {},
-            [&]() { missedCount++; }
+            dmq::MakeDelegate([](const int&) {}),
+            dmq::MakeDelegate([&]() { missedCount++; })
         };
 
         // Let it miss once
@@ -147,8 +147,8 @@ int DataBusDeadlineTestMain()
             DeadlineSubscription<int> sub{
                 "deadline/topic",
                 std::chrono::milliseconds(50),
-                [](const int&) {},
-                [&]() { missedCount++; }
+                dmq::MakeDelegate([](const int&) {}),
+                dmq::MakeDelegate([&]() { missedCount++; })
             };
             // Let it arm but destroy before deadline fires
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -175,12 +175,12 @@ int DataBusDeadlineTestMain()
         DeadlineSubscription<int> sub{
             "deadline/topic",
             std::chrono::milliseconds(50),
-            [&](const int&) {
+            dmq::MakeDelegate([&](const int&) {
                 dataOnWorker = (Thread::GetCurrentThreadId() == workerThread.GetThreadId());
-            },
-            [&]() {
+            }),
+            dmq::MakeDelegate([&]() {
                 missedOnWorker = (Thread::GetCurrentThreadId() == workerThread.GetThreadId());
-            },
+            }),
             &workerThread
         };
 

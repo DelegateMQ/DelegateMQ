@@ -1,7 +1,8 @@
 #include "Allocator.h"
 #include "delegate/DelegateOpt.h"
 #include <new>
-#include <assert.h>
+
+namespace dmq {
 
 //------------------------------------------------------------------------------
 // Constructor
@@ -59,9 +60,9 @@ Allocator::~Allocator()
 //------------------------------------------------------------------------------
 // Allocate
 //------------------------------------------------------------------------------
-void* Allocator::Allocate(size_t size)
+void* Allocator::Allocate([[maybe_unused]] size_t size)
 {
-    assert(size <= m_objectSize);
+    ASSERT_TRUE(size <= m_objectSize);
 	
     // If can't obtain existing block then get a new one
     void* pBlock = Pop();
@@ -86,7 +87,7 @@ void* Allocator::Allocate(size_t size)
                 if (handler)
                     (*handler)();
                 else
-                    assert(0);
+                    ASSERT();
             }
         }
         else
@@ -159,6 +160,8 @@ void* Allocator::Pop()
 
     return (void*)pBlock;
 }
+
+} // namespace dmq
 
 
 

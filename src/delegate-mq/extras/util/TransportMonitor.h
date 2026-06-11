@@ -30,6 +30,7 @@ namespace dmq::util {
 /// and handle expired messages.
 class TransportMonitor : public dmq::transport::ITransportMonitor
 {
+    XALLOCATOR
 public:
     enum class Status
     {
@@ -67,6 +68,7 @@ public:
     virtual bool Add(uint16_t seqNum, dmq::DelegateRemoteId remoteId) override
     {
         size_t capSize = 0;
+        uint32_t key = (static_cast<uint32_t>(remoteId) << 16) | seqNum;
         {
             const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
 
@@ -76,7 +78,8 @@ public:
                 TimeoutData d;
                 d.timeStamp = dmq::Clock::now();
                 d.remoteId = remoteId;
-                m_pending[seqNum] = d;
+                d.seqNum = seqNum;
+                m_pending[key] = d;
             }
         }
 
@@ -92,18 +95,34 @@ public:
     /// Remove a sequence number. Invokes SendStatusCb callback to notify 
     /// registered client of removal.
     /// param[in] seqNum - the delegate message sequence number
-    virtual void Remove(uint16_t seqNum) override
+    /// param[in] remoteId - the remote ID (default 0 for backwards compatibility, but strongly recommended)
+    virtual void Remove(uint16_t seqNum, dmq::DelegateRemoteId remoteId = 0)
     {
         bool found = false;
         TimeoutData d;
+        uint32_t key = (static_cast<uint32_t>(remoteId) << 16) | seqNum;
+        
         {
             const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
-            auto it = m_pending.find(seqNum);
-            if (it != m_pending.end())
-            {
-                d = it->second;
-                m_pending.erase(it);
-                found = true;
+            
+            if (remoteId != 0) {
+                // Exact composite key lookup
+                auto it = m_pending.find(key);
+                if (it != m_pending.end()) {
+                    d = it->second;
+                    m_pending.erase(it);
+                    found = true;
+                }
+            } else {
+                // Backwards compatibility: linear scan for seqNum if remoteId is unknown
+                for (auto it = m_pending.begin(); it != m_pending.end(); ++it) {
+                    if (it->second.seqNum == seqNum) {
+                        d = it->second;
+                        m_pending.erase(it);
+                        found = true;
+                        break;
+                    }
+                }
             }
         }
 
@@ -112,6 +131,9 @@ public:
             OnSendStatus(d.remoteId, seqNum, Status::SUCCESS);
         }
     }
+
+    // Standard ITransportMonitor override (uses default remoteId 0)
+    virtual void Remove(uint16_t seqNum) override { Remove(seqNum, 0); }
 
     /// Call periodically to process message timeouts.
     /// Drains all expired entries across multiple passes so a single call always
@@ -144,12 +166,12 @@ public:
                             remaining = m_pending.size();
                             break;
                         }
-                        m_expiredItems[expiredCount++] = { (*it).first, (*it).second };
+                        m_expiredItems[expiredCount++] = { (*it).second.seqNum, (*it).second };
                         it = m_pending.erase(it);
                     }
                     else
                     {
-                        // map is sorted by seqNum, not time — must scan all entries
+                        // map is sorted by key, not time — must scan all entries
                         ++it;
                     }
                 }
@@ -174,12 +196,14 @@ private:
     struct TimeoutData
     {
         dmq::DelegateRemoteId remoteId = 0;
+        uint16_t seqNum = 0;
         dmq::TimePoint timeStamp;
     };
 
     struct ExpiredItem { uint16_t seq; TimeoutData data; };
 
-    xmap<uint16_t, TimeoutData> m_pending;
+    // Key is (remoteId << 16) | seqNum
+    dmq::xmap<uint32_t, TimeoutData> m_pending;
     std::array<ExpiredItem, dmq::MAX_TIMER_EXPIRED> m_expiredItems{};
     const dmq::Duration TRANSPORT_TIMEOUT;
     dmq::RecursiveMutex m_lock;

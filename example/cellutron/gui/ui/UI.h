@@ -12,6 +12,11 @@
 #include <chrono>
 
 namespace cellutron {
+
+struct CentrifugeStatusMsg;
+struct CentrifugeSpeedMsg;
+struct FaultMsg;
+
 namespace gui {
 
 /// @brief Singleton class for the User Interface.
@@ -36,6 +41,14 @@ private:
     UI& operator=(const UI&) = delete;
 
     void AddLog(const std::string& msg);
+
+    void OnCentrifugeStatus(CentrifugeStatusMsg msg);
+    void OnRpm(CentrifugeSpeedMsg msg);
+    void OnRunStatus(RunStatusMsg msg);
+    void OnActuatorStatus(ActuatorStatusMsg msg);
+    void OnFault(FaultMsg msg);
+    void OnHeartbeat(const HeartbeatMsg& msg);
+    void OnControllerTimeout();
 
     // --- State Members ---
     std::atomic<uint16_t> m_currentRpm{0};

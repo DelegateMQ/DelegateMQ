@@ -50,3 +50,19 @@ include ("${DMQ_ROOT_DIR}/Port.cmake")
 check("${DMQ_ROOT_DIR}/External.cmake")
 include ("${DMQ_ROOT_DIR}/External.cmake")
 
+# New option (Default OFF)
+option(DMQ_STRICT "Enable strict DelegateMQ compiler warnings and errors" OFF)
+
+if (DMQ_STRICT)
+    message(STATUS "DelegateMQ: Strict build enabled (${DMQ_STRICT_FLAGS})")
+
+    # Apply strict compile flags only to DelegateMQ source files
+    set_source_files_properties(${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES} PROPERTIES COMPILE_OPTIONS "${DMQ_STRICT_FLAGS}")
+
+    # On MSVC, different warning levels cause a PCH mismatch error (C4652).
+    # We disable PCH for these specific files to allow strict checking without affecting the whole target.
+    if (MSVC)
+        set_source_files_properties(${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES} PROPERTIES COMPILE_FLAGS "/Y-")
+    endif()
+endif()
+

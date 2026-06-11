@@ -130,19 +130,22 @@ Static Public Member Functions</h2></td></tr>
 <tr class="memitem:a3bdd818c886753072d8c9d3bcf5bb114" id="r_a3bdd818c886753072d8c9d3bcf5bb114"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:a3bdd818c886753072d8c9d3bcf5bb114"><td class="memTemplItemLeft" align="right" valign="top">static void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a3bdd818c886753072d8c9d3bcf5bb114">AddRelayTopic</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="el" href="classdmq_1_1databus_1_1_participant.html">Participant</a> &amp;participant, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; &amp;serializer)</td></tr>
 <tr class="separator:a3bdd818c886753072d8c9d3bcf5bb114"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1df10a5169557d603a8b94fee2f71bac" id="r_a1df10a5169557d603a8b94fee2f71bac"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
-<tr class="memitem:a1df10a5169557d603a8b94fee2f71bac"><td class="memTemplItemLeft" align="right" valign="top">static void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a1df10a5169557d603a8b94fee2f71bac">RegisterStringifier</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, std::function&lt; <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>(const T &amp;)&gt; func)</td></tr>
-<tr class="separator:a1df10a5169557d603a8b94fee2f71bac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af95f2bbeac84b68a0891d3a0e25d0c23" id="r_af95f2bbeac84b68a0891d3a0e25d0c23"><td class="memTemplParams" colspan="2">template&lt;typename T , typename F &gt; </td></tr>
+<tr class="memitem:af95f2bbeac84b68a0891d3a0e25d0c23"><td class="memTemplItemLeft" align="right" valign="top">static void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#af95f2bbeac84b68a0891d3a0e25d0c23">RegisterStringifier</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, F &amp;&amp;func)</td></tr>
+<tr class="separator:af95f2bbeac84b68a0891d3a0e25d0c23"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3023f2fa040216a4be513d9e851fcf5d" id="r_a3023f2fa040216a4be513d9e851fcf5d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a3023f2fa040216a4be513d9e851fcf5d">LastValueCache</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, bool enabled)</td></tr>
 <tr class="separator:a3023f2fa040216a4be513d9e851fcf5d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af36b7555f1e1081ff153e0afe466c437" id="r_af36b7555f1e1081ff153e0afe466c437"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af36b7555f1e1081ff153e0afe466c437">Monitor</a> (std::function&lt; void(const <a class="el" href="structdmq_1_1databus_1_1_spy_packet.html">SpyPacket</a> &amp;)&gt; func, <a class="el" href="classdmq_1_1_i_thread.html">dmq::IThread</a> *thread=nullptr, <a class="el" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">dmq::Priority</a> priority=<a class="el" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">dmq::Priority::NORMAL</a>)</td></tr>
-<tr class="separator:af36b7555f1e1081ff153e0afe466c437"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a96d1ddf4461e0584b0480b0db38cccf9" id="r_a96d1ddf4461e0584b0480b0db38cccf9"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a96d1ddf4461e0584b0480b0db38cccf9">SubscribeUnhandled</a> (std::function&lt; void(const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic)&gt; func)</td></tr>
-<tr class="memdesc:a96d1ddf4461e0584b0480b0db38cccf9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fired when a message is published but has no local or remote subscribers.  <br /></td></tr>
-<tr class="separator:a96d1ddf4461e0584b0480b0db38cccf9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab472e2f74e8d70c9b70772f0d6a67ae9" id="r_ab472e2f74e8d70c9b70772f0d6a67ae9"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab472e2f74e8d70c9b70772f0d6a67ae9">SubscribeError</a> (std::function&lt; void(const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, <a class="el" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a> error)&gt; func)</td></tr>
-<tr class="memdesc:ab472e2f74e8d70c9b70772f0d6a67ae9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fired when a message is published but a technical error occurs (e.g. serialization failure).  <br /></td></tr>
-<tr class="separator:ab472e2f74e8d70c9b70772f0d6a67ae9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1d729d6c919b3ea0dcb9803420d4ecc8" id="r_a1d729d6c919b3ea0dcb9803420d4ecc8"><td class="memTemplParams" colspan="2">template&lt;typename F &gt; </td></tr>
+<tr class="memitem:a1d729d6c919b3ea0dcb9803420d4ecc8"><td class="memTemplItemLeft" align="right" valign="top">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a1d729d6c919b3ea0dcb9803420d4ecc8">Monitor</a> (F &amp;&amp;func, <a class="el" href="classdmq_1_1_i_thread.html">dmq::IThread</a> *thread=nullptr, <a class="el" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">dmq::Priority</a> priority=<a class="el" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">dmq::Priority::NORMAL</a>)</td></tr>
+<tr class="separator:a1d729d6c919b3ea0dcb9803420d4ecc8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aed9172c919c53d3af93f9e0544d24b08" id="r_aed9172c919c53d3af93f9e0544d24b08"><td class="memTemplParams" colspan="2">template&lt;typename F &gt; </td></tr>
+<tr class="memitem:aed9172c919c53d3af93f9e0544d24b08"><td class="memTemplItemLeft" align="right" valign="top">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aed9172c919c53d3af93f9e0544d24b08">SubscribeUnhandled</a> (F &amp;&amp;func)</td></tr>
+<tr class="memdesc:aed9172c919c53d3af93f9e0544d24b08"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fired when a message is published but has no local or remote subscribers.  <br /></td></tr>
+<tr class="separator:aed9172c919c53d3af93f9e0544d24b08"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a47730ecd1ab7542d4d4aa99373043dce" id="r_a47730ecd1ab7542d4d4aa99373043dce"><td class="memTemplParams" colspan="2">template&lt;typename F &gt; </td></tr>
+<tr class="memitem:a47730ecd1ab7542d4d4aa99373043dce"><td class="memTemplItemLeft" align="right" valign="top">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a47730ecd1ab7542d4d4aa99373043dce">SubscribeError</a> (F &amp;&amp;func)</td></tr>
+<tr class="memdesc:a47730ecd1ab7542d4d4aa99373043dce"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fired when a message is published but a technical error occurs (e.g. serialization failure).  <br /></td></tr>
+<tr class="separator:a47730ecd1ab7542d4d4aa99373043dce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a41ba3b962f4fd1dc089c8c9c956c6c3d" id="r_a41ba3b962f4fd1dc089c8c9c956c6c3d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a41ba3b962f4fd1dc089c8c9c956c6c3d">ResetForTesting</a> ()</td></tr>
 <tr class="separator:a41ba3b962f4fd1dc089c8c9c956c6c3d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -283,11 +286,13 @@ template&lt;typename T &gt; </div>
 
 </div>
 </div>
-<a id="af36b7555f1e1081ff153e0afe466c437" name="af36b7555f1e1081ff153e0afe466c437"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af36b7555f1e1081ff153e0afe466c437">&#9670;&#160;</a></span>Monitor()</h2>
+<a id="a1d729d6c919b3ea0dcb9803420d4ecc8" name="a1d729d6c919b3ea0dcb9803420d4ecc8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1d729d6c919b3ea0dcb9803420d4ecc8">&#9670;&#160;</a></span>Monitor()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<div class="memtemplate">
+template&lt;typename F &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -295,7 +300,7 @@ template&lt;typename T &gt; </div>
         <tr>
           <td class="memname">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a> dmq::databus::DataBus::Monitor </td>
           <td>(</td>
-          <td class="paramtype">std::function&lt; void(const <a class="el" href="structdmq_1_1databus_1_1_spy_packet.html">SpyPacket</a> &amp;)&gt;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>, </td>
+          <td class="paramtype">F &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -310,7 +315,7 @@ template&lt;typename T &gt; </div>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span><span class="mlabel">nodiscard</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">
@@ -410,13 +415,13 @@ template&lt;typename T &gt; </div>
 
 </div>
 </div>
-<a id="a1df10a5169557d603a8b94fee2f71bac" name="a1df10a5169557d603a8b94fee2f71bac"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1df10a5169557d603a8b94fee2f71bac">&#9670;&#160;</a></span>RegisterStringifier()</h2>
+<a id="af95f2bbeac84b68a0891d3a0e25d0c23" name="af95f2bbeac84b68a0891d3a0e25d0c23"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af95f2bbeac84b68a0891d3a0e25d0c23">&#9670;&#160;</a></span>RegisterStringifier()</h2>
 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename T &gt; </div>
+template&lt;typename T , typename F &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -429,7 +434,7 @@ template&lt;typename T &gt; </div>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">std::function&lt; <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a>(const T &amp;)&gt;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>&#160;)</td>
+          <td class="paramtype">F &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>&#160;)</td>
         </tr>
       </table>
   </td>
@@ -500,18 +505,20 @@ template&lt;typename T , typename F &gt; </div>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span><span class="mlabel">nodiscard</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">
 
 </div>
 </div>
-<a id="ab472e2f74e8d70c9b70772f0d6a67ae9" name="ab472e2f74e8d70c9b70772f0d6a67ae9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab472e2f74e8d70c9b70772f0d6a67ae9">&#9670;&#160;</a></span>SubscribeError()</h2>
+<a id="a47730ecd1ab7542d4d4aa99373043dce" name="a47730ecd1ab7542d4d4aa99373043dce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a47730ecd1ab7542d4d4aa99373043dce">&#9670;&#160;</a></span>SubscribeError()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<div class="memtemplate">
+template&lt;typename F &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -519,13 +526,13 @@ template&lt;typename T , typename F &gt; </div>
         <tr>
           <td class="memname">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a> dmq::databus::DataBus::SubscribeError </td>
           <td>(</td>
-          <td class="paramtype">std::function&lt; void(const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, <a class="el" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">dmq::DelegateError</a> error)&gt;</td>          <td class="paramname"><span class="paramname"><em>func</em></span></td><td>)</td>
+          <td class="paramtype">F &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>func</em></span></td><td>)</td>
           <td></td>
         </tr>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span><span class="mlabel">nodiscard</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">
@@ -573,18 +580,20 @@ template&lt;typename T , typename F , typename P &gt; </div>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span><span class="mlabel">nodiscard</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">
 
 </div>
 </div>
-<a id="a96d1ddf4461e0584b0480b0db38cccf9" name="a96d1ddf4461e0584b0480b0db38cccf9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a96d1ddf4461e0584b0480b0db38cccf9">&#9670;&#160;</a></span>SubscribeUnhandled()</h2>
+<a id="aed9172c919c53d3af93f9e0544d24b08" name="aed9172c919c53d3af93f9e0544d24b08"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aed9172c919c53d3af93f9e0544d24b08">&#9670;&#160;</a></span>SubscribeUnhandled()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<div class="memtemplate">
+template&lt;typename F &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -592,13 +601,13 @@ template&lt;typename T , typename F , typename P &gt; </div>
         <tr>
           <td class="memname">static <a class="el" href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a> dmq::databus::DataBus::SubscribeUnhandled </td>
           <td>(</td>
-          <td class="paramtype">std::function&lt; void(const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic)&gt;</td>          <td class="paramname"><span class="paramname"><em>func</em></span></td><td>)</td>
+          <td class="paramtype">F &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>func</em></span></td><td>)</td>
           <td></td>
         </tr>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span><span class="mlabel">nodiscard</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">

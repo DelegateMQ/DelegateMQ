@@ -20,7 +20,7 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
+Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
     , FULL_POLICY(fullPolicy)
@@ -28,7 +28,14 @@ Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fu
     , m_exit(false)
 {
     m_queueSize = (maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize;
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 6326)
+#endif
     m_priority = configMAX_PRIORITIES > 2 ? configMAX_PRIORITIES - 2 : tskIDLE_PRIORITY + 1;
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 }
 
 //----------------------------------------------------------------------------
@@ -207,7 +214,7 @@ bool Thread::IsCurrentThread()
 size_t Thread::GetQueueSize()
 {
     if (m_queue) {
-        return (size_t)uxQueueMessagesWaiting(m_queue);
+        return static_cast<size_t>(uxQueueMessagesWaiting(m_queue));
     }
     return 0;
 }
@@ -220,7 +227,7 @@ void Thread::Sleep(dmq::Duration timeout) {
 void Thread::SetThreadPriority(int priority) {
     m_priority = priority;
     if (m_thread) {
-        vTaskPrioritySet(m_thread, (UBaseType_t)m_priority);
+        vTaskPrioritySet(m_thread, static_cast<UBaseType_t>(m_priority));
     }
 }
 
@@ -398,11 +405,11 @@ void Thread::Run()
                 }
                 catch (const std::exception& e) {
                     printf("[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    ASSERT();
                 }
                 catch (...) {
                     printf("[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
-                    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                    ASSERT();
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
@@ -456,7 +463,7 @@ Thread::ThreadStats Thread::SnapshotStats()
         m_latencyTotalWindow = 0;
 
         if (count > 0) {
-            stats.latency_avg_ms = (float)total / (count * 1000000.0f);
+            stats.latency_avg_ms = (float)total / (static_cast<float>(count) * 1000000.0f);
         } else {
             stats.latency_avg_ms = 0.0f;
         }
@@ -471,7 +478,7 @@ Thread::ThreadStats Thread::SnapshotStats()
         m_invokeTotalWindow = 0;
 
         if (iCount > 0) {
-            stats.invoke_avg_ms = (float)iTotal / (iCount * 1000000.0f);
+            stats.invoke_avg_ms = (float)iTotal / (static_cast<float>(iCount) * 1000000.0f);
         } else {
             stats.invoke_avg_ms = 0.0f;
         }

@@ -394,20 +394,20 @@ public:
     void Bind(ObjectPtr object, MemberFunc func) {
         static_assert(!std::is_const<TClass>::value, "Cannot bind non-const function to const object.");
         auto deleter = [](TClass*) {};                        // No-op deleter
-        m_object = std::shared_ptr<TClass>(object, deleter);  // Not deleted when out of scope
+        m_object = std::shared_ptr<TClass>(object, deleter, ::dmq::stl_allocator<std::remove_const_t<TClass>>());  // Not deleted when out of scope
         m_func = func;
     }
 
     /// @brief Bind a const member function to a raw pointer.
-    /// @details Wraps the raw object pointer in a `std::shared_ptr` with a no-op 
-    /// deleter, ensuring the delegate references the object without taking ownership 
+    /// @details Wraps the raw object pointer in a `std::shared_ptr` with a no-op
+    /// deleter, ensuring the delegate references the object without taking ownership
     /// or attempting to delete it. The caller must ensure the object outlives the delegate.
     /// Once the function is bound, the delegate can be used to invoke the function.
     /// @param[in] object The target object instance (raw pointer).
     /// @param[in] func The const member function to bind.
     void Bind(ObjectPtr object, ConstMemberFunc func) {
         auto deleter = [](TClass*) {};                        // No-op deleter
-        m_object = std::shared_ptr<TClass>(object, deleter);  // Not deleted when out of scope
+        m_object = std::shared_ptr<TClass>(object, deleter, ::dmq::stl_allocator<std::remove_const_t<TClass>>());  // Not deleted when out of scope
         m_func = reinterpret_cast<MemberFunc>(func);
     }
 

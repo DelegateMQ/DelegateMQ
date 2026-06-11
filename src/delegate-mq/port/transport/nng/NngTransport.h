@@ -238,18 +238,10 @@ public:
             return -1;
         }
 
-        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor)
-        {
-            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
-                return -1;
-            }
-        }
-
         return 0;
     }
 
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
-    {
+    virtual int Receive(xstringstream& is, DmqHeader& header) override {
         // Lock Guard
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 

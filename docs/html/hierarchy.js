@@ -1,12 +1,13 @@
 var hierarchy =
 [
-    [ "Allocator", "class_allocator.html", [
-      [ "AllocatorPool< T, Objects >", "class_allocator_pool.html", null ]
+    [ "dmq::Allocator", "classdmq_1_1_allocator.html", [
+      [ "dmq::AllocatorPool< T, Objects >", "classdmq_1_1_allocator_pool.html", null ]
     ] ],
     [ "std::allocator", null, [
-      [ "stl_allocator< T >", "classstl__allocator.html", null ]
+      [ "dmq::stl_allocator< T >", "classdmq_1_1stl__allocator.html", null ]
     ] ],
     [ "dmq::os::BareMetalClock", "structdmq_1_1os_1_1_bare_metal_clock.html", null ],
+    [ "dmq::BlockHeader", "structdmq_1_1_block_header.html", null ],
     [ "dmq::os::CmsisRtos2Clock", "structdmq_1_1os_1_1_cmsis_rtos2_clock.html", null ],
     [ "dmq::os::CmsisRtos2Mutex", "classdmq_1_1os_1_1_cmsis_rtos2_mutex.html", null ],
     [ "dmq::os::CmsisRtos2RecursiveMutex", "classdmq_1_1os_1_1_cmsis_rtos2_recursive_mutex.html", null ],
@@ -14,6 +15,9 @@ var hierarchy =
     [ "dmq::databus::DataBus", "classdmq_1_1databus_1_1_data_bus.html", null ],
     [ "dmq::databus::DeadlineSubscription< T >", "classdmq_1_1databus_1_1_deadline_subscription.html", null ],
     [ "dmq::Delegate< R >", "classdmq_1_1_delegate.html", null ],
+    [ "dmq::Delegate< void()>", "classdmq_1_1_delegate.html", [
+      [ "dmq::util::TimerDelegate", "classdmq_1_1util_1_1_timer_delegate.html", null ]
+    ] ],
     [ "dmq::DelegateBase", "classdmq_1_1_delegate_base.html", [
       [ "dmq::Delegate< RetType(Args...)>", "classdmq_1_1_delegate_3_01_ret_type_07_args_8_8_8_08_4.html", [
         [ "dmq::DelegateFree< RetType(Args...)>", "classdmq_1_1_delegate_free_3_01_ret_type_07_args_8_8_8_08_4.html", [
@@ -59,7 +63,7 @@ var hierarchy =
       [ "serialize_traits::is_shared_ptr< T >", "structserialize__traits_1_1is__shared__ptr.html", null ],
       [ "serialize_traits::is_unsupported_container< U >", "structserialize__traits_1_1is__unsupported__container.html", null ]
     ] ],
-    [ "dmq::databus::detail::Filter< T, F, P >", "classdmq_1_1databus_1_1detail_1_1_filter.html", null ],
+    [ "dmq::databus::detail::Filter< T >", "classdmq_1_1databus_1_1detail_1_1_filter.html", null ],
     [ "dmq::os::FreeRTOSClock", "structdmq_1_1os_1_1_free_r_t_o_s_clock.html", null ],
     [ "dmq::os::FreeRTOSConditionVariable", "classdmq_1_1os_1_1_free_r_t_o_s_condition_variable.html", null ],
     [ "dmq::os::FreeRTOSMutex", "classdmq_1_1os_1_1_free_r_t_o_s_mutex.html", null ],
@@ -137,10 +141,10 @@ var hierarchy =
     [ "std::list", null, [
       [ "dmq::xlist< T, Alloc >", "classdmq_1_1xlist.html", null ]
     ] ],
-    [ "std::list< std::shared_ptr< dmq::Delegate< RetType(Args...)> >, std::allocator< std::shared_ptr< dmq::Delegate< RetType(Args...)> > > >", null, [
+    [ "std::list< std::shared_ptr< dmq::Delegate< RetType(Args...)> >, stl_allocator< std::shared_ptr< dmq::Delegate< RetType(Args...)> > > >", null, [
       [ "dmq::xlist< std::shared_ptr< dmq::Delegate< RetType(Args...)> > >", "classdmq_1_1xlist.html", null ]
     ] ],
-    [ "std::list< std::shared_ptr< dmq::heap_arg_deleter_base >, std::allocator< std::shared_ptr< dmq::heap_arg_deleter_base > > >", null, [
+    [ "std::list< std::shared_ptr< dmq::heap_arg_deleter_base >, stl_allocator< std::shared_ptr< dmq::heap_arg_deleter_base > > >", null, [
       [ "dmq::xlist< std::shared_ptr< dmq::heap_arg_deleter_base > >", "classdmq_1_1xlist.html", null ]
     ] ],
     [ "dmq::util::MonotonicGuard< T >", "classdmq_1_1util_1_1_monotonic_guard.html", null ],
@@ -160,8 +164,8 @@ var hierarchy =
     ] ],
     [ "dmq::databus::QoS", "structdmq_1_1databus_1_1_qo_s.html", null ],
     [ "dmq::databus::detail::RateLimiter< T >", "classdmq_1_1databus_1_1detail_1_1_rate_limiter.html", null ],
-    [ "stl_allocator< T >::rebind< U >", "structstl__allocator_1_1rebind.html", null ],
-    [ "stl_allocator< void >::rebind", "structstl__allocator_3_01void_01_4_1_1rebind.html", null ],
+    [ "dmq::stl_allocator< T >::rebind< U >", "structdmq_1_1stl__allocator_1_1rebind.html", null ],
+    [ "dmq::stl_allocator< void >::rebind", "structdmq_1_1stl__allocator_3_01void_01_4_1_1rebind.html", null ],
     [ "dmq::RemoteArg< Arg >", "classdmq_1_1_remote_arg.html", null ],
     [ "dmq::RemoteArg< Arg & >", "classdmq_1_1_remote_arg_3_01_arg_01_6_01_4.html", null ],
     [ "dmq::RemoteArg< Arg * >", "classdmq_1_1_remote_arg_3_01_arg_01_5_01_4.html", null ],
@@ -189,14 +193,13 @@ var hierarchy =
     [ "dmq::Signal< void(size_t)>", "classdmq_1_1_signal.html", null ],
     [ "dmq::Signal< void(void)>", "classdmq_1_1_signal.html", null ],
     [ "dmq::Signal< RetType(Args...)>::Snapshot", "structdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4_1_1_snapshot.html", null ],
-    [ "stl_allocator< void >", "classstl__allocator_3_01void_01_4.html", null ],
+    [ "dmq::stl_allocator< void >", "classdmq_1_1stl__allocator_3_01void_01_4.html", null ],
     [ "dmq::os::ThreadMsg", "classdmq_1_1os_1_1_thread_msg.html", null ],
     [ "dmq::os::ThreadMsgComparator", "structdmq_1_1os_1_1_thread_msg_comparator.html", null ],
     [ "dmq::os::ThreadXClock", "structdmq_1_1os_1_1_thread_x_clock.html", null ],
     [ "dmq::os::ThreadXConditionVariable", "classdmq_1_1os_1_1_thread_x_condition_variable.html", null ],
     [ "dmq::os::ThreadXMutex", "classdmq_1_1os_1_1_thread_x_mutex.html", null ],
     [ "dmq::util::Timer", "classdmq_1_1util_1_1_timer.html", null ],
-    [ "dmq::util::TimerDelegate", "classdmq_1_1util_1_1_timer_delegate.html", null ],
     [ "dmq::databus::detail::TopicForwarder< T >", "classdmq_1_1databus_1_1detail_1_1_topic_forwarder.html", null ],
     [ "std::true_type", null, [
       [ "dmq::is_shared_ptr< const std::shared_ptr< T > & >", "structdmq_1_1is__shared__ptr_3_01const_01std_1_1shared__ptr_3_01_t_01_4_01_6_01_4.html", null ],
@@ -226,9 +229,12 @@ var hierarchy =
     [ "dmq::transport::UartRingBuffer< Size >", "classdmq_1_1transport_1_1_uart_ring_buffer.html", null ],
     [ "dmq::transport::UartRingBuffer< 1024 >", "classdmq_1_1transport_1_1_uart_ring_buffer.html", null ],
     [ "dmq::UnicastDelegate< R >", "classdmq_1_1_unicast_delegate.html", null ],
+    [ "dmq::UnicastDelegate< bool(const T &)>", "classdmq_1_1_unicast_delegate.html", null ],
     [ "dmq::UnicastDelegate< RetType(Args...)>", "classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html", [
       [ "dmq::UnicastDelegateSafe< RetType(Args...)>", "classdmq_1_1_unicast_delegate_safe_3_01_ret_type_07_args_8_8_8_08_4.html", null ]
     ] ],
+    [ "dmq::UnicastDelegate< void()>", "classdmq_1_1_unicast_delegate.html", null ],
+    [ "dmq::UnicastDelegate< void(const T &)>", "classdmq_1_1_unicast_delegate.html", null ],
     [ "dmq::UnicastDelegate< void(DelegateRemoteId, DelegateError, DelegateErrorAux)>", "classdmq_1_1_unicast_delegate.html", null ],
     [ "dmq::UnicastDelegateSafe< R >", "classdmq_1_1_unicast_delegate_safe.html", null ],
     [ "dmq::os::ZephyrClock", "structdmq_1_1os_1_1_zephyr_clock.html", null ],

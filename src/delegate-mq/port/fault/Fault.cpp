@@ -18,12 +18,56 @@
 
 #ifdef __linux__
 #include <execinfo.h>
+#include <csignal>
+#include <unistd.h>
 #endif
 
 namespace dmq::util {
 
+#ifdef __linux__
+static void LinuxSignalHandler(int sig) {
+    const char* name = "Unknown Signal";
+    switch (sig) {
+        case SIGSEGV: name = "SIGSEGV (Segmentation Fault)"; break;
+        case SIGABRT: name = "SIGABRT (Abort)"; break;
+        case SIGFPE:  name = "SIGFPE (Floating Point Exception)"; break;
+        case SIGILL:  name = "SIGILL (Illegal Instruction)"; break;
+        case SIGBUS:  name = "SIGBUS (Bus Error)"; break;
+        case SIGTERM: name = "SIGTERM (Termination Request)"; break;
+    }
+    FaultHandler(name, (unsigned short)sig);
+}
+
+void InstallCrashHandlers() {
+    std::signal(SIGSEGV, LinuxSignalHandler);
+    std::signal(SIGABRT, LinuxSignalHandler);
+    std::signal(SIGFPE,  LinuxSignalHandler);
+    std::signal(SIGILL,  LinuxSignalHandler);
+    std::signal(SIGBUS,  LinuxSignalHandler);
+    std::signal(SIGTERM, LinuxSignalHandler);
+}
+#endif
+
+#ifdef _WIN32
+LONG WINAPI WindowsExceptionFilter(EXCEPTION_POINTERS* pExceptionPointers) {
+    (void)pExceptionPointers;
+    FaultHandler("Windows Unhandled Exception", 0);
+}
+
+void InstallCrashHandlers() {
+    SetUnhandledExceptionFilter(WindowsExceptionFilter);
+}
+#endif
+
+#if !defined(_WIN32) && !defined(__linux__)
+void InstallCrashHandlers() {
+    // Stub for other platforms
+}
+#endif
+
 #ifdef _WIN32
 static void PrintStackTraceWindows(HANDLE hThread, const char* threadName) {
+
     DWORD tid = GetThreadId(hThread);
     printf("\n--- Stack Trace: %s (TID: %lu) ---\n", (threadName ? threadName : "Unknown"), tid);
     fflush(stdout);
@@ -63,7 +107,7 @@ static void PrintStackTraceWindows(HANDLE hThread, const char* threadName) {
         if (stackFrame.AddrPC.Offset == 0 || frameCount++ > 50) break;
 
         char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-        PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
+        PSYMBOL_INFO pSymbol = reinterpret_cast<PSYMBOL_INFO>(buffer);
         pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         pSymbol->MaxNameLen = MAX_SYM_NAME;
 
@@ -152,12 +196,12 @@ static void PrintStackTraceLinux() {
 //----------------------------------------------------------------------------
 // FaultHandler
 //----------------------------------------------------------------------------
-void FaultHandler(const char* file, unsigned short line)
+DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 {
     // 1. PRINT FIRST
     printf("\n************************************************\n");
     printf("FaultHandler called. Application terminated.\n");
-    printf("File: %s Line: %u\n", file, (unsigned int)line);
+    printf("File: %s Line: %u\n", file, static_cast<unsigned int>(line));
     printf("************************************************\n");
     fflush(stdout);
 
@@ -180,12 +224,34 @@ void FaultHandler(const char* file, unsigned short line)
 #endif
 
     // 4. Force exit
-#if defined(_WIN32) || defined(__linux__)
+#if defined(__linux__)
+    printf("\nTerminating application...\n");
+    fflush(stdout);
+
+    // When running via terminal wrappers (like xterm -e), the console closes 
+    // immediately on exit. Wait for input to allow the user to read the crash info.
+    // Note: isatty() can return false when stdin is redirected by the wrapper.
+    printf("Press Enter to exit (or wait 60s)...");
+    fflush(stdout);
+
+    // Set a timeout on stdin so we don't hang forever in CI/headless
+    struct timeval tv;
+    fd_set fds;
+    tv.tv_sec = 60;
+    tv.tv_usec = 0;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
+        (void)getchar();
+    }
+    
+    abort();
+#elif defined(_WIN32)
     printf("\nTerminating application...\n");
     fflush(stdout);
     abort();
 #else
-    printf("FaultHandler: %s line %u\r\n", file, (unsigned int)line);
+    printf("FaultHandler: %s line %u\r\n", file, static_cast<unsigned int>(line));
     fflush(stdout);
     while(1);
 #endif
@@ -193,17 +259,25 @@ void FaultHandler(const char* file, unsigned short line)
 
 } // namespace dmq::util
 
-extern "C" void FaultHandler(const char* file, unsigned short line)
+extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 {
     dmq::util::FaultHandler(file, line);
 }
 
-extern "C" void WatchdogHandler(const char* threadName)
+extern "C" void InstallCrashHandlers()
+{
+    dmq::util::InstallCrashHandlers();
+}
+
+extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
 {
 #if defined(_WIN32) || defined(__linux__)
     std::cout << "\n************************************************" << std::endl;
     std::cout << "WATCHDOG EXPIRED: " << threadName << std::endl;
     std::cout << "************************************************\n" << std::endl;
-    dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+    ASSERT();
+#else
+    printf("WATCHDOG EXPIRED: %s\r\n", threadName);
+    while (1);
 #endif
 }

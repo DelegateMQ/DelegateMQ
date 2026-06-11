@@ -135,7 +135,14 @@ $(function(){initNavTree('_delegate_m_q_config___default_8h_source.html',''); in
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#a28a4c0eeb05b626391e1e7735a179c0b">   41</a></span><span class="preprocessor">    #define DMQ_TRANSPORT_MONITOR_MAX_PENDING 100</span></div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">#endif</span></div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="preprocessor">#endif </span><span class="comment">// _DELEGATEMQ_CONFIG_DEFAULT_H</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment">// Maximum number of distinct fixed-block allocator buckets (heap-blocks mode only).</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment">// Each unique power-of-two allocation size gets one bucket. Most applications use</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment">// 8-12 distinct sizes; raise this only if xallocator&#39;s ASSERT fires at runtime.</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="preprocessor">#ifndef DMQ_XALLOCATOR_MAX_ALLOCATORS</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#a2de2610bfe9b73ab7f6fea52c3ddc05c">   48</a></span><span class="preprocessor">    #define DMQ_XALLOCATOR_MAX_ALLOCATORS   15</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="preprocessor">#endif </span><span class="comment">// _DELEGATEMQ_CONFIG_DEFAULT_H</span></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

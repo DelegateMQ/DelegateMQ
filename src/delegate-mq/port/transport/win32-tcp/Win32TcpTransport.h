@@ -49,6 +49,7 @@ namespace dmq::transport {
 /// @brief A TCP transport implementation for Win32 using Winsock.
 class Win32TcpTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type
     {
@@ -233,13 +234,6 @@ private:
             if (sent == SOCKET_ERROR) return -1;
             ptr += sent;
             remaining -= sent;
-        }
-
-        // Always track the message (unless it is an ACK)
-        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
-                return -1;
-            }
         }
 
         return 0;

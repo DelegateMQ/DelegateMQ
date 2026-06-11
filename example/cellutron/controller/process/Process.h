@@ -53,7 +53,7 @@ private:
 
     void InternalFault();
 
-    dmq::os::Thread   m_thread{"ProcessThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::FAULT};
+    dmq::os::Thread   m_thread{"ProcessThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
     PumpProcess       m_pumpProcess;
     CellProcess       m_cellProcess;
 };

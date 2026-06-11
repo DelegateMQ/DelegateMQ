@@ -177,14 +177,6 @@ public:
             xSemaphoreGiveRecursive(m_mutex); return -1;
         }
 
-        // Register with Monitor for Reliability (ACK tracking) after successful send
-        if (headerCopy.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-             if (m_transportMonitor->Add(headerCopy.GetSeqNum(), headerCopy.GetId()) == false) {
-                 xSemaphoreGiveRecursive(m_mutex);
-                 return -1;
-             }
-        }
-
         xSemaphoreGiveRecursive(m_mutex);
         return 0;
     }

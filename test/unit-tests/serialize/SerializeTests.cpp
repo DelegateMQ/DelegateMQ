@@ -289,9 +289,9 @@ static void StringTests()
         ASSERT_TRUE(dst.empty() || dst == "non-empty"); // implementation skips read
     }
 
-    // String at max allowed length (256 chars)
+    // String at max allowed length (1024 chars)
     {
-        std::string src(256, 'A');
+        std::string src(1024, 'A');
         std::string dst;
         std::ostringstream oss;
         ser.write(oss, src);
@@ -302,9 +302,9 @@ static void StringTests()
         ASSERT_TRUE(dst == src);
     }
 
-    // String longer than MAX_STRING_SIZE (257 chars) — write sets failbit
+    // String longer than MAX_STRING_SIZE (1025 chars) — write sets failbit
     {
-        std::string src(257, 'B');
+        std::string src(1025, 'B');
         std::ostringstream oss;
         ser.clearLastError();
         ser.write(oss, src);
@@ -806,7 +806,7 @@ static void ErrorTests()
         });
 
         std::ostringstream oss;
-        std::string tooBig(257, 'X');
+        std::string tooBig(1025, 'X');
         localSer.write(oss, tooBig);
 
         ASSERT_TRUE(handlerCalled);

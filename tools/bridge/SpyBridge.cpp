@@ -21,11 +21,11 @@ void SpyBridge::Init(const std::string& address, uint16_t port, TransportType ty
     auto& instance = GetInstance();
     if (instance.thread) return;
 
-    instance.address = address;
+    instance.address = address.c_str();
     instance.port = port;
-    instance.localInterface = localInterface;
+    instance.localInterface = localInterface.c_str();
     instance.type = type;
-    instance.nodeId = nodeId;
+    instance.nodeId = nodeId.c_str();
 
     // Create a dedicated bridge thread with DROP policy to prevent stalling publishers
     instance.thread = std::make_unique<dmq::os::Thread>("SpyBridge", 200, dmq::os::FullPolicy::DROP);
@@ -52,23 +52,25 @@ void SpyBridge::Init(const std::string& address, uint16_t port, TransportType ty
     }
     instance.telemetrySocket.Connect(address, port);
 
-    // Subscribe to DataBus::Monitor asynchronously. The lambda will be invoked on the SpyBridge thread.
-    instance.monitorConn = dmq::databus::DataBus::Monitor([](const dmq::databus::SpyPacket& packet) {
-        auto& inst = GetInstance();
+    // Subscribe to DataBus::Monitor asynchronously.
+    instance.monitorConn = dmq::databus::DataBus::Monitor(dmq::MakeDelegate(&OnMonitorPacket), instance.thread.get());
+}
 
-        // Add nodeId to packet before sending
-        dmq::databus::SpyPacket outgoing = packet;
-        outgoing.nodeId = inst.nodeId;
+void SpyBridge::OnMonitorPacket(const dmq::databus::SpyPacket& packet) {
+    auto& inst = GetInstance();
 
-        serialize ms;
-        std::ostringstream oss(std::ios::binary);
-        ms.write(oss, outgoing);
+    // Add nodeId to packet before sending
+    dmq::databus::SpyPacket outgoing = packet;
+    outgoing.nodeId = inst.nodeId;
 
-        if (oss.good()) {
-            const std::string& s = oss.str();
-            inst.telemetrySocket.Send(s.data(), s.size());
-        }
-    }, instance.thread.get());
+    serialize ms;
+    dmq::xostringstream oss(std::ios::out | std::ios::binary);
+    ms.write(oss, outgoing);
+
+    if (oss.good()) {
+        const auto s = oss.str();
+        inst.telemetrySocket.Send(s.data(), s.size());
+    }
 }
 
 void SpyBridge::Stop() {

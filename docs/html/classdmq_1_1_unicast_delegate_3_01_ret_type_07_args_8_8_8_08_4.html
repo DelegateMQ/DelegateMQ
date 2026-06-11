@@ -143,10 +143,10 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a88f26d20dc25d2959bfa748d1a7b9f4d" id="r_a88f26d20dc25d2959bfa748d1a7b9f4d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a88f26d20dc25d2959bfa748d1a7b9f4d">UnicastDelegate</a> (<a class="el" href="#a7d937240da661cd560c0a93dc859c543">DelegateType</a> &amp;&amp;d)</td></tr>
 <tr class="memdesc:a88f26d20dc25d2959bfa748d1a7b9f4d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constructor to initialize from a <a class="el" href="classdmq_1_1_delegate.html">Delegate</a> (Move)  <br /></td></tr>
 <tr class="separator:a88f26d20dc25d2959bfa748d1a7b9f4d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4a906abd8eee715dbacd11ffa5551aa0" id="r_a4a906abd8eee715dbacd11ffa5551aa0"><td class="memItemLeft" align="right" valign="top">RetType&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a4a906abd8eee715dbacd11ffa5551aa0">operator()</a> (Args... args)</td></tr>
-<tr class="separator:a4a906abd8eee715dbacd11ffa5551aa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a68aef086e5eb0919377d3cfe5627bd00" id="r_a68aef086e5eb0919377d3cfe5627bd00"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a68aef086e5eb0919377d3cfe5627bd00">Broadcast</a> (Args... args)</td></tr>
-<tr class="separator:a68aef086e5eb0919377d3cfe5627bd00"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afdadf841a9c43b254641483fa8f70366" id="r_afdadf841a9c43b254641483fa8f70366"><td class="memItemLeft" align="right" valign="top">RetType&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afdadf841a9c43b254641483fa8f70366">operator()</a> (Args... args) const</td></tr>
+<tr class="separator:afdadf841a9c43b254641483fa8f70366"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a78a88756f6a88cf47170d834e7df520b" id="r_a78a88756f6a88cf47170d834e7df520b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a78a88756f6a88cf47170d834e7df520b">Broadcast</a> (Args... args) const</td></tr>
+<tr class="separator:a78a88756f6a88cf47170d834e7df520b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a79489b6ed2fbd4e371af0db0b764a324" id="r_a79489b6ed2fbd4e371af0db0b764a324"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a79489b6ed2fbd4e371af0db0b764a324">operator=</a> (const <a class="el" href="#a7d937240da661cd560c0a93dc859c543">DelegateType</a> &amp;rhs)</td></tr>
 <tr class="separator:a79489b6ed2fbd4e371af0db0b764a324"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3e9db62de8287cdfbd7234baa0b06263" id="r_a3e9db62de8287cdfbd7234baa0b06263"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a3e9db62de8287cdfbd7234baa0b06263">operator=</a> (<a class="el" href="#a7d937240da661cd560c0a93dc859c543">DelegateType</a> &amp;&amp;rhs)</td></tr>
@@ -170,6 +170,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a00c2f392fb122fa7e10788214bd23a75" id="r_a00c2f392fb122fa7e10788214bd23a75"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a00c2f392fb122fa7e10788214bd23a75">operator bool</a> () const</td></tr>
 <tr class="memdesc:a00c2f392fb122fa7e10788214bd23a75"><td class="mdescLeft">&#160;</td><td class="mdescRight">Implicit conversion operator to <code>bool</code>.  <br /></td></tr>
 <tr class="separator:a00c2f392fb122fa7e10788214bd23a75"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1e48e20f47445e49184167c034765df5" id="r_a1e48e20f47445e49184167c034765df5"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="#a7d937240da661cd560c0a93dc859c543">DelegateType</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1e48e20f47445e49184167c034765df5">GetDelegate</a> () const</td></tr>
+<tr class="memdesc:a1e48e20f47445e49184167c034765df5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the underlying delegate.  <br /></td></tr>
+<tr class="separator:a1e48e20f47445e49184167c034765df5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pro-attribs" name="pro-attribs"></a>
 Protected Attributes</h2></td></tr>
@@ -381,8 +384,8 @@ template&lt;class RetType , class... Args&gt; </div>
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
-<a id="a68aef086e5eb0919377d3cfe5627bd00" name="a68aef086e5eb0919377d3cfe5627bd00"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a68aef086e5eb0919377d3cfe5627bd00">&#9670;&#160;</a></span>Broadcast()</h2>
+<a id="a78a88756f6a88cf47170d834e7df520b" name="a78a88756f6a88cf47170d834e7df520b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a78a88756f6a88cf47170d834e7df520b">&#9670;&#160;</a></span>Broadcast()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -396,7 +399,7 @@ template&lt;class RetType , class... Args&gt; </div>
           <td class="memname">void <a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; RetType(Args...)&gt;::Broadcast </td>
           <td>(</td>
           <td class="paramtype">Args...</td>          <td class="paramname"><span class="paramname"><em>args</em></span></td><td>)</td>
-          <td></td>
+          <td> const</td>
         </tr>
       </table>
   </td>
@@ -471,6 +474,36 @@ template&lt;class RetType , class... Args&gt; </div>
 
 </div>
 </div>
+<a id="a1e48e20f47445e49184167c034765df5" name="a1e48e20f47445e49184167c034765df5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1e48e20f47445e49184167c034765df5">&#9670;&#160;</a></span>GetDelegate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="#a7d937240da661cd560c0a93dc859c543">DelegateType</a> * <a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; RetType(Args...)&gt;::GetDelegate </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Get the underlying delegate. </p>
+<dl class="section return"><dt>Returns</dt><dd>The underlying delegate pointer, or nullptr if empty. </dd></dl>
+
+</div>
+</div>
 <a id="a00c2f392fb122fa7e10788214bd23a75" name="a00c2f392fb122fa7e10788214bd23a75"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a00c2f392fb122fa7e10788214bd23a75">&#9670;&#160;</a></span>operator bool()</h2>
 
@@ -501,8 +534,8 @@ template&lt;class RetType , class... Args&gt; </div>
 
 </div>
 </div>
-<a id="a4a906abd8eee715dbacd11ffa5551aa0" name="a4a906abd8eee715dbacd11ffa5551aa0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4a906abd8eee715dbacd11ffa5551aa0">&#9670;&#160;</a></span>operator()()</h2>
+<a id="afdadf841a9c43b254641483fa8f70366" name="afdadf841a9c43b254641483fa8f70366"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afdadf841a9c43b254641483fa8f70366">&#9670;&#160;</a></span>operator()()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -516,7 +549,7 @@ template&lt;class RetType , class... Args&gt; </div>
           <td class="memname">RetType <a class="el" href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a>&lt; RetType(Args...)&gt;::operator() </td>
           <td>(</td>
           <td class="paramtype">Args...</td>          <td class="paramname"><span class="paramname"><em>args</em></span></td><td>)</td>
-          <td></td>
+          <td> const</td>
         </tr>
       </table>
   </td>
@@ -531,8 +564,7 @@ template&lt;class RetType , class... Args&gt; </div>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>The target function return value. <br  />
- </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>The target function return value. </dd></dl>
 
 </div>
 </div>

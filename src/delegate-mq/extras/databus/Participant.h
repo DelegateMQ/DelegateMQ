@@ -22,6 +22,7 @@ namespace dmq::databus {
 // LIFETIME NOTE: This class assumes that the ITransport object passed to the constructor 
 // will outlive the Participant instance.
 class Participant {
+    XALLOCATOR
     friend class DataBus;
 public:
     Participant(dmq::transport::ITransport& transport) : m_transport(&transport) {}
@@ -222,9 +223,8 @@ private:
         if (it != m_channels.end()) {
             // Type safety: catch remoteId reused with a different T
             auto itType = m_channelTypes.find(remoteId);
-            if (itType != m_channelTypes.end() && itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return nullptr;
+            if (itType != m_channelTypes.end()) {
+                ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
             }
             channel = std::static_pointer_cast<dmq::RemoteChannel<void(T)>>(it->second.channel);
         } else {
@@ -246,10 +246,10 @@ private:
     dmq::transport::ITransport* m_transport;
     dmq::IThread* m_sendThread = nullptr;
     dmq::RecursiveMutex m_mutex;
-    xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
-    xmap<dmq::DelegateRemoteId, ChannelInvoker> m_channels;
-    xmap<dmq::DelegateRemoteId, std::type_index> m_channelTypes;
-    xmap<dmq::xstring, uint8_t> m_reportedErrors;
+    dmq::xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
+    dmq::xmap<dmq::DelegateRemoteId, ChannelInvoker> m_channels;
+    dmq::xmap<dmq::DelegateRemoteId, std::type_index> m_channelTypes;
+    dmq::xmap<dmq::xstring, uint8_t> m_reportedErrors;
     dmq::Signal<void(const dmq::xstring&, dmq::DelegateError)> m_errorSignal;
 
     // --- Duplicate Filtering ---
@@ -269,7 +269,7 @@ private:
             return false;
         }
     };
-    xmap<dmq::DelegateRemoteId, SeqHistory> m_history;
+    dmq::xmap<dmq::DelegateRemoteId, SeqHistory> m_history;
     dmq::xstringstream m_inputStream;
 };
 

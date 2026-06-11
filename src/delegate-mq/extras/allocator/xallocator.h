@@ -22,6 +22,7 @@
 /// any static user objects relying on xallocator will be destroyed first before 
 /// xalloc_destroy() is called. 
 /// Embedded systems that never exit can remove the XallocInitDestroy class entirely. 
+namespace dmq {
 class XallocInitDestroy
 {
 public:
@@ -30,7 +31,8 @@ public:
 private:
 	static int32_t refCount;
 };
-static XallocInitDestroy xallocInitDestroy;
+} // namespace dmq
+static dmq::XallocInitDestroy xallocInitDestroy;
 #endif	// AUTOMATIC_XALLOCATOR_INIT_DESTROY
 #endif	// __cplusplus
 
@@ -51,7 +53,9 @@ extern "C" {
 
 /// Forward declaration of Allocator class
 #ifdef __cplusplus
-class Allocator;
+namespace dmq {
+    class Allocator;
+}
 #endif
 
 /// This function must be called exactly one time before the operating system
@@ -74,7 +78,7 @@ void xalloc_destroy();
 /// @param[in] size - the client's requested block size.
 /// @return An Allocator instance that handles blocks of the requested size.
 #ifdef __cplusplus
-Allocator* xallocator_get_allocator(size_t size);
+dmq::Allocator* xallocator_get_allocator(size_t size);
 #endif
 
 /// Allocate a block of memory
@@ -116,10 +120,10 @@ void xalloc_stats();
             void* operator new(size_t size) { \
                 return xmalloc(size); \
             } \
-            void* operator new(size_t size, void* mem) { \
+            void* operator new(size_t /*size*/, void* mem) { \
                 return mem; \
             } \
-            void* operator new(size_t size, const std::nothrow_t& nt) { \
+            void* operator new(size_t size, const std::nothrow_t& /*nt*/) { \
                 return xmalloc(size); \
             } \
             void* operator new[](size_t size) { \
@@ -128,7 +132,7 @@ void xalloc_stats();
             void operator delete(void* pObject) { \
                 xfree(pObject); \
             } \
-            void operator delete(void* pObject, const std::nothrow_t& nt) { \
+            void operator delete(void* pObject, const std::nothrow_t& /*nt*/) { \
                 xfree(pObject); \
             } \
             void operator delete[](void* pData) { \

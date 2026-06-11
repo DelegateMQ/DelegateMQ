@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['_7eallocator_0',['~Allocator',['../class_allocator.html#ae6af139c96381e0c00dc82d291669577',1,'Allocator']]],
+  ['_7eallocator_0',['~Allocator',['../classdmq_1_1_allocator.html#a157fcb8fb5b4061e0732907d5d516003',1,'dmq::Allocator']]],
   ['_7ecmsisrtos2mutex_1',['~CmsisRtos2Mutex',['../classdmq_1_1os_1_1_cmsis_rtos2_mutex.html#a57fa66e48f585156b31bffe1b5b63cea',1,'dmq::os::CmsisRtos2Mutex']]],
   ['_7ecmsisrtos2recursivemutex_2',['~CmsisRtos2RecursiveMutex',['../classdmq_1_1os_1_1_cmsis_rtos2_recursive_mutex.html#ae8b353f10966645c1bb117bef7984045',1,'dmq::os::CmsisRtos2RecursiveMutex']]],
   ['_7econnection_3',['~Connection',['../classdmq_1_1detail_1_1_connection.html#a3611dd5c7d54083bcb36dbb1981e161b',1,'dmq::detail::Connection']]],

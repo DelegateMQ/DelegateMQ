@@ -282,6 +282,8 @@ namespace dmq
     #include "extras/allocator/xstring.h"
     #include "extras/allocator/xlist.h"
     #include "extras/allocator/xmap.h"
+    #include "extras/allocator/xset.h"
+    #include "extras/allocator/xqueue.h"
     #include "extras/allocator/xsstream.h"
     #include "extras/allocator/stl_allocator.h"
     #include "extras/allocator/xnew.h"
@@ -290,6 +292,9 @@ namespace dmq
     #include <string>
     #include <list>
     #include <map>
+    #include <set>
+    #include <queue>
+    #include <deque>
     #include <sstream>
     #include <memory>
     #include <utility>
@@ -300,17 +305,20 @@ namespace dmq
 
     namespace dmq {
         // Use default std::allocator for dynamic storage allocation
-        template <typename T, typename Alloc = std::allocator<T>>
+        template <typename T>
+        using stl_allocator = std::allocator<T>;
+
+        template <typename T, typename Alloc = stl_allocator<T>>
         class xlist : public std::list<T, Alloc> {
         public:
             using std::list<T, Alloc>::list; // Inherit constructors
             using std::list<T, Alloc>::operator=;
         };
 
-        typedef std::basic_ostringstream<char, std::char_traits<char>> xostringstream;
-        typedef std::basic_stringstream<char, std::char_traits<char>> xstringstream;
+        typedef std::basic_ostringstream<char, std::char_traits<char>, stl_allocator<char>> xostringstream;
+        typedef std::basic_stringstream<char, std::char_traits<char>, stl_allocator<char>> xstringstream;
 
-        typedef std::string xstring;
+        typedef std::basic_string<char, std::char_traits<char>, stl_allocator<char>> xstring;
 
         // Fallback xmake_shared — uses std::make_shared when fixed-block allocator is disabled
         template <typename T, typename... Args>
@@ -329,14 +337,25 @@ namespace dmq
         inline void xdelete(T* p) {
             delete p;
         }
+
+        // Fallback xmap/xmultimap — use std::map when fixed-block allocator is disabled
+        template <typename Key, typename Value, typename Alloc = stl_allocator<std::pair<const Key, Value>>>
+        using xmap = std::map<Key, Value, std::less<Key>, Alloc>;
+
+        template <typename Key, typename Value, typename Alloc = stl_allocator<std::pair<const Key, Value>>>
+        using xmultimap = std::multimap<Key, Value, std::less<Key>, Alloc>;
+
+        // Fallback xset/xmultiset — use std::set when fixed-block allocator is disabled
+        template <typename Key, typename Compare = std::less<Key>, typename Alloc = stl_allocator<Key>>
+        using xset = std::set<Key, Compare, Alloc>;
+
+        template <typename Key, typename Compare = std::less<Key>, typename Alloc = stl_allocator<Key>>
+        using xmultiset = std::multiset<Key, Compare, Alloc>;
+
+        // Fallback xqueue — use std::queue when fixed-block allocator is disabled
+        template <typename T, typename Container = std::deque<T, stl_allocator<T>>>
+        using xqueue = std::queue<T, Container>;
     }
-
-    // Fallback xmap/xmultimap — use std::map when fixed-block allocator is disabled
-    template <typename Key, typename Value, typename Alloc = std::allocator<std::pair<const Key, Value>>>
-    using xmap = std::map<Key, Value, std::less<Key>, Alloc>;
-
-    template <typename Key, typename Value, typename Alloc = std::allocator<std::pair<const Key, Value>>>
-    using xmultimap = std::multimap<Key, Value, std::less<Key>, Alloc>;
 #endif
 
 // @TODO: Select the desired logging (see Port.cmake).

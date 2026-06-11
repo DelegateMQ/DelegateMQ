@@ -62,12 +62,13 @@ enum class FullPolicy { DROP, FAULT, TIMEOUT };
 /// invoking asynchronous delegates.
 class Thread : public dmq::IThread
 {
+    XALLOCATOR
 public:
 #if defined(DMQ_DATABUS_TOOLS)
     /// @brief Statistics captured for thread monitoring.
     struct ThreadStats {
-        std::string cpu_name;
-        std::string thread_name;
+        dmq::xstring cpu_name;
+        dmq::xstring thread_name;
         size_t queue_depth;           // Current depth
         size_t queue_depth_max_window;// Max depth since last snapshot
         size_t queue_depth_max_all;   // All-time max depth
@@ -90,8 +91,11 @@ public:
     ///                   Only meaningful when maxQueueSize > 0.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
+    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
     Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
-           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "");
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
+        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
     /// Destructor
     ~Thread();
@@ -115,7 +119,7 @@ public:
     virtual bool IsCurrentThread() override;
 
     /// Get thread name
-    std::string GetThreadName() { return THREAD_NAME; }
+    dmq::xstring GetThreadName() { return THREAD_NAME; }
 
     /// Get size of thread message queue.
     size_t GetQueueSize();
@@ -150,7 +154,7 @@ private:
     /// Entry point for the thread
     void Process();
 
-    void SetThreadName(std::thread::native_handle_type handle, const std::string& name);
+    void SetThreadName(std::thread::native_handle_type handle, const dmq::xstring& name);
 
     /// Check watchdog is expired. This function is called by the thread 
     /// the calls Timer::ProcessTimers(). This function is thread-safe.
@@ -182,8 +186,8 @@ private:
     // Condition variable to wake up blocked producers when space is available
     std::condition_variable m_cvNotFull;
 
-    const std::string THREAD_NAME;
-    const std::string CPU_NAME;
+    const dmq::xstring THREAD_NAME;
+    const dmq::xstring CPU_NAME;
 
     // Max queue size (0 = unlimited)
     const size_t MAX_QUEUE_SIZE;

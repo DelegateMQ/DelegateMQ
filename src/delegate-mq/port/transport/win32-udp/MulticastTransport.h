@@ -20,6 +20,7 @@ namespace dmq::transport {
 
 class MulticastTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type { PUB, SUB };
 
@@ -44,7 +45,7 @@ public:
             inet_pton(AF_INET, groupAddr, &m_addr.sin_addr);
 
             // Disable loopback so we don't receive our own packets
-            int loop = 0;
+            loop = 0;
             setsockopt(m_socket, IPPROTO_IP, IP_MULTICAST_LOOP, (const char*)&loop, sizeof(loop));
 
             in_addr localAddr;

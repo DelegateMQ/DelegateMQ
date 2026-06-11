@@ -15,6 +15,7 @@ namespace dmq::databus {
 struct SpyPacket : public ::serialize::I {
     XALLOCATOR
     SpyPacket() = default;
+    virtual ~SpyPacket() = default;
     SpyPacket(const dmq::xstring& t, const dmq::xstring& v, uint64_t ts, const dmq::xstring& id = "")
         : topic(t), value(v), timestamp_us(ts), nodeId(id) {}
 

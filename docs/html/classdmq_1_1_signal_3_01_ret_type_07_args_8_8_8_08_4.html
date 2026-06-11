@@ -139,6 +139,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a2127d9ebce02d3eac1d28107ade9a15e" id="r_a2127d9ebce02d3eac1d28107ade9a15e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1_scoped_connection.html">ScopedConnection</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2127d9ebce02d3eac1d28107ade9a15e">Connect</a> (const <a class="el" href="#afa7af218c5d2c5e24833abedcd50af13">DelegateType</a> &amp;delegate)</td></tr>
 <tr class="memdesc:a2127d9ebce02d3eac1d28107ade9a15e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Subscribe a delegate and return a RAII connection handle.  <br /></td></tr>
 <tr class="separator:a2127d9ebce02d3eac1d28107ade9a15e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aede4d393c1daa2b442a15d23a90dbf3a" id="r_aede4d393c1daa2b442a15d23a90dbf3a"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1_scoped_connection.html">ScopedConnection</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aede4d393c1daa2b442a15d23a90dbf3a">Connect</a> (const <a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a>&lt; RetType(Args...)&gt; &amp;delegate)</td></tr>
+<tr class="memdesc:aede4d393c1daa2b442a15d23a90dbf3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Subscribe a <a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a> and return a RAII connection handle.  <br /></td></tr>
+<tr class="separator:aede4d393c1daa2b442a15d23a90dbf3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5e466348ff3ce4266d706c3bd3ab897b" id="r_a5e466348ff3ce4266d706c3bd3ab897b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5e466348ff3ce4266d706c3bd3ab897b">operator()</a> (Args... args)</td></tr>
 <tr class="memdesc:a5e466348ff3ce4266d706c3bd3ab897b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Invoke all connected delegates.  <br /></td></tr>
 <tr class="separator:a5e466348ff3ce4266d706c3bd3ab897b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -320,7 +323,7 @@ template&lt;class RetType , class... Args&gt; </div>
 </div>
 </div>
 <a id="a2127d9ebce02d3eac1d28107ade9a15e" name="a2127d9ebce02d3eac1d28107ade9a15e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2127d9ebce02d3eac1d28107ade9a15e">&#9670;&#160;</a></span>Connect()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#a2127d9ebce02d3eac1d28107ade9a15e">&#9670;&#160;</a></span>Connect() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -346,6 +349,35 @@ template&lt;class RetType , class... Args&gt; </div>
 
 <p>Subscribe a delegate and return a RAII connection handle. </p>
 <p>The returned <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">ScopedConnection</a></code> automatically disconnects on scope exit. Safe to call regardless of how the <a class="el" href="classdmq_1_1_signal.html">Signal</a> was allocated. </p><dl class="section return"><dt>Returns</dt><dd>A <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">ScopedConnection</a></code>. Let it go out of scope to auto-disconnect, or call <code>Disconnect()</code> manually. </dd></dl>
+
+</div>
+</div>
+<a id="aede4d393c1daa2b442a15d23a90dbf3a" name="aede4d393c1daa2b442a15d23a90dbf3a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aede4d393c1daa2b442a15d23a90dbf3a">&#9670;&#160;</a></span>Connect() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classdmq_1_1_scoped_connection.html">ScopedConnection</a> <a class="el" href="classdmq_1_1_signal.html">dmq::Signal</a>&lt; RetType(Args...)&gt;::Connect </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a>&lt; RetType(Args...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">nodiscard</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Subscribe a <a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a> and return a RAII connection handle. </p>
 
 </div>
 </div>

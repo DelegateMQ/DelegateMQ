@@ -17,24 +17,26 @@ int DataBusSpyTestMain() {
     DataBus::ResetForTesting();
 
     // Register stringifiers for topics we want to spy on
-    DataBus::RegisterStringifier<int>("sensor/temp", [](int val) {
-        return (dmq::xstring(std::to_string(val).c_str()) + " C");
-    });
-    DataBus::RegisterStringifier<dmq::xstring>("system/status", [](const dmq::xstring& val) {
+    DataBus::RegisterStringifier<int>("sensor/temp", dmq::MakeDelegate([](int val) -> dmq::xstring {
+        dmq::xostringstream ss;
+        ss << val << " C";
+        return ss.str();
+    }));
+    DataBus::RegisterStringifier<dmq::xstring>("system/status", dmq::MakeDelegate([](const dmq::xstring& val) -> dmq::xstring {
         return val;
-    });
+    }));
 
     dmq::xstring lastTopic;
     dmq::xstring lastValue;
     uint64_t lastTimestamp = 0;
 
     // Connect the spy monitor
-    auto spyConn = DataBus::Monitor([&](const SpyPacket& packet) {
+    auto spyConn = DataBus::Monitor(dmq::MakeDelegate([&](const SpyPacket& packet) {
         std::cout << "[SPY] " << packet.timestamp_us << " " << packet.topic.c_str() << " = " << packet.value.c_str() << std::endl;
         lastTopic = packet.topic;
         lastValue = packet.value;
         lastTimestamp = packet.timestamp_us;
-    });
+    }));
 
     // Publish data
     DataBus::Publish<int>("sensor/temp", 22);
@@ -60,10 +62,10 @@ int DataBusSpyTestMain() {
         std::atomic<bool> monitorFired{false};
         std::atomic<bool> calledOnWorker{false};
 
-        auto monConn = DataBus::Monitor([&](const SpyPacket&) {
+        auto monConn = DataBus::Monitor(dmq::MakeDelegate([&](const SpyPacket&) {
             calledOnWorker = monThread.IsCurrentThread();
             monitorFired = true;
-        }, &monThread);
+        }), &monThread);
 
         DataBus::Publish<int>("async/monitor", 7);
 

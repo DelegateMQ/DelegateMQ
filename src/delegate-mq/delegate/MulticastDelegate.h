@@ -123,12 +123,12 @@ public:
         // No exceptions: Direct execution. 
         // If shared_ptr or vector allocation fails here on embedded, 
         // standard behavior is usually an abort() or system reset.
-        std::shared_ptr<DelegateType> sharedDelegate(delegateClone);
+        std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
         m_delegates.push_back(std::forward<std::shared_ptr<DelegateType>>(sharedDelegate));
 #else
         // Exceptions enabled: Safe to try-catch.
         try {
-            std::shared_ptr<DelegateType> sharedDelegate(delegateClone);
+            std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
             m_delegates.push_back(std::forward<std::shared_ptr<DelegateType>>(sharedDelegate));
         }
         catch (const std::bad_alloc&) {
@@ -188,12 +188,12 @@ private:
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // No exceptions: Direct execution.
-            std::shared_ptr<DelegateType> sharedDelegate(delegateClone);
+            std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
             m_delegates.push_back(sharedDelegate);
 #else
             // Exceptions enabled: Safe to try-catch.
             try {
-                std::shared_ptr<DelegateType> sharedDelegate(delegateClone);
+                std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
                 m_delegates.push_back(sharedDelegate);
             }
             catch (const std::bad_alloc&) {

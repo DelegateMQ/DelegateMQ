@@ -246,10 +246,27 @@ def build_samples(use_clang=False):
             print(f"Warning: directory not found: {target_dir}")
             continue
 
-        # 1. Check if the target_dir ITSELF is a configured project
+        project_name = os.path.basename(target_dir)
+
+        # 1. Build any dotnet sub-projects for the target_dir itself (e.g. sample-interop/csharp)
+        for subdir_name in (DOTNET_BUILDS.get(project_name, []) if IS_WINDOWS else []):
+            subdir = os.path.join(target_dir, subdir_name)
+            tag = f"{project_name}/{subdir_name}"
+            print(f"[BUILDING] {tag}  (dotnet)")
+            success, err = build_dotnet(subdir, subdir_name)
+            if success:
+                print(f"   ok")
+                if project_name not in passed: passed.append(project_name)
+            else:
+                print(f"   FAILED")
+                lines = err.strip().splitlines()
+                for line in lines[-15:]:
+                    print(f"   {line}")
+                if project_name not in failed: failed.append(project_name)
+
+        # 2. Check if the target_dir ITSELF is a configured project
         targets = collect_build_dirs(target_dir, use_clang=use_clang)
         if targets:
-            project_name = os.path.basename(target_dir)
             project_failed = False
             for label, build_dir in targets:
                 tag = f"{project_name}/{label}" if label else project_name
@@ -265,12 +282,17 @@ def build_samples(use_clang=False):
                     for line in lines[-15:]:
                         print(f"   {line}")
                     project_failed = True
+            
             if project_failed:
-                failed.append(project_name)
+                if project_name not in failed: failed.append(project_name)
             else:
-                passed.append(project_name)
+                if project_name not in passed: passed.append(project_name)
 
-        # 2. Iterate through subdirectories
+            # If we built the target_dir itself, we skip iterating subdirectories.
+            # This avoids building components of a multi-project (like cellutron) twice.
+            continue
+
+        # 3. Iterate through subdirectories
         for project_name in sorted(os.listdir(target_dir)):
             project_dir = os.path.join(target_dir, project_name)
             if not os.path.isdir(project_dir):

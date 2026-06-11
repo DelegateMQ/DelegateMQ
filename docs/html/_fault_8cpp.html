@@ -103,6 +103,7 @@ $(function(){initNavTree('_fault_8cpp.html',''); initResizable(true); });
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="_fault_8h_source.html">extras/util/Fault.h</a>&quot;</code><br />
+<code>#include &lt;cstdio&gt;</code><br />
 <code>#include &lt;cstdlib&gt;</code><br />
 </div><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="namespaces" name="namespaces"></a>
@@ -116,22 +117,22 @@ Namespaces</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a796fbb70ad51b93abcaaae2eab31461f" id="r_a796fbb70ad51b93abcaaae2eab31461f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq_1_1util.html#a796fbb70ad51b93abcaaae2eab31461f">dmq::util::FaultHandler</a> (const char *file, unsigned short line)</td></tr>
-<tr class="separator:a796fbb70ad51b93abcaaae2eab31461f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae8ba6ae99ec4c653d7e81c7c2477c9c4" id="r_ae8ba6ae99ec4c653d7e81c7c2477c9c4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae8ba6ae99ec4c653d7e81c7c2477c9c4">FaultHandler</a> (const char *file, unsigned short line)</td></tr>
-<tr class="separator:ae8ba6ae99ec4c653d7e81c7c2477c9c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac894bcaaa37861f2045f1aa75eb5b525" id="r_ac894bcaaa37861f2045f1aa75eb5b525"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ac894bcaaa37861f2045f1aa75eb5b525">WatchdogHandler</a> (const char *threadName)</td></tr>
-<tr class="separator:ac894bcaaa37861f2045f1aa75eb5b525"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abaf9c27796c911e9a9988c6312fe17dd" id="r_abaf9c27796c911e9a9988c6312fe17dd"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq_1_1util.html#abaf9c27796c911e9a9988c6312fe17dd">dmq::util::FaultHandler</a> (const char *file, unsigned short line)</td></tr>
+<tr class="separator:abaf9c27796c911e9a9988c6312fe17dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30524881a9a5e7de22a5a1176e565267" id="r_a30524881a9a5e7de22a5a1176e565267"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a30524881a9a5e7de22a5a1176e565267">FaultHandler</a> (const char *file, unsigned short line)</td></tr>
+<tr class="separator:a30524881a9a5e7de22a5a1176e565267"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6edab153b507f714c362f997ad002323" id="r_a6edab153b507f714c362f997ad002323"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a6edab153b507f714c362f997ad002323">WatchdogHandler</a> (const char *threadName)</td></tr>
+<tr class="separator:a6edab153b507f714c362f997ad002323"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ae8ba6ae99ec4c653d7e81c7c2477c9c4" name="ae8ba6ae99ec4c653d7e81c7c2477c9c4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae8ba6ae99ec4c653d7e81c7c2477c9c4">&#9670;&#160;</a></span>FaultHandler()</h2>
+<a id="a30524881a9a5e7de22a5a1176e565267" name="a30524881a9a5e7de22a5a1176e565267"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30524881a9a5e7de22a5a1176e565267">&#9670;&#160;</a></span>FaultHandler()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void FaultHandler </td>
+          <td class="memname"><a class="el" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> void FaultHandler </td>
           <td>(</td>
           <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>file</em></span>, </td>
         </tr>
@@ -145,14 +146,14 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ac894bcaaa37861f2045f1aa75eb5b525" name="ac894bcaaa37861f2045f1aa75eb5b525"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac894bcaaa37861f2045f1aa75eb5b525">&#9670;&#160;</a></span>WatchdogHandler()</h2>
+<a id="a6edab153b507f714c362f997ad002323" name="a6edab153b507f714c362f997ad002323"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6edab153b507f714c362f997ad002323">&#9670;&#160;</a></span>WatchdogHandler()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void WatchdogHandler </td>
+          <td class="memname"><a class="el" href="_fault_8h.html#abb4b8c7704f9e59a61ba0e4ffbc7121d">DMQ_NORETURN</a> void WatchdogHandler </td>
           <td>(</td>
           <td class="paramtype">const char *</td>          <td class="paramname"><span class="paramname"><em>threadName</em></span></td><td>)</td>
           <td></td>

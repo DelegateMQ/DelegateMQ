@@ -48,6 +48,7 @@ namespace dmq::transport {
 /// @brief A TCP transport implementation for Linux using BSD sockets.
 class LinuxTcpTransport : public ITransport
 {
+    XALLOCATOR
 public:
     enum class Type { SERVER, CLIENT };
 
@@ -218,12 +219,6 @@ private:
 
         ssize_t sent = write(fd, m_sendBuffer, totalSize);
         if (sent != (ssize_t)totalSize) return -1;
-
-        if (header.GetId() != dmq::ACK_REMOTE_ID && m_transportMonitor) {
-            if (m_transportMonitor->Add(header.GetSeqNum(), header.GetId()) == false) {
-                return -1;
-            }
-        }
 
         return 0;
     }

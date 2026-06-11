@@ -3,7 +3,7 @@
 
 #include "DelegateMQ.h"
 #include "util/Heartbeat.h"
-#include <thread>
+#include "util/NetworkTypes.h"
 #include <atomic>
 
 namespace cellutron {
@@ -35,10 +35,11 @@ private:
     void TimerTick();
 
     dmq::os::Thread m_thread;
-    
+
     std::atomic<bool> m_timerRunning{false};
     dmq::os::Thread m_backgroundTimer;
 
+    Network m_network;
     util::Heartbeat m_heartbeat;
 };
 

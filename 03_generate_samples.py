@@ -170,6 +170,10 @@ def build_samples(use_clang=False, clean=False):
                     except subprocess.CalledProcessError:
                         print(f"   FAILED (clang)")
 
+                # If we found a CMakeLists.txt, we treat this as a standalone project
+                # and stop recursing into its subdirectories.
+                dirnames.clear()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Configure all DelegateMQ sample projects.")
     parser.add_argument(

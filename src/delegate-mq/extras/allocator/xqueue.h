@@ -5,9 +5,13 @@
 #include <queue>
 #include <list>
 
+namespace dmq {
+
 // xqueue uses a fix-block memory allocator
 template <typename T, typename Alloc = stl_allocator<T>>
 using xqueue = std::queue<T, std::deque<T, Alloc>>;
+
+} // namespace dmq
 
 #if 0  // Deprecated
 template<class _Tp,

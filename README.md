@@ -8,12 +8,12 @@
 [![conan Clang](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_clang.yml/badge.svg)](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_clang.yml)
 [![conan Windows](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_windows.yml/badge.svg)](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_windows.yml)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)
-![Header Only](https://img.shields.io/badge/header--only-yes-brightgreen)
+![Header Only](https://img.shields.io/badge/core-header--only-brightgreen)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20RTOS%20%7C%20Bare--Metal-informational)
 
 # Delegates in C++
 
-DelegateMQ is a C++ header-only library for invoking any callable (e.g., function, method, lambda):
+DelegateMQ is a C++ library with a header-only core for invoking any callable (e.g., function, method, lambda):
 
 * Synchronously
 * Asynchronously (Blocking and non-blocking)
@@ -38,22 +38,67 @@ DelegateMQ is completely modular. You can use only the features you need—such 
 
 [CMake](https://cmake.org/) is used to create the project build files on any Windows or Linux machine. DelegateMQ supports Visual Studio, GCC, Clang, and ARM toolchains.
 
-1. Clone the repository.
-2. From the repository root, run the setup scripts to fetch dependencies and build tools:
-   ```bash
-   python3 01_fetch_repos.py
-   python3 02_build_libs.py
-   python3 03_generate_samples.py
-   python3 04_build_samples.py
-   ```
-3. Run and explore the sample projects within their respective `build` directories.
-4. To run the comprehensive **Cellutron** distributed system:
-   ```bash
-   cd example/cellutron
-   python3 run_cellutron.py
-   ```
+## Quick Start — No Dependencies Required
 
-See [Example Projects](docs/DETAILS.md#example-projects) to build more project examples (remote/IPC, embedded). See [Porting Guide](docs/PORTING.md) for details on porting to a new platform.
+Clone and build the main delegate application. No third-party libraries needed.
+
+```bash
+git clone https://github.com/DelegateMQ/DelegateMQ.git
+cd DelegateMQ
+cmake -B build
+cmake --build build
+```
+
+Run the built executable:
+
+```bash
+# Windows
+build\delegate_app\Debug\delegate_app.exe
+
+# Linux
+./build/delegate_app/delegate_app
+```
+
+The output demonstrates synchronous, asynchronous, signal/slot, DataBus, and remote delegate invocation — all the library's core features in a single runnable application.
+
+## Sample Projects — Scripts for More
+
+To build and run the full suite of sample projects (remote/IPC transports, embedded targets, Cellutron distributed system), run the numbered scripts in order.
+
+The scripts clone third-party dependencies as siblings of the `DelegateMQ` repo, so first create a workspace directory to hold everything:
+
+```
+DelegateMQWorkspace/
+├── DelegateMQ/       ← this repo
+├── zeromq/           ← cloned by 01_fetch_repos.py
+├── nng/              ← cloned by 01_fetch_repos.py
+├── paho.mqtt.c/      ← cloned by 01_fetch_repos.py
+└── ...               ← other dependencies
+```
+
+```bash
+mkdir DelegateMQWorkspace
+cd DelegateMQWorkspace
+git clone https://github.com/DelegateMQ/DelegateMQ.git
+cd DelegateMQ
+```
+
+Then run the scripts from inside the `DelegateMQ` directory:
+
+```bash
+python3 01_fetch_repos.py       # Clone third-party dependencies into the workspace
+python3 02_build_libs.py        # Build those dependencies as static libraries
+python3 03_generate_samples.py  # Generate CMake build files for every sample project
+python3 04_build_samples.py     # Compile all sample projects
+```
+
+To run the comprehensive **Cellutron** distributed system (multi-OS, multi-node):
+```bash
+cd example/cellutron
+python3 run_cellutron.py
+```
+
+See [Example Projects](docs/DETAILS.md#example-projects) for descriptions of each sample and [Porting Guide](docs/PORTING.md) for details on porting to a new platform.
 
 # Overview
 
@@ -249,7 +294,7 @@ public:
         : m_channel(transport, ser)
     {
         m_channel.Bind(this, &MsgReceiver::OnMsg, MSG_ID);
-        dmq::RegisterEndpoint(MSG_ID, m_channel.GetEndpoint());  // app-defined routing table
+        m_networkEngine.RegisterEndpoint(MSG_ID, m_channel.GetEndpoint()); // route incoming packets to this channel
     }
 
 private:
@@ -422,15 +467,6 @@ DelegateMQ at a glance.
 Systems are composed of various design patterns or libraries to implement callbacks, asynchronous APIs, and inter-thread or inter-processor communications. These elements typically lack shared commonality. Callbacks are one-off implementations by individual developers, messages between threads rely on OS message queues, and communication libraries handle data transfer complexities. However, the underlying commonality lies in the need to move argument data to the target handler function, regardless of its location.
 
 The DelegateMQ middleware effectively encapsulates all data movement and function invocation within a single library. Whether the target function is a static method, class method, or lambda—residing locally in a separate thread or remotely on a different processor—the library ensures the movement of argument data (marshalling when necessary) and invokes the target function. The low-level details of data movement and function invocation are neatly abstracted from the application layer.
-
-# Alternative Implementations
-
-Alternative asynchronous implementations similar in concept to DelegateMQ, simpler, and less features.
-
-| Project | Description |
-| :--- | :--- |
-| [Asynchronous Callbacks in C++](https://github.com/endurodave/AsyncCallback) | A C++ asynchronous callback framework. |
-| [Asynchronous Callbacks in C](https://github.com/endurodave/C_AsyncCallback) | A C language asynchronous callback framework. |
 
 # Other Projects Using DelegateMQ
 

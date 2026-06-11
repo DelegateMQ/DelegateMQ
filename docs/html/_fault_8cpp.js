@@ -1,6 +1,6 @@
 var _fault_8cpp =
 [
-    [ "FaultHandler", "_fault_8cpp.html#a796fbb70ad51b93abcaaae2eab31461f", null ],
-    [ "FaultHandler", "_fault_8cpp.html#ae8ba6ae99ec4c653d7e81c7c2477c9c4", null ],
-    [ "WatchdogHandler", "_fault_8cpp.html#ac894bcaaa37861f2045f1aa75eb5b525", null ]
+    [ "FaultHandler", "_fault_8cpp.html#abaf9c27796c911e9a9988c6312fe17dd", null ],
+    [ "FaultHandler", "_fault_8cpp.html#a30524881a9a5e7de22a5a1176e565267", null ],
+    [ "WatchdogHandler", "_fault_8cpp.html#a6edab153b507f714c362f997ad002323", null ]
 ];

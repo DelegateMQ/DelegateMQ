@@ -37,11 +37,11 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
             }
             catch (const std::exception& e) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled exception in delegate callback:" << e.what();
-                dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                ASSERT();
             }
             catch (...) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled unknown exception in delegate callback.";
-                dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+                ASSERT();
             }
 #else
             bool success = invoker->Invoke(msg);
@@ -61,7 +61,7 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const std::string& threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const std::string& cpuName)
+Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : m_threadName(threadName)
     , m_cpuName(cpuName)
     , m_maxQueueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
@@ -99,7 +99,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_thread)
     {
         m_thread = new QThread();
-        m_thread->setObjectName(QString::fromStdString(m_threadName));
+        m_thread->setObjectName(QString::fromUtf8(m_threadName.c_str()));
 
         // Create worker and move it to the new thread
         m_worker = new Worker(this);
@@ -162,10 +162,15 @@ void Thread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
-    auto delta = now - lastAlive;
-    if (delta > m_watchdogTimeout.load())
+    auto watchdogTimeout = m_watchdogTimeout.load();
+
+    if (watchdogTimeout.count() > 0)
     {
-        WatchdogHandler(m_threadName.c_str());
+        auto delta = now - lastAlive;
+        if (delta > watchdogTimeout)
+        {
+            WatchdogHandler(m_threadName.c_str());
+        }
     }
 }
 
@@ -370,7 +375,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.latency_max_all_ms = 0.0f;
 
     if (m_invokeCountWindow > 0) {
-        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (m_invokeCountWindow * 1000.0f);
+        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (static_cast<float>(m_invokeCountWindow) * 1000.0f);
     } else {
         stats.invoke_avg_ms = 0.0f;
     }

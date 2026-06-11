@@ -24,17 +24,15 @@
 namespace dmq::databus {
 
 namespace detail {
-    // Helper class to implement QoS rate limiting without heavy lambda captures.
-    // Storing state in a class and capturing only a shared_ptr in std::function 
-    // ensures the delegate fits within Small Buffer Optimization (SBO).
+    // Helper class to implement QoS rate limiting without lambda captures.
     template <typename T>
     class RateLimiter {
         XALLOCATOR
     public:
-        RateLimiter(std::function<void(T)> func, uint32_t minSepRep)
+        RateLimiter(dmq::UnicastDelegate<void(const T&)> func, uint32_t minSepRep)
             : m_func(std::move(func)), m_minSepRep(minSepRep), m_lastDeliveryRep(0) {}
 
-        void Invoke(T data) {
+        void Invoke(const T& data) {
             auto nowRep = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(dmq::Clock::now().time_since_epoch()).count());
             auto lastRep = m_lastDeliveryRep.load(std::memory_order_relaxed);
             if (nowRep - lastRep >= m_minSepRep) {
@@ -44,27 +42,28 @@ namespace detail {
         }
 
     private:
-        std::function<void(T)> m_func;
+        dmq::UnicastDelegate<void(const T&)> m_func;
         uint32_t m_minSepRep;
         std::atomic<uint32_t> m_lastDeliveryRep;
     };
 
     // Helper class to implement QoS filtering without heavy lambda captures.
-    template <typename T, typename F, typename P>
+    template <typename T>
     class Filter {
         XALLOCATOR
     public:
-        Filter(F func, P predicate) : m_func(std::move(func)), m_predicate(std::move(predicate)) {}
+        Filter(dmq::UnicastDelegate<void(const T&)> func, dmq::UnicastDelegate<bool(const T&)> predicate)
+            : m_func(std::move(func)), m_predicate(std::move(predicate)) {}
 
-        void Invoke(T data) {
+        void Invoke(const T& data) {
             if (m_predicate(data)) {
                 m_func(data);
             }
         }
 
     private:
-        F m_func;
-        P m_predicate;
+        dmq::UnicastDelegate<void(const T&)> m_func;
+        dmq::UnicastDelegate<bool(const T&)> m_predicate;
     };
 
     // Helper class to implement topic forwarding without heavy lambda captures.
@@ -95,14 +94,32 @@ public:
     // no messages are missed.
     template <typename T, typename F>
     [[nodiscard]] static dmq::ScopedConnection Subscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread = nullptr, QoS qos = {}) {
-        return GetInstance().InternalSubscribe<T>(topic, std::forward<F>(func), thread, qos);
+        dmq::UnicastDelegate<void(const T&)> typedFunc;
+        if constexpr (std::is_base_of_v<dmq::Delegate<void(const T&)>, std::decay_t<F>>)
+            typedFunc = std::forward<F>(func);  // pre-formed delegate — direct assignment, no std::function
+        else
+            typedFunc = dmq::DelegateFunction<void(const T&)>(std::forward<F>(func));  // bridge callable → const T& signature
+        return GetInstance().InternalSubscribe<T>(topic, std::move(typedFunc), thread, qos);
     }
 
     // Subscribe to a topic with a filter.
     template <typename T, typename F, typename P>
     [[nodiscard]] static dmq::ScopedConnection SubscribeFilter(const dmq::xstring& topic, F&& func, P&& predicate, dmq::IThread* thread = nullptr, QoS qos = {}) {
-        auto filter = dmq::xmake_shared<detail::Filter<T, std::decay_t<F>, std::decay_t<P>>>(std::forward<F>(func), std::forward<P>(predicate));
-        return GetInstance().InternalSubscribe<T>(topic, [filter](T data) { filter->Invoke(data); }, thread, qos);
+        dmq::UnicastDelegate<void(const T&)> funcUD;
+        if constexpr (std::is_base_of_v<dmq::Delegate<void(const T&)>, std::decay_t<F>>)
+            funcUD = std::forward<F>(func);
+        else
+            funcUD = dmq::DelegateFunction<void(const T&)>(std::forward<F>(func));
+
+        dmq::UnicastDelegate<bool(const T&)> predUD;
+        if constexpr (std::is_base_of_v<dmq::Delegate<bool(const T&)>, std::decay_t<P>>)
+            predUD = std::forward<P>(predicate);
+        else
+            predUD = dmq::DelegateFunction<bool(const T&)>(std::forward<P>(predicate));
+
+        auto filter = dmq::xmake_shared<detail::Filter<T>>(std::move(funcUD), std::move(predUD));
+        // Capture filter by shared_ptr so the Filter stays alive for the connection's lifetime.
+        return GetInstance().InternalSubscribe<T>(topic, dmq::DelegateFunction<void(const T&)>([filter](const T& data) { filter->Invoke(data); }), thread, qos);
     }
 
     // Publish data to a topic.
@@ -161,9 +178,14 @@ public:
     }
 
     // Register a stringifier for a topic to enable spying/logging.
-    template <typename T>
-    static void RegisterStringifier(const dmq::xstring& topic, std::function<dmq::xstring(const T&)> func) {
-        GetInstance().InternalRegisterStringifier<T>(topic, std::move(func));
+    template <typename T, typename F>
+    static void RegisterStringifier(const dmq::xstring& topic, F&& func) {
+        dmq::UnicastDelegate<dmq::xstring(const T&)> ud;
+        if constexpr (std::is_base_of_v<dmq::Delegate<dmq::xstring(const T&)>, std::decay_t<F>>)
+            ud = std::forward<F>(func);
+        else
+            ud = dmq::DelegateFunction<dmq::xstring(const T&)>(std::forward<F>(func));
+        GetInstance().InternalRegisterStringifier<T>(topic, std::move(ud));
     }
 
     // Enable/Disable Last Value Cache (LVC) for a topic.
@@ -172,35 +194,51 @@ public:
     }
 
     // Subscribe to all bus traffic (topic and stringified value).
-    // Monitor all traffic on the DataBus.
     // NOTE: priority is only applied when thread != nullptr; passing a non-default
     // priority without a thread is a programming error and triggers FaultHandler.
-    [[nodiscard]] static dmq::ScopedConnection Monitor(std::function<void(const SpyPacket&)> func, dmq::IThread* thread = nullptr, dmq::Priority priority = dmq::Priority::NORMAL) {
-        if (!thread && priority != dmq::Priority::NORMAL) {
-            ::FaultHandler(__FILE__, (unsigned short)__LINE__);
-            return {};
-        }
+    template <typename F>
+    [[nodiscard]] static dmq::ScopedConnection Monitor(F&& func, dmq::IThread* thread = nullptr, dmq::Priority priority = dmq::Priority::NORMAL) {
+        ASSERT_TRUE(thread || priority == dmq::Priority::NORMAL);
+
+        dmq::UnicastDelegate<void(const SpyPacket&)> ud;
+        if constexpr (std::is_base_of_v<dmq::Delegate<void(const SpyPacket&)>, std::decay_t<F>>)
+            ud = std::forward<F>(func);
+        else
+            ud = dmq::DelegateFunction<void(const SpyPacket&)>(std::forward<F>(func));
 
         DataBus& instance = GetInstance();
 
-        // Establish connection OUTSIDE the global DataBus lock to prevent 
+        // Establish connection OUTSIDE the global DataBus lock to prevent
         // lock inversion deadlocks. Signal::Connect() is already thread-safe.
         if (thread) {
-            auto del = dmq::MakeDelegate(std::move(func), *thread);
+            auto del = dmq::MakeDelegate(std::function<void(const SpyPacket&)>(std::move(ud)), *thread);
             del.SetPriority(priority);
-            return instance.m_monitorSignal.Connect(del);
+            return instance.m_monitorSignal.Connect(std::move(del));
+        } else {
+            return instance.m_monitorSignal.Connect(std::move(ud));
         }
-        return instance.m_monitorSignal.Connect(dmq::MakeDelegate(std::move(func)));
     }
 
     /// Fired when a message is published but has no local or remote subscribers.
-    [[nodiscard]] static dmq::ScopedConnection SubscribeUnhandled(std::function<void(const dmq::xstring& topic)> func) {
-        return GetInstance().m_unhandledSignal.Connect(dmq::MakeDelegate(std::move(func)));
+    template <typename F>
+    [[nodiscard]] static dmq::ScopedConnection SubscribeUnhandled(F&& func) {
+        dmq::UnicastDelegate<void(const dmq::xstring&)> ud;
+        if constexpr (std::is_base_of_v<dmq::Delegate<void(const dmq::xstring&)>, std::decay_t<F>>)
+            ud = std::forward<F>(func);
+        else
+            ud = dmq::DelegateFunction<void(const dmq::xstring&)>(std::forward<F>(func));
+        return GetInstance().m_unhandledSignal.Connect(std::move(ud));
     }
 
     /// Fired when a message is published but a technical error occurs (e.g. serialization failure).
-    [[nodiscard]] static dmq::ScopedConnection SubscribeError(std::function<void(const dmq::xstring& topic, dmq::DelegateError error)> func) {
-        return GetInstance().m_errorSignal.Connect(dmq::MakeDelegate(std::move(func)));
+    template <typename F>
+    [[nodiscard]] static dmq::ScopedConnection SubscribeError(F&& func) {
+        dmq::UnicastDelegate<void(const dmq::xstring&, dmq::DelegateError)> ud;
+        if constexpr (std::is_base_of_v<dmq::Delegate<void(const dmq::xstring&, dmq::DelegateError)>, std::decay_t<F>>)
+            ud = std::forward<F>(func);
+        else
+            ud = dmq::DelegateFunction<void(const dmq::xstring&, dmq::DelegateError)>(std::forward<F>(func));
+        return GetInstance().m_errorSignal.Connect(std::move(ud));
     }
 
     // Reset the DataBus (mostly for testing).
@@ -230,14 +268,11 @@ private:
     }
 
     template <typename T>
-    using SignalPtr = std::shared_ptr<dmq::Signal<void(T)>>;
+    using SignalPtr = std::shared_ptr<dmq::Signal<void(const T&)>>;
 
-    template <typename T, typename F>
-    [[nodiscard]] dmq::ScopedConnection InternalSubscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread, QoS qos) {
+    template <typename T>
+    [[nodiscard]] dmq::ScopedConnection InternalSubscribe(const dmq::xstring& topic, dmq::UnicastDelegate<void(const T&)> typedFunc, dmq::IThread* thread, QoS qos) {
         SignalPtr<T> signal;
-
-        // Performance Note: Forced std::function construction for internal type management.
-        std::function<void(T)> typedFunc = std::forward<F>(func);
 
         // Wrap with min separation rate limiter if requested. Each subscriber gets its
         // own independent last-delivery timestamp, so different subscribers on the same
@@ -245,7 +280,9 @@ private:
         if (qos.minSeparation.has_value()) {
             auto minSepRep = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(qos.minSeparation.value()).count());
             auto limiter = dmq::xmake_shared<detail::RateLimiter<T>>(std::move(typedFunc), minSepRep);
-            typedFunc = [limiter](T data) { limiter->Invoke(data); };
+            // Capture limiter by shared_ptr so the RateLimiter stays alive for the connection's lifetime.
+            // MakeDelegate(limiter.get(), ...) would store a raw pointer; the shared_ptr must be in the closure.
+            typedFunc = dmq::DelegateFunction<void(const T&)>([limiter](const T& data) { limiter->Invoke(data); });
         }
 
         T* cachedValPtr = nullptr;
@@ -269,14 +306,17 @@ private:
         }
 
         // 3. Establish connection OUTSIDE the lock to prevent deadlock with Timer/Signal locks.
-        // NOTE: There is a theoretical race where a publish happens between releasing the 
-        // DataBus lock and acquiring the Signal lock. However, both use RecursiveMutex 
-        // and InternalPublish also snapshots signals outside its lock, so this is 
+        // NOTE: There is a theoretical race where a publish happens between releasing the
+        // DataBus lock and acquiring the Signal lock. However, both use RecursiveMutex
+        // and InternalPublish also snapshots signals outside its lock, so this is
         // architecturally consistent with the "lock-free dispatch" pattern used elsewhere.
+        using AsyncDelType = dmq::DelegateFunctionAsync<void(const T&)>;
+        std::optional<AsyncDelType> asyncDel;
         if (thread) {
-            conn = signal->Connect(dmq::MakeDelegate(typedFunc, *thread));
+            asyncDel.emplace(dmq::MakeDelegate(std::function<void(const T&)>(std::move(typedFunc)), *thread));
+            conn = signal->Connect(*asyncDel);
         } else {
-            conn = signal->Connect(dmq::MakeDelegate(typedFunc));
+            conn = signal->Connect(typedFunc);
         }
 
         {
@@ -311,11 +351,10 @@ private:
         // and is the correct fix — resolving the race inside the DataBus lock would
         // require holding the lock across the async dispatch, which deadlocks.
         if (cachedValPtr) {
-            if (thread) {
-                dmq::MakeDelegate(typedFunc, *thread).AsyncInvoke(*cachedValPtr);
-            } else {
+            if (asyncDel)
+                asyncDel->AsyncInvoke(*cachedValPtr);
+            else
                 typedFunc(*cachedValPtr);
-            }
         }
 
         return conn;
@@ -342,9 +381,8 @@ private:
             // 1. Type safety: verify T matches the registered type for this topic.
             // Must be first — before any writes — so a mismatch never corrupts LVC.
             auto itType = m_typeIndices.find(topic);
-            if (itType != m_typeIndices.end() && itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return;
+            if (itType != m_typeIndices.end()) {
+                ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
             }
 
             // 2. Update LVC ONLY if enabled for this topic to save memory.
@@ -360,15 +398,15 @@ private:
                 hasMonitor = true;
                 auto itStr = m_stringifiers.find(topic);
                 if (itStr != m_stringifiers.end()) {
-                    auto func = static_cast<std::function<dmq::xstring(const T&)>*>(itStr->second.get());
-                    strVal = (*func)(data).c_str();
+                    auto func = static_cast<dmq::UnicastDelegate<dmq::xstring(const T&)>*>(itStr->second.get());
+                    strVal = (*func)(data);
                 }
             }
 
             // 4. Get signal and remote info. Only create Signal if there is local interest.
             auto itSig = m_signals.find(topic);
             if (itSig != m_signals.end()) {
-                signal = std::static_pointer_cast<dmq::Signal<void(T)>>(itSig->second);
+                signal = std::static_pointer_cast<dmq::Signal<void(const T&)>>(itSig->second);
             }
 
             auto itSer = m_serializers.find(topic);
@@ -415,7 +453,7 @@ private:
                         handled = true;
                     }
                 } else {
-                    // HAZARD 3: Topic has remote interest but no serializer — fire once per topic.
+                    // Topic has remote interest but no serializer — fire once per topic.
                     bool shouldFire = false;
                     {
                         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
@@ -443,12 +481,9 @@ private:
             dmq::MakeDelegate(this, &DataBus::InternalReportError));
 
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-        if (m_participantCount < dmq::MAX_PARTICIPANTS) {
-            m_participantErrorConnections[m_participantCount] = std::move(conn);
-            m_participants[m_participantCount++] = participant;
-        }
-        else
-            ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+        ASSERT_TRUE(m_participantCount < dmq::MAX_PARTICIPANTS);
+        m_participantErrorConnections[m_participantCount] = std::move(conn);
+        m_participants[m_participantCount++] = participant;
     }
 
     template <typename T>
@@ -457,37 +492,33 @@ private:
 
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
-            if (itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return;
-            }
+            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
 
-        // Use shared_ptr with no-op deleter because serializer is owned by caller
-        m_serializers[topic] = std::shared_ptr<void>(&serializer, [](void*) {});
+        m_serializers[topic] = std::shared_ptr<void>(&serializer, [](void*) {}, ::dmq::stl_allocator<void>());
     }
 
     template <typename T>
-    void InternalRegisterStringifier(const dmq::xstring& topic, std::function<dmq::xstring(const T&)> func) {
+    void InternalRegisterStringifier(const dmq::xstring& topic, dmq::UnicastDelegate<dmq::xstring(const T&)> func) {
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
         // Runtime Type Safety: Ensure topic is not registered with multiple types
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
-            if (itType->second != std::type_index(typeid(T))) {
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return;
-            }
+            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
 
-        // Use shared_ptr with custom deleter to fix memory leak
+        // Use shared_ptr with custom deleter and stl_allocator.
+        // Allocate function object from fixed-block pool using xnew.
+        using DelegateType = dmq::UnicastDelegate<dmq::xstring(const T&)>;
         m_stringifiers[topic] = std::shared_ptr<void>(
-            new std::function<dmq::xstring(const T&)>(std::move(func)),
-            [](void* ptr) { delete static_cast<std::function<dmq::xstring(const T&)>*>(ptr); }
+            dmq::xnew<DelegateType>(std::move(func)),
+            [](void* ptr) { dmq::xdelete(static_cast<DelegateType*>(ptr)); },
+            ::dmq::stl_allocator<void>()
         );
     }
 
@@ -514,21 +545,18 @@ private:
         // Assume lock is held by caller
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
-            if (itType->second != std::type_index(typeid(T))) {
-                // Runtime Type Safety: Catch same topic string used with different types
-                ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
-                return nullptr; 
-            }
+            // Runtime Type Safety: Catch same topic string used with different types
+            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
 
         auto it = m_signals.find(topic);
         if (it != m_signals.end()) {
-            return std::static_pointer_cast<dmq::Signal<void(T)>>(it->second);
+            return std::static_pointer_cast<dmq::Signal<void(const T&)>>(it->second);
         }
 
-        auto signal = dmq::xmake_shared<dmq::Signal<void(T)>>();
+        auto signal = dmq::xmake_shared<dmq::Signal<void(const T&)>>();
         m_signals[topic] = std::static_pointer_cast<void>(signal);
         return signal;
     }
@@ -539,15 +567,15 @@ private:
     };
 
     dmq::RecursiveMutex m_mutex;
-    xmap<dmq::xstring, uint8_t> m_reportedErrors;
-    xmap<dmq::xstring, std::shared_ptr<void>> m_signals;
-    xmap<dmq::xstring, std::type_index> m_typeIndices;
+    dmq::xmap<dmq::xstring, uint8_t> m_reportedErrors;
+    dmq::xmap<dmq::xstring, std::shared_ptr<void>> m_signals;
+    dmq::xmap<dmq::xstring, std::type_index> m_typeIndices;
     std::array<std::shared_ptr<Participant>, dmq::MAX_PARTICIPANTS> m_participants{};
     size_t m_participantCount = 0;
-    xmap<dmq::xstring, std::shared_ptr<void>> m_serializers;
-    xmap<dmq::xstring, LvcEntry> m_lastValues;
-    xmap<dmq::xstring, QoS> m_topicQos;
-    xmap<dmq::xstring, std::shared_ptr<void>> m_stringifiers;
+    dmq::xmap<dmq::xstring, std::shared_ptr<void>> m_serializers;
+    dmq::xmap<dmq::xstring, LvcEntry> m_lastValues;
+    dmq::xmap<dmq::xstring, QoS> m_topicQos;
+    dmq::xmap<dmq::xstring, std::shared_ptr<void>> m_stringifiers;
     dmq::Signal<void(const SpyPacket&)> m_monitorSignal;
     dmq::Signal<void(const dmq::xstring& topic)> m_unhandledSignal;
     dmq::Signal<void(const dmq::xstring& topic, dmq::DelegateError error)> m_errorSignal;

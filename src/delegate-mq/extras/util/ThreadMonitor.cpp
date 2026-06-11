@@ -22,7 +22,7 @@ void ThreadMonitor::Register(dmq::os::Thread* thread) {
     if (instance.m_threadCount < dmq::MAX_WATCHDOG_THREADS)
         instance.m_threads[instance.m_threadCount++] = thread;
     else
-        ::dmq::util::FaultHandler(__FILE__, (unsigned short)__LINE__);
+        ASSERT();
 }
 
 void ThreadMonitor::Deregister(dmq::os::Thread* thread) {
@@ -43,7 +43,7 @@ void ThreadMonitor::Enable(const dmq::xstring& topic) {
     if (instance.m_enabled.exchange(true)) return;
 
     instance.m_topic = topic;
-    instance.m_monitorThread = std::make_unique<dmq::os::Thread>("ThreadMonitor", 10);
+    instance.m_monitorThread.emplace("ThreadMonitor", 10);
     instance.m_monitorThread->CreateThread();
     
     (void)dmq::MakeDelegate(&instance, &ThreadMonitor::MonitorLoop, *instance.m_monitorThread).AsyncInvoke();
@@ -62,12 +62,18 @@ void ThreadMonitor::Disable() {
 void ThreadMonitor::MonitorLoop() {
     if (!m_enabled) return;
 
-    std::array<dmq::os::Thread::ThreadStats, dmq::MAX_WATCHDOG_THREADS> snapshots;
+    dmq::os::Thread::ThreadStats snapshots[dmq::MAX_WATCHDOG_THREADS];
     size_t snapshotCount = 0;
     {
         dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-        for (size_t i = 0; i < m_threadCount; ++i)
-            snapshots[snapshotCount++] = m_threads[i]->SnapshotStats();
+        for (size_t i = 0; i < dmq::MAX_WATCHDOG_THREADS; ++i) {
+            if (i >= m_threadCount || snapshotCount >= dmq::MAX_WATCHDOG_THREADS) 
+                break;
+
+            if (m_threads[i] != nullptr) {
+                snapshots[snapshotCount++] = m_threads[i]->SnapshotStats();
+            }
+        }
     }
 
     for (size_t i = 0; i < snapshotCount; ++i) {
@@ -75,10 +81,10 @@ void ThreadMonitor::MonitorLoop() {
         ThreadStatsPacket packet;
         packet.cpu_name = s.cpu_name;
         packet.thread_name = s.thread_name;
-        packet.queue_depth = (uint32_t)s.queue_depth;
-        packet.queue_depth_max_window = (uint32_t)s.queue_depth_max_window;
-        packet.queue_depth_max_all = (uint32_t)s.queue_depth_max_all;
-        packet.queue_size_limit = (uint32_t)s.queue_size_limit;
+        packet.queue_depth = static_cast<uint32_t>(s.queue_depth);
+        packet.queue_depth_max_window = static_cast<uint32_t>(s.queue_depth_max_window);
+        packet.queue_depth_max_all = static_cast<uint32_t>(s.queue_depth_max_all);
+        packet.queue_size_limit = static_cast<uint32_t>(s.queue_size_limit);
         packet.latency_avg_ms = s.latency_avg_ms;
         packet.latency_max_window_ms = s.latency_max_window_ms;
         packet.latency_max_all_ms = s.latency_max_all_ms;
@@ -92,7 +98,8 @@ void ThreadMonitor::MonitorLoop() {
 
     if (m_enabled) {
         dmq::os::Thread::Sleep(std::chrono::seconds(2));
-        (void)dmq::MakeDelegate(this, &ThreadMonitor::MonitorLoop, *m_monitorThread).AsyncInvoke();
+        if (m_enabled && m_monitorThread.has_value())
+            (void)dmq::MakeDelegate(this, &ThreadMonitor::MonitorLoop, *m_monitorThread).AsyncInvoke();
     }
 }
 
