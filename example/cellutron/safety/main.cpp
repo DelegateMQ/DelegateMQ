@@ -11,6 +11,7 @@
  */
 
 #include "DelegateMQ.h"
+#include "util/Logger.h"
 #include "system/System.h"
 #include "extras/util/NetworkConnect.h"
 #include <cstdio>
@@ -136,6 +137,7 @@ static void vWatchdogTask(void* /*pvParams*/) {
 
 int main(void) {
     ::InstallCrashHandlers();
+    Logger_Init();
     prvInitialiseHeap();
     static dmq::util::NetworkContext networkContext;
     printf("Cellutron Safety Processor starting (FreeRTOS Simulator)...\n");

@@ -1,6 +1,8 @@
 #ifndef _DELEGATEMQ_CONFIG_H
 #define _DELEGATEMQ_CONFIG_H
 
+#include "util/Logger.h"
+
 // Cellutron GUI node — desktop stdlib target, use library defaults.
 
 #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2

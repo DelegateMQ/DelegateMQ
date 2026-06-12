@@ -1,6 +1,8 @@
 #ifndef _DELEGATEMQ_CONFIG_H
 #define _DELEGATEMQ_CONFIG_H
 
+#include "util/Logger.h"
+
 // Cellutron Safety node — FreeRTOS target, minimal thread count.
 // Reduced limits to constrain RAM on embedded hardware.
 

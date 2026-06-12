@@ -2,6 +2,7 @@
 #define _CONSTANTS_H
 
 #include "DelegateMQ.h"
+#include "Logger.h"
 #include <cstdint>
 
 namespace cellutron {
