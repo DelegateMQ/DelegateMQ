@@ -15,8 +15,6 @@ The Cellutron system is cross-platform and supports both **Windows** and **Linux
     python3 01_fetch_repos.py
     python3 02_build_libs.py
     python3 03_generate_samples.py
-    python3 04_build_samples.py
-    python3 05_run_samples.py
     ```
 2.  **Build Cellutron**: From this directory (`example/cellutron/`), run:
     ```bash

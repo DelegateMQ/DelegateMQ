@@ -33,7 +33,7 @@ DelegateMQ is completely modular. You can use only the features you need—such 
 
 [CMake](https://cmake.org/) is used to create the project build files on any Windows or Linux machine. DelegateMQ supports Visual Studio, GCC, Clang, and ARM toolchains.
 
-## Quick Start — No Dependencies Required
+## Quick Start
 
 Clone and build the main delegate application. No third-party libraries needed.
 
@@ -54,13 +54,9 @@ build\delegate_app\Debug\delegate_app.exe
 ./build/delegate_app/delegate_app
 ```
 
-The output demonstrates synchronous, asynchronous, signal/slot, DataBus, and remote delegate invocation — all the library's core features in a single runnable application.
+## Sample Projects
 
-## Sample Projects — Scripts for More
-
-To build and run the full suite of sample projects (remote/IPC transports, embedded targets, Cellutron distributed system), run the numbered scripts in order.
-
-The scripts clone third-party dependencies as siblings of the `DelegateMQ` repo, so first create a workspace directory to hold everything:
+To build and run the full suite of sample projects, run the numbered scripts in order. The scripts clone third-party dependencies as siblings of the `DelegateMQ` repo, so first create a workspace directory to hold everything:
 
 ```
 DelegateMQWorkspace/
@@ -87,13 +83,11 @@ python3 03_generate_samples.py  # Generate CMake build files for every sample pr
 python3 04_build_samples.py     # Compile all sample projects
 ```
 
-To run the comprehensive **Cellutron** distributed system (multi-OS, multi-node):
+To run the [Cellutron](example/cellutron/CELLUTRON.md) distributed, multi-node Linux/Windows/FreeRTOS example. Runs entirely on Windows or Linux using simulated hardware peripherals:
 ```bash
 cd example/cellutron
 python3 run_cellutron.py
 ```
-
-See [Example Projects](docs/DETAILS.md#example-projects) for descriptions of each sample and [Porting Guide](docs/PORTING.md) for details on porting to a new platform.
 
 # Overview
 
@@ -101,16 +95,12 @@ In C++, a delegate function object encapsulates a callable entity, such as a fun
 
 DelegateMQ serves as a middleware library that utilizes simple, pure virtual interface classes for the OS, transport, and serializer. This architecture allows easy swapping of underlying technologies without changing application logic.
 
-Originally published on CodeProject at <a href="https://www.codeproject.com/Articles/5277036/Asynchronous-Multicast-Delegates-in-Modern-Cpluspl">Asynchronous Multicast Delegates in Modern C++</a> with a perfect 5.0 article feedback rating.
-
 ## Key Concepts
 
-- `dmq::MakeDelegate` – Creates a delegate bound to any callable. Adding a `dmq::os::Thread` argument makes it asynchronous; adding a `dmq::RemoteChannel` makes it remote. The call syntax is the same in all three cases.
+- `dmq::MakeDelegate` – Creates a delegate bound to any callable. 
 - `dmq::os::Thread` – A cross-platform thread class. Passed to `dmq::MakeDelegate` to dispatch a call to a specific worker thread.
-- `dmq::RemoteChannel<Sig>` – Owns the transport wiring for one message signature. Call `Bind()` once to configure, then invoke with `operator()` to send remotely.
-- `dmq::Signal<Sig>` – Thread-safe multicast signal. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects on scope exit. Declare as a plain class member — no `shared_ptr` required.
+- `dmq::Signal<Sig>` – Thread-safe multicast signal. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects on scope exit.
 - `dmq::MulticastDelegateSafe` – Thread-safe delegate container for broadcast invocation without RAII connection management.
-- `dmq::databus::DataBus` – High-level topic-based middleware for data distribution. Enables location-transparent "publish/subscribe" across threads or remote nodes.
 
 ## Synchronous Delegates
 
@@ -136,7 +126,7 @@ int main()
 
 ## Asynchronous Delegates
 
-Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely and effortlessly. This enables the Active Object pattern, where method execution is decoupled from method invocation. The library automatically marshals all arguments—whether passed by value, pointer, or reference—ensuring thread safety without manual locking or complex queue management. The library is designed for easy porting to any platform by simply implementing a lightweight threading interface (`dmq::IThread`).
+Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely and effortlessly. The library automatically marshals all arguments—whether passed by value, pointer, or reference—ensuring thread safety without manual locking or complex queue management. The library is designed for easy porting to any platform by simply implementing a lightweight threading interface (`dmq::IThread`).
 
 **Key Features:**
 
@@ -178,10 +168,7 @@ struct Data { int x = 0; };
 class DataStore
 {
 public:
-    DataStore() : m_thread("DataStoreThread")
-    {
-        m_thread.CreateThread();
-    }
+    DataStore() : m_thread("DataStoreThread") { m_thread.CreateThread(); }
 
     // 1. Store data asynchronously on m_thread context (non-blocking)
     void StoreAsync(const Data& data)
@@ -252,75 +239,6 @@ Button btn;
 btn.Press(2);       // safe: no subscribers, nothing happens
 ```
 
-**`dmq::Signal` vs `dmq::MulticastDelegateSafe`** — use `dmq::Signal` by default; reach for `dmq::MulticastDelegateSafe` only when subscription lifetime is fully explicit:
-
-| | `dmq::Signal<Sig>` | `dmq::MulticastDelegateSafe<Sig>` |
-|---|---|---|
-| Subscription | `Connect()` → `dmq::ScopedConnection` | `operator+=` → no return value |
-| Unsubscription | Automatic on scope exit | Manual `operator-=` |
-| Lifetime safety | Safe — disconnects even if Signal outlives subscriber | Caller responsible; missed `-=` leaves dangling subscriber |
-| Mixed sync/async slots | Yes | Yes |
-
-See [Publish / Subscribe with Signal](docs/SIGNALS.md) for lambda slots, mixed sync/async slots, and additional patterns.
-
-## Remote Delegates
-
-Remote delegates extend the library to enable Remote Procedure Calls (RPC) across process or network boundaries. This allows you to invoke a function on a remote machine as easily as calling a local function. The system automatically handles argument marshaling, serialization, and thread dispatching.
-
-`dmq::RemoteChannel<Sig>` is the single setup object per message signature. Construct it with a transport and serializer, call `Bind()` once to wire the target function and remote ID, then invoke with `operator()`. The receiver registers its channel endpoint so incoming messages are automatically dispatched to the bound function.
-
-**Key Features:**
-
-* **No IDL Required:** Works with standard C++ types and structs.
-* **Invocation Modes:** Supports Blocking (synchronous wait), Non-blocking (fire-and-forget), and Futures (asynchronous return values).
-* **Transport Agnostic:** The application layer is decoupled from the physical transport. You can easily integrate custom transports or serializers. Implement `dmq::transport::ITransport` for any medium (TCP, UDP, serial, shared memory, etc.).
-
-```cpp
-#include "DelegateMQ.h"
-
-// Shared message ID (both sides must agree)
-constexpr dmq::DelegateRemoteId MSG_ID = 1;
-
-// --- Receiver side (remote process/processor) ---
-class MsgReceiver
-{
-public:
-    MsgReceiver(dmq::transport::ITransport& transport, dmq::ISerializer<void(std::string)>& ser)
-        : m_channel(transport, ser)
-    {
-        m_channel.Bind(this, &MsgReceiver::OnMsg, MSG_ID);
-        m_networkEngine.RegisterEndpoint(MSG_ID, m_channel.GetEndpoint()); // route incoming packets to this channel
-    }
-
-private:
-    void OnMsg(std::string msg) { MsgOut(msg); }  // called on receive
-    dmq::RemoteChannel<void(std::string)> m_channel;
-};
-
-// --- Sender side (local process/processor) ---
-class MsgSender
-{
-public:
-    MsgSender(dmq::transport::ITransport& transport, dmq::ISerializer<void(std::string)>& ser)
-        : m_channel(transport, ser)
-    {
-        // Bind to a raw lambda (no std::function wrapper needed)
-        m_channel.Bind([](std::string msg) { MsgOut(msg); }, MSG_ID);
-    }
-
-    void Send(const std::string& msg) { m_channel(msg); }  // fire-and-forget
-
-private:
-    dmq::RemoteChannel<void(std::string)> m_channel;
-};
-```
-
-## Supported Integrations
-
-* **Operating Systems:** Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, Qt, Bare-metal
-* **Serialization:** [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize)
-* **Transport:** [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer
-
 ## Delegate Semantics
 
 It is always safe to call the delegate. In its null state, a call will not perform any action and will return a default-constructed return value. A delegate behaves like a normal pointer type: it can be copied, compared for equality, called, and compared to `nullptr`. Const correctness is maintained; stored const objects can only be called by const member functions.
@@ -338,7 +256,7 @@ See [Delegate Invocation Semantics](docs/DETAILS.md#delegate-invocation-semantic
 
 `dmq::databus::DataBus` is a high-level middleware built on DelegateMQ's core delegates. It provides a topic-based distribution system (similar to a lightweight DDS or MQTT) that works seamlessly across local threads and remote network nodes. Unlike full DDS style systems, DataBus is lightweight enough for small embedded systems and handles thread-safe data delivery to the specified thread of control.
 
-**Features:**
+**Key Features:**
 - **Topic-Based**: Components communicate via string-named topics (e.g., "sensor/data").
 - **Location Transparency**: Subscribers don't know if the data came from a local thread or a remote processor.
 - **Unicast & Multicast**: Supports point-to-point reliable delivery (Unicast) or one-to-many "Best Effort" distribution (Multicast).
@@ -346,7 +264,7 @@ See [Delegate Invocation Semantics](docs/DETAILS.md#delegate-invocation-semantic
 - **Monitoring**: Built-in "spy" support via `dmq::databus::DataBus::Monitor()` to receive a callback for every message published on the bus.
 - **Type Safety**: Runtime type checking ensures topic data types match between publishers and subscribers.
 - **Zero Library Threads**: `dmq::databus::DataBus` creates no internal threads. The application owns a single polling thread that calls `dmq::databus::Participant::ProcessIncoming()` — every thread is visible and under application control.
-- **[Mixed-Platform](docs/DATABUS.md#example-multi-node-topology)**: Runs unchanged across Linux, FreeRTOS, and bare-metal nodes. Complex topologies (Linux ↔ Ethernet ↔ FreeRTOS ↔ UART ↔ bare metal) are supported.
+- **Mixed-Platform**: Runs unchanged across Linux, FreeRTOS, and bare-metal nodes. Complex topologies (Linux ↔ Ethernet ↔ FreeRTOS ↔ UART ↔ bare metal) are supported.
 
 ```cpp
 #include "DelegateMQ.h"
@@ -367,7 +285,11 @@ auto conn2 = dmq::databus::DataBus::Subscribe<int>("status", [](int s) {
 }, nullptr, qos);
 ```
 
-**Distributed Example**: See [Cellutron](example/cellutron/CELLUTRON.md) for a comprehensive distributed medical instrument example showcasing multi-OS interoperability (Desktop ↔ RTOS), safety interlocks, and distributed hardware logging using the DataBus.
+# Supported Integrations
+
+* **Operating Systems:** Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, Qt, Bare-metal
+* **Serialization:** [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize)
+* **Transport:** [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer
 
 # DelegateMQ Tools
 
