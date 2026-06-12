@@ -19,7 +19,7 @@ Dependencies Pinned:
     - Spdlog:        v1.12.0      (Stable logging)
     - Cereal:        v1.3.2       (Serialization stable)
     - Bitsery:       v5.2.3       (Serialization stable)
-    - MsgPack:       cpp-7.0.0    (Required for C++ headers)
+    - MsgPack:       cpp-8.0.0    (Required for C++ headers)
     - FreeRTOS:      202212.00    (LTS Release)
 
 Usage:
@@ -62,8 +62,8 @@ repos = {
     # FTXUI: v5.0.0 for modern C++ terminal UI components.
     "ftxui": ("https://github.com/ArthurSonzogni/FTXUI.git", "v5.0.0", False),
 
-    # MsgPack: 'cpp-7.0.0' is required for the C++ headers structure
-    "msgpack-c": ("https://github.com/msgpack/msgpack-c.git", "cpp-7.0.0", False),
+    # MsgPack: 'cpp-8.0.0' is required for the C++ headers structure
+    "msgpack-c": ("https://github.com/msgpack/msgpack-c.git", "cpp-8.0.0", False),
 
     # FreeRTOS: Kernel only (much smaller than distribution)
     "FreeRTOS": ("https://github.com/FreeRTOS/FreeRTOS-Kernel.git", "V11.1.0", False)

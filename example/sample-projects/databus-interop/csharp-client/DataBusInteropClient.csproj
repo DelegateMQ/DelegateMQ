@@ -10,7 +10,7 @@
 
   <!-- MessagePack serialization library -->
   <ItemGroup>
-    <PackageReference Include="MessagePack" Version="2.5.192" />
+    <PackageReference Include="MessagePack" Version="2.5.302" />
   </ItemGroup>
 
   <!-- Shared interop library files from interop/csharp/ -->
