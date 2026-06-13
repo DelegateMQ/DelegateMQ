@@ -18,7 +18,7 @@ DelegateMQ is a C++ library with a header-only core for invoking any callable (e
 
 It serves as a messaging layer for C++ applications, providing thread-safe asynchronous callbacks, a Signal & Slot mechanism, topic-based data distribution, and inter-thread data transfer. The library is unit-tested and has been ported to numerous embedded and PC platforms (e.g. Windows, Linux, RTOS, bare metal), with a design that facilitates easy porting to others.
 
-**Key Use Cases**
+**Key Use Cases:**
 * **Callbacks**: Synchronous and asynchronous execution.
 * **Signals & Slots**: Decoupled event handling supporting mixed synchronous and asynchronous observers.
 * **DataBus (DDS Lite)**: Topic-based publish/subscribe distribution across threads or remote nodes.
@@ -54,40 +54,9 @@ build\delegate_app\Debug\delegate_app.exe
 ./build/delegate_app/delegate_app
 ```
 
-## Sample Projects
+## Example Projects
 
-To build and run the full suite of sample projects, run the numbered scripts in order. The scripts clone third-party dependencies as siblings of the `DelegateMQ` repo, so first create a workspace directory to hold everything:
-
-```
-DelegateMQWorkspace/
-├── DelegateMQ/       ← this repo
-├── zeromq/           ← cloned by 01_fetch_repos.py
-├── nng/              ← cloned by 01_fetch_repos.py
-├── paho.mqtt.c/      ← cloned by 01_fetch_repos.py
-└── ...               ← other dependencies
-```
-
-```bash
-mkdir DelegateMQWorkspace
-cd DelegateMQWorkspace
-git clone https://github.com/DelegateMQ/DelegateMQ.git
-cd DelegateMQ
-```
-
-Then run the scripts from inside the `DelegateMQ` directory:
-
-```bash
-python3 01_fetch_repos.py       # Clone third-party dependencies into the workspace
-python3 02_build_libs.py        # Build those dependencies as static libraries
-python3 03_generate_samples.py  # Generate CMake build files for every sample project
-python3 04_build_samples.py     # Compile all sample projects
-```
-
-To run the [Cellutron](example/cellutron/CELLUTRON.md) distributed, multi-node Linux/Windows/FreeRTOS example. Runs entirely on Windows or Linux using simulated hardware peripherals:
-```bash
-cd example/cellutron
-python3 run_cellutron.py
-```
+See [Example Projects](docs/DETAILS.md#example-projects) for stand-alone projects demonstrating core features like Signal/Slot and async delegates, remote communication (TCP, UDP, ZeroMQ, MQTT), and more.
 
 # Overview
 
@@ -98,7 +67,7 @@ DelegateMQ serves as a middleware library that utilizes simple, pure virtual int
 ## Key Concepts
 
 - `dmq::MakeDelegate` – Creates a delegate bound to any callable. 
-- `dmq::os::Thread` – A cross-platform thread class. Passed to `dmq::MakeDelegate` to dispatch a call to a specific worker thread.
+- `dmq::os::Thread` – A cross-platform thread class. Passed to `dmq::MakeDelegate` to dispatch a call onto a specific worker thread.
 - `dmq::Signal<Sig>` – Thread-safe multicast signal. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects on scope exit.
 - `dmq::MulticastDelegateSafe` – Thread-safe delegate container for broadcast invocation without RAII connection management.
 
@@ -131,7 +100,6 @@ Asynchronous delegates simplify multithreaded programming by allowing you to inv
 **Key Features:**
 
 * **Thread Marshalling:** Transfers execution and arguments from a caller thread to a target thread.
-* **Queue Pacing:** Built-in backpressure (via `dmq::util::TimerDelegate`) prevents thread queue flooding by ensuring at most one timer message is in-flight at a time.
 * **Smart Pointer Safety:** Prevents callbacks on destroyed objects using weak pointers, ensuring fail-safe async execution.
 * **Invocation Modes:** 
   * **Non-Blocking:** Fire-and-forget execution.
@@ -193,7 +161,7 @@ private:
 
 ## Signal / Slot
 
-`dmq::Signal<Sig>` is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently, on whichever thread it chose at connect time. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects when it goes out of scope — no manual unsubscribe needed.
+`dmq::Signal<Sig>` is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently, on whichever thread chosen at connect time. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects when it goes out of scope — no manual unsubscribe needed.
 
 Declare the signal as a plain class member — no `shared_ptr` or heap allocation required:
 
@@ -282,7 +250,7 @@ dmq::databus::QoS qos;
 qos.lastValueCache = true;
 auto conn2 = dmq::databus::DataBus::Subscribe<int>("status", [](int s) {
     // New subscribers get the last published value immediately
-}, nullptr, qos);
+}, &workerThread, qos);
 ```
 
 # Supported Integrations
@@ -311,15 +279,6 @@ DelegateMQ includes built-in diagnostic tools for monitoring and inspecting Data
 - **Zero Impact**: Uses an asynchronous bridge to ensure monitoring never blocks or slows your application.
 - **Cross-Platform**: Built with [FTXUI](https://github.com/ArthurSonzogni/FTXUI), providing a responsive dashboard in any terminal.
 
-To build the tools, enable `DMQ_TOOLS` during configuration:
-
-```bash
-cmake -DDMQ_TOOLS=ON -B build .
-cmake --build build --config Release
-```
-
-To integrate monitoring into your application, enable `DMQ_DATABUS_TOOLS` in your app's build. See [tools/TOOLS.md](tools/TOOLS.md) for full integration and usage details.
-
 # Modular Architecture
 
 DelegateMQ uses an external thread, transport, and serializer, all of which are based on simple, well-defined interfaces.
@@ -331,9 +290,9 @@ The library's flexible CMake build options allow for the inclusion of only the n
 
 # Documentation
 
- - See [Design Details](docs/DETAILS.md) for design documentation and [more examples](docs/DETAILS.md#sample-projects). See [Porting Guide](docs/PORTING.md) for platform porting and interface implementation.
+ - See [Design Details](docs/DETAILS.md) for design documentation and more examples. 
+ - See [Porting Guide](docs/PORTING.md) for platform porting and interface implementation.
  - See [Technology Comparison](docs/COMPARISON.md) for how DelegateMQ compares to DDS, gRPC, Qt signals, Boost.Signals2, `std::async`, and OS message queues.
- - See [Doxygen Documentation](https://endurodave.github.io/DelegateMQ/html/index.html) for source code documentation.
 
 # Advantages
 
@@ -345,7 +304,6 @@ Key advantages of using DelegateMQ in your application.
 | Runs everywhere C++ runs | Small pure-virtual interfaces (`dmq::IThread`, `dmq::transport::ITransport`) mean the same application code compiles on Windows, Linux, FreeRTOS, and bare metal. |
 | No imposed dependencies | Header-only core requires only C++17; serialization, transport, and threading are injected externally with no mandatory third-party packages. |
 | Application owns every thread | No internal threads are created — every `dmq::os::Thread` is constructed by the application, keeping scheduling, watchdogs, and stack sizes explicit and auditable. |
-| Gradual adoption | Use synchronous delegates first, add a `dmq::os::Thread` to go async, add a `dmq::RemoteChannel` to go cross-process — each step is independent and reversible. |
 | Targeted thread dispatch | Callbacks, signal slots, and DataBus subscribers each specify the thread they run on — the library handles the dispatch, so handlers always execute in the correct thread context without manual queuing. |
 | Off-target development | The stdlib port lets embedded application logic run and be tested on a Windows or Linux host without target hardware; moving to the device swaps the thread port (e.g. FreeRTOS) and transport — application code is unchanged. |
 | DataBus location transparency | Subscribers receive data identically whether the publisher is in the same thread, a different process, or a remote processor — no code change when moving between local and remote. |

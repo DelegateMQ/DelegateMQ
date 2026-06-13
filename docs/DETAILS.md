@@ -13,17 +13,19 @@ The DelegateMQ C++ library enables function invocations on any callable, either 
 - [Table of Contents](#table-of-contents)
 - [Introduction](#introduction)
 - [Build](#build)
+  - [Quick Start](#quick-start)
   - [Example Projects](#example-projects)
-    - [Examples Build](#examples-build)
-    - [Examples Run](#examples-run)
+    - [Build](#build-1)
+    - [Run](#run)
   - [Configuration and Overrides](#configuration-and-overrides)
     - [1. Command Line (Highest Precedence)](#1-command-line-highest-precedence)
     - [2. CMakeLists.txt](#2-cmakeliststxt)
     - [3. Auto-Detection (Default)](#3-auto-detection-default)
+    - [4. Library Constants (`DelegateMQConfig.h`)](#4-library-constants-delegatemqconfigh)
   - [Build Integration](#build-integration)
     - [CMake](#cmake)
     - [Generic (Make/IDE)](#generic-makeide)
-- [Quick Start](#quick-start)
+- [Overview](#overview)
   - [Mental Model](#mental-model)
   - [Invocation Modes](#invocation-modes)
     - [Synchronous](#synchronous)
@@ -85,6 +87,7 @@ The DelegateMQ C++ library enables function invocations on any callable, either 
     - [Safe Timer (RAII)](#safe-timer-raii)
     - [Paced Timer Delegate](#paced-timer-delegate)
   - [`std::async` Thread Targeting Example](#stdasync-thread-targeting-example)
+  - [C++20 Coroutine Example](#c20-coroutine-example)
   - [More Examples](#more-examples)
 - [Sample Projects](#sample-projects)
   - [Sample Projects Comparison](#sample-projects-comparison)
@@ -109,26 +112,54 @@ It serves as a messaging layer for C++ applications, providing thread-safe async
 
 # Build
 
-To build and run DelegateMQ, follow these simple steps. The library uses <a href="https://www.cmake.org">CMake</a> to generate build files and supports Visual Studio, GCC, and Clang toolchains.
-1. Clone the repository.
-2. From the repository root, run the following CMake command:   
-   `cmake -B build .`
-3. Build and run the project within the `build` directory. 
+[CMake](https://cmake.org/) is used to create the project build files on any Windows or Linux machine. DelegateMQ supports Visual Studio, GCC, Clang, and ARM toolchains.
+
+## Quick Start
+
+Clone and build the main delegate application. No third-party libraries needed.
+
+```bash
+git clone https://github.com/DelegateMQ/DelegateMQ.git
+cd DelegateMQ
+cmake -B build
+cmake --build build
+```
+
+Run the built executable:
+
+```bash
+# Windows
+build\delegate_app\Debug\delegate_app.exe
+
+# Linux
+./build/delegate_app/delegate_app
+```
 
 ## Example Projects
 
-### Examples Build
+
+### Build
 
 Most example projects depend on external libraries. Scripts are used to automate setting up a sandbox test environment for remote delegate testing. 
 
-1. Create a new workspace directory named `DelegateMQWorkspace`.
-2. Clone the DelegateMQ repo to the `DelegateMQWorkspace\DelegateMQ` directory.  
-   `git clone https://github.com/DelegateMQ/DelegateMQ.git`
-3. Run `01_fetch_repos.py`. Fetches all dependent libraries from GitHub.
-4. Run `02_build_libs.py`. Builds dependent libraries.
-5. Run `03_generate_samples.py`. Creates project build files using CMake.
-6. Run `04_build_samples.py`. Compiles all sample projects (Windows or Linux, platform-appropriate).
-7. Run `05_run_samples.py`. Executes all built samples and reports pass/fail.
+The scripts clone third-party dependencies as siblings of the `DelegateMQ` repo, so first create a workspace directory to hold everything:
+
+```bash
+mkdir DelegateMQWorkspace
+cd DelegateMQWorkspace
+git clone https://github.com/DelegateMQ/DelegateMQ.git
+cd DelegateMQ
+```
+
+Then run the numbered scripts in order from inside the `DelegateMQ` directory:
+
+```bash
+python3 01_fetch_repos.py       # Clone third-party dependencies into the workspace
+python3 02_build_libs.py        # Build those dependencies as static libraries
+python3 03_generate_samples.py  # Generate CMake build files for every sample project
+python3 04_build_samples.py     # Compile all sample projects
+python3 05_run_samples.py       # Executes all built samples and reports pass/fail
+```
 
 All dependent libraries—along with **DelegateMQ**—are now organized within a single parent directory. 
 
@@ -148,20 +179,26 @@ DelegateMQWorkspace/
 └── zeromq/
 ```
 
-### Examples Run
+### Run
 
-Execute a delegate example project. Each projects build files are located within a `build` subdirectory. e.g.
+Execute a delegate example project. Each project's build files are located within a `build` subdirectory. e.g.
 
-`DelegateMQ\example\sample-projects\zeromq-msgpack-cpp\build`
+`DelegateMQ/example/sample-projects/zeromq-msgpack-cpp/build`
 
 Client/server samples require running two applications.
 
-`\DelegateMQ\example\sample-projects\system-architecture\client\build`  
-`\DelegateMQ\example\sample-projects\system-architecture\server\build`
+`DelegateMQ/example/sample-projects/system-architecture/client/build`  
+`DelegateMQ/example/sample-projects/system-architecture/server/build`
 
-Cellutron is a complex multi-processor, multi-OS example project running on Windows and FreeRTOS (Windows simulation) showcasing all DelegateMQ and DataBus features. Run `python run_cellutron.py` to start. See [Cellutron README](../example/cellutron/CELLUTRON.md).
+Cellutron is a complex multi-processor, multi-OS example project running on Windows and FreeRTOS (Windows simulation) showcasing all DelegateMQ and DataBus features. 
 
-`\DelegateMQ\example\cellutron`
+To run the Cellutron example:
+```bash
+cd example/cellutron
+python3 run_cellutron.py
+```
+
+See [Cellutron README](../example/cellutron/CELLUTRON.md) for details.
 
 See [Sample Projects](#sample-projects) for details regarding each sample project.
 
@@ -265,7 +302,7 @@ using namespace dmq;
 
 **Note:** If using utility features (like `dmq::os::Thread` or `dmq::util::Timer`), ensure you compile and link the corresponding `.cpp` files found in the `delegate-mq/port` and `delegate-mq/extras` directories.
 
-# Quick Start
+# Overview
 
 DelegateMQ has **three invocation modes**. The right one depends entirely on where the target function runs:
 
