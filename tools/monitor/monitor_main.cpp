@@ -287,6 +287,8 @@ int main(int argc, char* argv[]) {
             std::string prefix = selected ? " > " : "   ";
             std::string msgs   = std::to_string(rec.packet.totalMsgCount);
 
+            std::string padding = (msgs.size() < 7) ? std::string(7 - msgs.size(), ' ') : "";
+
             auto row = hbox({
                 text(prefix + rec.packet.nodeId)   | size(WIDTH, EQUAL, 22),
                 separator(),
@@ -296,7 +298,7 @@ int main(int argc, char* argv[]) {
                 separator(),
                 text(statusStr)                    | color(statusColor2) | size(WIDTH, EQUAL, 9),
                 separator(),
-                text(std::string(7 - msgs.size(), ' ') + msgs) | size(WIDTH, EQUAL, 8),
+                text(padding + msgs)               | size(WIDTH, EQUAL, 8),
                 separator(),
                 text(" " + FormatUptime(rec.packet.uptimeMs)) | size(WIDTH, EQUAL, 10),
                 separator(),
