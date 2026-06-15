@@ -49,7 +49,9 @@ The `libserialport` also supports Linux and other platforms.
 ### 1. Configure CMake
 Open a terminal in this directory (`example/sample-projects/serialport-serializer`) and run:
 
-```cmake -B build .```
+```bash
+cmake -B build .
+```
 
 ### 2. Build and Run 
 Build and run the application located within the `build` directory.

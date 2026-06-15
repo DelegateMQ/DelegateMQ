@@ -26,9 +26,10 @@ Numerous predefined platforms are already supported — Windows, Linux, FreeRTOS
 
 1. **Search codebase for `@TODO`** — find specific decision locations tagged in the source files.
 2. **Implement `dmq::IThread`** — required to use **Asynchronous** delegates.
-3. **Implement `dmq::ISerializer` and `dmq::transport::ITransport`** — required to use **Remote** delegates across processes/processors.
+3. **Implement `dmq::ISerializer` and `dmq::IDispatcher`** — required to use **Remote** delegates across processes/processors.
+   - *Note:* If using the **DataBus** (DDS Lite), you instead implement `dmq::transport::ITransport` which is the transport interface used by the DataBus `Participant` class.
    - *Optional:* Implement `dmq::transport::ITransportMonitor` if your application layer requires command acknowledgments (ACKs).
-   - See [Sample Projects](DETAILS.md#sample-projects) for numerous remote delegate examples.
+   - See [Sample Projects](../example/sample-projects/README.md) for numerous remote delegate examples.
 4. **Check System Clock** — ensure `std::chrono::steady_clock` is supported on your target hardware, as it is required for timers and transport timeouts. Otherwise, change `dmq::Clock` in `DelegateOpt.h` to a new clock type.
 5. **Call `dmq::util::Timer::ProcessTimers()`** — periodically call `ProcessTimers()` (e.g., from a main loop or hardware timer ISR) to support timers and thread watchdogs.
 6. **Configure Build Options** — set CMake DMQ library build options within `CMakeLists.txt`.
@@ -73,12 +74,17 @@ public:
 
     /// Dispatch a DelegateMsg onto this thread. The implementer is responsible
     /// for getting the DelegateMsg into an OS message queue. Once DelegateMsg
-    /// is on the correct thread of control, the DelegateInvoker::Invoke() function
+    /// is on the correct thread of control, the IThreadInvoker::Invoke() function
     /// must be called to execute the delegate.
     /// @param[in] msg - a pointer to the delegate message that must be created dynamically.
     /// @pre Caller *must* create the DelegateMsg argument dynamically.
     /// @post The destination thread calls Invoke().
-    virtual void DispatchDelegate(std::shared_ptr<DelegateMsg> msg) = 0;
+    /// @return true if the message was successfully enqueued, false otherwise.
+    virtual bool DispatchDelegate(std::shared_ptr<DelegateMsg> msg) = 0;
+
+    /// Returns true if the calling thread is this thread.
+    /// @return true if the calling thread is this thread, false otherwise.
+    virtual bool IsCurrentThread() = 0;
 };
 ```
 
@@ -135,18 +141,16 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
 #### Receive `dmq::DelegateMsg`
 
-Inherit from `dmq::IDelegateInvoker` and implement the `Invoke()` function. The destination thread calls `Invoke()` once the message is dequeued.
+Inherit from `dmq::IThreadInvoker` and implement the `Invoke()` function. The destination thread calls `Invoke()` once the message is dequeued.
 
 ```cpp
 /// @brief Abstract base class to support asynchronous delegate function invoke
 /// on destination thread of control.
-///
-/// @details Inherit from this class and implement `Invoke()`. The implementation
-/// typically posts a message into the destination thread message queue. The destination
-/// thread receives the message and invokes the target bound function.
-class IDelegateInvoker
+class IThreadInvoker
 {
 public:
+    virtual ~IThreadInvoker() = default;
+
     /// Called to invoke the bound target function by the destination thread of control.
     /// @param[in] msg - the incoming delegate message.
     /// @return `true` if function was invoked; `false` if failed.
@@ -159,32 +163,13 @@ The `dmq::os::Thread::Process()` loop below shows the dispatch pattern. `Invoke(
 ```cpp
 void Thread::Process()
 {
-    m_timerExit = false;
-    std::thread timerThread(&Thread::TimerThread, this);
-
-    while (1)
-    {
-        std::shared_ptr<ThreadMsg> msg;
-        {
-            std::unique_lock<std::mutex> lk(m_mutex);
-            while (m_queue.empty())
-                m_cv.wait(lk);
-
-            if (m_queue.empty())
-                continue;
-
-            msg = m_queue.front();
-            m_queue.pop();
-        }
-
-        switch (msg->GetId())
-        {
+    // ...
             case MSG_DISPATCH_DELEGATE:
             {
                 auto delegateMsg = msg->GetData();
                 ASSERT_TRUE(delegateMsg);
 
-                auto invoker = delegateMsg->GetDelegateInvoker();
+                auto invoker = delegateMsg->GetInvoker();
                 ASSERT_TRUE(invoker);
 
                 bool success = invoker->Invoke(delegateMsg);
@@ -193,20 +178,10 @@ void Thread::Process()
             }
 
             case MSG_TIMER:
+                // Call ProcessTimers() to service all active dmq::util::Timer instances
                 dmq::util::Timer::ProcessTimers();
                 break;
-
-            case MSG_EXIT_THREAD:
-            {
-                m_timerExit = true;
-                timerThread.join();
-                return;
-            }
-
-            default:
-                throw std::invalid_argument("Invalid message ID");
-        }
-    }
+    // ...
 }
 ```
 
@@ -235,7 +210,7 @@ public:
     /// @param[out] os The output stream
     /// @param[in] args The target function arguments
     /// @return The output stream
-    virtual std::ostream& Write(std::ostream& os, Args... args) = 0;
+    virtual std::ostream& Write(std::ostream& os, const Args&... args) = 0;
 
     /// Deserialize data from transport.
     /// @param[in] is The input stream
@@ -264,11 +239,14 @@ The `dmq::IDispatcher` interface dispatches serialized argument data to a remote
 class IDispatcher
 {
 public:
+    virtual ~IDispatcher() = default;
+
     /// Dispatch a stream of bytes to a remote system. The implementer is responsible
     /// for sending the bytes over a communication transport (UDP, TCP, shared memory,
     /// serial, ...).
     /// @param[in] os An outgoing stream to send to the remote destination.
-    virtual int Dispatch(std::ostream& os) = 0;
+    /// @param[in] id The unique delegate identifier shared between sender and receiver.
+    virtual int Dispatch(std::ostream& os, DelegateRemoteId id) = 0;
 };
 ```
 

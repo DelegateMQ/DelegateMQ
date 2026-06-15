@@ -1,4 +1,4 @@
-![License MIT](https://img.shields.io/github/license/BehaviorTree/BehaviorTree.CPP?color=blue)
+![License MIT](https://img.shields.io/github/license/DelegateMQ/DelegateMQ?color=blue)
 [![conan Ubuntu](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_ubuntu.yml/badge.svg)](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_ubuntu.yml)
 [![conan Clang](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_clang.yml/badge.svg)](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_clang.yml)
 [![conan Windows](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_windows.yml/badge.svg)](https://github.com/DelegateMQ/DelegateMQ/actions/workflows/cmake_windows.yml)
@@ -8,26 +8,45 @@
 
 # Delegates in C++
 
-DelegateMQ is a C++ library with a header-only core for invoking any callable (e.g., function, method, lambda):
+DelegateMQ is a modular C++ messaging library with a header-only core. It provides a unified, thread-safe API for invoking any callable (e.g., function, method, lambda) across different execution contexts:
 
-* Synchronously
-* Asynchronously (Blocking and non-blocking)
-* Multicast (Signal and Slot)
-* Remotely (Across processes or processors)
-* Topic-based (Publish/Subscribe across threads or nodes)
+* **Synchronous & Asynchronous:** Local thread-safe callbacks, blocking or fire-and-forget.
+* **Signal / Slot:** Decoupled, multicast event handling.
+* **DataBus (DDS Lite):** Topic-based publish/subscribe data distribution.
+* **Remote:** Inter-process (IPC) and inter-processor communication over any transport.
 
-It serves as a messaging layer for C++ applications, providing thread-safe asynchronous callbacks, a Signal & Slot mechanism, topic-based data distribution, and inter-thread data transfer. The library is unit-tested and has been ported to numerous embedded and PC platforms (e.g. Windows, Linux, RTOS, bare metal), with a design that facilitates easy porting to others.
+The library is unit-tested, built for portability (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.
 
-**Key Use Cases:**
-* **Callbacks**: Synchronous and asynchronous execution.
-* **Signals & Slots**: Decoupled event handling supporting mixed synchronous and asynchronous observers.
-* **DataBus (DDS Lite)**: Topic-based publish/subscribe distribution across threads or remote nodes.
-* **Async APIs**: Thread-safe non-blocking function calls.
-* **Data Distribution**: Passing data reliably between threads.
-* **Remote Communication**: Inter-Process (IPC) and Inter-Processor messaging.
-* **Event-Driven Architecture**: Building responsive, non-blocking systems.
+# Motivation
 
-DelegateMQ is completely modular. You can use only the features you need—such as basic synchronous delegates—without the overhead of asynchronous or remote features.
+Systems are composed of various design patterns or libraries to implement callbacks, asynchronous APIs, and inter-thread or inter-processor communications. These elements typically lack shared commonality. Callbacks are one-off implementations by individual developers, messages between threads rely on OS message queues, and communication libraries handle data transfer complexities. However, the underlying commonality lies in the need to move argument data to the target handler function, regardless of its location.
+
+The DelegateMQ middleware effectively encapsulates all data movement and function invocation within a single library. Whether the target function is a static method, class method, or lambda—residing locally in a separate thread or remotely on a different processor—the library ensures the movement of argument data (marshalling when necessary) and invokes the target function. The low-level details of data movement and function invocation are neatly abstracted from the application layer.
+
+# Advantages
+
+Key advantages of using DelegateMQ in your application.
+
+| Advantage | Description |
+| --- | --- |
+| One invocation model | Sync, async, and remote delegates share the same `dmq::MakeDelegate` syntax — promoting a call to async or remote is a one-line change. |
+| Pay for what you use | Completely modular architecture. Use only the features you need (e.g., basic synchronous delegates) without the overhead of asynchronous or remote features. |
+| Runs everywhere C++ runs | Small pure-virtual interfaces (`dmq::IThread`, `dmq::transport::ITransport`) mean the same application code compiles on Windows, Linux, FreeRTOS, and bare metal. |
+| No imposed dependencies | Header-only core requires only C++17; serialization, transport, and threading are injected externally with no mandatory third-party packages. |
+| Application owns every thread | No internal threads are created — every `dmq::os::Thread` is constructed by the application, keeping scheduling, watchdogs, and stack sizes explicit and auditable. |
+| Targeted thread dispatch | Callbacks, signal slots, and DataBus subscribers each specify the thread they run on — the library handles the dispatch, so handlers always execute in the correct thread context without manual queuing. |
+| Off-target development | The stdlib port lets embedded application logic run and be tested on a Windows or Linux host without target hardware; moving to the device swaps the thread port (e.g. FreeRTOS) and transport — application code is unchanged. |
+| DataBus location transparency | Subscribers receive data identically whether the publisher is in the same thread, a different process, or a remote processor — no code change when moving between local and remote. |
+
+# Supported Integrations
+
+Numerous platform, serialization, and transport integrations are available out of the box. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+
+| Category | Supported |
+| :--- | :--- |
+| **Operating Systems** | Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, Qt, Bare-metal |
+| **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
+| **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer |
 
 # Getting Started
 
@@ -56,7 +75,7 @@ build\delegate_app\Debug\delegate_app.exe
 
 ## Example Projects
 
-See [Example Projects](docs/DETAILS.md#example-projects) for stand-alone projects demonstrating core features like Signal/Slot and async delegates, remote communication (TCP, UDP, ZeroMQ, MQTT), and more.
+See [Example Projects](docs/BUILD.md#example-ecosystem-sandbox) for stand-alone projects demonstrating core features like Signal/Slot and async delegates, remote communication (TCP, UDP, ZeroMQ, MQTT), and more.
 
 # Overview
 
@@ -95,16 +114,7 @@ int main()
 
 ## Asynchronous Delegates
 
-Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely and effortlessly. The library automatically marshals all arguments—whether passed by value, pointer, or reference—ensuring thread safety without manual locking or complex queue management. The library is designed for easy porting to any platform by simply implementing a lightweight threading interface (`dmq::IThread`).
-
-**Key Features:**
-
-* **Thread Marshalling:** Transfers execution and arguments from a caller thread to a target thread.
-* **Smart Pointer Safety:** Prevents callbacks on destroyed objects using weak pointers, ensuring fail-safe async execution.
-* **Invocation Modes:** 
-  * **Non-Blocking:** Fire-and-forget execution.
-  * **Blocking:** Wait for the target thread to complete execution (with optional timeouts).
-  * **Asynchronous:** Use standard `std::future` to retrieve results later.
+Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely and effortlessly. The library automatically marshals all arguments—whether passed by value, pointer, or reference—ensuring thread safety without manual locking or complex queue management.
 
 ```cpp
 dmq::os::Thread thread("WorkerThread");
@@ -125,39 +135,7 @@ if (retVal.has_value())     // Async invoke completed within 1 second?
     size = retVal.value();  // Get return value
 ```
 
-### Asynchronous Public API Example
 
-Asynchronous public API reinvokes `StoreAsync()` call onto the internal `m_thread` context.
-
-```cpp
-struct Data { int x = 0; };
-
-// Store data using asynchronous public API. Class is thread-safe.
-class DataStore
-{
-public:
-    DataStore() : m_thread("DataStoreThread") { m_thread.CreateThread(); }
-
-    // 1. Store data asynchronously on m_thread context (non-blocking)
-    void StoreAsync(const Data& data)
-    {
-        // 2. If the caller thread is not the internal thread, reinvoke this function
-        //    asynchronously on the internal thread to ensure thread-safety
-        if (!m_thread.IsCurrentThread())
-        {
-            // 3. Reinvoke StoreAsync(data) on m_thread context
-            dmq::MakeDelegate(this, &DataStore::StoreAsync, m_thread)(data);
-            return;
-        }
-        // 4. Data stored on m_thread context
-        m_data = data;  
-    }
-
-private:
-    Data m_data;                 // Data storage
-    dmq::os::Thread m_thread;    // Internal thread
-};
-```
 
 ## Signal / Slot
 
@@ -207,32 +185,10 @@ Button btn;
 btn.Press(2);       // safe: no subscribers, nothing happens
 ```
 
-## Delegate Semantics
-
-It is always safe to call the delegate. In its null state, a call will not perform any action and will return a default-constructed return value. A delegate behaves like a normal pointer type: it can be copied, compared for equality, called, and compared to `nullptr`. Const correctness is maintained; stored const objects can only be called by const member functions.
-
- A delegate instance can be:
-
- * Copied freely.
- * Compared to same type delegates and `nullptr`.
- * Reassigned.
- * Called.
-
-See [Delegate Invocation Semantics](docs/DETAILS.md#delegate-invocation-semantics) for information on target callable invocation and argument handling based on the delegate type.
-
 # DataBus (DDS Lite)
 
-`dmq::databus::DataBus` is a high-level middleware built on DelegateMQ's core delegates. It provides a topic-based distribution system (similar to a lightweight DDS or MQTT) that works seamlessly across local threads and remote network nodes. Unlike full DDS style systems, DataBus is lightweight enough for small embedded systems and handles thread-safe data delivery to the specified thread of control.
+`dmq::databus::DataBus` is a high-level middleware built on DelegateMQ's core delegates. It provides a type-safe, topic-based distribution system (similar to a lightweight DDS or MQTT) that works seamlessly across local threads and remote network nodes. It requires zero internal library threads and supports Quality of Service (QoS) features like **Last Value Cache (LVC)** to immediately update new subscribers. Unlike full DDS style systems, DataBus is lightweight enough for small embedded systems while ensuring thread-safe data delivery to the exact specified thread of control.
 
-**Key Features:**
-- **Topic-Based**: Components communicate via string-named topics (e.g., "sensor/data").
-- **Location Transparency**: Subscribers don't know if the data came from a local thread or a remote processor.
-- **Unicast & Multicast**: Supports point-to-point reliable delivery (Unicast) or one-to-many "Best Effort" distribution (Multicast).
-- **Quality of Service (QoS)**: Supports Last Value Cache (LVC) to ensure new subscribers receive the most recent data immediately.
-- **Monitoring**: Built-in "spy" support via `dmq::databus::DataBus::Monitor()` to receive a callback for every message published on the bus.
-- **Type Safety**: Runtime type checking ensures topic data types match between publishers and subscribers.
-- **Zero Library Threads**: `dmq::databus::DataBus` creates no internal threads. The application owns a single polling thread that calls `dmq::databus::Participant::ProcessIncoming()` — every thread is visible and under application control.
-- **Mixed-Platform**: Runs unchanged across Linux, FreeRTOS, and bare-metal nodes. Complex topologies (Linux ↔ Ethernet ↔ FreeRTOS ↔ UART ↔ bare metal) are supported.
 
 ```cpp
 #include "DelegateMQ.h"
@@ -253,15 +209,9 @@ auto conn2 = dmq::databus::DataBus::Subscribe<int>("status", [](int s) {
 }, &workerThread, qos);
 ```
 
-# Supported Integrations
-
-* **Operating Systems:** Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, Qt, Bare-metal
-* **Serialization:** [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize)
-* **Transport:** [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer
-
 # DelegateMQ Tools
 
-DelegateMQ includes built-in diagnostic tools for monitoring and inspecting DataBus traffic and network topology in real-time. Three TUI (Terminal User Interface) consoles are provided:
+DelegateMQ includes built-in diagnostic tools for real-time monitoring of DataBus traffic, network topology, and thread performance. These tools operate with **zero impact** on your application via an asynchronous bridge, ensuring monitoring never blocks execution. Built with FTXUI, they provide a responsive, cross-platform terminal dashboard featuring **regex filtering** for instant traffic analysis. Three TUI (Terminal User Interface) consoles are provided:
 
 | Tool | Purpose |
 |------|---------|
@@ -271,13 +221,6 @@ DelegateMQ includes built-in diagnostic tools for monitoring and inspecting Data
 
 <img src="docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;">
 
-**Key Features:**
-- **Live Traffic Feed**: Real-time display of all messages published to the DataBus.
-- **Regex Filtering**: Instantly filter topics using regular expressions to focus on specific data streams.
-- **Node Topology**: See every node on the network — hostname, IP, uptime, message count, and health status.
-- **Thread Performance**: Monitor per-thread health, queue depths, and dispatch latency across all nodes.
-- **Zero Impact**: Uses an asynchronous bridge to ensure monitoring never blocks or slows your application.
-- **Cross-Platform**: Built with [FTXUI](https://github.com/ArthurSonzogni/FTXUI), providing a responsive dashboard in any terminal.
 
 # Modular Architecture
 
@@ -287,26 +230,6 @@ DelegateMQ uses an external thread, transport, and serializer, all of which are 
 *DelegateMQ Layer Diagram*
 
 The library's flexible CMake build options allow for the inclusion of only the necessary features. Synchronous, asynchronous, and remote delegates can be used individually or in combination.
-
-# Documentation
-
- - See [Design Details](docs/DETAILS.md) for design documentation and more examples. 
- - See [Porting Guide](docs/PORTING.md) for platform porting and interface implementation.
- - See [Technology Comparison](docs/COMPARISON.md) for how DelegateMQ compares to DDS, gRPC, Qt signals, Boost.Signals2, `std::async`, and OS message queues.
-
-# Advantages
-
-Key advantages of using DelegateMQ in your application.
-
-| Advantage | Description |
-| --- | --- |
-| One invocation model | Sync, async, and remote delegates share the same `dmq::MakeDelegate` syntax — promoting a call to async or remote is a one-line change. |
-| Runs everywhere C++ runs | Small pure-virtual interfaces (`dmq::IThread`, `dmq::transport::ITransport`) mean the same application code compiles on Windows, Linux, FreeRTOS, and bare metal. |
-| No imposed dependencies | Header-only core requires only C++17; serialization, transport, and threading are injected externally with no mandatory third-party packages. |
-| Application owns every thread | No internal threads are created — every `dmq::os::Thread` is constructed by the application, keeping scheduling, watchdogs, and stack sizes explicit and auditable. |
-| Targeted thread dispatch | Callbacks, signal slots, and DataBus subscribers each specify the thread they run on — the library handles the dispatch, so handlers always execute in the correct thread context without manual queuing. |
-| Off-target development | The stdlib port lets embedded application logic run and be tested on a Windows or Linux host without target hardware; moving to the device swaps the thread port (e.g. FreeRTOS) and transport — application code is unchanged. |
-| DataBus location transparency | Subscribers receive data identically whether the publisher is in the same thread, a different process, or a remote processor — no code change when moving between local and remote. |
 
 # Features
 
@@ -334,14 +257,22 @@ DelegateMQ at a glance.
 | Debug Logging | Debug logging using spdlog C++ logging library |
 | Error Handling | Configurable for return error code, assert or exception |
 | Embedded Friendly | Yes. Any OS such as Windows, Linux and FreeRTOS. An OS is not required (i.e. "super loop"). |
-| Operation System | Any. Custom `dmq::IThread` implementation may be required. |
+| Operating System | Any. Custom `dmq::IThread` implementation may be required. |
 | Language | C++17 or higher |
 
-# Motivation
+# Documentation
 
-Systems are composed of various design patterns or libraries to implement callbacks, asynchronous APIs, and inter-thread or inter-processor communications. These elements typically lack shared commonality. Callbacks are one-off implementations by individual developers, messages between threads rely on OS message queues, and communication libraries handle data transfer complexities. However, the underlying commonality lies in the need to move argument data to the target handler function, regardless of its location.
-
-The DelegateMQ middleware effectively encapsulates all data movement and function invocation within a single library. Whether the target function is a static method, class method, or lambda—residing locally in a separate thread or remotely on a different processor—the library ensures the movement of argument data (marshalling when necessary) and invokes the target function. The low-level details of data movement and function invocation are neatly abstracted from the application layer.
+| Guide | Description | Key Focus |
+| :--- | :--- | :--- |
+| [**Tutorial**](docs/TUTORIAL.md) | Step-by-step system evolution | Adoption & Use Cases |
+| [**Build**](docs/BUILD.md) | Build & configuration guide | CMake & Setup |
+| [**Signals**](docs/SIGNALS.md) | Decoupled event handling | Signal/Slot RAII |
+| [**DataBus**](docs/DATABUS.md) | Topic-based pub/sub middleware | DDS Lite & Networking |
+| [**Design Details**](docs/DETAILS.md) | Deep technical architecture | API Reference |
+| [**Porting Guide**](docs/PORTING.md) | OS & Hardware abstraction | Platform Support |
+| [**Interop**](docs/INTEROP.md) | Multi-language integration | C# & Python |
+| [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards | Spy & Monitor |
+| [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
 
 # Other Projects Using DelegateMQ
 

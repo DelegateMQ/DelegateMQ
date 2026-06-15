@@ -34,7 +34,7 @@ The **Shapes Demo** is a graphical demonstration of the **DelegateMQ DataBus** c
 
 ## DelegateMQ Tools Integration
 
-This project integrates with both **dmq-spy** (DataBus message monitor) and **dmq-monitor** (network node monitor). Both tools are built from `tools/` with `-DDMQ_TOOLS=ON`. See [tools/TOOLS.md](../../../../tools/TOOLS.md) for details.
+This project integrates with both **dmq-spy** (DataBus message monitor) and **dmq-monitor** (network node monitor). Both tools are built from `tools/` with `-DDMQ_TOOLS=ON`. See [tools/TOOLS.md](../../../tools/TOOLS.md) for details.
 
 ### Prerequisites
 

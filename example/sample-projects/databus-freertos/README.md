@@ -143,4 +143,4 @@ The only change needed to move the server from the Win32 simulator to a real Fre
 | `DataBus::Subscribe` | Server, Client | Subscribe a callback to a topic |
 | `DataBus::Publish` | Server, Client | Publish a message to a topic |
 
-See [DelegateMQ DataBus documentation](../../../../docs/DETAILS.md#databus-dds-lite) for full API details.
+See [DelegateMQ DataBus documentation](../../../docs/DATABUS.md) for full API details.

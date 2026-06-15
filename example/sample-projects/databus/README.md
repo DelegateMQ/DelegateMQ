@@ -49,7 +49,7 @@ cmake -B build -DDMQ_DATABUS_TOOLS=ON .
 cmake --build build --config Release
 ```
 
-Once built, start the `dmq-spy` application (built from `tools/` with `-DDMQ_TOOLS=ON`) before running the client/server. See [tools/TOOLS.md](../../../../tools/TOOLS.md) for details.
+Once built, start the `dmq-spy` application (built from `tools/` with `-DDMQ_TOOLS=ON`) before running the client/server. See [tools/TOOLS.md](../../../tools/TOOLS.md) for details.
 
 ## Key Features Shown
 

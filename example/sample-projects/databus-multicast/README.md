@@ -50,7 +50,7 @@ cmake --build build --config Release
 ```
 
 ### Monitoring Multicast Traffic
-Once built, start the `dmq-spy` application (built from `tools/` with `-DDMQ_TOOLS=ON`) using the matching multicast group. See [tools/TOOLS.md](../../../../tools/TOOLS.md) for details.
+Once built, start the `dmq-spy` application (built from `tools/` with `-DDMQ_TOOLS=ON`) using the matching multicast group. See [tools/TOOLS.md](../../../tools/TOOLS.md) for details.
 
 ```bash
 # Start the spy console to join the multicast group

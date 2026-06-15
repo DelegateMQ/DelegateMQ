@@ -10,6 +10,12 @@
   - [Core Concepts](#core-concepts)
   - [System Architecture](#system-architecture)
     - [High-Level View](#high-level-view)
+  - [System Initialization](#system-initialization)
+    - [1. Threading (for Async Subscribers)](#1-threading-for-async-subscribers)
+    - [2. Timer Loop (for QoS Features)](#2-timer-loop-for-qos-features)
+    - [3. Remote Node Polling (for Remote Distribution)](#3-remote-node-polling-for-remote-distribution)
+    - [4. Memory Allocator (Optional)](#4-memory-allocator-optional)
+  - [System Architecture](#system-architecture-1)
     - [DataBus (`dmq::databus::DataBus`)](#databus-dmqdatabusdatabus)
     - [Participant (`dmq::databus::Participant`)](#participant-dmqdatabusparticipant)
     - [Transport (`dmq::transport::ITransport`)](#transport-dmqtransportitransport)
@@ -57,6 +63,8 @@ dmq::databus::DataBus::Publish("sensor/temperature", msg);
 ```
 
 > **Note:** `Subscribe` returns a `dmq::ScopedConnection`. You must store this object (e.g., as a class member); if it goes out of scope, the subscription is automatically removed.
+>
+> **Setup Note:** This quick start assumes the DelegateMQ infrastructure (threads, timers, etc.) is already running. See [System Initialization](#system-initialization) for details.
 
 ## Core Concepts
 
@@ -72,6 +80,42 @@ dmq::databus::DataBus::Publish("sensor/temperature", msg);
 The diagram below illustrates the relationship between the `DataBus`, its local subscribers, and remote participants.
 
 ![DataBus Architecture](DataBusArchitecture.svg)
+
+## System Initialization
+
+Before using the `DataBus`, the underlying DelegateMQ infrastructure must be initialized.
+
+### 1. Threading (for Async Subscribers)
+If you use `Subscribe` with a thread argument, that thread must be created and running.
+```cpp
+dmq::os::Thread workerThread("Worker");
+workerThread.CreateThread();
+// ...
+DataBus::Subscribe<float>("topic", handler, &workerThread);
+```
+
+### 2. Timer Loop (for QoS Features)
+Quality of Service features like **Deadline Monitoring** and **LVC Lifespan** rely on the `dmq::util::Timer` system. You must call `Timer::ProcessTimers()` periodically (e.g., every 1-10ms) from a main loop or dedicated thread.
+```cpp
+while (app_running) {
+    dmq::util::Timer::ProcessTimers();
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+}
+```
+
+### 3. Remote Node Polling (for Remote Distribution)
+The `DataBus` does not create internal threads. To receive data from remote participants, you must manually poll `ProcessIncoming()` on your participant instances or use a helper like `NetworkNode`.
+```cpp
+// participant is a shared_ptr<dmq::databus::Participant>
+while (app_running) {
+    participant->ProcessIncoming();
+}
+```
+
+### 4. Memory Allocator (Optional)
+On embedded systems, you may want to enable the fixed-block allocator (`DMQ_ALLOCATOR`) to prevent heap fragmentation during high-frequency pub/sub.
+
+## Component Reference
 
 ### DataBus (`dmq::databus::DataBus`)
 The central registry. Manages topic-to-signal mappings, the Last Value Cache (LVC), and the participant registry.
@@ -129,7 +173,9 @@ A relay loop occurs when a node re-broadcasts a message back to its originator.
 
 - **Location Transparency**: Same API for inter-thread and inter-node communication.
 - **Type Safety**: Runtime checks prevent mismatched data types on the same topic.
-- **Spy/Monitor**: Capture every message on the bus for diagnostics (see [Tools](../tools/TOOLS.md)).
+- **Spying and Monitoring**: Enable human-readable logs for every message on the bus.
+  - **Stringifiers**: Use `RegisterStringifier<T>(topic, func)` to convert your custom message types into strings.
+  - **Spy Tool**: View real-time traffic using the [Monitor Tool](../tools/TOOLS.md).
 - **Duplicate Protection**: Automatic filtering of redundant network packets.
 
 ## Threading and Performance
