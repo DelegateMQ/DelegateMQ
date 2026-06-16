@@ -42,15 +42,13 @@ void DispatcherTests()
         os << "test data";
         DelegateRemoteId id(100);
 
-        uint16_t nextExpectedSeq = DmqHeader::GetNextSeqNum() + 1;
+        uint16_t expectedSeq = 0;
         int err = dispatcher.Dispatch(os, id);
         
         ASSERT_TRUE(err == 0);
         ASSERT_TRUE(transport.sendCount == 1);
         ASSERT_TRUE(transport.lastId == 100);
-        // Sequence numbers are global/static, so just check it's within a sane range 
-        // or matches what we just fetched.
-        ASSERT_TRUE(transport.lastSeq >= nextExpectedSeq - 1);
+        ASSERT_TRUE(transport.lastSeq == expectedSeq);
     }
 
     // Test RemoteChannel class

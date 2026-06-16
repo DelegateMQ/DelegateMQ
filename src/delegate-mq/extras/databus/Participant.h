@@ -51,8 +51,11 @@ public:
     }
 
     // Process incoming data from the transport.
+    // Must not be called concurrently — m_receiveMutex serializes any such calls.
     // @return The result code from ITransport::Receive.
     int ProcessIncoming() {
+        dmq::LockGuard<dmq::Mutex> receiveLock(m_receiveMutex);
+
         // Clear the stream for reuse to avoid heap growth
         m_inputStream.str("");
         m_inputStream.clear();
@@ -246,6 +249,7 @@ private:
     dmq::transport::ITransport* m_transport;
     dmq::IThread* m_sendThread = nullptr;
     dmq::RecursiveMutex m_mutex;
+    dmq::Mutex m_receiveMutex;
     dmq::xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
     dmq::xmap<dmq::DelegateRemoteId, ChannelInvoker> m_channels;
     dmq::xmap<dmq::DelegateRemoteId, std::type_index> m_channelTypes;

@@ -51,6 +51,7 @@
 #include "Delegate.h"
 #include "IThread.h"
 #include "IInvoker.h"
+#include <atomic>
 #include <tuple>
 
 namespace dmq {
@@ -342,7 +343,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// The delegate message priority
     Priority m_priority = Priority::NORMAL;
@@ -656,7 +657,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// The delegate message priority
     Priority m_priority = Priority::NORMAL;
@@ -899,7 +900,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// The delegate message priority
     Priority m_priority = Priority::NORMAL;
@@ -1154,7 +1155,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// The delegate message priority
     Priority m_priority = Priority::NORMAL;

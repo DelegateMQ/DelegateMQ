@@ -181,8 +181,12 @@ void Thread::ExitThread()
         m_thread = NULL;
 
         if (m_msgq) {
-             osMessageQueueDelete(m_msgq);
-             m_msgq = NULL;
+            ThreadMsg* drainMsg = nullptr;
+            while (osMessageQueueGet(m_msgq, &drainMsg, NULL, 0) == osOK) {
+                delete drainMsg;
+            }
+            osMessageQueueDelete(m_msgq);
+            m_msgq = NULL;
         }
     }
 }

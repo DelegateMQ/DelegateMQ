@@ -191,6 +191,10 @@ void Thread::ExitThread()
         }
 
         if (m_queue) {
+            ThreadMsg* drainMsg = nullptr;
+            while (xQueueReceive(m_queue, &drainMsg, 0) == pdPASS) {
+                delete drainMsg;
+            }
             vQueueDelete(m_queue);
             m_queue = nullptr;
         }

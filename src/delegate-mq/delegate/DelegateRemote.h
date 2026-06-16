@@ -296,74 +296,64 @@ public:
     /// target function. Do not use the return value.
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            if (this->Empty())
-                return RetType();
-
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-        else {
-            if (m_serializer && m_stream) {
+        if (m_serializer && m_stream) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+            // Serialize all target function arguments into a stream
+            m_serializer->Write(*m_stream, std::forward<Args>(args)...);
+            RaiseSuccess(m_id);
+#else
+            try {
                 // Serialize all target function arguments into a stream
                 m_serializer->Write(*m_stream, std::forward<Args>(args)...);
                 RaiseSuccess(m_id);
-#else
-                try {
-                    // Serialize all target function arguments into a stream
-                    m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-                    RaiseSuccess(m_id);
-                }
-                catch (std::exception&) {
-                    RaiseError(m_id, DelegateError::ERR_SERIALIZE);
-                }
+            }
+            catch (std::exception&) {
+                RaiseError(m_id, DelegateError::ERR_SERIALIZE);
+            }
 #endif
 
-                if (!m_stream->good()) {
-                    RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
-                }
-                else {
-                    // Dispatch delegate invocation to the remote destination
-                    if (m_dispatcher) {
+            if (!m_stream->good()) {
+                RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
+            }
+            else {
+                // Dispatch delegate invocation to the remote destination
+                if (m_dispatcher) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+                    int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                    if (error)
+                        RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+#else
+                    try {
                         int error = m_dispatcher->Dispatch(*m_stream, m_id);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
-#else
-                        try {
-                            int error = m_dispatcher->Dispatch(*m_stream, m_id);
-                            if (error)
-                                RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
-                        }
-                        catch (std::exception&) {
-                            RaiseError(m_id, DelegateError::ERR_DISPATCH);
-                        }
+                    }
+                    catch (std::exception&) {
+                        RaiseError(m_id, DelegateError::ERR_DISPATCH);
+                    }
 #endif
-                    }
-                    else {
-                        RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
-                    }
                 }
-
+                else {
+                    RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
+                }
             }
 
-            // Do not wait for remote to invoke function call
-            return RetType();
-
-            // Check if any argument is a shared_ptr with wrong usage
-            // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-            // undefined. In other words:
-            // void MyFunc(std::shared_ptr<T> data)		// Ok!
-            // void MyFunc(std::shared_ptr<T>& data)	// Error
-            static_assert(!(
-                std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-                "std::shared_ptr reference argument not allowed");
-
-            static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
-                "Double pointer arguments (Arg**) are not allowed on remote delegates");
         }
+
+        // Do not wait for remote to invoke function call
+        return RetType();
+
+        // Check if any argument is a shared_ptr with wrong usage
+        // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
+        // undefined. In other words:
+        // void MyFunc(std::shared_ptr<T> data)		// Ok!
+        // void MyFunc(std::shared_ptr<T>& data)	// Error
+        static_assert(!(
+            std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+            "std::shared_ptr reference argument not allowed");
+
+        static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
+            "Double pointer arguments (Arg**) are not allowed on remote delegates");
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -392,9 +382,6 @@ public:
             return false;
         }
 
-        // Invoke the delegate function synchronously
-        m_sync = true;
-
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
         if constexpr (ArgCnt::value == 0) {
             BaseType::operator()();
@@ -412,7 +399,7 @@ public:
 
                 if (!is.bad() && !is.fail()) {
                     // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
-                    this->operator()(rArgs.Get()...);
+                    this->BaseType::operator()(rArgs.Get()...);
                 }
                 else {
                     this->RaiseError(m_id, DelegateError::ERR_DESERIALIZE);
@@ -438,7 +425,7 @@ public:
 
                     if (!is.bad() && !is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
-                        this->operator()(rArgs.Get()...);
+                        this->BaseType::operator()(rArgs.Get()...);
                     }
                     else {
                         this->RaiseError(m_id, DelegateError::ERR_DESERIALIZE);
@@ -549,9 +536,6 @@ private:
 
     /// A pointer to the function argument serializer
     ISerializer<RetType(Args...)>* m_serializer = nullptr;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
 
     /// The error detected
     DelegateError m_error = DelegateError::SUCCESS;
@@ -793,74 +777,64 @@ public:
     /// target function. Do not use the return value.
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            if (this->Empty())
-                return RetType();
-
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-        else {
-            if (m_serializer && m_stream) {
+        if (m_serializer && m_stream) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+            // Serialize all target function arguments into a stream
+            m_serializer->Write(*m_stream, std::forward<Args>(args)...);
+            RaiseSuccess(m_id);
+#else
+            try {
                 // Serialize all target function arguments into a stream
                 m_serializer->Write(*m_stream, std::forward<Args>(args)...);
                 RaiseSuccess(m_id);
-#else
-                try {
-                    // Serialize all target function arguments into a stream
-                    m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-                    RaiseSuccess(m_id);
-                }
-                catch (std::exception&) {
-                    RaiseError(m_id, DelegateError::ERR_SERIALIZE);
-                }
+            }
+            catch (std::exception&) {
+                RaiseError(m_id, DelegateError::ERR_SERIALIZE);
+            }
 #endif
 
-                if (!m_stream->good()) {
-                    RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
-                }
-                else {
-                    // Dispatch delegate invocation to the remote destination
-                    if (m_dispatcher) {
+            if (!m_stream->good()) {
+                RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
+            }
+            else {
+                // Dispatch delegate invocation to the remote destination
+                if (m_dispatcher) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+                    int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                    if (error)
+                        RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+#else
+                    try {
                         int error = m_dispatcher->Dispatch(*m_stream, m_id);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
-#else
-                        try {
-                            int error = m_dispatcher->Dispatch(*m_stream, m_id);
-                            if (error)
-                                RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
-                        }
-                        catch (std::exception&) {
-                            RaiseError(m_id, DelegateError::ERR_DISPATCH);
-                        }
+                    }
+                    catch (std::exception&) {
+                        RaiseError(m_id, DelegateError::ERR_DISPATCH);
+                    }
 #endif
-                    }
-                    else {
-                        RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
-                    }
                 }
-
+                else {
+                    RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
+                }
             }
 
-            // Do not wait for remote to invoke function call
-            return RetType();
-
-            // Check if any argument is a shared_ptr with wrong usage
-            // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-            // undefined. In other words:
-            // void MyFunc(std::shared_ptr<T> data)		// Ok!
-            // void MyFunc(std::shared_ptr<T>& data)	// Error
-            static_assert(!(
-                std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-                "std::shared_ptr reference argument not allowed");
-
-            static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
-                "Double pointer arguments (Arg**) are not allowed on remote delegates");
         }
+
+        // Do not wait for remote to invoke function call
+        return RetType();
+
+        // Check if any argument is a shared_ptr with wrong usage
+        // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
+        // undefined. In other words:
+        // void MyFunc(std::shared_ptr<T> data)		// Ok!
+        // void MyFunc(std::shared_ptr<T>& data)	// Error
+        static_assert(!(
+            std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+            "std::shared_ptr reference argument not allowed");
+
+        static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
+            "Double pointer arguments (Arg**) are not allowed on remote delegates");
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -889,9 +863,6 @@ public:
             return false;
         }
 
-        // Invoke the delegate function synchronously
-        m_sync = true;
-
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
         if constexpr (ArgCnt::value == 0) {
             BaseType::operator()();
@@ -909,7 +880,7 @@ public:
 
                 if (!is.bad() && !is.fail()) {
                     // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
-                    this->operator()(rArgs.Get()...);
+                    this->BaseType::operator()(rArgs.Get()...);
                 }
                 else {
                     this->RaiseError(m_id, DelegateError::ERR_DESERIALIZE);
@@ -935,7 +906,7 @@ public:
 
                     if (!is.bad() && !is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
-                        this->operator()(rArgs.Get()...);
+                        this->BaseType::operator()(rArgs.Get()...);
                     }
                     else {
                         this->RaiseError(m_id, DelegateError::ERR_DESERIALIZE);
@@ -1046,9 +1017,6 @@ private:
 
     /// A pointer to the function argument serializer
     ISerializer<RetType(Args...)>* m_serializer = nullptr;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
 
     /// The error detected
     DelegateError m_error = DelegateError::SUCCESS;
@@ -1230,74 +1198,64 @@ public:
     /// target function. Do not use the return value.
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            if (this->Empty())
-                return RetType();
-
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-        else {
-            if (m_serializer && m_stream) {
+        if (m_serializer && m_stream) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+            // Serialize all target function arguments into a stream
+            m_serializer->Write(*m_stream, std::forward<Args>(args)...);
+            RaiseSuccess(m_id);
+#else
+            try {
                 // Serialize all target function arguments into a stream
                 m_serializer->Write(*m_stream, std::forward<Args>(args)...);
                 RaiseSuccess(m_id);
-#else
-                try {
-                    // Serialize all target function arguments into a stream
-                    m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-                    RaiseSuccess(m_id);
-                }
-                catch (std::exception&) {
-                    RaiseError(m_id, DelegateError::ERR_SERIALIZE);
-                }
+            }
+            catch (std::exception&) {
+                RaiseError(m_id, DelegateError::ERR_SERIALIZE);
+            }
 #endif
 
-                if (!m_stream->good()) {
-                    RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
-                }
-                else {
-                    // Dispatch delegate invocation to the remote destination
-                    if (m_dispatcher) {
+            if (!m_stream->good()) {
+                RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
+            }
+            else {
+                // Dispatch delegate invocation to the remote destination
+                if (m_dispatcher) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+                    int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                    if (error)
+                        RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+#else
+                    try {
                         int error = m_dispatcher->Dispatch(*m_stream, m_id);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
-#else
-                        try {
-                            int error = m_dispatcher->Dispatch(*m_stream, m_id);
-                            if (error)
-                                RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
-                        }
-                        catch (std::exception&) {
-                            RaiseError(m_id, DelegateError::ERR_DISPATCH);
-                        }
+                    }
+                    catch (std::exception&) {
+                        RaiseError(m_id, DelegateError::ERR_DISPATCH);
+                    }
 #endif
-                    }
-                    else {
-                        RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
-                    }
                 }
-
+                else {
+                    RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
+                }
             }
 
-            // Do not wait for remote to invoke function call
-            return RetType();
-
-            // Check if any argument is a shared_ptr with wrong usage
-            // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-            // undefined. In other words:
-            // void MyFunc(std::shared_ptr<T> data)		// Ok!
-            // void MyFunc(std::shared_ptr<T>& data)	// Error
-            static_assert(!(
-                std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-                "std::shared_ptr reference argument not allowed");
-
-            static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
-                "Double pointer arguments (Arg**) are not allowed on remote delegates");
         }
+
+        // Do not wait for remote to invoke function call
+        return RetType();
+
+        // Check if any argument is a shared_ptr with wrong usage
+        // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
+        // undefined. In other words:
+        // void MyFunc(std::shared_ptr<T> data)		// Ok!
+        // void MyFunc(std::shared_ptr<T>& data)	// Error
+        static_assert(!(
+            std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+            "std::shared_ptr reference argument not allowed");
+
+        static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
+            "Double pointer arguments (Arg**) are not allowed on remote delegates");
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -1326,9 +1284,6 @@ public:
             return false;
         }
 
-        // Invoke the delegate function synchronously
-        m_sync = true;
-
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
         if constexpr (ArgCnt::value == 0) {
             BaseType::operator()();
@@ -1346,7 +1301,7 @@ public:
 
                 if (!is.bad() && !is.fail()) {
                     // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
-                    this->operator()(rArgs.Get()...);
+                    this->BaseType::operator()(rArgs.Get()...);
                 }
                 else {
                     this->RaiseError(m_id, DelegateError::ERR_DESERIALIZE);
@@ -1372,7 +1327,7 @@ public:
 
                     if (!is.bad() && !is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
-                        this->operator()(rArgs.Get()...);
+                        this->BaseType::operator()(rArgs.Get()...);
                     }
                     else {
                         this->RaiseError(m_id, DelegateError::ERR_DESERIALIZE);
@@ -1483,9 +1438,6 @@ private:
 
     /// A pointer to the function argument serializer
     ISerializer<RetType(Args...)>* m_serializer = nullptr;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
 
     /// The error detected
     DelegateError m_error = DelegateError::SUCCESS;

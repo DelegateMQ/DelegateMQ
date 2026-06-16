@@ -114,8 +114,8 @@ T nexthigher(T k)
 
 static dmq::Mutex& get_mutex()
 {
-	static dmq::Mutex _mutex;
-	return _mutex;
+	static dmq::Mutex* _mutex = new dmq::Mutex();
+	return *_mutex;
 }
 
 #ifdef CHECK_ALIGNMENT

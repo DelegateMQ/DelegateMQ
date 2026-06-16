@@ -26,6 +26,7 @@
 #include "delegate/IDispatcher.h"
 #include "port/transport/DmqHeader.h"
 #include "port/transport/ITransport.h"
+#include <atomic>
 #include <sstream>
 
 namespace dmq {
@@ -50,7 +51,7 @@ public:
 
         if (m_transport)
         {
-            transport::DmqHeader header(id, transport::DmqHeader::GetNextSeqNum());
+            transport::DmqHeader header(id, m_seqNum.fetch_add(1));
             int err = m_transport->Send(*ss, header);
 
             // Reset the stream content and error state for the next use.
@@ -66,6 +67,7 @@ public:
 
 private:
     transport::ITransport* m_transport = nullptr;
+    std::atomic<uint16_t> m_seqNum{0};
 };
 
 } // namespace dmq

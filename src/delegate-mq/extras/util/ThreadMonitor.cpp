@@ -53,6 +53,7 @@ void ThreadMonitor::Disable() {
     auto& instance = GetInstance();
     if (!instance.m_enabled.exchange(false)) return;
 
+    dmq::LockGuard<dmq::Mutex> lock(instance.m_mutex);
     if (instance.m_monitorThread) {
         instance.m_monitorThread->ExitThread();
         instance.m_monitorThread.reset();
@@ -98,6 +99,8 @@ void ThreadMonitor::MonitorLoop() {
 
     if (m_enabled) {
         dmq::os::Thread::Sleep(std::chrono::seconds(2));
+        
+        dmq::LockGuard<dmq::Mutex> lock(m_mutex);
         if (m_enabled && m_monitorThread.has_value())
             (void)dmq::MakeDelegate(this, &ThreadMonitor::MonitorLoop, *m_monitorThread).AsyncInvoke();
     }

@@ -6,7 +6,6 @@
 /// David Lafreniere, 2025.
 
 #include <cstdint>
-#include <atomic>
 
 namespace dmq::transport {
 
@@ -42,13 +41,6 @@ public:
     void SetSeqNum(uint16_t seqNum) { m_seqNum = seqNum; }
     void SetMarker(uint16_t marker) { m_marker = marker; }
     void SetLength(uint16_t length) { m_length = length; }
-
-    // Thread-safe sequence number generation
-    static uint16_t GetNextSeqNum()
-    {
-        static std::atomic<uint16_t> seqNum(0);
-        return seqNum.fetch_add(1);
-    }
 
 private:
     uint16_t m_marker = MARKER;          // Static marker value

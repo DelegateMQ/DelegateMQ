@@ -61,6 +61,7 @@
 #include "Semaphore.h"
 #include "IThread.h"
 #include "IInvoker.h"
+#include <atomic>
 #include <optional>
 #include <any>
 #include <chrono>
@@ -338,24 +339,23 @@ public:
                 BAD_ALLOC();
             msg->SetInvokerWaiting(true);
 
+            bool waited = false;
             auto thread = this->GetThread();
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
                 if (thread->DispatchDelegate(msg)) {
                     // Wait for destination thread to execute the delegate function and get return value
-                    if (msg->GetSema().Wait(m_timeout)) {
-                        // Wait succeeded. Now acquire lock to safely read the value.
-                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                        m_success = true;
-                        m_retVal = delegate->m_retVal;
-                    }
+                    waited = msg->GetSema().Wait(m_timeout);
                 }
             }
 
-            // Protect data shared between source and destination threads
+            // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
-
+            if (waited) {
+                m_success = true;
+                m_retVal = delegate->m_retVal;
+            }
             // Set flag that source is not waiting anymore
             msg->SetInvokerWaiting(false);
 
@@ -477,7 +477,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// Set to `true` if async function call succeeds
     bool m_success = false;			        
@@ -774,24 +774,23 @@ public:
                 BAD_ALLOC();
             msg->SetInvokerWaiting(true);
 
+            bool waited = false;
             auto thread = this->GetThread();
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
                 if (thread->DispatchDelegate(msg)) {
                     // Wait for destination thread to execute the delegate function and get return value
-                    if (msg->GetSema().Wait(m_timeout)) {
-                        // Wait succeeded. Now acquire lock to safely read the value.
-                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                        m_success = true;
-                        m_retVal = delegate->m_retVal;
-                    }
+                    waited = msg->GetSema().Wait(m_timeout);
                 }
             }
 
-            // Protect data shared between source and destination threads
+            // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
-
+            if (waited) {
+                m_success = true;
+                m_retVal = delegate->m_retVal;
+            }
             // Set flag that source is not waiting anymore
             msg->SetInvokerWaiting(false);
 
@@ -913,7 +912,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// Set to `true` if async function call succeeds
     bool m_success = false;			        
@@ -1127,24 +1126,23 @@ public:
                 BAD_ALLOC();
             msg->SetInvokerWaiting(true);
 
+            bool waited = false;
             auto thread = this->GetThread();
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
                 if (thread->DispatchDelegate(msg)) {
                     // Wait for destination thread to execute the delegate function and get return value
-                    if (msg->GetSema().Wait(m_timeout)) {
-                        // Wait succeeded. Now acquire lock to safely read the value.
-                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                        m_success = true;
-                        m_retVal = delegate->m_retVal;
-                    }
+                    waited = msg->GetSema().Wait(m_timeout);
                 }
             }
 
-            // Protect data shared between source and destination threads
+            // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
-
+            if (waited) {
+                m_success = true;
+                m_retVal = delegate->m_retVal;
+            }
             // Set flag that source is not waiting anymore
             msg->SetInvokerWaiting(false);
 
@@ -1266,7 +1264,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// Set to `true` if async function call succeeds
     bool m_success = false;			        
@@ -1482,24 +1480,23 @@ public:
                 BAD_ALLOC();
             msg->SetInvokerWaiting(true);
 
+            bool waited = false;
             auto thread = this->GetThread();
             if (thread) {
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destination thread. 
                 if (thread->DispatchDelegate(msg)) {
                     // Wait for destination thread to execute the delegate function and get return value
-                    if (msg->GetSema().Wait(m_timeout)) {
-                        // Wait succeeded. Now acquire lock to safely read the value.
-                        const dmq::LockGuard<Mutex> lock(msg->GetLock());
-                        m_success = true;
-                        m_retVal = delegate->m_retVal;
-                    }
+                    waited = msg->GetSema().Wait(m_timeout);
                 }
             }
 
-            // Protect data shared between source and destination threads
+            // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
-
+            if (waited) {
+                m_success = true;
+                m_retVal = delegate->m_retVal;
+            }
             // Set flag that source is not waiting anymore
             msg->SetInvokerWaiting(false);
 
@@ -1621,7 +1618,7 @@ private:
     IThread* m_thread = nullptr;
 
     /// Flag to control synchronous vs asynchronous target invoke behavior.
-    bool m_sync = false;
+    std::atomic<bool> m_sync{false};
 
     /// Set to `true` if async function call succeeds
     bool m_success = false;			        
