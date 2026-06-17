@@ -11,8 +11,8 @@
 DelegateMQ is a modular C++ messaging library with a header-only core. It provides a unified, thread-safe API for invoking any callable (e.g., function, method, lambda) across different execution contexts:
 
 * **Synchronous & Asynchronous:** Local thread-safe callbacks, blocking or fire-and-forget.
-* **Signal / Slot:** Decoupled, multicast event handling.
-* **DataBus (DDS Lite):** Topic-based publish/subscribe data distribution.
+* **Signal / Slot:** Decoupled, multicast event handling with built-in async support.
+* **DataBus (DDS Lite):** Topic-based publish/subscribe with thread-safe async data distribution.
 * **Remote:** Inter-process (IPC) and inter-processor communication over any transport.
 
 The library is unit-tested, built for portability (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.
@@ -30,11 +30,11 @@ Key advantages of using DelegateMQ in your application.
 | Advantage | Description |
 | --- | --- |
 | One invocation model | Sync, async, and remote delegates share the same `dmq::MakeDelegate` syntax — promoting a call to async or remote is a one-line change. |
+| Targeted thread dispatch | Callbacks, signal slots, and DataBus subscribers each specify the thread they run on — the library handles the dispatch, so handlers always execute in the correct thread context without manual queuing. |
 | Pay for what you use | Completely modular architecture. Use only the features you need (e.g., basic synchronous delegates) without the overhead of asynchronous or remote features. |
 | Runs everywhere C++ runs | Small pure-virtual interfaces (`dmq::IThread`, `dmq::transport::ITransport`) mean the same application code compiles on Windows, Linux, FreeRTOS, and bare metal. |
 | No imposed dependencies | Header-only core requires only C++17; serialization, transport, and threading are injected externally with no mandatory third-party packages. |
 | Application owns every thread | No internal threads are created — every `dmq::os::Thread` is constructed by the application, keeping scheduling, watchdogs, and stack sizes explicit and auditable. |
-| Targeted thread dispatch | Callbacks, signal slots, and DataBus subscribers each specify the thread they run on — the library handles the dispatch, so handlers always execute in the correct thread context without manual queuing. |
 | Off-target development | The stdlib port lets embedded application logic run and be tested on a Windows or Linux host without target hardware; moving to the device swaps the thread port (e.g. FreeRTOS) and transport — application code is unchanged. |
 | DataBus location transparency | Subscribers receive data identically whether the publisher is in the same thread, a different process, or a remote processor — no code change when moving between local and remote. |
 
@@ -146,7 +146,7 @@ if (retVal.has_value())     // Async invoke completed within 1 second?
 
 ## Signal / Slot
 
-`dmq::Signal<Sig>` is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently, on whichever thread chosen at connect time. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects when it goes out of scope — no manual unsubscribe needed.
+`dmq::Signal<Sig>` is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently. **Crucially, DelegateMQ signals support both synchronous and asynchronous dispatch**, meaning slots can be executed in the caller's context or automatically queued onto a target worker thread chosen at connect time. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects when it goes out of scope — no manual unsubscribe needed.
 
 Declare the signal as a plain class member — no `shared_ptr` or heap allocation required:
 
@@ -194,7 +194,9 @@ btn.Press(2);       // safe: no subscribers, nothing happens
 
 # DataBus (DDS Lite)
 
-`dmq::databus::DataBus` is a high-level middleware built on DelegateMQ's core delegates. It provides a type-safe, topic-based distribution system (similar to a lightweight DDS or MQTT) that works seamlessly across local threads and remote network nodes. It requires zero internal library threads and supports Quality of Service (QoS) features like **Last Value Cache (LVC)** to immediately update new subscribers. Unlike full DDS style systems, DataBus is lightweight enough for small embedded systems while ensuring thread-safe data delivery to the exact specified thread of control.
+`dmq::databus::DataBus` is a high-level middleware built on DelegateMQ's core delegates. It provides a type-safe, topic-based distribution system (similar to a lightweight DDS or MQTT) that works seamlessly across local threads and remote network nodes. **A key differentiator is thread-targeted distribution: subscribers specify exactly which thread receives the data, ensuring thread-safe delivery to the correct context without manual queuing or synchronization.** 
+
+It requires zero internal library threads and supports Quality of Service (QoS) features like **Last Value Cache (LVC)** to immediately update new subscribers. Unlike full DDS style systems, DataBus is lightweight enough for small embedded systems while maintaining location transparency across threads, processes, and processors.
 
 
 ```cpp
