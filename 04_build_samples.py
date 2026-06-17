@@ -122,7 +122,7 @@ def build_project(build_dir, label):
     if not os.path.isdir(build_dir):
         return False, f"Build directory not found: {build_dir}"
 
-    cmd = ["cmake", "--build", build_dir, "--config", BUILD_CONFIG]
+    cmd = ["cmake", "--build", build_dir, "--config", BUILD_CONFIG, "--parallel"]
     try:
         result = subprocess.run(
             cmd,

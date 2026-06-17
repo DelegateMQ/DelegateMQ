@@ -125,12 +125,12 @@ def build_deps():
             
             # 4. Build & Install RELEASE
             print(f"    [BUILD] Release...")
-            subprocess.run(["cmake", "--build", "build", "--config", "Release"], cwd=source_dir, check=True)
+            subprocess.run(["cmake", "--build", "build", "--config", "Release", "--parallel"], cwd=source_dir, check=True)
             subprocess.run(["cmake", "--install", "build", "--config", "Release"], cwd=source_dir, check=True)
 
             # 5. Build & Install DEBUG
             print(f"    [BUILD] Debug...")
-            subprocess.run(["cmake", "--build", "build", "--config", "Debug"], cwd=source_dir, check=True)
+            subprocess.run(["cmake", "--build", "build", "--config", "Debug", "--parallel"], cwd=source_dir, check=True)
             subprocess.run(["cmake", "--install", "build", "--config", "Debug"], cwd=source_dir, check=True)
 
             print(f"    Success!\n")
