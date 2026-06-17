@@ -455,7 +455,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.cpu_name = CPU_NAME;
     stats.thread_name = THREAD_NAME;
     stats.queue_depth = GetQueueSize();
-    stats.queue_depth_max_window = m_queueDepthMaxWindow.exchange(stats.queue_depth);
+    stats.queue_depth_max_window = m_queueDepthMaxWindow.exchange(0);
     stats.queue_depth_max_all = m_queueDepthMaxAll.load();
     stats.queue_size_limit = m_queueSize;
     

@@ -386,7 +386,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.dispatch_count = m_dispatchCountAll;
 
     // Reset windowed stats
-    m_queueDepthMaxWindow = stats.queue_depth;
+    m_queueDepthMaxWindow = 0;
     m_latencyTotalWindow = Duration(0);
     m_latencyCountWindow = 0;
     m_latencyMaxWindow = Duration(0);
