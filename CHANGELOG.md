@@ -7,7 +7,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
-## [Unreleased]
+## [2.0.0] - 2026-06-17
 
 ### Fixed
 - **ThreadMonitor deadlock** — `Disable()` no longer holds `m_mutex` while joining the monitor thread; `MonitorLoop` acquires that mutex after its sleep, causing a deadlock in the prior implementation.
