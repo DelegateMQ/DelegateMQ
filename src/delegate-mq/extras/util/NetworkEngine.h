@@ -168,7 +168,7 @@ public:
                 [state, remoteId](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
                 if (id == remoteId) {
                     {
-                        std::lock_guard<dmq::Mutex> lock(state->mtx);
+                        dmq::LockGuard<dmq::Mutex> lock(state->mtx);
                         state->complete = true;
                         if (status == TransportMonitor::Status::SUCCESS)
                             state->success.store(true);
@@ -240,7 +240,7 @@ public:
                 [state, remoteId](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
                 if (id == remoteId) {
                     {
-                        std::lock_guard<dmq::Mutex> lock(state->mtx);
+                        dmq::LockGuard<dmq::Mutex> lock(state->mtx);
                         state->complete = true;
                         if (status == TransportMonitor::Status::SUCCESS)
                             state->success.store(true);
@@ -350,7 +350,7 @@ private:
     dmq::transport::SerialTransport& m_sendTransport;
     dmq::transport::SerialTransport& m_recvTransport;
 
-    Reliability Layers
+    // Reliability Layers
     RetryMonitor m_retryMonitor;
     ReliableTransport m_reliableTransport;
     #endif

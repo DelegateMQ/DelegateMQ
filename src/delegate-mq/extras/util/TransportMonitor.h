@@ -57,7 +57,7 @@ public:
 
     ~TransportMonitor()
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
         m_pending.clear();
     }
 
@@ -70,7 +70,7 @@ public:
         size_t capSize = 0;
         uint32_t key = (static_cast<uint32_t>(remoteId) << 16) | seqNum;
         {
-            const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
 
             if (m_pending.size() >= dmq::MAX_TRANSPORT_MONITOR_PENDING) {
                 capSize = m_pending.size();
@@ -103,7 +103,7 @@ public:
         uint32_t key = (static_cast<uint32_t>(remoteId) << 16) | seqNum;
         
         {
-            const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
             
             if (remoteId != 0) {
                 // Exact composite key lookup
@@ -148,7 +148,7 @@ public:
 
             {
                 // Lock ONLY while reading/modifying the map
-                const std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+                const dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
 
                 if (m_pending.empty())
                     return;
