@@ -7,5 +7,6 @@ var searchData=
   ['cmsis_2drtos2_2fthreadmsg_2eh_4',['ThreadMsg.h',['../cmsis-rtos2_2_thread_msg_8h.html',1,'']]],
   ['cmsisrtos2clock_2eh_5',['CmsisRtos2Clock.h',['../_cmsis_rtos2_clock_8h.html',1,'']]],
   ['cmsisrtos2mutex_2eh_6',['CmsisRtos2Mutex.h',['../_cmsis_rtos2_mutex_8h.html',1,'']]],
-  ['crc16_2eh_7',['crc16.h',['../crc16_8h.html',1,'']]]
+  ['comparison_2emd_7',['COMPARISON.md',['../_c_o_m_p_a_r_i_s_o_n_8md.html',1,'']]],
+  ['crc16_2eh_8',['crc16.h',['../crc16_8h.html',1,'']]]
 ];

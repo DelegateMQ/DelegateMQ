@@ -98,7 +98,8 @@ $(function(){initNavTree('namespacedmq_1_1databus.html',''); initResizable(true)
 <div class="header">
   <div class="summary">
 <a href="#namespaces">Namespaces</a> &#124;
-<a href="#nested-classes">Classes</a>  </div>
+<a href="#nested-classes">Classes</a> &#124;
+<a href="#enum-members">Enumerations</a>  </div>
   <div class="headertitle"><div class="title">dmq::databus Namespace Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -114,6 +115,9 @@ Classes</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1databus_1_1_deadline_subscription.html">DeadlineSubscription</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1databus_1_1_network_node.html">NetworkNode</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Generic multi-peer <a class="el" href="classdmq_1_1databus_1_1_data_bus.html">DataBus</a> network node.  <a href="classdmq_1_1databus_1_1_network_node.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1databus_1_1_participant.html">Participant</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdmq_1_1databus_1_1_qo_s.html">QoS</a></td></tr>
@@ -121,7 +125,46 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdmq_1_1databus_1_1_spy_packet.html">SpyPacket</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Standardized packet containing bus traffic metadata.  <a href="structdmq_1_1databus_1_1_spy_packet.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:a7863c83fe29d8204e928b05ad1c071b0" id="r_a7863c83fe29d8204e928b05ad1c071b0"><td class="memItemLeft" align="right" valign="top">enum class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a7863c83fe29d8204e928b05ad1c071b0">Reliability</a> { <a class="el" href="#a7863c83fe29d8204e928b05ad1c071b0a6e257e645974b9086ed66e9465e2d80c">UNRELIABLE</a>
+, <a class="el" href="#a7863c83fe29d8204e928b05ad1c071b0a3c0c113c879f25b37ebc8ca386e65ea4">RELIABLE</a>
+ }</td></tr>
+<tr class="memdesc:a7863c83fe29d8204e928b05ad1c071b0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reliability tier for outgoing topics registered via NetworkNode::Send().  <a href="#a7863c83fe29d8204e928b05ad1c071b0">More...</a><br /></td></tr>
+<tr class="separator:a7863c83fe29d8204e928b05ad1c071b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="a7863c83fe29d8204e928b05ad1c071b0" name="a7863c83fe29d8204e928b05ad1c071b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7863c83fe29d8204e928b05ad1c071b0">&#9670;&#160;</a></span>Reliability</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum class <a class="el" href="#a7863c83fe29d8204e928b05ad1c071b0">dmq::databus::Reliability</a></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">strong</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Reliability tier for outgoing topics registered via <a class="el" href="classdmq_1_1databus_1_1_network_node.html#a671db243ab2ba10c0f44426ca51b5be8" title="Register a topic this node publishes to all peers.">NetworkNode::Send()</a>. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a7863c83fe29d8204e928b05ad1c071b0a6e257e645974b9086ed66e9465e2d80c" name="a7863c83fe29d8204e928b05ad1c071b0a6e257e645974b9086ed66e9465e2d80c"></a>UNRELIABLE&#160;</td><td class="fielddoc"><p>Raw transport send — no ACK, no retry. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="a7863c83fe29d8204e928b05ad1c071b0a3c0c113c879f25b37ebc8ca386e65ea4" name="a7863c83fe29d8204e928b05ad1c071b0a3c0c113c879f25b37ebc8ca386e65ea4"></a>RELIABLE&#160;</td><td class="fielddoc"><p>Transport send with ACK and automatic retry (RetryMonitor stack). </p>
+</td></tr>
+</table>
+
+</div>
+</div>
 </div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

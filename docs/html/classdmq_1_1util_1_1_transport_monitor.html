@@ -134,6 +134,8 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:aa3f63b25c4b0bcb35ce25be3fd77d11b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae15434515a50fe14453225cf53231942" id="r_ae15434515a50fe14453225cf53231942"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae15434515a50fe14453225cf53231942">Add</a> (uint16_t seqNum, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId) override</td></tr>
 <tr class="separator:ae15434515a50fe14453225cf53231942"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5ea6ada70c31a30a76e2215db7cd3ea2" id="r_a5ea6ada70c31a30a76e2215db7cd3ea2"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5ea6ada70c31a30a76e2215db7cd3ea2">Remove</a> (uint16_t seqNum, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId=0)</td></tr>
+<tr class="separator:a5ea6ada70c31a30a76e2215db7cd3ea2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9465bd0d6f1f17911ced763a6f818af7" id="r_a9465bd0d6f1f17911ced763a6f818af7"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9465bd0d6f1f17911ced763a6f818af7">Remove</a> (uint16_t seqNum) override</td></tr>
 <tr class="separator:a9465bd0d6f1f17911ced763a6f818af7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a758a199012f1508a7ebab992e3e2f124" id="r_a758a199012f1508a7ebab992e3e2f124"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a758a199012f1508a7ebab992e3e2f124">Process</a> ()</td></tr>
@@ -296,7 +298,7 @@ Public Attributes</h2></td></tr>
 </div>
 </div>
 <a id="a9465bd0d6f1f17911ced763a6f818af7" name="a9465bd0d6f1f17911ced763a6f818af7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9465bd0d6f1f17911ced763a6f818af7">&#9670;&#160;</a></span>Remove()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#a9465bd0d6f1f17911ced763a6f818af7">&#9670;&#160;</a></span>Remove() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -317,9 +319,39 @@ Public Attributes</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-<p>Remove a sequence number. Invokes SendStatusCb callback to notify registered client of removal. param[in] seqNum - the delegate message sequence number </p>
+<p>Remove a sequence number param[in] seqNum - the message sequence number </p>
 
 <p>Implements <a class="el" href="classdmq_1_1transport_1_1_i_transport_monitor.html#ad5f5ff93cb459bde9e90570541937cba">dmq::transport::ITransportMonitor</a>.</p>
+
+</div>
+</div>
+<a id="a5ea6ada70c31a30a76e2215db7cd3ea2" name="a5ea6ada70c31a30a76e2215db7cd3ea2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5ea6ada70c31a30a76e2215db7cd3ea2">&#9670;&#160;</a></span>Remove() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">virtual void dmq::util::TransportMonitor::Remove </td>
+          <td>(</td>
+          <td class="paramtype">uint16_t</td>          <td class="paramname"><span class="paramname"><em>seqNum</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em>remoteId</em></span><span class="paramdefsep"> = </span><span class="paramdefval">0</span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<p>Remove a sequence number. Invokes SendStatusCb callback to notify registered client of removal. param[in] seqNum - the delegate message sequence number param[in] remoteId - the remote ID (default 0 for backwards compatibility, but strongly recommended) </p>
 
 </div>
 </div>

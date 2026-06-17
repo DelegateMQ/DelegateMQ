@@ -124,6 +124,9 @@ Static Public Member Functions</h2></td></tr>
 <tr class="memitem:aa3bf6e47e1842821fd00fbeb6bc9f892" id="r_aa3bf6e47e1842821fd00fbeb6bc9f892"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:aa3bf6e47e1842821fd00fbeb6bc9f892"><td class="memTemplItemLeft" align="right" valign="top">static void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aa3bf6e47e1842821fd00fbeb6bc9f892">RegisterSerializer</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; &amp;serializer)</td></tr>
 <tr class="separator:aa3bf6e47e1842821fd00fbeb6bc9f892"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae0cc204572b8b002348ebc5db53a245e" id="r_ae0cc204572b8b002348ebc5db53a245e"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
+<tr class="memitem:ae0cc204572b8b002348ebc5db53a245e"><td class="memTemplItemLeft" align="right" valign="top">static void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ae0cc204572b8b002348ebc5db53a245e">RegisterSerializer</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, std::shared_ptr&lt; <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; &gt; serializer)</td></tr>
+<tr class="separator:ae0cc204572b8b002348ebc5db53a245e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0931eab0cf5a554bf29523b891e86b6f" id="r_a0931eab0cf5a554bf29523b891e86b6f"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:a0931eab0cf5a554bf29523b891e86b6f"><td class="memTemplItemLeft" align="right" valign="top">static void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a0931eab0cf5a554bf29523b891e86b6f">AddIncomingTopic</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> remoteId, <a class="el" href="classdmq_1_1databus_1_1_participant.html">Participant</a> &amp;participant, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; &amp;serializer)</td></tr>
 <tr class="separator:a0931eab0cf5a554bf29523b891e86b6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -385,7 +388,7 @@ template&lt;typename T &gt; </div>
 </div>
 </div>
 <a id="aa3bf6e47e1842821fd00fbeb6bc9f892" name="aa3bf6e47e1842821fd00fbeb6bc9f892"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa3bf6e47e1842821fd00fbeb6bc9f892">&#9670;&#160;</a></span>RegisterSerializer()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#aa3bf6e47e1842821fd00fbeb6bc9f892">&#9670;&#160;</a></span>RegisterSerializer() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -404,6 +407,37 @@ template&lt;typename T &gt; </div>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>serializer</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ae0cc204572b8b002348ebc5db53a245e" name="ae0cc204572b8b002348ebc5db53a245e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae0cc204572b8b002348ebc5db53a245e">&#9670;&#160;</a></span>RegisterSerializer() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T &gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void dmq::databus::DataBus::RegisterSerializer </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>topic</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; &gt;</td>          <td class="paramname"><span class="paramname"><em>serializer</em></span>&#160;)</td>
         </tr>
       </table>
   </td>

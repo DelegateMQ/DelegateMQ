@@ -21,6 +21,7 @@ var namespacedmq_1_1util =
     [ "AsyncInvoke", "namespacedmq_1_1util.html#a5012f8da613e6914f35e3074b79da412", null ],
     [ "Crc16CalcBlock", "namespacedmq_1_1util.html#a18244b3b336cb2da93590de81317b04d", null ],
     [ "FaultHandler", "namespacedmq_1_1util.html#abaf9c27796c911e9a9988c6312fe17dd", null ],
+    [ "InstallCrashHandlers", "namespacedmq_1_1util.html#afa003fd69e4e60fbf7ce991e527a2815", null ],
     [ "MakeTimerDelegate", "namespacedmq_1_1util.html#ae29cbfe383b86c10d8595185d1626f47", null ],
     [ "MakeTimerDelegate", "namespacedmq_1_1util.html#a1860a7f59ab1d92e55473fa8e6ee42d0", null ],
     [ "MakeTimerDelegate", "namespacedmq_1_1util.html#ad1254983830a8d6a22b3fcae71cc75cc", null ],

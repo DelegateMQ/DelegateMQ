@@ -114,9 +114,13 @@ Classes</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
+<tr class="memitem:a587ca2d3ceca8c1896d331b7654b2758" id="r_a587ca2d3ceca8c1896d331b7654b2758"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a587ca2d3ceca8c1896d331b7654b2758">RetryMonitor</a> ()=default</td></tr>
+<tr class="separator:a587ca2d3ceca8c1896d331b7654b2758"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7f7680726acb647022a242cc5bb3c2f1" id="r_a7f7680726acb647022a242cc5bb3c2f1"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a7f7680726acb647022a242cc5bb3c2f1">RetryMonitor</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;transport, <a class="el" href="classdmq_1_1util_1_1_transport_monitor.html">TransportMonitor</a> &amp;monitor, int maxRetries=3)</td></tr>
 <tr class="memdesc:a7f7680726acb647022a242cc5bb3c2f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constructor.  <br /></td></tr>
 <tr class="separator:a7f7680726acb647022a242cc5bb3c2f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a655a9aac2be7b7026ec3b417d2e55901" id="r_a655a9aac2be7b7026ec3b417d2e55901"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a655a9aac2be7b7026ec3b417d2e55901">Init</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;transport, <a class="el" href="classdmq_1_1util_1_1_transport_monitor.html">TransportMonitor</a> &amp;monitor, int maxRetries=3)</td></tr>
+<tr class="separator:a655a9aac2be7b7026ec3b417d2e55901"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2b2fa9b3fa40c3a10ec06063aa353f50" id="r_a2b2fa9b3fa40c3a10ec06063aa353f50"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2b2fa9b3fa40c3a10ec06063aa353f50">~RetryMonitor</a> ()</td></tr>
 <tr class="separator:a2b2fa9b3fa40c3a10ec06063aa353f50"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a01308dd925aa32d08392f79cfc285603" id="r_a01308dd925aa32d08392f79cfc285603"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a01308dd925aa32d08392f79cfc285603">SendWithRetry</a> (<a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a> &amp;os, const <a class="el" href="classdmq_1_1transport_1_1_dmq_header.html">dmq::transport::DmqHeader</a> &amp;header)</td></tr>
@@ -124,8 +128,33 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a01308dd925aa32d08392f79cfc285603"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
+<a id="a587ca2d3ceca8c1896d331b7654b2758" name="a587ca2d3ceca8c1896d331b7654b2758"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a587ca2d3ceca8c1896d331b7654b2758">&#9670;&#160;</a></span>RetryMonitor() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::util::RetryMonitor::RetryMonitor </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">default</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a7f7680726acb647022a242cc5bb3c2f1" name="a7f7680726acb647022a242cc5bb3c2f1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7f7680726acb647022a242cc5bb3c2f1">&#9670;&#160;</a></span>RetryMonitor()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#a7f7680726acb647022a242cc5bb3c2f1">&#9670;&#160;</a></span>RetryMonitor() <span class="overload">[2/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -194,6 +223,40 @@ Public Member Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
+<a id="a655a9aac2be7b7026ec3b417d2e55901" name="a655a9aac2be7b7026ec3b417d2e55901"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a655a9aac2be7b7026ec3b417d2e55901">&#9670;&#160;</a></span>Init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::util::RetryMonitor::Init </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>transport</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1util_1_1_transport_monitor.html">TransportMonitor</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>monitor</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>maxRetries</em></span><span class="paramdefsep"> = </span><span class="paramdefval">3</span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a01308dd925aa32d08392f79cfc285603" name="a01308dd925aa32d08392f79cfc285603"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a01308dd925aa32d08392f79cfc285603">&#9670;&#160;</a></span>SendWithRetry()</h2>
 

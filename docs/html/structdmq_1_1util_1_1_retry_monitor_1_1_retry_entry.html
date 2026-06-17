@@ -119,6 +119,9 @@ Public Attributes</h2></td></tr>
 <tr class="memitem:a6ca602fce3aae845722542bcdde01491" id="r_a6ca602fce3aae845722542bcdde01491"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a6ca602fce3aae845722542bcdde01491">attemptsRemaining</a></td></tr>
 <tr class="memdesc:a6ca602fce3aae845722542bcdde01491"><td class="mdescLeft">&#160;</td><td class="mdescRight">Counter for retry budget.  <br /></td></tr>
 <tr class="separator:a6ca602fce3aae845722542bcdde01491"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9ff450455dc7d9e30ba4a887c90d6bc4" id="r_a9ff450455dc7d9e30ba4a887c90d6bc4"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9ff450455dc7d9e30ba4a887c90d6bc4">isSent</a> = false</td></tr>
+<tr class="memdesc:a9ff450455dc7d9e30ba4a887c90d6bc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flag to prevent TOCTOU races.  <br /></td></tr>
+<tr class="separator:a9ff450455dc7d9e30ba4a887c90d6bc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Storage for a message that might need retransmission. </p>
@@ -152,6 +155,22 @@ Public Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Original metadata (ID, SeqNum, etc.) </p>
+
+</div>
+</div>
+<a id="a9ff450455dc7d9e30ba4a887c90d6bc4" name="a9ff450455dc7d9e30ba4a887c90d6bc4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9ff450455dc7d9e30ba4a887c90d6bc4">&#9670;&#160;</a></span>isSent</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dmq::util::RetryMonitor::RetryEntry::isSent = false</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Flag to prevent TOCTOU races. </p>
 
 </div>
 </div>

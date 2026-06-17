@@ -97,6 +97,7 @@ $(function(){initNavTree('classdmq_1_1detail_1_1_connection.html',''); initResiz
 
 <div class="header">
   <div class="summary">
+<a href="#pub-types">Public Types</a> &#124;
 <a href="#pub-methods">Public Member Functions</a> &#124;
 <a href="classdmq_1_1detail_1_1_connection-members.html">List of all members</a>  </div>
   <div class="headertitle"><div class="title">dmq::detail::Connection Class Reference</div></div>
@@ -108,13 +109,17 @@ $(function(){initNavTree('classdmq_1_1detail_1_1_connection.html',''); initResiz
 
 <p><code>#include &lt;<a class="el" href="_signal_8h_source.html">Signal.h</a>&gt;</code></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-types" name="pub-types"></a>
+Public Types</h2></td></tr>
+<tr class="memitem:a1932eb745618fde3fe2b2c1e94fef05c" id="r_a1932eb745618fde3fe2b2c1e94fef05c"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1932eb745618fde3fe2b2c1e94fef05c">DisconnectFn</a> = void(*)(const std::shared_ptr&lt;void&gt;&amp;, const std::shared_ptr&lt;void&gt;&amp;)</td></tr>
+<tr class="separator:a1932eb745618fde3fe2b2c1e94fef05c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
 <tr class="memitem:ad8c2a2a18bda95a1c46cdd69b7abb68e" id="r_ad8c2a2a18bda95a1c46cdd69b7abb68e"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad8c2a2a18bda95a1c46cdd69b7abb68e">Connection</a> ()=default</td></tr>
 <tr class="separator:ad8c2a2a18bda95a1c46cdd69b7abb68e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3ae206158d5916ad75628445f9e96d14" id="r_a3ae206158d5916ad75628445f9e96d14"><td class="memTemplParams" colspan="2">template&lt;typename DisconnectFunc &gt; </td></tr>
-<tr class="memitem:a3ae206158d5916ad75628445f9e96d14"><td class="memTemplItemLeft" align="right" valign="top">&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a3ae206158d5916ad75628445f9e96d14">Connection</a> (std::weak_ptr&lt; void &gt; watcher, DisconnectFunc &amp;&amp;func)</td></tr>
-<tr class="separator:a3ae206158d5916ad75628445f9e96d14"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac87579ec16e331bcb7684b2765381090" id="r_ac87579ec16e331bcb7684b2765381090"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ac87579ec16e331bcb7684b2765381090">Connection</a> (std::shared_ptr&lt; void &gt; ctx1, std::shared_ptr&lt; void &gt; ctx2, <a class="el" href="#a1932eb745618fde3fe2b2c1e94fef05c">DisconnectFn</a> fn) noexcept</td></tr>
+<tr class="separator:ac87579ec16e331bcb7684b2765381090"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a84e3aaaa90ad3e2606287c3be266a5bf" id="r_a84e3aaaa90ad3e2606287c3be266a5bf"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a84e3aaaa90ad3e2606287c3be266a5bf">Connection</a> (const <a class="el" href="classdmq_1_1detail_1_1_connection.html">Connection</a> &amp;)=delete</td></tr>
 <tr class="separator:a84e3aaaa90ad3e2606287c3be266a5bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adad9c5d3c00011aae318ef30c6f814d9" id="r_adad9c5d3c00011aae318ef30c6f814d9"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1detail_1_1_connection.html">Connection</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#adad9c5d3c00011aae318ef30c6f814d9">operator=</a> (const <a class="el" href="classdmq_1_1detail_1_1_connection.html">Connection</a> &amp;)=delete</td></tr>
@@ -132,7 +137,23 @@ Public Member Functions</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Move-only subscription token. Internal implementation detail of <a class="el" href="classdmq_1_1_signal.html">Signal</a>. Users should store <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">ScopedConnection</a></code>, not <code><a class="el" href="classdmq_1_1detail_1_1_connection.html" title="Move-only subscription token. Internal implementation detail of Signal. Users should store ScopedConn...">Connection</a></code> directly. </p>
-</div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
+<p>Stores two type-erased <code>shared_ptr&lt;void&gt;</code> contexts (signal state and delegate copy) plus a raw <code>DisconnectFn</code> function pointer. No <code>std::function</code> heap allocation. </p>
+</div><h2 class="groupheader">Member Typedef Documentation</h2>
+<a id="a1932eb745618fde3fe2b2c1e94fef05c" name="a1932eb745618fde3fe2b2c1e94fef05c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1932eb745618fde3fe2b2c1e94fef05c">&#9670;&#160;</a></span>DisconnectFn</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#a1932eb745618fde3fe2b2c1e94fef05c">dmq::detail::Connection::DisconnectFn</a> = void(*)(const std::shared_ptr&lt;void&gt;&amp;, const std::shared_ptr&lt;void&gt;&amp;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
 <a id="ad8c2a2a18bda95a1c46cdd69b7abb68e" name="ad8c2a2a18bda95a1c46cdd69b7abb68e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad8c2a2a18bda95a1c46cdd69b7abb68e">&#9670;&#160;</a></span>Connection() <span class="overload">[1/4]</span></h2>
 
@@ -158,13 +179,11 @@ Public Member Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="a3ae206158d5916ad75628445f9e96d14" name="a3ae206158d5916ad75628445f9e96d14"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3ae206158d5916ad75628445f9e96d14">&#9670;&#160;</a></span>Connection() <span class="overload">[2/4]</span></h2>
+<a id="ac87579ec16e331bcb7684b2765381090" name="ac87579ec16e331bcb7684b2765381090"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac87579ec16e331bcb7684b2765381090">&#9670;&#160;</a></span>Connection() <span class="overload">[2/4]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
-<div class="memtemplate">
-template&lt;typename DisconnectFunc &gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -172,17 +191,22 @@ template&lt;typename DisconnectFunc &gt; </div>
         <tr>
           <td class="memname">dmq::detail::Connection::Connection </td>
           <td>(</td>
-          <td class="paramtype">std::weak_ptr&lt; void &gt;</td>          <td class="paramname"><span class="paramname"><em>watcher</em></span>, </td>
+          <td class="paramtype">std::shared_ptr&lt; void &gt;</td>          <td class="paramname"><span class="paramname"><em>ctx1</em></span>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">DisconnectFunc &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em>func</em></span>&#160;)</td>
+          <td class="paramtype">std::shared_ptr&lt; void &gt;</td>          <td class="paramname"><span class="paramname"><em>ctx2</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="#a1932eb745618fde3fe2b2c1e94fef05c">DisconnectFn</a></td>          <td class="paramname"><span class="paramname"><em>fn</em></span>&#160;)</td>
         </tr>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">noexcept</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">

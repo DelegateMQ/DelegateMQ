@@ -107,7 +107,6 @@ $(function(){initNavTree('_signal_8h.html',''); initResizable(true); });
 <a href="#details">More...</a></p>
 <div class="textblock"><code>#include &quot;<a class="el" href="_delegate_opt_8h_source.html">DelegateOpt.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="_delegate_8h_source.html">Delegate.h</a>&quot;</code><br />
-<code>#include &lt;functional&gt;</code><br />
 <code>#include &lt;memory&gt;</code><br />
 </div>
 <p><a href="_signal_8h_source.html">Go to the source code of this file.</a></p>
@@ -143,7 +142,7 @@ Namespaces</h2></td></tr>
 <li><b>Thread-safe</b> — concurrent Connect/Disconnect/operator() calls are all safe.</li>
 <li><b>Lifetime-safe disconnect</b> — calling <code>Disconnect()</code> (or letting a <code>ScopedConnection</code> go out of scope) after the Signal is destroyed is always a safe no-op.</li>
 </ul>
-<p>Internally, Signal stores its subscriber list in a heap-allocated <code>State</code> block shared with the disconnect lambdas via <code>shared_ptr</code>. The destructor marks the block dead under the mutex, so any concurrent disconnect that races with destruction simply sees the dead flag and returns without touching the list. </p>
+<p>Internally, Signal stores its subscriber list in a heap-allocated <code>State</code> block. Each <code>Connection</code> holds two <code>shared_ptr&lt;void&gt;</code> context fields (state and delegate copy) plus a raw <code>DisconnectImpl</code> function pointer. The destructor marks the block dead under the mutex, so any concurrent disconnect that races with destruction simply sees the dead flag and returns without touching the list. </p>
 </div></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

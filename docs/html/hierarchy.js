@@ -154,6 +154,7 @@ var hierarchy =
     ] ],
     [ "dmq::MulticastDelegateSafe< R >", "classdmq_1_1_multicast_delegate_safe.html", null ],
     [ "dmq::util::NetworkContext", "classdmq_1_1util_1_1_network_context.html", null ],
+    [ "dmq::databus::NetworkNode< Transport, MaxPeers, MaxTopics >", "classdmq_1_1databus_1_1_network_node.html", null ],
     [ "dmq::NullMutex", "structdmq_1_1_null_mutex.html", null ],
     [ "dmq::util::PacedDispatch", "classdmq_1_1util_1_1_paced_dispatch.html", null ],
     [ "dmq::databus::Participant", "classdmq_1_1databus_1_1_participant.html", null ],

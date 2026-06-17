@@ -11,7 +11,7 @@ var classdmq_1_1transport_1_1_nng_transport =
     [ "Close", "classdmq_1_1transport_1_1_nng_transport.html#a4555e31d49e0728ffc5253b08549b632", null ],
     [ "Create", "classdmq_1_1transport_1_1_nng_transport.html#a198c5baadab186ceebb0a3d9f8ccbeb7", null ],
     [ "Destroy", "classdmq_1_1transport_1_1_nng_transport.html#a2d374f2c533707dd1abda9216f383b21", null ],
-    [ "Receive", "classdmq_1_1transport_1_1_nng_transport.html#a678019b6ea65bf507407ac0f96a05d9b", null ],
+    [ "Receive", "classdmq_1_1transport_1_1_nng_transport.html#a9a6971f131fc952b13a832e08d16a1de", null ],
     [ "Send", "classdmq_1_1transport_1_1_nng_transport.html#aa86cad995a9be8a37dde2a85e2db96fd", null ],
     [ "SetRecvTimeout", "classdmq_1_1transport_1_1_nng_transport.html#a0b889c9974b77d27e69cda6d1c9f601c", null ],
     [ "SetRecvTransport", "classdmq_1_1transport_1_1_nng_transport.html#aaefaf92548c4585a007e6c255a23383d", null ],

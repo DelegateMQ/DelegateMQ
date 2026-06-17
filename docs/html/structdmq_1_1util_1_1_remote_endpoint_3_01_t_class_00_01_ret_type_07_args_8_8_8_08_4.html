@@ -111,9 +111,9 @@ $(function(){initNavTree('structdmq_1_1util_1_1_remote_endpoint_3_01_t_class_00_
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:aa71fa4f55b3f0d53e0a490d4c4380321" id="r_aa71fa4f55b3f0d53e0a490d4c4380321"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa71fa4f55b3f0d53e0a490d4c4380321">RemoteEndpoint</a> (std::shared_ptr&lt; TClass &gt; obj, RetType(TClass::*func)(Args...), <a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;<a class="el" href="#a5e73e92c8707f7fa89aa4e58e42c51c7">transport</a>, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> <a class="el" href="#aff257f82a05dd9c9182488ff2fdeee13">id</a>)</td></tr>
-<tr class="memdesc:aa71fa4f55b3f0d53e0a490d4c4380321"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constructor to initialize the remote endpoint.  <br /></td></tr>
-<tr class="separator:aa71fa4f55b3f0d53e0a490d4c4380321"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad66777d389dac3de6abb00bbd41caab0" id="r_ad66777d389dac3de6abb00bbd41caab0"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad66777d389dac3de6abb00bbd41caab0">RemoteEndpoint</a> (std::shared_ptr&lt; TClass &gt; obj, RetType(TClass::*func)(Args...), <a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;_transport, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> _id)</td></tr>
+<tr class="memdesc:ad66777d389dac3de6abb00bbd41caab0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constructor to initialize the remote endpoint.  <br /></td></tr>
+<tr class="separator:ad66777d389dac3de6abb00bbd41caab0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
@@ -142,8 +142,8 @@ struct dmq::util::RemoteEndpoint&lt; TClass, RetType(Args...)&gt;</div><p><code>
   </dd>
 </dl>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="aa71fa4f55b3f0d53e0a490d4c4380321" name="aa71fa4f55b3f0d53e0a490d4c4380321"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa71fa4f55b3f0d53e0a490d4c4380321">&#9670;&#160;</a></span>RemoteEndpoint()</h2>
+<a id="ad66777d389dac3de6abb00bbd41caab0" name="ad66777d389dac3de6abb00bbd41caab0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad66777d389dac3de6abb00bbd41caab0">&#9670;&#160;</a></span>RemoteEndpoint()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -166,12 +166,12 @@ template&lt;class TClass , class RetType , class... Args&gt; </div>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>transport</em></span>, </td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>_transport</em></span>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em>id</em></span>&#160;)</td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em>_id</em></span>&#160;)</td>
         </tr>
       </table>
   </td>
@@ -186,8 +186,8 @@ template&lt;class TClass , class RetType , class... Args&gt; </div>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">obj</td><td>A shared pointer to the instance of <code>TClass</code>. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">func</td><td>A pointer to the member function of <code>TClass</code>. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">transport</td><td>The transport to be used for remote communication. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">id</td><td>The remote identifier for this endpoint. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">_transport</td><td>The transport to be used for remote communication. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">_id</td><td>The remote identifier for this endpoint. </td></tr>
   </table>
   </dd>
 </dl>

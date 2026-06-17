@@ -110,10 +110,7 @@ $(function(){initNavTree('_retry_monitor_8h.html',''); initResizable(true); });
 <code>#include &quot;<a class="el" href="_i_transport_8h_source.html">port/transport/ITransport.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="_dmq_header_8h_source.html">port/transport/DmqHeader.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="_transport_monitor_8h_source.html">TransportMonitor.h</a>&quot;</code><br />
-<code>#include &lt;mutex&gt;</code><br />
 <code>#include &lt;cstdint&gt;</code><br />
-<code>#include &lt;vector&gt;</code><br />
-<code>#include &lt;string&gt;</code><br />
 </div>
 <p><a href="_retry_monitor_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
@@ -137,7 +134,7 @@ Namespaces</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Automatic retransmission manager for DelegateMQ remote calls. </p>
 <p>The RetryMonitor acts as a reliability decorator for any ITransport implementation. It bridges the gap between detection (TransportMonitor) and recovery (Physical Transport).</p>
-<h3><a class="anchor" id="autotoc_md32"></a>
+<h3><a class="anchor" id="autotoc_md295"></a>
 Core Responsibilities</h3>
 <ol type="1">
 <li><b>Data Persistence</b>: Stores the fully serialized binary payload of every outgoing remote delegate call, indexed by its unique Sequence Number.</li>
@@ -145,10 +142,10 @@ Core Responsibilities</h3>
 <li><b>Automatic Recovery</b>: If a TIMEOUT status is received, it decrements the retry counter and re-submits the exact binary packet to the transport.</li>
 <li><b>Cleanup</b>: Discards stored packets upon SUCCESS (ACK received) or when <code>maxRetries</code> is exhausted.</li>
 </ol>
-<h3><a class="anchor" id="autotoc_md33"></a>
+<h3><a class="anchor" id="autotoc_md296"></a>
 Sequence Number Integrity</h3>
 <p>Retries use the <b>original</b> sequence number. This allows the Receiver to perform idempotency checks (filtering out duplicate calls if an ACK was lost but the function was already executed).</p>
-<h3><a class="anchor" id="autotoc_md34"></a>
+<h3><a class="anchor" id="autotoc_md297"></a>
 Reentrancy Note</h3>
 <p>This class calls <code>ITransport::Send()</code>. If the underlying transport (e.g., SerialTransport) routes its high-level <code>Send()</code> back into this monitor, the transport MUST implement a reentrancy guard to prevent infinite recursion.</p>
 <dl class="section see"><dt>See also</dt><dd><a href="https://github.com/DelegateMQ/DelegateMQ">https://github.com/DelegateMQ/DelegateMQ</a> </dd></dl>

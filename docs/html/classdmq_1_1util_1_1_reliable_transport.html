@@ -119,22 +119,49 @@ Inheritance diagram for dmq::util::ReliableTransport:</div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
+<tr class="memitem:ae760ac975c0337aebe4a92849502d0fd" id="r_ae760ac975c0337aebe4a92849502d0fd"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae760ac975c0337aebe4a92849502d0fd">ReliableTransport</a> ()=default</td></tr>
+<tr class="separator:ae760ac975c0337aebe4a92849502d0fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1925300b5957a280e278401fcebe0111" id="r_a1925300b5957a280e278401fcebe0111"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1925300b5957a280e278401fcebe0111">ReliableTransport</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;transport, <a class="el" href="classdmq_1_1util_1_1_retry_monitor.html">RetryMonitor</a> &amp;retry)</td></tr>
 <tr class="separator:a1925300b5957a280e278401fcebe0111"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08ce46fea09bdb1257b4ea30fec55dbd" id="r_a08ce46fea09bdb1257b4ea30fec55dbd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a08ce46fea09bdb1257b4ea30fec55dbd">Init</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;transport, <a class="el" href="classdmq_1_1util_1_1_retry_monitor.html">RetryMonitor</a> &amp;retry)</td></tr>
+<tr class="separator:a08ce46fea09bdb1257b4ea30fec55dbd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac2198fe4ac397e44db556642e47e3359" id="r_ac2198fe4ac397e44db556642e47e3359"><td class="memItemLeft" align="right" valign="top">virtual int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ac2198fe4ac397e44db556642e47e3359">Send</a> (<a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a> &amp;os, const <a class="el" href="classdmq_1_1transport_1_1_dmq_header.html">dmq::transport::DmqHeader</a> &amp;header) override</td></tr>
-<tr class="memdesc:ac2198fe4ac397e44db556642e47e3359"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sends data via the <a class="el" href="classdmq_1_1util_1_1_retry_monitor.html">RetryMonitor</a> to ensure reliability.  <br /></td></tr>
 <tr class="separator:ac2198fe4ac397e44db556642e47e3359"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a840be7bf23436423476c2fe2cec685f3" id="r_a840be7bf23436423476c2fe2cec685f3"><td class="memItemLeft" align="right" valign="top">virtual int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a840be7bf23436423476c2fe2cec685f3">Receive</a> (<a class="el" href="namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a> &amp;is, <a class="el" href="classdmq_1_1transport_1_1_dmq_header.html">dmq::transport::DmqHeader</a> &amp;header) override</td></tr>
-<tr class="memdesc:a840be7bf23436423476c2fe2cec685f3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pass-through for receiving data.  <br /></td></tr>
 <tr class="separator:a840be7bf23436423476c2fe2cec685f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="inherit_header pub_methods_classdmq_1_1transport_1_1_i_transport"><td colspan="2" onclick="javascript:dynsection.toggleInherit('pub_methods_classdmq_1_1transport_1_1_i_transport')"><img src="closed.png" alt="-"/>&#160;Public Member Functions inherited from <a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Adapter to enable automatic retries on any ITransport. </p>
-<p>Routes <a class="el" href="#ac2198fe4ac397e44db556642e47e3359" title="Sends data via the RetryMonitor to ensure reliability.">Send()</a> calls through the <a class="el" href="classdmq_1_1util_1_1_retry_monitor.html">RetryMonitor</a> before passing them to the physical transport. </p>
+<p>Routes <a class="el" href="#ac2198fe4ac397e44db556642e47e3359">Send()</a> calls through the <a class="el" href="classdmq_1_1util_1_1_retry_monitor.html">RetryMonitor</a> before passing them to the physical transport. </p>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
+<a id="ae760ac975c0337aebe4a92849502d0fd" name="ae760ac975c0337aebe4a92849502d0fd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae760ac975c0337aebe4a92849502d0fd">&#9670;&#160;</a></span>ReliableTransport() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">dmq::util::ReliableTransport::ReliableTransport </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">default</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a1925300b5957a280e278401fcebe0111" name="a1925300b5957a280e278401fcebe0111"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1925300b5957a280e278401fcebe0111">&#9670;&#160;</a></span>ReliableTransport()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#a1925300b5957a280e278401fcebe0111">&#9670;&#160;</a></span>ReliableTransport() <span class="overload">[2/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -163,6 +190,35 @@ Public Member Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
+<a id="a08ce46fea09bdb1257b4ea30fec55dbd" name="a08ce46fea09bdb1257b4ea30fec55dbd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a08ce46fea09bdb1257b4ea30fec55dbd">&#9670;&#160;</a></span>Init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::util::ReliableTransport::Init </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>transport</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1util_1_1_retry_monitor.html">RetryMonitor</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>retry</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a840be7bf23436423476c2fe2cec685f3" name="a840be7bf23436423476c2fe2cec685f3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a840be7bf23436423476c2fe2cec685f3">&#9670;&#160;</a></span>Receive()</h2>
 
@@ -189,8 +245,14 @@ Public Member Functions</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-
-<p>Pass-through for receiving data. </p>
+<p>Receive data from a remote </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[out]</td><td class="paramname">is</td><td>The received incoming data bytes, not including the header. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">header</td><td>Incoming delegate message header. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if success. </dd></dl>
 
 <p>Implements <a class="el" href="classdmq_1_1transport_1_1_i_transport.html#af4e2c4b6ebf329affc6297556491c038">dmq::transport::ITransport</a>.</p>
 
@@ -222,8 +284,14 @@ Public Member Functions</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-
-<p>Sends data via the <a class="el" href="classdmq_1_1util_1_1_retry_monitor.html">RetryMonitor</a> to ensure reliability. </p>
+<p>Send data to a remote </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">os</td><td>Output stream to send. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">header</td><td>The header to send. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if success. </dd></dl>
 
 <p>Implements <a class="el" href="classdmq_1_1transport_1_1_i_transport.html#a08d4e55b53a82f4482353fc28aaa8477">dmq::transport::ITransport</a>.</p>
 

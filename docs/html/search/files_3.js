@@ -1,17 +1,19 @@
 var searchData=
 [
   ['databus_2eh_0',['DataBus.h',['../_data_bus_8h.html',1,'']]],
-  ['databusqos_2eh_1',['DataBusQos.h',['../_data_bus_qos_8h.html',1,'']]],
-  ['deadlinesubscription_2eh_2',['DeadlineSubscription.h',['../_deadline_subscription_8h.html',1,'']]],
-  ['delegate_2eh_3',['Delegate.h',['../_delegate_8h.html',1,'']]],
-  ['delegateasync_2eh_4',['DelegateAsync.h',['../_delegate_async_8h.html',1,'']]],
-  ['delegateasyncwait_2eh_5',['DelegateAsyncWait.h',['../_delegate_async_wait_8h.html',1,'']]],
-  ['delegatemq_2eh_6',['DelegateMQ.h',['../_delegate_m_q_8h.html',1,'']]],
-  ['delegatemqconfig_5fdefault_2eh_7',['DelegateMQConfig_Default.h',['../_delegate_m_q_config___default_8h.html',1,'']]],
-  ['delegatemqconfig_5ftemplate_2eh_8',['DelegateMQConfig_Template.h',['../_delegate_m_q_config___template_8h.html',1,'']]],
-  ['delegatemsg_2eh_9',['DelegateMsg.h',['../_delegate_msg_8h.html',1,'']]],
-  ['delegateopt_2eh_10',['DelegateOpt.h',['../_delegate_opt_8h.html',1,'']]],
-  ['delegateremote_2eh_11',['DelegateRemote.h',['../_delegate_remote_8h.html',1,'']]],
-  ['dispatcher_2eh_12',['Dispatcher.h',['../_dispatcher_8h.html',1,'']]],
-  ['dmqheader_2eh_13',['DmqHeader.h',['../_dmq_header_8h.html',1,'']]]
+  ['databus_2emd_1',['DATABUS.md',['../_d_a_t_a_b_u_s_8md.html',1,'']]],
+  ['databusqos_2eh_2',['DataBusQos.h',['../_data_bus_qos_8h.html',1,'']]],
+  ['deadlinesubscription_2eh_3',['DeadlineSubscription.h',['../_deadline_subscription_8h.html',1,'']]],
+  ['delegate_2eh_4',['Delegate.h',['../_delegate_8h.html',1,'']]],
+  ['delegateasync_2eh_5',['DelegateAsync.h',['../_delegate_async_8h.html',1,'']]],
+  ['delegateasyncwait_2eh_6',['DelegateAsyncWait.h',['../_delegate_async_wait_8h.html',1,'']]],
+  ['delegatemq_2eh_7',['DelegateMQ.h',['../_delegate_m_q_8h.html',1,'']]],
+  ['delegatemqconfig_5fdefault_2eh_8',['DelegateMQConfig_Default.h',['../_delegate_m_q_config___default_8h.html',1,'']]],
+  ['delegatemqconfig_5ftemplate_2eh_9',['DelegateMQConfig_Template.h',['../_delegate_m_q_config___template_8h.html',1,'']]],
+  ['delegatemsg_2eh_10',['DelegateMsg.h',['../_delegate_msg_8h.html',1,'']]],
+  ['delegateopt_2eh_11',['DelegateOpt.h',['../_delegate_opt_8h.html',1,'']]],
+  ['delegateremote_2eh_12',['DelegateRemote.h',['../_delegate_remote_8h.html',1,'']]],
+  ['details_2emd_13',['DETAILS.md',['../_d_e_t_a_i_l_s_8md.html',1,'']]],
+  ['dispatcher_2eh_14',['Dispatcher.h',['../_dispatcher_8h.html',1,'']]],
+  ['dmqheader_2eh_15',['DmqHeader.h',['../_dmq_header_8h.html',1,'']]]
 ];

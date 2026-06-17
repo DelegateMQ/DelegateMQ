@@ -1,6 +1,7 @@
 var structdmq_1_1databus_1_1_spy_packet =
 [
     [ "SpyPacket", "structdmq_1_1databus_1_1_spy_packet.html#a03af9d05361bb8affcf57582de9b26ad", null ],
+    [ "~SpyPacket", "structdmq_1_1databus_1_1_spy_packet.html#ab055fcc5a64aa0400d950479c2e3c595", null ],
     [ "SpyPacket", "structdmq_1_1databus_1_1_spy_packet.html#ab7f7bb0164c85d2a5aec27d4e31fbc99", null ],
     [ "read", "structdmq_1_1databus_1_1_spy_packet.html#adc26cebc34afea194f1be8dfae0b0f91", null ],
     [ "write", "structdmq_1_1databus_1_1_spy_packet.html#aa454cb5eda9a25be756ef63a1523b347", null ],

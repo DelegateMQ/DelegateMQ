@@ -9,6 +9,7 @@ var annotated_dup =
         ] ],
         [ "DataBus", "classdmq_1_1databus_1_1_data_bus.html", null ],
         [ "DeadlineSubscription", "classdmq_1_1databus_1_1_deadline_subscription.html", "classdmq_1_1databus_1_1_deadline_subscription" ],
+        [ "NetworkNode", "classdmq_1_1databus_1_1_network_node.html", "classdmq_1_1databus_1_1_network_node" ],
         [ "Participant", "classdmq_1_1databus_1_1_participant.html", "classdmq_1_1databus_1_1_participant" ],
         [ "QoS", "structdmq_1_1databus_1_1_qo_s.html", "structdmq_1_1databus_1_1_qo_s" ],
         [ "SpyPacket", "structdmq_1_1databus_1_1_spy_packet.html", "structdmq_1_1databus_1_1_spy_packet" ]
