@@ -5,6 +5,7 @@
 #include "DelegateMQ.h"
 #include "Thread.h"
 #include "extras/util/Fault.h"
+#include <iostream>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -281,13 +282,21 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     m_queue.push(threadMsg);
 
 #if defined(DMQ_DATABUS_TOOLS)
-    // Update monitoring stats
+    // Snapshot size while holding m_mutex
     size_t currentDepth = m_queue.size();
-    if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
-    if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
 #endif
 
     m_cv.notify_one();
+    lk.unlock(); // Release producer-blocking lock early
+
+#if defined(DMQ_DATABUS_TOOLS)
+    // Update monitoring stats under the separate stats mutex
+    {
+        lock_guard<mutex> lock(m_statsMutex);
+        if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
+        if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
+    }
+#endif
 
     return true;
 }
@@ -427,7 +436,7 @@ void Thread::Process()
                 // Update latency stats before invoking
                 dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
                 {
-                    lock_guard<mutex> lock(m_mutex);
+                    lock_guard<mutex> lock(m_statsMutex);
                     m_latencyTotalWindow += latency;
                     m_latencyCountWindow++;
                     if (latency > m_latencyMaxWindow) m_latencyMaxWindow = latency;
@@ -463,7 +472,7 @@ void Thread::Process()
 #if defined(DMQ_DATABUS_TOOLS)
                         dmq::Duration invokeTime = Timer::GetNow() - start;
                         {
-                            lock_guard<mutex> lock(m_mutex);
+                            lock_guard<mutex> lock(m_statsMutex);
                             m_invokeTotalWindow += invokeTime;
                             m_invokeCountWindow++;
                             if (invokeTime > m_invokeMaxWindow) m_invokeMaxWindow = invokeTime;
@@ -497,11 +506,14 @@ void Thread::Process()
 //----------------------------------------------------------------------------
 Thread::ThreadStats Thread::SnapshotStats()
 {
-    lock_guard<mutex> lock(m_mutex);
+    // Need m_mutex only for m_queue.size()
+    size_t currentDepth = GetQueueSize();
+
+    lock_guard<mutex> lock(m_statsMutex);
     ThreadStats stats;
     stats.cpu_name = CPU_NAME;
     stats.thread_name = THREAD_NAME;
-    stats.queue_depth = m_queue.size();
+    stats.queue_depth = currentDepth;
     stats.queue_depth_max_window = m_queueDepthMaxWindow;
     stats.queue_depth_max_all = m_queueDepthMaxAll;
     stats.queue_size_limit = MAX_QUEUE_SIZE;

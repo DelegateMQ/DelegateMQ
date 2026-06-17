@@ -124,11 +124,18 @@ thread.CreateThread();
 auto async = dmq::MakeDelegate(&MsgOut, thread);
 async("Invoke MsgOut async (non-blocking)!");
 
-// 2. Asynchronous Invocation (Blocking / Wait for result)
+// 2. Asynchronous Callback Pattern
+dmq::MulticastDelegateSafe<void(int)> onComplete;
+onComplete += dmq::MakeDelegate([](int result) {
+    // Callback executed on 'thread'
+}, thread);
+onComplete(123); // Broadcast to all registered callbacks
+
+// 3. Asynchronous Invocation (Blocking / Wait for result)
 auto asyncWait = dmq::MakeDelegate(&MsgOut, thread, dmq::WAIT_INFINITE);
 size_t size = asyncWait("Invoke MsgOut async wait (blocking)!");
 
-// 3. Asynchronous Invocation with Timeout
+// 4. Asynchronous Invocation with Timeout
 auto asyncWait1s = dmq::MakeDelegate(&MsgOut, thread, std::chrono::seconds(1));
 auto retVal = asyncWait1s.AsyncInvoke("Invoke MsgOut async wait (blocking max 1s)!");
 if (retVal.has_value())     // Async invoke completed within 1 second?

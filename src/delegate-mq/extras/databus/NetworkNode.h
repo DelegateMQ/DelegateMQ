@@ -50,6 +50,7 @@
 #include <cstring>
 #include <memory>
 #include <chrono>
+#include <optional>
 
 // Select the OS thread implementation based on the build configuration.
 #if defined(DMQ_THREAD_STDLIB)
@@ -129,7 +130,7 @@ public:
                                 m_inTopics[i].remoteId,
                                 *m_recvParticipant);
 
-        m_thread = std::make_unique<dmq::os::Thread>(
+        m_thread.emplace(
             threadName, 100, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT);
 
         m_running    = true;
@@ -224,9 +225,9 @@ public:
         node.reliableParticipant   = dmq::xmake_shared<Participant>(node.reliableTransport);
         node.unreliableParticipant = dmq::xmake_shared<Participant>(node.rawTransport);
 
-        if (m_thread) {
-            node.reliableParticipant->SetSendThread(m_thread.get());
-            node.unreliableParticipant->SetSendThread(m_thread.get());
+        if (m_thread.has_value()) {
+            node.reliableParticipant->SetSendThread(&*m_thread);
+            node.unreliableParticipant->SetSendThread(&*m_thread);
         }
 
         DataBus::AddParticipant(node.reliableParticipant);
@@ -393,9 +394,9 @@ private:
     std::array<OutgoingTopic, MaxTopics> m_outTopics{};
     size_t m_outCount = 0;
 
-    // Receive thread. One heap allocation per NetworkNode lifetime — acceptable
-    // because the thread name is set at runtime via Start(nodeName, ...).
-    std::unique_ptr<dmq::os::Thread> m_thread;
+    // Receive thread. Delay construction until Start() via std::optional to
+    // avoid heap allocation while allowing runtime thread naming.
+    std::optional<dmq::os::Thread> m_thread;
     dmq::util::Timer                 m_recvTimer;
     dmq::ScopedConnection            m_recvConn;
     dmq::Duration                    m_tickPeriod{};

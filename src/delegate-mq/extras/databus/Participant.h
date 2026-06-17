@@ -51,19 +51,19 @@ public:
     }
 
     // Process incoming data from the transport.
-    // Must not be called concurrently — m_receiveMutex serializes any such calls.
+    // Must not be called concurrently — m_receiveMutex serializes the transport read.
     // @return The result code from ITransport::Receive.
     int ProcessIncoming() {
-        dmq::LockGuard<dmq::Mutex> receiveLock(m_receiveMutex);
-
-        // Clear the stream for reuse to avoid heap growth
-        m_inputStream.str("");
-        m_inputStream.clear();
-
         dmq::transport::DmqHeader header;
-        dmq::IRemoteInvoker* invoker = nullptr;
+        dmq::xstringstream inputStream(std::ios::in | std::ios::out | std::ios::binary);
 
-        int result = m_transport->Receive(m_inputStream, header);
+        int result;
+        {
+            // Serialize access to the transport read
+            dmq::LockGuard<dmq::Mutex> receiveLock(m_receiveMutex);
+            result = m_transport->Receive(inputStream, header);
+        }
+
         if (result == 0) {
             // Validate header marker
             if (header.GetMarker() != dmq::transport::DmqHeader::MARKER) {
@@ -81,6 +81,7 @@ public:
                 }
             }
 
+            dmq::IRemoteInvoker* invoker = nullptr;
             std::shared_ptr<void> channelLifetime; // keeps channel alive across lock gap
             {
                 std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
@@ -93,7 +94,7 @@ public:
 
             // Invoke outside the lock to prevent deadlocks and allow re-entry
             if (invoker) {
-                invoker->Invoke(m_inputStream);
+                invoker->Invoke(inputStream);
             }
         }
         return result;
@@ -274,7 +275,6 @@ private:
         }
     };
     dmq::xmap<dmq::DelegateRemoteId, SeqHistory> m_history;
-    dmq::xstringstream m_inputStream;
 };
 
 } // namespace dmq::databus

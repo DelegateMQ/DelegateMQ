@@ -205,14 +205,19 @@ void NetworkEngine::Start()
 void NetworkEngine::Stop()
 {
     if (!m_thread.IsCurrentThread()) {
+        // 1. Signal exit flag FIRST so RecvThread knows it should terminate
+        m_recvThreadExit = true;
 
-        // Close calls are safe for both transport types
+        // 2. Close transports to unblock any pending Receive() calls.
+        // This is necessary because some transports (like sockets) are blocking
+        // and won't return until a message arrives or the resource is closed.
         m_recvTransport.Close();
         m_sendTransport.Close();
 
-        m_recvThreadExit = true;
+        // 3. Exit/Join the receive thread.
         m_recvThread.ExitThread();
 
+        // 4. Marshal the rest of the cleanup to the Network Thread.
         return dmq::MakeDelegate(this, &NetworkEngine::Stop, m_thread, dmq::WAIT_INFINITE)();
     }
     m_timeoutTimer.Stop();

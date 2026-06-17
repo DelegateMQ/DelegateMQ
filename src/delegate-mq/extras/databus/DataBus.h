@@ -142,9 +142,20 @@ public:
     }
 
     // Register a serializer for a topic (required for remote distribution).
+    // Use this overload if the serializer is a long-lived object (e.g., static or 
+    // global). The DataBus does NOT take ownership.
     template <typename T>
     static void RegisterSerializer(const dmq::xstring& topic, dmq::ISerializer<void(T)>& serializer) {
-        GetInstance().InternalRegisterSerializer<T>(topic, serializer);
+        auto shared = std::shared_ptr<void>(&serializer, [](void*) {}, ::dmq::stl_allocator<void>());
+        GetInstance().InternalRegisterSerializer<T>(topic, std::move(shared));
+    }
+
+    // Register a serializer for a topic with ownership.
+    // Use this overload to allow the DataBus to manage the serializer's lifetime 
+    // through a shared_ptr.
+    template <typename T>
+    static void RegisterSerializer(const dmq::xstring& topic, std::shared_ptr<dmq::ISerializer<void(T)>> serializer) {
+        GetInstance().InternalRegisterSerializer<T>(topic, std::static_pointer_cast<void>(serializer));
     }
 
     // Register an incoming remote topic and republish received data to the local bus only.
@@ -487,7 +498,7 @@ private:
     }
 
     template <typename T>
-    void InternalRegisterSerializer(const dmq::xstring& topic, dmq::ISerializer<void(T)>& serializer) {
+    void InternalRegisterSerializer(const dmq::xstring& topic, std::shared_ptr<void> serializer) {
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
         auto itType = m_typeIndices.find(topic);
@@ -497,7 +508,7 @@ private:
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
 
-        m_serializers[topic] = std::shared_ptr<void>(&serializer, [](void*) {}, ::dmq::stl_allocator<void>());
+        m_serializers[topic] = std::move(serializer);
     }
 
     template <typename T>

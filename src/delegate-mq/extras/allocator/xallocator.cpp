@@ -83,7 +83,7 @@ struct BlockHeader {
 // and xalloc_destroy() before main exits. In all other situations
 // XallocInitDestroy must be used to call xalloc_init() and xalloc_destroy().
 #ifdef AUTOMATIC_XALLOCATOR_INIT_DESTROY
-int32_t XallocInitDestroy::refCount = 0;
+std::atomic<int32_t> XallocInitDestroy::refCount(0);
 XallocInitDestroy::XallocInitDestroy() 
 { 
 	// Track how many static instances of XallocInitDestroy are created

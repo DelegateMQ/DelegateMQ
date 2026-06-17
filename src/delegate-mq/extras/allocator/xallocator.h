@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <stddef.h>
+#include <atomic>
 
 // @see https://github.com/endurodave/xallocator
 // David Lafreniere
@@ -29,7 +30,7 @@ public:
 	XallocInitDestroy();
 	~XallocInitDestroy();
 private:
-	static int32_t refCount;
+	static std::atomic<int32_t> refCount;
 };
 } // namespace dmq
 static dmq::XallocInitDestroy xallocInitDestroy;

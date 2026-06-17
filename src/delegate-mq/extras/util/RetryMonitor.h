@@ -49,6 +49,7 @@ public:
         dmq::xstring packetData;    ///< The raw serialized arguments
         dmq::transport::DmqHeader header;           ///< Original metadata (ID, SeqNum, etc.)
         int attemptsRemaining;      ///< Counter for retry budget
+        bool isSent = false;        ///< Flag to prevent TOCTOU races
     };
 
     RetryMonitor() = default;
@@ -91,6 +92,7 @@ public:
             entry.attemptsRemaining = m_maxRetries;
             entry.header = header;
             entry.packetData = os.str(); // Copy data
+            entry.isSent = false;        // Mark as NOT yet sent to physical transport
             m_retryStore[key] = entry;
         }
 
@@ -116,6 +118,15 @@ public:
         {
             std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
             m_retryStore.erase(key);
+        }
+        else
+        {
+            // SUCCESS: Mark the entry as sent so OnStatusChanged can retry if needed.
+            std::lock_guard<dmq::RecursiveMutex> lock(m_lock);
+            auto it = m_retryStore.find(key);
+            if (it != m_retryStore.end()) {
+                it->second.isSent = true;
+            }
         }
 
         return result;
@@ -145,7 +156,9 @@ private:
             }
             else if (status == TransportMonitor::Status::TIMEOUT)
             {
-                if (it->second.attemptsRemaining > 0)
+                // ONLY retry if the message has actually finished its first physical send.
+                // If isSent is false, it means SendWithRetry is still executing m_transport->Send().
+                if (it->second.attemptsRemaining > 0 && it->second.isSent)
                 {
                     // Decrement counter
                     it->second.attemptsRemaining--;
@@ -155,7 +168,7 @@ private:
                     retryHeader = it->second.header;
                     shouldRetry = true;
                 }
-                else
+                else if (it->second.attemptsRemaining <= 0)
                 {
                     // Max retries exceeded. Clean up.
                     // LOG_ERROR("RetryMonitor: Max retries exceeded for seq {}", seqNum);

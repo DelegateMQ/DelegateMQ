@@ -208,6 +208,9 @@ private:
     Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
+    // Separate mutex for statistics to reduce contention on m_mutex
+    std::mutex m_statsMutex;
+
     // Monitoring statistics members
     size_t m_queueDepthMaxWindow = 0;
     size_t m_queueDepthMaxAll = 0;
