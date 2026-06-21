@@ -58,14 +58,28 @@ public:
         size_t count = m_delegates.size();
         if (count <= SIGNAL_SBO_COUNT) {
             std::shared_ptr<DelegateType> small_buf[SIGNAL_SBO_COUNT];
-            size_t i = 0;
+            size_t idx = 0;
             for (auto& d : m_delegates) {
-                small_buf[i++] = d;
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#endif
+                small_buf[idx++] = d;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
             }
             for (size_t i = 0; i < count; ++i) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#endif
                 if (small_buf[i])
                     (*small_buf[i])(args...);
                 small_buf[i].reset(); // Clear to release shared_ptr immediately
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
             }
         } else {
             xlist<std::shared_ptr<DelegateType>> large_buf = m_delegates;
