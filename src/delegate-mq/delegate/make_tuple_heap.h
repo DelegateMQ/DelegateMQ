@@ -218,40 +218,13 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
 #endif
 }
 
-/// @brief Append a by-value argument to the tuple
+/// @brief Append a by-value or r-value argument to the tuple
 template <typename Arg, typename... TupleElem>
 auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg&& arg)
 {
-    using RawArg = std::remove_reference_t<Arg>;
-    RawArg* heap_arg = xnew<RawArg>(std::forward<Arg>(arg));
-    if (!heap_arg) {
-        BAD_ALLOC();
-    }
-    auto deleter = xmake_shared<heap_arg_deleter<RawArg*>>(heap_arg);
-    if (!deleter) {
-        xdelete(heap_arg);
-        BAD_ALLOC();
-    }
-
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    heapArgs.push_back(deleter);
-
-    auto temp = std::make_tuple(std::forward_as_tuple(*heap_arg));  // Dereference heap_arg when creating tuple element
-    auto new_type = std::get<0>(temp);
-    return std::tuple_cat(tup, new_type);
-#else
-    try {
-        heapArgs.push_back(deleter);
-
-        auto temp = std::make_tuple(std::forward_as_tuple(*heap_arg));  // Dereference heap_arg when creating tuple element
-        auto new_type = std::get<0>(temp);
-        return std::tuple_cat(tup, new_type);
-    }
-    catch (const std::bad_alloc&) {
-        BAD_ALLOC();
-        throw;
-    }
-#endif
+    (void)heapArgs;
+    // R-value or by-value passed: No heap allocation needed, move directly into tuple
+    return std::tuple_cat(tup, std::make_tuple(std::forward<Arg>(arg)));
 }
 
 /// @brief Terminate the template metaprogramming argument loop. This function is 
