@@ -1,8 +1,8 @@
 # Collect all .cpp files in this subdirectory and databus
-file(GLOB SUBDIR_SOURCES "*.cpp" "databus/*.cpp" "serialize/*.cpp" "allocator/*.cpp" "dispatcher/*.cpp")
+file(GLOB SUBDIR_SOURCES CONFIGURE_DEPENDS "*.cpp" "databus/*.cpp" "serialize/*.cpp" "allocator/*.cpp" "dispatcher/*.cpp")
 
 # Collect all .h files in this subdirectory and databus
-file(GLOB SUBDIR_HEADERS "*.h" "databus/*.h" "serialize/*.h" "allocator/*.h" "dispatcher/*.h")
+file(GLOB SUBDIR_HEADERS CONFIGURE_DEPENDS "*.h" "databus/*.h" "serialize/*.h" "allocator/*.h" "dispatcher/*.h")
 
 # Create a library target 
 add_library(unit_tests_lib STATIC ${SUBDIR_SOURCES} ${SUBDIR_HEADERS})

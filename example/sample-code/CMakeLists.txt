@@ -1,8 +1,8 @@
 # Collect all .cpp files in this subdirectory
-file(GLOB SUBDIR_SOURCES "*.cpp")
+file(GLOB SUBDIR_SOURCES CONFIGURE_DEPENDS "*.cpp")
 
 # Collect all .h files in this subdirectory
-file(GLOB SUBDIR_HEADERS "*.h")
+file(GLOB SUBDIR_HEADERS CONFIGURE_DEPENDS "*.h")
 
 # Create a library target 
 add_library(sample_code_lib STATIC ${SUBDIR_SOURCES} ${SUBDIR_HEADERS})

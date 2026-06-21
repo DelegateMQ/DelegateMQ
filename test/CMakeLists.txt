@@ -22,7 +22,7 @@ project(Delegate VERSION 1.0 LANGUAGES CXX)
 include("${CMAKE_CURRENT_SOURCE_DIR}/../src/delegate-mq/DelegateMQ.cmake")
 
 # Collect all .cpp and *.h source files 
-file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
+file(GLOB SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 
 # Collect DelegateMQ port/extras source files
 list(APPEND SOURCES ${DMQ_PORT_SOURCES})
