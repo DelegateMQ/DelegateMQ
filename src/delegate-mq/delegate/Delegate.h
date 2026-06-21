@@ -38,11 +38,7 @@ namespace trait
     template <typename T>
     struct is_shared_ptr_reference<std::shared_ptr<T>*> : std::true_type {};
 
-    template <typename T>
-    struct is_shared_ptr_reference<const std::shared_ptr<T>&> : std::true_type {};
 
-    template <typename T>
-    struct is_shared_ptr_reference<const std::shared_ptr<T>* > : std::true_type {};
 
     // Helper trait to check if a type is a double pointer (e.g., int**)
     template <typename T>
@@ -662,7 +658,7 @@ public:
     friend bool operator==(std::nullptr_t, const ClassType& rhs) noexcept { return rhs.Empty(); }
     friend bool operator!=(std::nullptr_t, const ClassType& rhs) noexcept { return !rhs.Empty(); }
 
-    /// @brief Check if the delegate is bound (Note: Doesn't check if object is alive).
+    /// @brief Check if the delegate is bound and the object is alive.
     bool Empty() const noexcept { return m_object.expired() || !m_func; }
 
     /// @brief Clear the target function.

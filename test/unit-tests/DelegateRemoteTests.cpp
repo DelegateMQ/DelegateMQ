@@ -37,6 +37,13 @@ namespace Remote
         ASSERT_TRUE(pi); 
         ASSERT_TRUE(*pi == TEST_INT); 
     }
+    void FreeFuncConstIntPtr(const int* pi) { 
+        ASSERT_TRUE(pi); 
+        ASSERT_TRUE(*pi == TEST_INT); 
+    }
+    void FreeFuncConstIntRef(const int& i) {
+        ASSERT_TRUE(i == TEST_INT);
+    }
     void FreeFuncIntPtrPtr(int** pi) {
         ASSERT_TRUE(pi);
         ASSERT_TRUE(*pi);
@@ -155,13 +162,13 @@ namespace Remote
 
     template<typename Arg1, typename... Args>
     void make_unserialized(std::istream& is, Arg1& arg1, Args&&... args) {
-        is >> arg1;
+        is >> const_cast<std::remove_const_t<Arg1>&>(arg1);
         make_unserialized(is, args...);
     }
 
     template<typename Arg1, typename... Args>
     void make_unserialized(std::istream& is, Arg1* arg1, Args&&... args) {
-        is >> *arg1;
+        is >> const_cast<std::remove_const_t<Arg1>&>(*arg1);
         make_unserialized(is, args...);
     }
 
@@ -248,6 +255,47 @@ static void DelegateFreeRemoteTests()
     DelegateFreeRemote<std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
     ASSERT_TRUE(tmp == nullptr);
+
+    // Test const pointer and reference arguments
+    {
+        MockDispatcher dispatcher;
+        Serializer<void(const int*)> serializer;
+        xostringstream os(ios::in | ios::out | ios::binary);
+        auto d = MakeDelegate(&FreeFuncConstIntPtr, REMOTE_ID);
+        d.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        d.SetStream(&os);
+        d.SetDispatcher(&dispatcher);
+        d.SetSerializer(&serializer);
+        
+        int val = TEST_INT;
+        d(&val);
+
+        std::stringstream& ss = dispatcher.GetDispached();
+        DelegateFreeRemote<void(const int*)> dest(&FreeFuncConstIntPtr, REMOTE_ID);
+        dest.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        dest.SetSerializer(&serializer);
+        dest.Invoke(ss);
+    }
+
+    {
+        MockDispatcher dispatcher;
+        Serializer<void(const int&)> serializer;
+        xostringstream os(ios::in | ios::out | ios::binary);
+        auto d = MakeDelegate(&FreeFuncConstIntRef, REMOTE_ID);
+        d.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        d.SetStream(&os);
+        d.SetDispatcher(&dispatcher);
+        d.SetSerializer(&serializer);
+        
+        int val = TEST_INT;
+        d(val);
+
+        std::stringstream& ss = dispatcher.GetDispached();
+        DelegateFreeRemote<void(const int&)> dest(&FreeFuncConstIntRef, REMOTE_ID);
+        dest.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        dest.SetSerializer(&serializer);
+        dest.Invoke(ss);
+    }
     delUnique.Bind(&FuncUnique, REMOTE_ID);
     std::unique_ptr<int> up = delUnique(12);
     ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 

@@ -84,23 +84,45 @@ template <class Arg>
 class RemoteArg
 {
 public:
-    Arg& Get() { return m_arg; }
+    using NonConstArg = std::remove_const_t<Arg>;
+    NonConstArg& Get() { return m_arg; }
 private:
-    Arg m_arg;
+    NonConstArg m_arg{};
 };
 
 template <class Arg>
 class RemoteArg<Arg*>
 {
 public:
+    using NonConstArg = std::remove_const_t<Arg>;
+
     // Initialize the member pointer to point to the internal storage
     RemoteArg() : m_ptr(&m_arg) {}
+
+    // Custom copy/move semantics to ensure m_ptr always points to the *local* m_arg
+    RemoteArg(const RemoteArg& other) : m_arg(other.m_arg), m_ptr(&m_arg) {}
+    RemoteArg& operator=(const RemoteArg& other) {
+        if (this != &other) {
+            m_arg = other.m_arg;
+            m_ptr = &m_arg;
+        }
+        return *this;
+    }
+
+    RemoteArg(RemoteArg&& other) noexcept : m_arg(std::move(other.m_arg)), m_ptr(&m_arg) {}
+    RemoteArg& operator=(RemoteArg&& other) noexcept {
+        if (this != &other) {
+            m_arg = std::move(other.m_arg);
+            m_ptr = &m_arg;
+        }
+        return *this;
+    }
 
     // Return a REFERENCE to the pointer (L-value), satisfying ISerializer::Read
     Arg*& Get() { return m_ptr; }
 
 private:
-    Arg m_arg;   // The actual object storage
+    NonConstArg m_arg{};   // The actual object storage
     Arg* m_ptr;  // The persistent pointer variable
 };
 
@@ -125,9 +147,10 @@ template <class Arg>
 class RemoteArg<Arg&>
 {
 public:
-    Arg& Get() { return m_arg; }
+    using NonConstArg = std::remove_const_t<Arg>;
+    NonConstArg& Get() { return m_arg; }
 private:
-    Arg m_arg;
+    NonConstArg m_arg{};
 };
 
 template <class R>
@@ -143,6 +166,9 @@ public:
     typedef RetType(*FreeFunc)(Args...);
     using ClassType = DelegateFreeRemote<RetType(Args...)>;
     using BaseType = DelegateFree<RetType(Args...)>;
+
+    static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
     using BaseType::operator=;
 
     /// @brief Constructor to create a class instance. Typically called by sender. 
@@ -343,14 +369,7 @@ public:
         // Do not wait for remote to invoke function call
         return RetType();
 
-        // Check if any argument is a shared_ptr with wrong usage
-        // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-        // undefined. In other words:
-        // void MyFunc(std::shared_ptr<T> data)		// Ok!
-        // void MyFunc(std::shared_ptr<T>& data)	// Error
-        static_assert(!(
-            std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-            "std::shared_ptr reference argument not allowed");
+
 
         static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
             "Double pointer arguments (Arg**) are not allowed on remote delegates");
@@ -563,6 +582,9 @@ public:
     typedef RetType(TClass::* ConstMemberFunc)(Args...) const;
     using ClassType = DelegateMemberRemote<TClass, RetType(Args...)>;
     using BaseType = DelegateMember<TClass, RetType(Args...)>;
+
+    static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
     using BaseType::operator=;
 
     /// @brief Constructor to create a class instance. Typically called by sender. 
@@ -824,14 +846,7 @@ public:
         // Do not wait for remote to invoke function call
         return RetType();
 
-        // Check if any argument is a shared_ptr with wrong usage
-        // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-        // undefined. In other words:
-        // void MyFunc(std::shared_ptr<T> data)		// Ok!
-        // void MyFunc(std::shared_ptr<T>& data)	// Error
-        static_assert(!(
-            std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-            "std::shared_ptr reference argument not allowed");
+
 
         static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
             "Double pointer arguments (Arg**) are not allowed on remote delegates");
@@ -1045,6 +1060,9 @@ public:
     using FunctionType = std::function<RetType(Args...)>;
     using ClassType = DelegateFunctionRemote<RetType(Args...)>;
     using BaseType = DelegateFunction<RetType(Args...)>;
+
+    static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
     using BaseType::operator=;
 
     /// @brief Constructor to create a class instance. Typically called by sender. 
@@ -1245,14 +1263,7 @@ public:
         // Do not wait for remote to invoke function call
         return RetType();
 
-        // Check if any argument is a shared_ptr with wrong usage
-        // std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-        // undefined. In other words:
-        // void MyFunc(std::shared_ptr<T> data)		// Ok!
-        // void MyFunc(std::shared_ptr<T>& data)	// Error
-        static_assert(!(
-            std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-            "std::shared_ptr reference argument not allowed");
+
 
         static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
             "Double pointer arguments (Arg**) are not allowed on remote delegates");

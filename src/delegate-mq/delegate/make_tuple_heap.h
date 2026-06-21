@@ -25,10 +25,6 @@
 
 namespace dmq 
 {
-// std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-// undefined. In other words:
-// void MyFunc(std::shared_ptr<T> data)		// Ok!
-// void MyFunc(std::shared_ptr<T>* data)	// Error if DelegateAsync or DelegateSpAsync target!
 template<class T>
 struct is_shared_ptr : std::false_type {};
 
@@ -98,8 +94,11 @@ public:
     // *arg (e.g. an outgoing-argument pattern like (*s) = new T).
     heap_arg_deleter(T** arg) : m_arg(arg), m_inner(*arg) {}
     virtual ~heap_arg_deleter() {
-        xdelete(m_inner);   // free the original xnew'd inner copy (may be nullptr)
-        xdelete(m_arg);     // free the outer pointer storage
+        if (*m_arg != m_inner) {
+            xdelete(*m_arg);    // free the newly assigned inner pointer
+        }
+        xdelete(m_inner);       // free the original xnew'd inner copy (may be nullptr)
+        xdelete(m_arg);         // free the outer pointer storage
     }
 private:
     T** m_arg;
@@ -222,6 +221,24 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
 #endif
 }
 
+/// @brief Append a by-value argument to the tuple
+template <typename Arg, typename... TupleElem>
+auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg&& arg)
+{
+    (void)heapArgs;
+#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+    return std::tuple_cat(tup, std::make_tuple(std::forward<Arg>(arg)));
+#else
+    try {
+        return std::tuple_cat(tup, std::make_tuple(std::forward<Arg>(arg)));
+    }
+    catch (const std::bad_alloc&) {
+        BAD_ALLOC();
+        throw;
+    }
+#endif
+}
+
 /// @brief Terminate the template metaprogramming argument loop. This function is 
 /// called when there are no more arguments to process.
 /// @tparam Ts The types of the remaining arguments.
@@ -252,15 +269,16 @@ auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, st
 /// @throws std::bad_alloc If dynamic allocation of arguments created on the heap
 /// for appending to the tuple fails and DMQ_ASSERTS not defined.
 template<typename Arg1, typename... Args, typename... Ts>
-auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1 arg1, Args... args)
+auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1&& arg1, Args&&... args)
 {
-    static_assert(!(
-        (is_shared_ptr<Arg1>::value && (std::is_lvalue_reference_v<Arg1> || std::is_pointer_v<Arg1>))),
-        "std::shared_ptr reference argument not allowed");
-    static_assert(!std::is_same<Arg1, void*>::value, "void* argument not allowed");
-
-    auto new_tup = tuple_append(heapArgs, tup, arg1);
-    return make_tuple_heap(heapArgs, new_tup, args...);
+    using RawArg = std::remove_reference_t<Arg1>;
+    static_assert(!(is_shared_ptr<Arg1>::value && std::is_lvalue_reference_v<Arg1> && !std::is_const_v<RawArg>),
+        "non-const std::shared_ptr& arguments are not allowed");
+    static_assert(!(is_shared_ptr<RawArg>::value && std::is_pointer_v<RawArg> && !std::is_const_v<std::remove_pointer_t<RawArg>>),
+        "non-const std::shared_ptr* arguments are not allowed");
+    static_assert(!std::is_same<std::decay_t<Arg1>, void*>::value, "void* argument not allowed");
+    auto new_tup = tuple_append(heapArgs, tup, std::forward<Arg1>(arg1));
+    return make_tuple_heap(heapArgs, new_tup, std::forward<Args>(args)...);
 }
 
 }

@@ -741,7 +741,7 @@ void MulticastDelegateTests()
 	ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate();
 	FreeFunc0MulticastDelegate -= MakeDelegate(&FreeFunc0);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 
@@ -773,7 +773,7 @@ void MulticastDelegateTests()
 	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate(TEST_INT);
 	FreeFuncInt1MulticastDelegate -= MakeDelegate(&FreeFuncInt1);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 
@@ -865,7 +865,7 @@ void MulticastDelegateTests()
 	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	FreeFuncInt2MulticastDelegate -= MakeDelegate(&FreeFuncInt2);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 
@@ -957,7 +957,7 @@ void MulticastDelegateTests()
 	ASSERT_TRUE(FreeFuncInt3MulticastDelegate);
 	FreeFuncInt3MulticastDelegate(TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt3MulticastDelegate -= MakeDelegate(&FreeFuncInt3);
-	ASSERT_TRUE(FreeFuncInt3MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt3MulticastDelegate);
 	FreeFuncInt3MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt3MulticastDelegate);
 
@@ -1049,7 +1049,7 @@ void MulticastDelegateTests()
 	ASSERT_TRUE(FreeFuncInt4MulticastDelegate);
 	FreeFuncInt4MulticastDelegate(TEST_INT, TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt4MulticastDelegate -= MakeDelegate(&FreeFuncInt4);
-	ASSERT_TRUE(FreeFuncInt4MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt4MulticastDelegate);
 	FreeFuncInt4MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt4MulticastDelegate);
 
@@ -1141,7 +1141,7 @@ void MulticastDelegateTests()
 	ASSERT_TRUE(FreeFuncInt5MulticastDelegate);
 	FreeFuncInt5MulticastDelegate(TEST_INT, TEST_INT, TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt5MulticastDelegate -= MakeDelegate(&FreeFuncInt5);
-	ASSERT_TRUE(FreeFuncInt5MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt5MulticastDelegate);
 	FreeFuncInt5MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt5MulticastDelegate);
 
@@ -1325,7 +1325,7 @@ void MulticastDelegateSafeAsyncTests()
 	ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate();
 	FreeFunc0MulticastDelegate -= MakeDelegate(&FreeFunc0, testThread);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 
@@ -1359,7 +1359,7 @@ void MulticastDelegateSafeAsyncTests()
 	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate(TEST_INT);
 	FreeFuncInt1MulticastDelegate -= MakeDelegate(&FreeFuncInt1, testThread);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 
@@ -1453,7 +1453,7 @@ void MulticastDelegateSafeAsyncTests()
 	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	FreeFuncInt2MulticastDelegate -= MakeDelegate(&FreeFuncInt2, testThread);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 
@@ -1547,7 +1547,7 @@ void MulticastDelegateSafeAsyncTests()
 	ASSERT_TRUE(FreeFuncInt3MulticastDelegate);
 	FreeFuncInt3MulticastDelegate(TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt3MulticastDelegate -= MakeDelegate(&FreeFuncInt3, testThread);
-	ASSERT_TRUE(FreeFuncInt3MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt3MulticastDelegate);
 	FreeFuncInt3MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt3MulticastDelegate);
 
@@ -1641,7 +1641,7 @@ void MulticastDelegateSafeAsyncTests()
 	ASSERT_TRUE(FreeFuncInt4MulticastDelegate);
 	FreeFuncInt4MulticastDelegate(TEST_INT, TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt4MulticastDelegate -= MakeDelegate(&FreeFuncInt4, testThread);
-	ASSERT_TRUE(FreeFuncInt4MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt4MulticastDelegate);
 	FreeFuncInt4MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt4MulticastDelegate);
 
@@ -1735,7 +1735,7 @@ void MulticastDelegateSafeAsyncTests()
 	ASSERT_TRUE(FreeFuncInt5MulticastDelegate);
 	FreeFuncInt5MulticastDelegate(TEST_INT, TEST_INT, TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt5MulticastDelegate -= MakeDelegate(&FreeFuncInt5, testThread);
-	ASSERT_TRUE(FreeFuncInt5MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt5MulticastDelegate);
 	FreeFuncInt5MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt5MulticastDelegate);
 
@@ -1918,7 +1918,7 @@ void DelegateMemberAsyncWaitTests()
 	ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate();
 	FreeFunc0MulticastDelegate -= MakeDelegate(&FreeFunc0, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 
@@ -1981,8 +1981,8 @@ void DelegateMemberAsyncWaitTests()
 	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate(TEST_INT);
 	FreeFuncInt1MulticastDelegate -= MakeDelegate(&FreeFuncInt1, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Size() == 1);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Size() == 0);
+	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 
@@ -2105,7 +2105,7 @@ void DelegateMemberAsyncWaitTests()
 	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	FreeFuncInt2MulticastDelegate -= MakeDelegate(&FreeFuncInt2, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 
@@ -2224,7 +2224,7 @@ void DelegateMemberAsyncWaitTests()
 	ASSERT_TRUE(FreeFuncInt3MulticastDelegate);
 	FreeFuncInt3MulticastDelegate(TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt3MulticastDelegate -= MakeDelegate(&FreeFuncInt3, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt3MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt3MulticastDelegate);
 	FreeFuncInt3MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt3MulticastDelegate);
 
@@ -2343,7 +2343,7 @@ void DelegateMemberAsyncWaitTests()
 	ASSERT_TRUE(FreeFuncInt4MulticastDelegate);
 	FreeFuncInt4MulticastDelegate(TEST_INT, TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt4MulticastDelegate -= MakeDelegate(&FreeFuncInt4, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt4MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt4MulticastDelegate);
 	FreeFuncInt4MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt4MulticastDelegate);
 
@@ -2462,7 +2462,7 @@ void DelegateMemberAsyncWaitTests()
 	ASSERT_TRUE(FreeFuncInt5MulticastDelegate);
 	FreeFuncInt5MulticastDelegate(TEST_INT, TEST_INT, TEST_INT, TEST_INT, TEST_INT);
 	FreeFuncInt5MulticastDelegate -= MakeDelegate(&FreeFuncInt5, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt5MulticastDelegate);
+	ASSERT_TRUE(!FreeFuncInt5MulticastDelegate);
 	FreeFuncInt5MulticastDelegate.Clear();
 	ASSERT_TRUE(!FreeFuncInt5MulticastDelegate);
 
@@ -2586,6 +2586,7 @@ extern void TimerDelegateTests();
 #ifdef DMQ_ALLOCATOR
 extern void AllocatorTests();
 #endif
+extern void MakeTupleHeapTests();
 
 void RunDelegateUnitTests()
 {
@@ -2607,6 +2608,7 @@ void RunDelegateUnitTests()
 #ifdef DMQ_ALLOCATOR
 		AllocatorTests();
 #endif
+		MakeTupleHeapTests();
 	}
 	catch (const std::exception& e)
 	{
