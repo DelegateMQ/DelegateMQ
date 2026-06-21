@@ -44,6 +44,16 @@ namespace trait
     template <typename T>
     struct is_shared_ptr_reference<const std::shared_ptr<T>*> : std::true_type {};
 
+    // Helper trait to check if a type is a non-const reference to a std::shared_ptr
+    template <typename T>
+    struct is_non_const_shared_ptr_reference : std::false_type {};
+
+    template <typename T>
+    struct is_non_const_shared_ptr_reference<std::shared_ptr<T>&> : std::true_type {};
+
+    template <typename T>
+    struct is_non_const_shared_ptr_reference<std::shared_ptr<T>*> : std::true_type {};
+
 
 
     // Helper trait to check if a type is a double pointer (e.g., int**)

@@ -156,6 +156,9 @@ public:
     using ClassType = DelegateFreeAsyncWait<RetType(Args...)>;
     using BaseType = DelegateFree<RetType(Args...)>;
 
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
+        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+
     /// @brief Constructor to create a class instance.
     /// @param[in] func The target free function to store.
     /// @param[in] thread The execution thread to invoke `func`.
@@ -510,6 +513,9 @@ public:
     typedef RetType(TClass::* ConstMemberFunc)(Args...) const;
     using ClassType = DelegateMemberAsyncWait<TClass, RetType(Args...)>;
     using BaseType = DelegateMember<TClass, RetType(Args...)>;
+
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
+        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
 
     /// @brief Constructor to create a class instance.
     /// @param[in] object The target object pointer to store.
@@ -946,6 +952,9 @@ public:
     using ClassType = DelegateMemberAsyncWaitSp<TClass, RetType(Args...)>;
     using BaseType = DelegateMemberSp<TClass, RetType(Args...)>;
 
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
+        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+
     /// @brief Constructor for non-const member function
     DelegateMemberAsyncWaitSp(SharedPtr object, MemberFunc func, IThread& thread, Duration timeout = WAIT_INFINITE) :
         BaseType(object, func), m_thread(&thread), m_timeout(timeout) {
@@ -1296,6 +1305,9 @@ public:
     using FunctionType = std::function<RetType(Args...)>;
     using ClassType = DelegateFunctionAsyncWait<RetType(Args...)>;
     using BaseType = DelegateFunction<RetType(Args...)>;
+
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
+        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
 
     /// @brief Constructor to create a class instance.
     /// @param[in] func The target `std::function` to store.

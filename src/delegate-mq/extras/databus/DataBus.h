@@ -65,19 +65,6 @@ namespace detail {
         dmq::UnicastDelegate<bool(const T&)> m_predicate;
     };
 
-    // Helper class to implement topic forwarding without heavy lambda captures.
-    template <typename T>
-    class TopicForwarder {
-        XALLOCATOR
-    public:
-        TopicForwarder(dmq::xstring topic, bool localOnly) : m_topic(std::move(topic)), m_localOnly(localOnly) {}
-
-        void Invoke(const T& msg);
-
-    private:
-        dmq::xstring m_topic;
-        bool m_localOnly;
-    };
 }
 
 // The DataBus is a central registry for topic-based communication.
@@ -169,7 +156,6 @@ public:
         participant.RegisterHandler(remoteId, serializer, [topic](const T& data) {
             PublishLocal(topic, data);
         });
-        participant.AddRemoteTopic(topic, remoteId);
     }
 
     // Register an incoming remote topic and re-publish received data to ALL local subscribers
@@ -276,15 +262,13 @@ private:
         bool shouldFire = false;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-            if (m_continuousErrors) {
+            uint16_t bit = uint16_t(1u << static_cast<int>(error));
+            auto& bits = m_reportedErrors[topic];
+            if (!(bits & bit)) {
+                bits |= bit;
                 shouldFire = true;
-            } else {
-                uint16_t bit = uint16_t(1u << static_cast<int>(error));
-                auto& bits = m_reportedErrors[topic];
-                if (!(bits & bit)) {
-                    bits |= bit;
-                    shouldFire = true;
-                }
+            } else if (m_continuousErrors) {
+                shouldFire = true;
             }
         }
         if (shouldFire) {
@@ -347,7 +331,7 @@ private:
         }
 
         if (!signal) {
-            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT_TRUE(false);
             return {}; // Type mismatch or other failure
         }
 
@@ -474,7 +458,7 @@ private:
         }
 
         if (typeMismatch) {
-            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT_TRUE(false);
             return;
         }
 
@@ -552,7 +536,7 @@ private:
                 m_serializers[topic] = std::move(serializer);
             }
         }
-        if (typeMismatch) InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+        if (typeMismatch) ASSERT_TRUE(false);
     }
 
     template <typename T>
@@ -580,7 +564,7 @@ private:
                 );
             }
         }
-        if (typeMismatch) InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+        if (typeMismatch) ASSERT_TRUE(false);
     }
 
     void InternalReset() {
@@ -643,15 +627,6 @@ private:
     dmq::Signal<void(const dmq::xstring& topic, dmq::DelegateError error)> m_errorSignal;
     std::array<dmq::ScopedConnection, dmq::MAX_PARTICIPANTS> m_participantErrorConnections;
 };
-
-// Definition of TopicForwarder::Invoke must follow DataBus definition
-template <typename T>
-void detail::TopicForwarder<T>::Invoke(const T& msg) {
-    if (m_localOnly)
-        DataBus::PublishLocal<T>(m_topic, msg);
-    else
-        DataBus::Publish<T>(m_topic, msg);
-}
 
 } // namespace dmq::databus
 

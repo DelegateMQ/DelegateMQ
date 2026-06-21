@@ -257,16 +257,11 @@ auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, st
 /// @throws std::bad_alloc If dynamic allocation of arguments created on the heap
 /// for appending to the tuple fails and DMQ_ASSERTS not defined.
 template<typename Arg1, typename... Args, typename... Ts>
-auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1&& arg1, Args&&... args)
+auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1 arg1, Args... args)
 {
-    using RawArg = std::remove_reference_t<Arg1>;
-    static_assert(!(is_shared_ptr<Arg1>::value && std::is_lvalue_reference_v<Arg1> && !std::is_const_v<RawArg>),
-        "non-const std::shared_ptr& arguments are not allowed");
-    static_assert(!(is_shared_ptr<RawArg>::value && std::is_pointer_v<RawArg> && !std::is_const_v<std::remove_pointer_t<RawArg>>),
-        "non-const std::shared_ptr* arguments are not allowed");
     static_assert(!std::is_same<std::decay_t<Arg1>, void*>::value, "void* argument not allowed");
-    auto new_tup = tuple_append(heapArgs, tup, std::forward<Arg1>(arg1));
-    return make_tuple_heap(heapArgs, new_tup, std::forward<Args>(args)...);
+    auto new_tup = tuple_append(heapArgs, tup, arg1);
+    return make_tuple_heap(heapArgs, new_tup, args...);
 }
 
 }

@@ -169,7 +169,7 @@ public:
     using BaseType = DelegateFree<RetType(Args...)>;
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+        "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
     static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
         "Double pointer arguments (Arg**) are not allowed on remote delegates");
     using BaseType::operator=;
@@ -582,7 +582,7 @@ public:
     using BaseType = DelegateMember<TClass, RetType(Args...)>;
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+        "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
     static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
         "Double pointer arguments (Arg**) are not allowed on remote delegates");
     using BaseType::operator=;
@@ -1057,7 +1057,7 @@ public:
     using BaseType = DelegateFunction<RetType(Args...)>;
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
-        "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+        "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
     static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
         "Double pointer arguments (Arg**) are not allowed on remote delegates");
     using BaseType::operator=;

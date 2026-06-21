@@ -115,7 +115,7 @@ public:
     using ClassType = DelegateFreeAsync<RetType(Args...)>;
     using BaseType = DelegateFree<RetType(Args...)>;
 
-    static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
 
     /// @brief Constructor to create a class instance.
@@ -364,7 +364,7 @@ public:
     using ClassType = DelegateMemberAsync<TClass, RetType(Args...)>;
     using BaseType = DelegateMember<TClass, RetType(Args...)>;
 
-    static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
 
     /// @brief Constructor to create a class instance.
@@ -675,7 +675,7 @@ public:
     using ClassType = DelegateMemberAsyncSp<TClass, RetType(Args...)>;
     using BaseType = DelegateMemberSp<TClass, RetType(Args...)>;
 
-    static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
 
     DelegateMemberAsyncSp(SharedPtr object, MemberFunc func, IThread& thread) : BaseType(object, func), m_thread(&thread) {
@@ -915,7 +915,7 @@ public:
     using ClassType = DelegateFunctionAsync<RetType(Args...)>;
     using BaseType = DelegateFunction<RetType(Args...)>;
 
-    static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
+    static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
 
     /// @brief Constructor to create a class instance.

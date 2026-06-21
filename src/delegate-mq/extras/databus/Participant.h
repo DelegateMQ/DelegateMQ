@@ -206,10 +206,12 @@ private:
             if (topic.empty()) {
                 topic = "UnknownRemoteId:" + std::to_string(id);
             }
-            uint8_t bit = uint8_t(1u << static_cast<int>(error));
+            uint16_t bit = uint16_t(1u << static_cast<int>(error));
             auto& bits = m_reportedErrors[topic];
-            if (m_continuousErrors || !(bits & bit)) {
+            if (!(bits & bit)) {
                 bits |= bit;
+                shouldFire = true;
+            } else if (m_continuousErrors) {
                 shouldFire = true;
             }
         }
@@ -264,7 +266,7 @@ private:
     dmq::xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
     dmq::xmap<dmq::DelegateRemoteId, ChannelInvoker> m_channels;
     dmq::xmap<dmq::DelegateRemoteId, std::type_index> m_channelTypes;
-    dmq::xmap<dmq::xstring, uint8_t> m_reportedErrors;
+    dmq::xmap<dmq::xstring, uint16_t> m_reportedErrors;
     dmq::Signal<void(const dmq::xstring&, dmq::DelegateError)> m_errorSignal;
 
     // --- Duplicate Filtering ---
