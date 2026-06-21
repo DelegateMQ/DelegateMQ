@@ -1,4 +1,5 @@
 #include "System.h"
+#include "Logger.h"
 #include "process/Process.h"
 #include "actuators/Actuators.h"
 #include "sensors/Sensors.h"

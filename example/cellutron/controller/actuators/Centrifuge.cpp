@@ -1,4 +1,5 @@
 #include "Centrifuge.h"
+#include "Logger.h"
 #include "messages/CentrifugeSpeedMsg.h"
 #include "util/Constants.h"
 #include <algorithm>

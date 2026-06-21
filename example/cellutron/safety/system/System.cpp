@@ -1,4 +1,5 @@
 #include "System.h"
+#include "Logger.h"
 #include "RemoteConfig.h"
 #include "Constants.h"
 #include "messages/CentrifugeSpeedMsg.h"

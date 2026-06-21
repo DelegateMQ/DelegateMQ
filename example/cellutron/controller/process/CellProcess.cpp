@@ -1,4 +1,5 @@
 #include "CellProcess.h"
+#include "Logger.h"
 #include "PumpProcess.h"
 #include "messages/RunStatusMsg.h"
 #include "Constants.h"

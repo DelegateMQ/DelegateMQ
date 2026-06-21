@@ -1,4 +1,5 @@
 #include "Process.h"
+#include "Logger.h"
 #include "actuators/Actuators.h"
 #include "extras/util/ThreadMonitor.h"
 #include <cstdio>

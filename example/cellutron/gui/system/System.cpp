@@ -1,4 +1,5 @@
 #include "System.h"
+#include "Logger.h"
 #include "ui/UI.h"
 #include "logs/Logs.h"
 #include "alarms/Alarms.h"

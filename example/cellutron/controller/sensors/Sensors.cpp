@@ -1,4 +1,5 @@
 #include "Sensors.h"
+#include "Logger.h"
 #include "messages/SensorStatusMsg.h"
 #include "util/Constants.h"
 #include <cstdio>

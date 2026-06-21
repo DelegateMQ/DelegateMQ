@@ -1,4 +1,5 @@
 #include "Heartbeat.h"
+#include "Logger.h"
 #include "messages/FaultMsg.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
