@@ -55,37 +55,14 @@ public:
     /// A void return value is used since multiple targets invoked.
     /// @param[in] args The arguments used when invoking the target functions
     void operator()(Args... args) {
-        size_t count = m_delegates.size();
-        if (count <= SIGNAL_SBO_COUNT) {
-            std::shared_ptr<DelegateType> small_buf[SIGNAL_SBO_COUNT];
-            size_t idx = 0;
-            for (auto& d : m_delegates) {
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-#endif
-                small_buf[idx++] = d;
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-            }
-            for (size_t i = 0; i < count; ++i) {
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-#endif
-                if (small_buf[i])
-                    (*small_buf[i])(args...);
-                small_buf[i].reset(); // Clear to release shared_ptr immediately
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-            }
-        } else {
-            xlist<std::shared_ptr<DelegateType>> large_buf = m_delegates;
-            for (auto& d : large_buf) {
-                if (d)
-                    (*d)(args...);
+        // RAII Guard: Increments now, Decrements + Cleans up on return/throw
+        BroadcastGuard guard(m_broadcastCount, this);
+
+        // Iterate safely
+        for (auto it = m_delegates.begin(); it != m_delegates.end(); ++it) {
+            std::shared_ptr<DelegateType>& delegate = *it;
+            if (delegate) {
+                (*delegate)(args...);
             }
         }
     }
@@ -165,12 +142,23 @@ public:
     /// Remove a delegate into the container.
     /// @param[in] delegate The delegate target to remove.
     void Remove(const DelegateType& delegate) {
-        auto it = m_delegates.begin();
-        while (it != m_delegates.end()) {
-            if (*it && (**it == delegate)) {
-                it = m_delegates.erase(it);
-            } else {
-                ++it;
+        auto it = std::find_if(m_delegates.begin(), m_delegates.end(),
+            [&delegate](const std::shared_ptr<DelegateType>& item) {
+                // Must check if item is valid before comparing!
+                return item && (*item == delegate);
+            });
+
+        if (it != m_delegates.end()) {
+            if (m_broadcastCount > 0) {
+                // REENTRANCY DETECTED: 
+                // Do not erase(). Just null out the pointer.
+                // The iterator in operator() stays valid, but next access sees null.
+                it->reset();
+                m_cleanup = true;
+            }
+            else {
+                // Safe to erase immediately
+                m_delegates.erase(it);
             }
         }
     }
@@ -195,7 +183,7 @@ private:
     /// @param[in] other The container to copy from
     void CopyFrom(const MulticastDelegate& other) {
         for (auto& delegate : other.m_delegates) {
-            if (!delegate) continue;  // Skip soft-deleted entries (mid-broadcast nulls)
+            if (!delegate) continue;
             auto delegateClone = delegate->Clone();
             if (!delegateClone)
                 BAD_ALLOC();
@@ -217,9 +205,44 @@ private:
         }
     }
 
+    void Cleanup() {
+        // Skip cleanup if nothing removed
+        if (!m_cleanup)
+            return;
+
+        // Efficiently remove all null pointers from the list
+        m_delegates.remove_if([](const std::shared_ptr<DelegateType>& item) {
+            return item == nullptr;
+            });
+
+        m_cleanup = false;
+    }
+
+    class BroadcastGuard {
+    public:
+        BroadcastGuard(int& cnt, MulticastDelegate* container)
+            : m_cnt(cnt), m_container(container) {
+            m_cnt++; // Lock
+        }
+        ~BroadcastGuard() {
+            m_cnt--; // Unlock
+            if (m_cnt == 0 && m_container) {
+                m_container->Cleanup();
+            }
+        }
+    private:
+        int& m_cnt;
+        MulticastDelegate* m_container;
+    };
 protected:
     /// List of registered delegates
     xlist<std::shared_ptr<DelegateType>> m_delegates;
+
+    /// Count of active nested broadcasts
+    int m_broadcastCount = 0;
+
+    /// Flag for handling lazy delete
+    bool m_cleanup = false;
 };
 
 }

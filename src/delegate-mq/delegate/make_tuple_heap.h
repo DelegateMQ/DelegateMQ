@@ -94,9 +94,6 @@ public:
     // *arg (e.g. an outgoing-argument pattern like (*s) = new T).
     heap_arg_deleter(T** arg) : m_arg(arg), m_inner(*arg) {}
     virtual ~heap_arg_deleter() {
-        if (*m_arg != m_inner) {
-            xdelete(*m_arg);    // free the newly assigned inner pointer
-        }
         xdelete(m_inner);       // free the original xnew'd inner copy (may be nullptr)
         xdelete(m_arg);         // free the outer pointer storage
     }
@@ -225,12 +222,30 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
 template <typename Arg, typename... TupleElem>
 auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg&& arg)
 {
-    (void)heapArgs;
+    using RawArg = std::remove_reference_t<Arg>;
+    RawArg* heap_arg = xnew<RawArg>(std::forward<Arg>(arg));
+    if (!heap_arg) {
+        BAD_ALLOC();
+    }
+    auto deleter = xmake_shared<heap_arg_deleter<RawArg*>>(heap_arg);
+    if (!deleter) {
+        xdelete(heap_arg);
+        BAD_ALLOC();
+    }
+
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    return std::tuple_cat(tup, std::make_tuple(std::forward<Arg>(arg)));
+    heapArgs.push_back(deleter);
+
+    auto temp = std::make_tuple(std::forward_as_tuple(*heap_arg));  // Dereference heap_arg when creating tuple element
+    auto new_type = std::get<0>(temp);
+    return std::tuple_cat(tup, new_type);
 #else
     try {
-        return std::tuple_cat(tup, std::make_tuple(std::forward<Arg>(arg)));
+        heapArgs.push_back(deleter);
+
+        auto temp = std::make_tuple(std::forward_as_tuple(*heap_arg));  // Dereference heap_arg when creating tuple element
+        auto new_type = std::get<0>(temp);
+        return std::tuple_cat(tup, new_type);
     }
     catch (const std::bad_alloc&) {
         BAD_ALLOC();

@@ -36,7 +36,13 @@ namespace trait
     struct is_shared_ptr_reference<std::shared_ptr<T>&> : std::true_type {};
 
     template <typename T>
+    struct is_shared_ptr_reference<const std::shared_ptr<T>&> : std::true_type {};
+
+    template <typename T>
     struct is_shared_ptr_reference<std::shared_ptr<T>*> : std::true_type {};
+
+    template <typename T>
+    struct is_shared_ptr_reference<const std::shared_ptr<T>*> : std::true_type {};
 
 
 

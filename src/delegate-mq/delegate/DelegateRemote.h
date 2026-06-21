@@ -65,7 +65,8 @@ enum class DelegateError {
     ERR_DESERIALIZE = 4,
     ERR_DESERIALIZE_EXCEPTION = 5,
     ERR_NO_DISPATCHER = 6,
-    ERR_DISPATCH = 7
+    ERR_DISPATCH = 7,
+    ERR_TYPE_MISMATCH = 8
 };
 
 typedef int DelegateErrorAux;
@@ -169,6 +170,8 @@ public:
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+    static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
+        "Double pointer arguments (Arg**) are not allowed on remote delegates");
     using BaseType::operator=;
 
     /// @brief Constructor to create a class instance. Typically called by sender. 
@@ -368,11 +371,6 @@ public:
 
         // Do not wait for remote to invoke function call
         return RetType();
-
-
-
-        static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
-            "Double pointer arguments (Arg**) are not allowed on remote delegates");
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -585,6 +583,8 @@ public:
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+    static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
+        "Double pointer arguments (Arg**) are not allowed on remote delegates");
     using BaseType::operator=;
 
     /// @brief Constructor to create a class instance. Typically called by sender. 
@@ -845,11 +845,6 @@ public:
 
         // Do not wait for remote to invoke function call
         return RetType();
-
-
-
-        static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
-            "Double pointer arguments (Arg**) are not allowed on remote delegates");
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -1063,6 +1058,8 @@ public:
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
+    static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
+        "Double pointer arguments (Arg**) are not allowed on remote delegates");
     using BaseType::operator=;
 
     /// @brief Constructor to create a class instance. Typically called by sender. 
@@ -1262,11 +1259,6 @@ public:
 
         // Do not wait for remote to invoke function call
         return RetType();
-
-
-
-        static_assert(!(std::disjunction_v<trait::is_double_pointer<Args>...>),
-            "Double pointer arguments (Arg**) are not allowed on remote delegates");
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.

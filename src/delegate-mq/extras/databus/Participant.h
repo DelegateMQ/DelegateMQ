@@ -44,6 +44,13 @@ public:
         m_topicToRemoteId[topic] = remoteId;
     }
 
+    // Enable or disable continuous error mode (disables error latching).
+private:
+    void EnableContinuousErrors(bool enable) {
+        m_continuousErrors = enable;
+    }
+public:
+
     // Subscribe to technical errors (serialization/dispatch) for this participant.
     [[nodiscard]] dmq::ScopedConnection SubscribeError(std::function<void(const dmq::xstring&, dmq::DelegateError)> func) {
         return m_errorSignal.Connect(dmq::MakeDelegate(std::move(func)));
@@ -94,6 +101,8 @@ public:
             // Invoke outside the lock to prevent deadlocks and allow re-entry
             if (invoker) {
                 invoker->Invoke(inputStream);
+            } else {
+                OnChannelError(id, dmq::DelegateError::ERR_NO_DISPATCHER, 0);
             }
         }
         return result;
@@ -194,13 +203,14 @@ private:
             for (auto& [t, rid] : m_topicToRemoteId) {
                 if (rid == id) { topic = t; break; }
             }
-            if (!topic.empty()) {
-                uint8_t bit = uint8_t(1u << static_cast<int>(error));
-                auto& bits = m_reportedErrors[topic];
-                if (!(bits & bit)) {
-                    bits |= bit;
-                    shouldFire = true;
-                }
+            if (topic.empty()) {
+                topic = "UnknownRemoteId:" + std::to_string(id);
+            }
+            uint8_t bit = uint8_t(1u << static_cast<int>(error));
+            auto& bits = m_reportedErrors[topic];
+            if (m_continuousErrors || !(bits & bit)) {
+                bits |= bit;
+                shouldFire = true;
             }
         }
         if (shouldFire)
@@ -248,6 +258,7 @@ private:
 
     dmq::transport::ITransport* m_transport;
     dmq::IThread* m_sendThread = nullptr;
+    bool m_continuousErrors = false;
     dmq::RecursiveMutex m_mutex;
     dmq::Mutex m_receiveMutex;
     dmq::xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
