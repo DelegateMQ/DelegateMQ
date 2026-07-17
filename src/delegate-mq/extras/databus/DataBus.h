@@ -331,8 +331,11 @@ private:
         }
 
         if (!signal) {
-            ASSERT_TRUE(false);
-            return {}; // Type mismatch or other failure
+            // Type mismatch: report through the error signal for diagnosability,
+            // then hard fault (wrong type is an invariant violation).
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
+            return {};
         }
 
         // 3. Establish connection OUTSIDE the lock to prevent deadlock with Timer/Signal locks.
@@ -458,7 +461,8 @@ private:
         }
 
         if (typeMismatch) {
-            ASSERT_TRUE(false);
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
             return;
         }
 
@@ -536,7 +540,10 @@ private:
                 m_serializers[topic] = std::move(serializer);
             }
         }
-        if (typeMismatch) ASSERT_TRUE(false);
+        if (typeMismatch) {
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
+        }
     }
 
     template <typename T>
@@ -564,7 +571,10 @@ private:
                 );
             }
         }
-        if (typeMismatch) ASSERT_TRUE(false);
+        if (typeMismatch) {
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
+        }
     }
 
     void InternalReset() {

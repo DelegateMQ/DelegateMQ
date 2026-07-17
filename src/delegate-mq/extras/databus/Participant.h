@@ -204,7 +204,12 @@ private:
                 if (rid == id) { topic = t; break; }
             }
             if (topic.empty()) {
-                topic = "UnknownRemoteId:" + std::to_string(id);
+                // xostringstream keeps this portable: under DMQ_ALLOCATOR, xstring and
+                // std::string are different types, so std::to_string concatenation
+                // would not compile.
+                dmq::xostringstream os;
+                os << "UnknownRemoteId:" << id;
+                topic = os.str();
             }
             uint16_t bit = uint16_t(1u << static_cast<int>(error));
             auto& bits = m_reportedErrors[topic];
@@ -239,7 +244,11 @@ private:
             // Type safety: catch remoteId reused with a different T
             auto itType = m_channelTypes.find(remoteId);
             if (itType != m_channelTypes.end()) {
-                ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
+                if (itType->second != std::type_index(typeid(T))) {
+                    // Report before faulting so error handlers can log the mismatch
+                    OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
+                    ASSERT();
+                }
             }
             channel = std::static_pointer_cast<dmq::RemoteChannel<void(T)>>(it->second.channel);
         } else {

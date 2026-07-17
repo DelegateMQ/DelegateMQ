@@ -218,15 +218,6 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
 #endif
 }
 
-/// @brief Append a by-value or r-value argument to the tuple
-template <typename Arg, typename... TupleElem>
-auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg&& arg)
-{
-    (void)heapArgs;
-    // R-value or by-value passed: No heap allocation needed, move directly into tuple
-    return std::tuple_cat(tup, std::make_tuple(std::forward<Arg>(arg)));
-}
-
 /// @brief Terminate the template metaprogramming argument loop. This function is 
 /// called when there are no more arguments to process.
 /// @tparam Ts The types of the remaining arguments.

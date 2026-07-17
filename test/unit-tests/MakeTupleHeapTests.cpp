@@ -15,7 +15,7 @@ void MakeTupleHeapTests()
         int val = 42;
         auto tup = make_tuple_heap(heapArgs, empty_tup, std::move(val));
         
-        ASSERT_TRUE(heapArgs.size() == 0); // No heap allocation for by-value/r-value
+        ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation restored for by-value/r-value
         ASSERT_TRUE(std::get<0>(tup) == 42);
     }
 
@@ -25,7 +25,7 @@ void MakeTupleHeapTests()
         std::tuple<> empty_tup;
         auto tup = make_tuple_heap(heapArgs, empty_tup, 100);
         
-        ASSERT_TRUE(heapArgs.size() == 0); // No heap allocation for r-value
+        ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation restored for r-value
         ASSERT_TRUE(std::get<0>(tup) == 100);
     }
 
@@ -66,11 +66,11 @@ void MakeTupleHeapTests()
 
         auto tup = make_tuple_heap(heapArgs, empty_tup, std::move(val), pVal, rVal, std::move(dVal));
 
-        // val -> no allocation
+        // val -> 1 allocation
         // pVal -> 1 allocation
         // rVal -> 1 allocation
-        // dVal -> no allocation
-        ASSERT_TRUE(heapArgs.size() == 2); 
+        // dVal -> 1 allocation
+        ASSERT_TRUE(heapArgs.size() == 4); 
         ASSERT_TRUE(std::get<0>(tup) == 42);
         ASSERT_TRUE(*(std::get<1>(tup)) == 42);
         ASSERT_TRUE(std::get<2>(tup) == 42);

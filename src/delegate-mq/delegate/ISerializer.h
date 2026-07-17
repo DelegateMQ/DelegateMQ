@@ -47,6 +47,13 @@ namespace dmq {
         /// Called by the receiving endpoint before invoking the target function.
         /// The implementation must read data from `is` and populate the references in `args`.
         /// 
+        /// @note
+        /// When deserializing pointer arguments like `const T*`, `args` will be a reference 
+        /// to a `const T*` (`const T*&`). Because the object is conceptually const, writing 
+        /// deserialized data directly to `*arg` is ill-formed. As a workaround, implementations 
+        /// must use `const_cast<T*>(arg)` to cast away constness and write to the underlying 
+        /// mutable storage provided by the framework, or allocate a new object if preferred.
+        /// 
         /// @param[in] is The input stream (buffer) containing received data.
         /// @param[out] args References to the arguments where the data should be stored.
         /// @return Reference to the input stream.
