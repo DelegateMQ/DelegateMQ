@@ -58,14 +58,16 @@ class BareMetalDispatcher : public IDispatcher
 {
 public:
     // Send argument data to the transport
-    virtual int Dispatch(std::ostream& os, DelegateRemoteId id) {
+    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
         std::stringstream ss(ios::in | ios::out | ios::binary);
-        ss << os.rdbuf();
+        ss << os.str();
+        os.str(dmq::xstring());
+        os.clear();
+        os.seekp(0);
         Transport::Send(ss);
         return 0;
     }
 };
-
 // make_serialized serializes each remote function argument
 template<typename... Ts>
 void make_serialized(std::ostream& os) { }

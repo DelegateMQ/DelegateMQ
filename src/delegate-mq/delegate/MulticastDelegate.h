@@ -106,7 +106,11 @@ public:
     /// @return A reference to the current object.
     MulticastDelegate& operator=(MulticastDelegate&& rhs) noexcept {
         if (&rhs != this) {
-            m_delegates = std::move(rhs.m_delegates);
+            Clear();
+            for (auto& delegate : rhs.m_delegates) {
+                m_delegates.push_back(std::move(delegate));
+            }
+            rhs.m_delegates.clear();
         }
         return *this;
     }
@@ -168,7 +172,17 @@ public:
     bool Empty() const { return m_delegates.empty(); }
 
     /// Removal all registered delegates.
-    void Clear() { m_delegates.clear(); }
+    void Clear() {
+        if (m_broadcastCount > 0) {
+            for (auto& delegate : m_delegates) {
+                delegate.reset();
+            }
+            m_cleanup = true;
+        }
+        else {
+            m_delegates.clear();
+        }
+    }
 
     /// Get the number of delegates stored.
     /// @return The number of delegates stored.

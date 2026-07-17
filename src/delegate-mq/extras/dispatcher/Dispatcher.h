@@ -45,19 +45,22 @@ public:
     }
 
     // Send argument data to the transport
-    int Dispatch(std::ostream& os, dmq::DelegateRemoteId id) override
+    int Dispatch(dmq::xostringstream& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override
     {
-        dmq::xostringstream* ss = static_cast<dmq::xostringstream*>(&os);
+        dmq::xostringstream* ss = &os;
 
         if (m_transport)
         {
-            transport::DmqHeader header(id, m_seqNum.fetch_add(1));
+            uint16_t seq = m_seqNum.fetch_add(1);
+            if (outSeqNum) *outSeqNum = seq;
+            transport::DmqHeader header(id, seq);
             int err = m_transport->Send(*ss, header);
 
             // Reset the stream content and error state for the next use.
             // This prevents the stream from growing indefinitely.
-            ss->str("");
+            ss->str(dmq::xstring());
             ss->clear();
+            ss->seekp(0);
 
             LOG_INFO("Dispatcher::Dispatch id={} seqNum={} err={}", header.GetId(), header.GetSeqNum(), err);
             return err;
@@ -67,7 +70,7 @@ public:
 
 private:
     transport::ITransport* m_transport = nullptr;
-    std::atomic<uint16_t> m_seqNum{0};
+    inline static std::atomic<uint16_t> m_seqNum{0};
 };
 
 } // namespace dmq

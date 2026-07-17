@@ -52,6 +52,7 @@
 #include "IDispatcher.h"
 #include "IInvoker.h"
 #include <tuple>
+#include "DelegateOpt.h"
 #include <iostream>
 #include <stdexcept>
 
@@ -200,7 +201,7 @@ public:
     /// @param[in] rhs The object to move from.
     DelegateFreeRemote(ClassType&& rhs) noexcept :
         BaseType(std::move(rhs)), m_id(rhs.m_id),
-        m_dispatcher(rhs.m_dispatcher), m_serializer(rhs.m_serializer), m_stream(rhs.m_stream) {
+        m_dispatcher(rhs.m_dispatcher), m_serializer(rhs.m_serializer), m_stream(rhs.m_stream), m_errorHandler(std::move(rhs.m_errorHandler)) {
         rhs.Clear();
         rhs.m_dispatcher = nullptr; rhs.m_serializer = nullptr; rhs.m_stream = nullptr;
     }
@@ -226,6 +227,10 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_id = rhs.m_id;
+        m_dispatcher = rhs.m_dispatcher;
+        m_serializer = rhs.m_serializer;
+        m_stream = rhs.m_stream;
+        m_errorHandler = rhs.m_errorHandler;
         BaseType::Assign(rhs);
     }
 
@@ -257,6 +262,13 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_id = rhs.m_id;    // Use the resource
+            m_dispatcher = rhs.m_dispatcher;
+            m_serializer = rhs.m_serializer;
+            m_stream = rhs.m_stream;
+            m_errorHandler = std::move(rhs.m_errorHandler);
+            rhs.m_dispatcher = nullptr;
+            rhs.m_serializer = nullptr;
+            rhs.m_stream = nullptr;
         }
         return *this;
     }
@@ -348,12 +360,12 @@ public:
                 // Dispatch delegate invocation to the remote destination
                 if (m_dispatcher) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-                    int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                    int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                     if (error)
                         RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
 #else
                     try {
-                        int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                        int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
                     }
@@ -366,7 +378,9 @@ public:
                     RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
                 }
             }
-
+        }
+        else {
+            RaiseError(m_id, DelegateError::ERR_NO_SERIALIZER);
         }
 
         // Do not wait for remote to invoke function call
@@ -483,7 +497,7 @@ public:
     /// @brief Set the serialization stream used to store serialized function 
     /// argument data. 
     /// @param[in] stream An output stream.
-    void SetStream(std::ostream* stream) {
+    void SetStream(dmq::xostringstream* stream) {
         m_stream = stream;
     }
 
@@ -530,7 +544,7 @@ private:
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // No throw
 #else
-            throw std::runtime_error("Delegate remote error.");
+            throw std::runtime_error("Delegate remote error " + std::to_string(static_cast<int>(error)) + " id " + std::to_string(id));
 #endif
         }
     }
@@ -544,6 +558,7 @@ private:
 
     /// The delegate unique remote identifier
     DelegateRemoteId m_id = INVALID_REMOTE_ID;
+    mutable uint16_t m_lastSeqNum = 0;
 
     /// A pointer to a error handler callback
     UnicastDelegate<void(DelegateRemoteId, DelegateError, DelegateErrorAux)> m_errorHandler;
@@ -558,7 +573,7 @@ private:
     DelegateError m_error = DelegateError::SUCCESS;
 
     /// Stream to store serialize remote argument function data
-    std::ostream* m_stream = nullptr;
+    dmq::xostringstream* m_stream = nullptr;
 
     // </common_code>
 };
@@ -637,7 +652,7 @@ public:
     /// @param[in] rhs The object to move from.
     DelegateMemberRemote(ClassType&& rhs) noexcept :
         BaseType(std::move(rhs)), m_id(rhs.m_id),
-        m_dispatcher(rhs.m_dispatcher), m_serializer(rhs.m_serializer), m_stream(rhs.m_stream) {
+        m_dispatcher(rhs.m_dispatcher), m_serializer(rhs.m_serializer), m_stream(rhs.m_stream), m_errorHandler(std::move(rhs.m_errorHandler)) {
         rhs.Clear();
         rhs.m_dispatcher = nullptr; rhs.m_serializer = nullptr; rhs.m_stream = nullptr;
     }
@@ -700,6 +715,10 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_id = rhs.m_id;
+        m_dispatcher = rhs.m_dispatcher;
+        m_serializer = rhs.m_serializer;
+        m_stream = rhs.m_stream;
+        m_errorHandler = rhs.m_errorHandler;
         BaseType::Assign(rhs);
     }
 
@@ -731,6 +750,13 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_id = rhs.m_id;    // Use the resource
+            m_dispatcher = rhs.m_dispatcher;
+            m_serializer = rhs.m_serializer;
+            m_stream = rhs.m_stream;
+            m_errorHandler = std::move(rhs.m_errorHandler);
+            rhs.m_dispatcher = nullptr;
+            rhs.m_serializer = nullptr;
+            rhs.m_stream = nullptr;
         }
         return *this;
     }
@@ -822,12 +848,12 @@ public:
                 // Dispatch delegate invocation to the remote destination
                 if (m_dispatcher) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-                    int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                    int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                     if (error)
                         RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
 #else
                     try {
-                        int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                        int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
                     }
@@ -840,7 +866,9 @@ public:
                     RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
                 }
             }
-
+        }
+        else {
+            RaiseError(m_id, DelegateError::ERR_NO_SERIALIZER);
         }
 
         // Do not wait for remote to invoke function call
@@ -957,7 +985,7 @@ public:
     /// @brief Set the serialization stream used to store serialized function 
     /// argument data. 
     /// @param[in] stream An output stream.
-    void SetStream(std::ostream* stream) {
+    void SetStream(dmq::xostringstream* stream) {
         m_stream = stream;
     }
 
@@ -1004,7 +1032,7 @@ private:
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // No throw
 #else
-            throw std::runtime_error("Delegate remote error.");
+            throw std::runtime_error("Delegate remote error " + std::to_string(static_cast<int>(error)) + " id " + std::to_string(id));
 #endif
         }
     }
@@ -1018,6 +1046,7 @@ private:
 
     /// The delegate unique remote identifier
     DelegateRemoteId m_id = INVALID_REMOTE_ID;
+    mutable uint16_t m_lastSeqNum = 0;
 
     /// A pointer to a error handler callback
     UnicastDelegate<void(DelegateRemoteId, DelegateError, DelegateErrorAux)> m_errorHandler;
@@ -1032,7 +1061,7 @@ private:
     DelegateError m_error = DelegateError::SUCCESS;
 
     /// Stream to store serialize remote argument function data
-    std::ostream* m_stream = nullptr;
+    dmq::xostringstream* m_stream = nullptr;
 
     // </common_code>
 };
@@ -1088,7 +1117,7 @@ public:
     /// @param[in] rhs The object to move from.
     DelegateFunctionRemote(ClassType&& rhs) noexcept :
         BaseType(std::move(rhs)), m_id(rhs.m_id),
-        m_dispatcher(rhs.m_dispatcher), m_serializer(rhs.m_serializer), m_stream(rhs.m_stream) {
+        m_dispatcher(rhs.m_dispatcher), m_serializer(rhs.m_serializer), m_stream(rhs.m_stream), m_errorHandler(std::move(rhs.m_errorHandler)) {
         rhs.Clear();
         rhs.m_dispatcher = nullptr; rhs.m_serializer = nullptr; rhs.m_stream = nullptr;
     }
@@ -1114,6 +1143,10 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_id = rhs.m_id;
+        m_dispatcher = rhs.m_dispatcher;
+        m_serializer = rhs.m_serializer;
+        m_stream = rhs.m_stream;
+        m_errorHandler = rhs.m_errorHandler;
         BaseType::Assign(rhs);
     }
 
@@ -1145,6 +1178,13 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_id = rhs.m_id;    // Use the resource
+            m_dispatcher = rhs.m_dispatcher;
+            m_serializer = rhs.m_serializer;
+            m_stream = rhs.m_stream;
+            m_errorHandler = std::move(rhs.m_errorHandler);
+            rhs.m_dispatcher = nullptr;
+            rhs.m_serializer = nullptr;
+            rhs.m_stream = nullptr;
         }
         return *this;
     }
@@ -1236,12 +1276,12 @@ public:
                 // Dispatch delegate invocation to the remote destination
                 if (m_dispatcher) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-                    int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                    int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                     if (error)
                         RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
 #else
                     try {
-                        int error = m_dispatcher->Dispatch(*m_stream, m_id);
+                        int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
                     }
@@ -1254,7 +1294,9 @@ public:
                     RaiseError(m_id, DelegateError::ERR_NO_DISPATCHER);
                 }
             }
-
+        }
+        else {
+            RaiseError(m_id, DelegateError::ERR_NO_SERIALIZER);
         }
 
         // Do not wait for remote to invoke function call
@@ -1371,7 +1413,7 @@ public:
     /// @brief Set the serialization stream used to store serialized function 
     /// argument data. 
     /// @param[in] stream An output stream.
-    void SetStream(std::ostream* stream) {
+    void SetStream(dmq::xostringstream* stream) {
         m_stream = stream;
     }
 
@@ -1418,7 +1460,7 @@ private:
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // No throw
 #else
-            throw std::runtime_error("Delegate remote error.");
+            throw std::runtime_error("Delegate remote error " + std::to_string(static_cast<int>(error)) + " id " + std::to_string(id));
 #endif
         }
     }
@@ -1432,6 +1474,7 @@ private:
 
     /// The delegate unique remote identifier
     DelegateRemoteId m_id = INVALID_REMOTE_ID;
+    mutable uint16_t m_lastSeqNum = 0;
 
     /// A pointer to a error handler callback
     UnicastDelegate<void(DelegateRemoteId, DelegateError, DelegateErrorAux)> m_errorHandler;
@@ -1446,7 +1489,7 @@ private:
     DelegateError m_error = DelegateError::SUCCESS;
 
     /// Stream to store serialize remote argument function data
-    std::ostream* m_stream = nullptr;
+    dmq::xostringstream* m_stream = nullptr;
 
     // </common_code>
 };

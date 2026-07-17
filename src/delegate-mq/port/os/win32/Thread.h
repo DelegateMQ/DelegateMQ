@@ -29,7 +29,7 @@
 #include "delegate/IThread.h"
 #include "./extras/util/Timer.h"
 #include "ThreadMsg.h"
-#include <queue>
+#include <deque>
 #include <atomic>
 #include <optional>
 #include <string>
@@ -42,13 +42,6 @@
 #endif
 
 namespace dmq::os {
-
-// Comparator for priority queue
-struct ThreadMsgComparator {
-    bool operator()(const std::shared_ptr<ThreadMsg>& a, const std::shared_ptr<ThreadMsg>& b) const {
-        return static_cast<int>(a->GetPriority()) < static_cast<int>(b->GetPriority());
-    }
-};
 
 /// @brief Policy applied when the thread message queue is full.
 /// @details Only meaningful when maxQueueSize > 0.
@@ -189,9 +182,8 @@ private:
     // Condition variable to wake up blocked producers when space is available
     CONDITION_VARIABLE m_cvNotFull;
 
-    std::priority_queue<std::shared_ptr<ThreadMsg>,
-        std::vector<std::shared_ptr<ThreadMsg>>,
-        ThreadMsgComparator> m_queue;
+    std::deque<std::shared_ptr<ThreadMsg>> m_highQueue;
+    std::deque<std::shared_ptr<ThreadMsg>> m_normalQueue;
 
     const dmq::xstring THREAD_NAME;
     const dmq::xstring CPU_NAME;

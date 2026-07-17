@@ -20,12 +20,15 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **DataBus remote topic registration** — registering topics now records the topic-to-remote-ID mapping on the participant (`AddRemoteTopic`), fixing inter-node topic forwarding.
 - Thread-unsafe `printf` output in Windows sample projects.
 - Linux build error and clang strict-warning findings (`-Wunsafe-buffer-usage` in the `Signal` snapshot buffer).
+- **bare-metal-remote sample** — Fixed compile error by updating `BareMetalDispatcher` to match the new `IDispatcher::Dispatch` signature.
 
 ### Changed
 - `std::shared_ptr` argument rules on asynchronous delegates refined: `const std::shared_ptr<T>&` and `const std::shared_ptr<T>*` are now accepted; non-const reference and pointer forms are rejected at compile time with a clearer diagnostic. Remote delegates still require `std::shared_ptr` by value.
 - DataBus internals simplified: `TopicForwarder` helper removed in favor of thin lambda captures on `Participant::RegisterHandler`.
 - `ISerializer::Read()` documentation now explains the `const_cast` requirement when deserializing `const T*` arguments.
 - Documentation overhaul: README condensed (Motivation/Advantages rewritten, Modular Architecture folded into Overview) and gains a Remote Delegates example; `llms.txt` corrected (`DMQ_TOOLS` option name, updated remote delegate pattern).
+- `IDispatcher::Dispatch` signature updated to accept `dmq::xostringstream&` and an optional `uint16_t* outSeqNum` to retrieve transport sequence numbers.
+- `Thread` priority queue refactored: replaced `std::priority_queue` with two `std::deque`s (`m_highQueue` and `m_normalQueue`) to guarantee strict FIFO execution of messages within the same priority level. `Priority::LOW` has been removed.
 
 ---
 

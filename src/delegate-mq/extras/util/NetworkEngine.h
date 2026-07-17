@@ -155,6 +155,8 @@ public:
             // 2. [Caller Thread] Create shared synchronization state.
             struct SyncState {
                 std::atomic<bool> success{ false };
+                std::atomic<bool> seqSet{ false };
+                std::atomic<uint16_t> expectedSeq{ 0 };
                 bool complete = false;
                 dmq::Mutex mtx;              // Generic Mutex
                 dmq::ConditionVariable cv;   // Generic CV
@@ -166,14 +168,13 @@ public:
             // 3. [Caller Thread] Define the callback that wakes us up later.
             std::function<void(dmq::DelegateRemoteId, uint16_t, TransportMonitor::Status)> statusCbFunc =
                 [state, remoteId](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
-                if (id == remoteId) {
+                if (id == remoteId && state->seqSet.load() && state->expectedSeq.load() == seq) {
                     {
                         dmq::LockGuard<dmq::Mutex> lock(state->mtx);
                         state->complete = true;
                         if (status == TransportMonitor::Status::SUCCESS)
                             state->success.store(true);
                     }
-                    // 9. [Network Thread] Notify the waiting caller thread.
                     state->cv.notify_one();
                 }
                 };
@@ -183,9 +184,10 @@ public:
 
             // 5. [Caller Thread] Define the "Send" logic lambda.
             auto* epPtr = &endpoint;
-            std::function<bool(Args...)> asyncCallFunc = [epPtr](auto&&... fwdArgs) -> bool {
-                // 7. [Network Thread] Execute the send operation.
+            std::function<bool(Args...)> asyncCallFunc = [epPtr, state](auto&&... fwdArgs) -> bool {
                 (*epPtr)(std::forward<decltype(fwdArgs)>(fwdArgs)...);
+                state->expectedSeq.store(epPtr->GetLastSeqNum());
+                state->seqSet.store(true);
                 return (epPtr->GetError() == dmq::DelegateError::SUCCESS);
                 };
 
@@ -228,6 +230,8 @@ public:
         {
             struct SyncState {
                 std::atomic<bool> success{ false };
+                std::atomic<bool> seqSet{ false };
+                std::atomic<uint16_t> expectedSeq{ 0 };
                 bool complete = false;
                 dmq::Mutex mtx;
                 dmq::ConditionVariable cv;
@@ -238,7 +242,7 @@ public:
 
             std::function<void(dmq::DelegateRemoteId, uint16_t, TransportMonitor::Status)> statusCbFunc =
                 [state, remoteId](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
-                if (id == remoteId) {
+                if (id == remoteId && state->seqSet.load() && state->expectedSeq.load() == seq) {
                     {
                         dmq::LockGuard<dmq::Mutex> lock(state->mtx);
                         state->complete = true;

@@ -164,6 +164,10 @@ public:
         for (size_t i = m_peerCount; i > 0; --i) {
             RemoteNode& node = m_peers[i - 1];
             if (!node.active) continue;
+            DataBus::RemoveParticipant(node.reliableParticipant);
+            DataBus::RemoveParticipant(node.unreliableParticipant);
+            if (node.reliableParticipant) node.reliableParticipant->SetSendThread(nullptr);
+            if (node.unreliableParticipant) node.unreliableParticipant->SetSendThread(nullptr);
             node.capConn.Disconnect();
             node.pendingConn.Disconnect();
             node.rawTransport.Close();

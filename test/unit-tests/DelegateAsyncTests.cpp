@@ -265,29 +265,23 @@ static void DelegateFreeAsyncTests()
                 sleepCnt++;
             else if (priority == dmq::Priority::NORMAL && (sleepCnt == 3 || sleepCnt == 4))
                 sleepCnt++;
-            else if (priority == dmq::Priority::LOW && (sleepCnt == 5 || sleepCnt == 6))
-                sleepCnt++;
             else
                 failed = true;  // Priority queue not working as expected
         }
         };
     auto delegateNormal = MakeDelegate(LambdaSleep, workerThread);
     delegateNormal.SetPriority(Priority::NORMAL);
-    auto delegateLow = MakeDelegate(LambdaSleep, workerThread);
-    delegateLow.SetPriority(Priority::LOW);
     auto delegateHigh = MakeDelegate(LambdaSleep, workerThread);
     delegateHigh.SetPriority(Priority::HIGH);
 
     delegateHigh(dmq::Priority::HIGH);
-    delegateLow(dmq::Priority::LOW);
     delegateNormal(dmq::Priority::NORMAL);
     delegateHigh(dmq::Priority::HIGH);
-    delegateLow(dmq::Priority::LOW);
-    delegateHigh(dmq::Priority::HIGH);
     delegateNormal(dmq::Priority::NORMAL);
+    delegateHigh(dmq::Priority::HIGH);
 
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    ASSERT_TRUE(sleepCnt == 7);
+    ASSERT_TRUE(sleepCnt == 5);
     ASSERT_TRUE(failed == false);
 }
 

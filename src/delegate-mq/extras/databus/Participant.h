@@ -150,7 +150,13 @@ public:
         AttachErrorHandler(channel);
 
         m_channels[remoteId] = { channel, channel->GetEndpoint() };
-        m_channelTypes.emplace(remoteId, std::type_index(typeid(T)));
+        auto typeIdx = std::type_index(typeid(T));
+        auto it = m_channelTypes.find(remoteId);
+        if (it != m_channelTypes.end()) {
+            ASSERT_TRUE(it->second == typeIdx);
+        } else {
+            m_channelTypes.emplace(remoteId, typeIdx);
+        }
     }
 
     // Register a local handler for a remote topic using a raw lambda or functor.
@@ -165,7 +171,13 @@ public:
         AttachErrorHandler(channel);
 
         m_channels[remoteId] = { channel, channel->GetEndpoint() };
-        m_channelTypes.emplace(remoteId, std::type_index(typeid(T)));
+        auto typeIdx = std::type_index(typeid(T));
+        auto it = m_channelTypes.find(remoteId);
+        if (it != m_channelTypes.end()) {
+            ASSERT_TRUE(it->second == typeIdx);
+        } else {
+            m_channelTypes.emplace(remoteId, typeIdx);
+        }
     }
 
 private:
@@ -282,15 +294,17 @@ private:
     struct SeqHistory {
         static constexpr size_t SIZE = DMQ_SEQ_HISTORY_SIZE;
         uint16_t buffer[SIZE];
+        bool valid[SIZE];
         size_t head = 0;
 
-        SeqHistory() { std::fill(buffer, buffer + SIZE, uint16_t(0xFFFF)); }
+        SeqHistory() { std::fill(valid, valid + SIZE, false); }
 
         bool is_duplicate(uint16_t seq) {
             for (size_t i = 0; i < SIZE; ++i) {
-                if (buffer[i] == seq) return true;
+                if (valid[i] && buffer[i] == seq) return true;
             }
             buffer[head] = seq;
+            valid[head] = true;
             head = (head + 1) % SIZE;
             return false;
         }

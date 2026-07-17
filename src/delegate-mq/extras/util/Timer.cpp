@@ -176,16 +176,15 @@ void Timer::ProcessTimers()
         Timer* t = GetTimersHead();
         while (t != nullptr)
         {
+            if (count >= dmq::MAX_TIMER_EXPIRED) {
+                LOG_ERROR("Timer::ProcessTimers MAX_TIMER_EXPIRED exceeded");
+                ASSERT_TRUE(count < dmq::MAX_TIMER_EXPIRED);
+                break;
+            }
+
             if (t->CheckExpired())
             {
-                if (count < dmq::MAX_TIMER_EXPIRED)
-                {
-                    snapshots[count++] = t->OnExpired.GetSnapshot();
-                }
-                else
-                {
-                    LOG_ERROR("Timer::ProcessTimers MAX_TIMER_EXPIRED exceeded");
-                }
+                snapshots[count++] = t->OnExpired.GetSnapshot();
             }
             t = t->m_next;
         }

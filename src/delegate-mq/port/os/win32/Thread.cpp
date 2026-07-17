@@ -128,7 +128,7 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     EnterCriticalSection(&m_cs);
 
     // [BACK PRESSURE / DROP / FAULT / TIMEOUT LOGIC]
-    if (MAX_QUEUE_SIZE > 0 && m_queue.size() >= MAX_QUEUE_SIZE)
+    if (MAX_QUEUE_SIZE > 0 && (m_highQueue.size() + m_normalQueue.size()) >= MAX_QUEUE_SIZE)
     {
         if (FULL_POLICY == FullPolicy::DROP)
         {
@@ -148,7 +148,7 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         {
             DWORD dwTimeout = static_cast<DWORD>(
                 std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
-            while (m_queue.size() >= MAX_QUEUE_SIZE && !m_exit.load())
+            while ((m_highQueue.size() + m_normalQueue.size()) >= MAX_QUEUE_SIZE && !m_exit.load())
             {
                 if (!SleepConditionVariableCS(&m_cvNotFull, &m_cs, dwTimeout))
                 {
@@ -169,11 +169,14 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // If we woke up because of exit (or exit happened while waiting), abort
     if (!m_exit.load())
     {
-        m_queue.push(threadMsg);
+        if (threadMsg->GetPriority() == dmq::Priority::HIGH)
+            m_highQueue.push_back(threadMsg);
+        else
+            m_normalQueue.push_back(threadMsg);
 
     #if defined(DMQ_DATABUS_TOOLS)
         // Update monitoring stats
-        size_t currentDepth = m_queue.size();
+        size_t currentDepth = (m_highQueue.size() + m_normalQueue.size());
         if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
         if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
     #endif
@@ -221,7 +224,7 @@ void Thread::Process()
             if (dwTimeout == 0) dwTimeout = 1;
         }
 
-        while (m_queue.empty() && !m_exit.load())
+        while ((m_highQueue.empty() && m_normalQueue.empty()) && !m_exit.load())
         {
             if (!SleepConditionVariableCS(&m_cvNotEmpty, &m_cs, dwTimeout))
             {
@@ -231,22 +234,27 @@ void Thread::Process()
         }
 
         // If empty and exit is true, we should exit.
-        if (m_queue.empty() && m_exit.load())
+        if ((m_highQueue.empty() && m_normalQueue.empty()) && m_exit.load())
         {
             LeaveCriticalSection(&m_cs);
             break;
         }
 
         // If queue still empty, it means we timed out. Loop again to update m_lastAliveTime.
-        if (m_queue.empty())
+        if ((m_highQueue.empty() && m_normalQueue.empty()))
         {
             LeaveCriticalSection(&m_cs);
             continue;
         }
 
         // Get highest priority message within queue
-        msg = m_queue.top();
-        m_queue.pop();
+        if (!m_highQueue.empty()) {
+            msg = m_highQueue.front();
+            m_highQueue.pop_front();
+        } else {
+            msg = m_normalQueue.front();
+            m_normalQueue.pop_front();
+        }
 
         // Unblock producers now that space is available
         if (MAX_QUEUE_SIZE > 0)
@@ -339,7 +347,7 @@ void Thread::ExitThread()
 
     // Explicitly allow Exit message to bypass the MAX_QUEUE_SIZE limit.
     // We do not wait on m_cvNotFull here to prevent deadlock during shutdown.
-    m_queue.push(xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr));
+    m_highQueue.push_back(xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr));
 
     // Wake up consumers
     WakeConditionVariable(&m_cvNotEmpty);
@@ -380,7 +388,7 @@ bool Thread::IsCurrentThread() { return GetThreadId() == GetCurrentThreadId(); }
 size_t Thread::GetQueueSize()
 {
     EnterCriticalSection(&m_cs);
-    size_t size = m_queue.size();
+    size_t size = (m_highQueue.size() + m_normalQueue.size());
     LeaveCriticalSection(&m_cs);
     return size;
 }
@@ -467,7 +475,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     ThreadStats stats;
     stats.cpu_name = CPU_NAME;
     stats.thread_name = THREAD_NAME;
-    stats.queue_depth = m_queue.size();
+    stats.queue_depth = (m_highQueue.size() + m_normalQueue.size());
     stats.queue_depth_max_window = m_queueDepthMaxWindow;
     stats.queue_depth_max_all = m_queueDepthMaxAll;
     stats.queue_size_limit = MAX_QUEUE_SIZE;

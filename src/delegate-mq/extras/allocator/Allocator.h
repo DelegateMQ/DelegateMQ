@@ -3,6 +3,7 @@
 
 #include "../../delegate/DelegateOpt.h"
 #include <cstdint>
+#include <cstddef>
 #include <stddef.h>
 
 namespace dmq {
@@ -102,7 +103,7 @@ public:
 	{
 	}
 private:
-	char m_memory[sizeof(T) * Objects];
+	alignas(std::max_align_t) char m_memory[sizeof(T) * Objects];
 };
 
 } // namespace dmq

@@ -19,6 +19,7 @@
 #include <typeindex>
 #include <atomic>
 #include <type_traits>
+#include <optional>
 
 namespace dmq::databus {
 
@@ -125,6 +126,10 @@ public:
     // Add a remote participant to the bus.
     static void AddParticipant(std::shared_ptr<Participant> participant) {
         GetInstance().InternalAddParticipant(participant);
+    }
+
+    static void RemoveParticipant(std::shared_ptr<Participant> participant) {
+        GetInstance().InternalRemoveParticipant(participant);
     }
 
     // Register a serializer for a topic (required for remote distribution).
@@ -315,7 +320,7 @@ private:
         }
 
         T* cachedValPtr = nullptr;
-        T cachedVal;
+        std::optional<T> cachedVal;
         dmq::ScopedConnection conn;
 
         {
@@ -365,8 +370,8 @@ private:
                         expired = (age > qos.lifespan.value());
                     }
                     if (!expired) {
-                        cachedVal = *std::static_pointer_cast<T>(it->second.value);
-                        cachedValPtr = &cachedVal;
+                        cachedVal.emplace(*std::static_pointer_cast<T>(it->second.value));
+                        cachedValPtr = &cachedVal.value();
                     }
                 }
             }
@@ -507,6 +512,22 @@ private:
         // 9. Notify if no one received the message
         if (!handled) {
             m_unhandledSignal(topic);
+        }
+    }
+
+    void InternalRemoveParticipant(std::shared_ptr<Participant> participant) {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        for (size_t i = 0; i < m_participantCount; ++i) {
+            if (m_participants[i] == participant) {
+                m_participantErrorConnections[i].Disconnect();
+                for (size_t j = i; j < m_participantCount - 1; ++j) {
+                    m_participants[j] = std::move(m_participants[j + 1]);
+                    m_participantErrorConnections[j] = std::move(m_participantErrorConnections[j + 1]);
+                }
+                --m_participantCount;
+                m_participants[m_participantCount].reset();
+                break;
+            }
         }
     }
 

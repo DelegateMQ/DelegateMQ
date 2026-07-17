@@ -18,7 +18,6 @@ namespace dmq {
 // Async delegate message priority
 enum class Priority
 {
-	LOW,
 	NORMAL,
 	HIGH
 };
