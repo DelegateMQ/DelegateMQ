@@ -182,6 +182,9 @@ public:
     /// @brief The error status of the most recent invocation.
     DelegateError GetError() noexcept { return m_delegate.GetError(); }
 
+    /// @brief The sequence number assigned to the most recent send.
+    uint16_t GetLastSeqNum() const noexcept { return m_delegate.GetLastSeqNum(); }
+
     /// @brief Returns the internal delegate as an IRemoteInvoker* for RegisterEndpoint().
     IRemoteInvoker* GetEndpoint() noexcept { return &m_delegate; }
 

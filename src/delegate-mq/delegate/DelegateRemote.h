@@ -529,6 +529,12 @@ public:
         return retVal;
     }
 
+    /// @brief Get the sequence number assigned by the dispatcher to the most
+    /// recent successful dispatch.
+    /// @return The last dispatched sequence number, or 0 if nothing has been
+    /// dispatched yet.
+    uint16_t GetLastSeqNum() const noexcept { return m_lastSeqNum; }
+
 private:
     /// Raise an error and callback registered error handler
     /// @param[in] id Remote delegate ID.
@@ -1017,6 +1023,12 @@ public:
         return retVal;
     }
 
+    /// @brief Get the sequence number assigned by the dispatcher to the most
+    /// recent successful dispatch.
+    /// @return The last dispatched sequence number, or 0 if nothing has been
+    /// dispatched yet.
+    uint16_t GetLastSeqNum() const noexcept { return m_lastSeqNum; }
+
 private:
     /// Raise an error and callback registered error handler
     /// @param[in] id Remote delegate ID.
@@ -1444,6 +1456,12 @@ public:
         m_error = DelegateError::SUCCESS;
         return retVal;
     }
+
+    /// @brief Get the sequence number assigned by the dispatcher to the most
+    /// recent successful dispatch.
+    /// @return The last dispatched sequence number, or 0 if nothing has been
+    /// dispatched yet.
+    uint16_t GetLastSeqNum() const noexcept { return m_lastSeqNum; }
 
 private:
     /// Raise an error and callback registered error handler
