@@ -221,8 +221,8 @@ See [SIGNALS.md](SIGNALS.md) for complete examples, lambda slots, and a comparis
 Remote delegates send a function call across a process or network boundary. The receiver doesn't need to know a call is coming over a transport — it just implements a normal member function.
 
 **Three concepts to understand:**
-- **`dmq::RemoteChannel<Sig>`** — one instance per message signature; owns the transport wiring.
-- **`Bind(obj, func, id)`** — connects a member function to a remote ID on the channel.
+- **`dmq::RemoteChannel<Sig>`** — one instance per message signature; owns the transport wiring. A sender passes the remote ID to the constructor and needs nothing else.
+- **`Bind(obj, func, id)`** — receive side only: connects a member function to a remote ID on the channel.
 - **`dmq::RegisterEndpoint(id, channel.GetEndpoint())`** — tells the receive side which function to call when a message with that ID arrives.
 
 ```cpp
@@ -255,11 +255,9 @@ class Thermometer
 public:
     Thermometer(dmq::transport::ITransport& transport, dmq::ISerializer<void(float)>& ser)
     {
-        m_channel.emplace(transport, ser);
-        // Bind() wires up the remote ID, dispatcher, serializer, and stream.
-        // The bound function is never called on the sender side; it is a
-        // required placeholder so Bind() can configure the channel.
-        m_channel->Bind(this, &Thermometer::Unused, TEMPERATURE_ID);
+        // Passing the remote ID to the constructor makes this a send-ready
+        // channel — no Bind() needed on the sender side.
+        m_channel.emplace(transport, ser, TEMPERATURE_ID);
     }
 
     // Fire-and-forget send (operator() on the optional<dmq::RemoteChannel>)
@@ -269,7 +267,6 @@ public:
     bool SendWait(float value) { return dmq::RemoteInvokeWait(*m_channel, value); }
 
 private:
-    void Unused(float) {}  // required by Bind(); never invoked on the sender side
     std::optional<dmq::RemoteChannel<void(float)>> m_channel;
 };
 ```
