@@ -467,6 +467,18 @@ void Thread::Process()
                             bool success = invoker->Invoke(delegateMsg);
                             ASSERT_TRUE(success);
                         }
+                        catch (const std::bad_alloc& e) {
+                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                            ASSERT();
+                        }
+                        catch (const std::invalid_argument& e) {
+                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                            ASSERT();
+                        }
+                        catch (const std::runtime_error& e) {
+                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                            ASSERT();
+                        }
                         catch (const std::exception& e) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
                             ASSERT();

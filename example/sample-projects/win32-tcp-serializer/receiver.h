@@ -31,9 +31,9 @@ public:
         m_transport.SetTransportMonitor(&m_transportMonitor);
 
         // Set the delegate interfaces
+        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
         m_recvDelegate.SetStream(&m_argStream);
         m_recvDelegate.SetSerializer(&m_serializer);
-        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
 
         // Use Type::SERVER (Listens/Accepts connection)
         // Note: This call blocks until a client (Sender) connects!

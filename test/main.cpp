@@ -80,10 +80,21 @@ void ProcessTimers()
 {
     while (!processTimerExit.load())
     {
-        // @TODO: Must periodically call ProcessTimers for timer operation.
-        // Process all delegate-based timers
-        Timer::ProcessTimers();
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        try
+        {
+            // @TODO: Must periodically call ProcessTimers for timer operation.
+            // Process all delegate-based timers
+            Timer::ProcessTimers();
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Unhandled exception in ProcessTimers: " << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "Unhandled unknown exception in ProcessTimers." << std::endl;
+        }
     }
 }
 
@@ -91,9 +102,20 @@ void WatchdogThread()
 {
     while (!watchdogExit.load())
     {
-        // Check all registered threads for watchdog timeouts
-        dmq::os::Thread::WatchdogCheckAll();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        try
+        {
+            // Check all registered threads for watchdog timeouts
+            dmq::os::Thread::WatchdogCheckAll();
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Unhandled exception in WatchdogThread: " << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "Unhandled unknown exception in WatchdogThread." << std::endl;
+        }
     }
 }
 
@@ -108,87 +130,102 @@ Timer& GetTimer()
 //------------------------------------------------------------------------------
 int main(void)
 {
-try
-{
+    try
+    {
 // Uncomment to run the DelegateMQ stress tests. **Release** builds run faster!
 //#define STRESS_TESTS
 
 #ifdef STRESS_TESTS
-    extern int stress_test();
-    stress_test();
+        extern int stress_test();
+        stress_test();
 
-    extern int stress_test_remote();
-    stress_test_remote();
+        extern int stress_test_remote();
+        stress_test_remote();
 
-    extern int stress_test_databus();
-    stress_test_databus();
-    return 0;
+        extern int stress_test_databus();
+        stress_test_databus();
+        return 0;
 #endif
 
-    StartLogger();
+        StartLogger();
 
-    // Watchdog disabled in debug — slow builds cause false trips
+        // Watchdog disabled in debug — slow builds cause false trips
 #ifdef NDEBUG
-    workerThread1.CreateThread(std::chrono::milliseconds(5000));
+        workerThread1.CreateThread(std::chrono::milliseconds(5000));
 #else
-    workerThread1.CreateThread();
+        workerThread1.CreateThread();
 #endif
-    SysDataNoLock::GetInstance();
+        SysDataNoLock::GetInstance();
 
-    // Create a timer that expires every 1S and calls
-    // TimerExpiredCb on workerThread1 upon expiration
-    dmq::ScopedConnection timerConn = GetTimer().OnExpired.Connect(MakeTimerDelegate(&TimerExpiredCb, workerThread1));
-    GetTimer().Start(std::chrono::seconds(1));
+        // Create a timer that expires every 1S and calls
+        // TimerExpiredCb on workerThread1 upon expiration
+        dmq::ScopedConnection timerConn = GetTimer().OnExpired.Connect(MakeTimerDelegate(&TimerExpiredCb, workerThread1));
+        GetTimer().Start(std::chrono::seconds(1));
 
-    // Start the thread that will run ProcessTimers
-    std::thread timerThread(ProcessTimers);
+        // Start the thread that will run ProcessTimers
+        std::thread timerThread(ProcessTimers);
 
-    // Start the thread that will run WatchdogCheckAll
-    std::thread watchdogThread(WatchdogThread);
+        // Start the thread that will run WatchdogCheckAll
+        std::thread watchdogThread(WatchdogThread);
 
-    // Run all test code
-    for (int i = 0; i < 3; i++)
-    {
-        RunSimpleExamples();
-        RunRemoteChannelExamples();
-        RunPubSubExamples();
-        RunAsyncAPIExamples();
-        RunAllExamples();
-        RunMiscExamples();
-        RunStabilityTests();
-        RunDelegateUnitTests();
+        // Run all test code
+        for (int i = 0; i < 3; i++)
+        {
+            RunSimpleExamples();
+            RunRemoteChannelExamples();
+            RunPubSubExamples();
+            RunAsyncAPIExamples();
+            RunAllExamples();
+            RunMiscExamples();
+            RunStabilityTests();
+            RunDelegateUnitTests();
 #if defined(DMQ_DATABUS)
-        RunDataBusTests();
+            RunDataBusTests();
 #endif
+        }
+
+        // Ensure the threads complete before main exits
+        processTimerExit.store(true);
+        watchdogExit.store(true);
+
+        if (timerThread.joinable())
+            timerThread.join();
+
+        if (watchdogThread.joinable())
+            watchdogThread.join();
+
+        GetTimer().Stop();
+
+        workerThread1.ExitThread();
+
+        cout << "Success!" << endl;
+        return 0;
     }
-
-    // Ensure the threads complete before main exits
-    processTimerExit.store(true);
-    watchdogExit.store(true);
-
-    if (timerThread.joinable())
-        timerThread.join();
-
-    if (watchdogThread.joinable())
-        watchdogThread.join();
-
-    GetTimer().Stop();
-
-    workerThread1.ExitThread();
-
-    cout << "Success!" << endl;
-    return 0;
-}
-catch (const std::exception& e)
-{
-    std::cerr << "Unhandled exception in main: " << e.what() << std::endl;
-    return 1;
-}
-catch (...)
-{
-    std::cerr << "Unhandled unknown exception in main." << std::endl;
-    return 1;
-}
+    catch (const std::bad_alloc& e)
+    {
+        std::cerr << "Unhandled bad_alloc in main: " << e.what() << std::endl;
+        return 1;
+    }
+    catch (const std::invalid_argument& e)
+    {
+        std::cerr << "Unhandled invalid_argument in main: " << e.what() << std::endl;
+        return 1;
+    }
+    catch (const std::runtime_error& e)
+    {
+        std::cerr << "Unhandled runtime_error in main: " << e.what() << std::endl;
+        return 1;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Unhandled exception in main: " << e.what() << std::endl;
+        return 1;
+    }
+    catch (...)
+    {
+        std::cerr << "Unhandled unknown exception in main." << std::endl;
+        return 1;
+    }
 }
 
 size_t MsgOut(const std::string& msg)

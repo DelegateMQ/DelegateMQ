@@ -31,9 +31,9 @@ public:
         m_transport.SetTransportMonitor(&m_transportMonitor);
 
         // Set the delegate interfaces
+        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
         m_recvDelegate.SetStream(&m_argStream);
         m_recvDelegate.SetSerializer(&m_serializer);
-        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
 
         // Set the transport
         m_transport.Create(Win32UdpTransport::Type::SUB, "127.0.0.1", 8080);

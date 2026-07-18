@@ -216,6 +216,8 @@ public:
         m_thread("Receiver"),
         m_args(ios::in | ios::out | ios::binary)
     {
+        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
+
         // Set the delegate interfaces
         m_recvDelegate.SetStream(&m_args);
         m_recvDelegate.SetSerializer(&m_serializer);
@@ -223,8 +225,6 @@ public:
         // Register the Error Handler. 
         // This prevents the delegate from throwing std::runtime_error on failure.
         m_recvDelegate.SetErrorHandler(MakeDelegate(this, &Receiver::ErrorHandler));
-
-        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
 
         m_thread.CreateThread();
 

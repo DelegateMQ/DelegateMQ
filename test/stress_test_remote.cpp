@@ -165,18 +165,26 @@ public:
 
     ServerNode() : m_remoteDelegate(REMOTE_ID)
     {
+        m_remoteDelegate = MakeDelegate(this, &ServerNode::OnRemoteCall, REMOTE_ID);
         m_remoteDelegate.SetStream(&m_stream);
         m_remoteDelegate.SetSerializer(&m_serializer);
         m_remoteDelegate.SetErrorHandler(MakeDelegate(this, &ServerNode::OnError));
-        m_remoteDelegate = MakeDelegate(this, &ServerNode::OnRemoteCall, REMOTE_ID);
     }
 
     void Start() {
         m_thread = std::thread([this]() {
             dmq::xstringstream incoming;
-            // Drain loop: continue until Receive returns false (queue empty & stopped)
-            while (g_transport.Receive(incoming)) {
-                m_remoteDelegate.Invoke(incoming);
+            try {
+                // Drain loop: continue until Receive returns false (queue empty & stopped)
+                while (g_transport.Receive(incoming)) {
+                    m_remoteDelegate.Invoke(incoming);
+                }
+            } catch (const std::runtime_error& e) {
+                std::cerr << "Unhandled runtime_error in ServerNode thread: " << e.what() << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Unhandled exception in ServerNode thread: " << e.what() << std::endl;
+            } catch (...) {
+                std::cerr << "Unhandled unknown exception in ServerNode thread." << std::endl;
             }
             });
     }
@@ -219,14 +227,22 @@ public:
     void Start() {
         m_thread = std::thread([this]() {
             int seq = 0;
-            // Check global client stop flag
-            while (!g_stopClients) {
-                for (int i = 0; i < BURST_SIZE && !g_stopClients; ++i) {
-                    Payload p(seq++, m_id);
-                    g_sentCount++;
-                    m_remote(p);
+            try {
+                // Check global client stop flag
+                while (!g_stopClients) {
+                    for (int i = 0; i < BURST_SIZE && !g_stopClients; ++i) {
+                        Payload p(seq++, m_id);
+                        g_sentCount++;
+                        m_remote(p);
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            } catch (const std::runtime_error& e) {
+                std::cerr << "Unhandled runtime_error in ClientNode thread: " << e.what() << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Unhandled exception in ClientNode thread: " << e.what() << std::endl;
+            } catch (...) {
+                std::cerr << "Unhandled unknown exception in ClientNode thread." << std::endl;
             }
             });
     }

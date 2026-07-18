@@ -35,6 +35,18 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
                 bool success = invoker->Invoke(msg);
                 ASSERT_TRUE(success);
             }
+            catch (const std::bad_alloc& e) {
+                qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled bad_alloc in delegate callback:" << e.what();
+                ASSERT();
+            }
+            catch (const std::invalid_argument& e) {
+                qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled invalid_argument in delegate callback:" << e.what();
+                ASSERT();
+            }
+            catch (const std::runtime_error& e) {
+                qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled runtime_error in delegate callback:" << e.what();
+                ASSERT();
+            }
             catch (const std::exception& e) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled exception in delegate callback:" << e.what();
                 ASSERT();

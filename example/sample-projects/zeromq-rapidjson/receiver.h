@@ -27,9 +27,9 @@ public:
         m_argStream(ios::in | ios::out | ios::binary)
     {
         // Set the delegate interfaces
+        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
         m_recvDelegate.SetStream(&m_argStream);
         m_recvDelegate.SetSerializer(&m_serializer);
-        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
 
         // Set the transport
         m_transport.Create(ZeroMqTransport::Type::SUB, "tcp://localhost:5555");
