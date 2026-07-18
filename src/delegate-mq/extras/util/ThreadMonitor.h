@@ -16,17 +16,17 @@ namespace dmq::util {
 struct ThreadStatsPacket {
     dmq::xstring cpu_name;
     dmq::xstring thread_name;
-    uint32_t    queue_depth;
-    uint32_t    queue_depth_max_window;
-    uint32_t    queue_depth_max_all;
-    uint32_t    queue_size_limit;
-    float       latency_avg_ms;
-    float       latency_max_window_ms;
-    float       latency_max_all_ms;
-    float       invoke_avg_ms;
-    float       invoke_max_window_ms;
-    float       invoke_max_all_ms;
-    uint64_t    dispatch_count;
+    uint32_t    queue_depth = 0;
+    uint32_t    queue_depth_max_window = 0;
+    uint32_t    queue_depth_max_all = 0;
+    uint32_t    queue_size_limit = 0;
+    float       latency_avg_ms = 0.0f;
+    float       latency_max_window_ms = 0.0f;
+    float       latency_max_all_ms = 0.0f;
+    float       invoke_avg_ms = 0.0f;
+    float       invoke_max_window_ms = 0.0f;
+    float       invoke_max_all_ms = 0.0f;
+    uint64_t    dispatch_count = 0;
 };
 
 /// @brief Central monitor that polls registered threads and publishes stats.

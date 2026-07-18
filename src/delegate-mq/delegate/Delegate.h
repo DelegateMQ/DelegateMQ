@@ -393,6 +393,8 @@ public:
     /// bind to the delegate. This function must match the signature of the delegate.
     void Bind(SharedPtr object, ConstMemberFunc func) {
         m_object = object;
+        // Note: Casting ConstMemberFunc to MemberFunc is formally UB when invoked 
+        // through the non-const pointer, but works safely on all mainstream ABIs.
         m_func = reinterpret_cast<MemberFunc>(func);
     }
 
@@ -420,6 +422,8 @@ public:
     void Bind(ObjectPtr object, ConstMemberFunc func) {
         auto deleter = [](TClass*) {};                        // No-op deleter
         m_object = std::shared_ptr<TClass>(object, deleter, ::dmq::stl_allocator<std::remove_const_t<TClass>>());  // Not deleted when out of scope
+        // Note: Casting ConstMemberFunc to MemberFunc is formally UB when invoked 
+        // through the non-const pointer, but works safely on all mainstream ABIs.
         m_func = reinterpret_cast<MemberFunc>(func);
     }
 
@@ -601,6 +605,8 @@ public:
     /// @brief Bind a const member function to the delegate.
     void Bind(SharedPtr object, ConstMemberFunc func) {
         m_object = object; // Implicit conversion from shared_ptr to weak_ptr
+        // Note: Casting ConstMemberFunc to MemberFunc is formally UB when invoked 
+        // through the non-const pointer, but works safely on all mainstream ABIs.
         m_func = reinterpret_cast<MemberFunc>(func);
     }
 

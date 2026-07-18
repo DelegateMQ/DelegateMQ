@@ -285,7 +285,9 @@ public:
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
                 bool success = thread->DispatchDelegate(msg);
-                (void)success;
+                if (!success) {
+                    LOG_ERROR("DelegateAsync dispatch failed");
+                }
             }
 
             // Do not wait for destination thread return value from async function call
@@ -595,7 +597,9 @@ public:
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
                 bool success = thread->DispatchDelegate(msg);
-                (void)success;
+                if (!success) {
+                    LOG_ERROR("DelegateAsync dispatch failed");
+                }
             }
 
             // Do not wait for destination thread return value from async function call
@@ -834,7 +838,9 @@ public:
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
                 bool success = thread->DispatchDelegate(msg);
-                (void)success;
+                if (!success) {
+                    LOG_ERROR("DelegateAsync dispatch failed");
+                }
             }
 
             // Do not wait for destination thread return value from async function call
@@ -1085,7 +1091,9 @@ public:
                 // Dispatch message onto the callback destination thread. Invoke()
                 // will be called by the destintation thread. 
                 bool success = thread->DispatchDelegate(msg);
-                (void)success;
+                if (!success) {
+                    LOG_ERROR("DelegateAsync dispatch failed");
+                }
             }
 
             // Do not wait for destination thread return value from async function call

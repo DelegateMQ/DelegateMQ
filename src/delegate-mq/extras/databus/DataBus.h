@@ -613,6 +613,8 @@ private:
         m_stringifiers.clear();
         m_typeIndices.clear();
         m_monitorSignal.Clear();
+        m_unhandledSignal.Clear();
+        m_errorSignal.Clear();
         m_reportedErrors.clear();
     }
 

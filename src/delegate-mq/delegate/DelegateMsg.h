@@ -8,10 +8,7 @@
 #include "DelegateOpt.h"
 #include "make_tuple_heap.h"
 #include <tuple>
-#include <list>
 #include <memory>
-#include <mutex>
-#include <stdexcept>
 
 namespace dmq {
 

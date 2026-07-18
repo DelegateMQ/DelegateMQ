@@ -18,7 +18,6 @@
 /// file `DelegateAsync.h` for example usage.
 
 #include <tuple>
-#include <list>
 #include <memory>
 #include <type_traits>
 #include "DelegateOpt.h"

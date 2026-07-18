@@ -7,7 +7,6 @@
 /// Class is not thread-safe.
 
 #include "Delegate.h"
-#include <list>
 #include <algorithm>
 #include <memory>
 

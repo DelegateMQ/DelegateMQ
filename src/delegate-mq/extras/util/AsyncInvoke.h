@@ -64,7 +64,7 @@ auto AsyncInvoke(Func func, dmq::IThread& thread, const dmq::Duration& timeout, 
         if constexpr (!std::is_void_v<RetType>)
         {
             if (retVal.has_value()) {
-                return std::any_cast<RetType>(retVal.value());
+                return retVal.value();
             }
             else {
                 return RetType{};
@@ -100,7 +100,7 @@ auto AsyncInvoke(TClass* tclass, Func func, dmq::IThread& thread, const dmq::Dur
         if constexpr (!std::is_void_v<RetType>)
         {
             if (retVal.has_value()) {
-                return std::any_cast<RetType>(retVal.value());
+                return retVal.value();
             }
             else {
                 return RetType{};
@@ -135,7 +135,7 @@ auto AsyncInvoke(std::shared_ptr<TClass> tclass, Func func, dmq::IThread& thread
         if constexpr (!std::is_void_v<RetType>)
         {
             if (retVal.has_value()) {
-                return std::any_cast<RetType>(retVal.value());
+                return retVal.value();
             }
             else {
                 return RetType{};
