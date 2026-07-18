@@ -4,8 +4,7 @@ var annotated_dup =
       [ "databus", "namespacedmq_1_1databus.html", [
         [ "detail", "namespacedmq_1_1databus_1_1detail.html", [
           [ "Filter", "classdmq_1_1databus_1_1detail_1_1_filter.html", "classdmq_1_1databus_1_1detail_1_1_filter" ],
-          [ "RateLimiter", "classdmq_1_1databus_1_1detail_1_1_rate_limiter.html", "classdmq_1_1databus_1_1detail_1_1_rate_limiter" ],
-          [ "TopicForwarder", "classdmq_1_1databus_1_1detail_1_1_topic_forwarder.html", "classdmq_1_1databus_1_1detail_1_1_topic_forwarder" ]
+          [ "RateLimiter", "classdmq_1_1databus_1_1detail_1_1_rate_limiter.html", "classdmq_1_1databus_1_1detail_1_1_rate_limiter" ]
         ] ],
         [ "DataBus", "classdmq_1_1databus_1_1_data_bus.html", null ],
         [ "DeadlineSubscription", "classdmq_1_1databus_1_1_deadline_subscription.html", "classdmq_1_1databus_1_1_deadline_subscription" ],
@@ -28,7 +27,6 @@ var annotated_dup =
         [ "FreeRTOSRecursiveMutex", "classdmq_1_1os_1_1_free_r_t_o_s_recursive_mutex.html", "classdmq_1_1os_1_1_free_r_t_o_s_recursive_mutex" ],
         [ "Thread", "classdmq_1_1os_1_1_thread.html", "classdmq_1_1os_1_1_thread" ],
         [ "ThreadMsg", "classdmq_1_1os_1_1_thread_msg.html", "classdmq_1_1os_1_1_thread_msg" ],
-        [ "ThreadMsgComparator", "structdmq_1_1os_1_1_thread_msg_comparator.html", "structdmq_1_1os_1_1_thread_msg_comparator" ],
         [ "ThreadXClock", "structdmq_1_1os_1_1_thread_x_clock.html", "structdmq_1_1os_1_1_thread_x_clock" ],
         [ "ThreadXConditionVariable", "classdmq_1_1os_1_1_thread_x_condition_variable.html", "classdmq_1_1os_1_1_thread_x_condition_variable" ],
         [ "ThreadXMutex", "classdmq_1_1os_1_1_thread_x_mutex.html", "classdmq_1_1os_1_1_thread_x_mutex" ],
@@ -61,6 +59,9 @@ var annotated_dup =
         [ "is_callable", "structdmq_1_1trait_1_1is__callable.html", null ],
         [ "is_callable< T, std::void_t< decltype(&std::decay_t< T >::operator())> >", "structdmq_1_1trait_1_1is__callable_3_01_t_00_01std_1_1void__t_3_01decltype_07_6std_1_1decay__t_3c5798a513aa3fd4538ac6c3926bc4a27.html", null ],
         [ "is_double_pointer", "structdmq_1_1trait_1_1is__double__pointer.html", "structdmq_1_1trait_1_1is__double__pointer" ],
+        [ "is_non_const_shared_ptr_reference", "structdmq_1_1trait_1_1is__non__const__shared__ptr__reference.html", null ],
+        [ "is_non_const_shared_ptr_reference< std::shared_ptr< T > & >", "structdmq_1_1trait_1_1is__non__const__shared__ptr__reference_3_01std_1_1shared__ptr_3_01_t_01_4_01_6_01_4.html", null ],
+        [ "is_non_const_shared_ptr_reference< std::shared_ptr< T > * >", "structdmq_1_1trait_1_1is__non__const__shared__ptr__reference_3_01std_1_1shared__ptr_3_01_t_01_4_01_5_01_4.html", null ],
         [ "is_shared_ptr_reference", "structdmq_1_1trait_1_1is__shared__ptr__reference.html", null ],
         [ "is_shared_ptr_reference< const std::shared_ptr< T > & >", "structdmq_1_1trait_1_1is__shared__ptr__reference_3_01const_01std_1_1shared__ptr_3_01_t_01_4_01_6_01_4.html", null ],
         [ "is_shared_ptr_reference< const std::shared_ptr< T > * >", "structdmq_1_1trait_1_1is__shared__ptr__reference_3_01const_01std_1_1shared__ptr_3_01_t_01_4_01_5_01_4.html", null ],

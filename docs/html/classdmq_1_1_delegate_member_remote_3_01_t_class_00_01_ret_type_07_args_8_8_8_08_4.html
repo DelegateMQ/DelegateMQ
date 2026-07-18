@@ -232,9 +232,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a82bec9db227f5de30c01cf4d33a40d05" id="r_a82bec9db227f5de30c01cf4d33a40d05"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a82bec9db227f5de30c01cf4d33a40d05">SetSerializer</a> (<a class="el" href="classdmq_1_1_i_serializer.html">ISerializer</a>&lt; RetType(Args...)&gt; *serializer)</td></tr>
 <tr class="memdesc:a82bec9db227f5de30c01cf4d33a40d05"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the serializer instance used to serialize/deserialize function arguments.  <br /></td></tr>
 <tr class="separator:a82bec9db227f5de30c01cf4d33a40d05"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2355f4be220c01ab92bd88260ee731a7" id="r_a2355f4be220c01ab92bd88260ee731a7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2355f4be220c01ab92bd88260ee731a7">SetStream</a> (std::ostream *stream)</td></tr>
-<tr class="memdesc:a2355f4be220c01ab92bd88260ee731a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the serialization stream used to store serialized function argument data.  <br /></td></tr>
-<tr class="separator:a2355f4be220c01ab92bd88260ee731a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa69221b81d3d24cd559bc69c28f084dd" id="r_aa69221b81d3d24cd559bc69c28f084dd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa69221b81d3d24cd559bc69c28f084dd">SetStream</a> (<a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a> *stream)</td></tr>
+<tr class="memdesc:aa69221b81d3d24cd559bc69c28f084dd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the serialization stream used to store serialized function argument data.  <br /></td></tr>
+<tr class="separator:aa69221b81d3d24cd559bc69c28f084dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa18c831ed33e2e68128fcf9fb59a45a9" id="r_aa18c831ed33e2e68128fcf9fb59a45a9"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa18c831ed33e2e68128fcf9fb59a45a9">SetErrorHandler</a> (const <a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt; void(<a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">DelegateError</a>, <a class="el" href="namespacedmq.html#a4bcc300237d5cb854a800a19ccc0400a">DelegateErrorAux</a>)&gt; &amp;errorHandler)</td></tr>
 <tr class="memdesc:aa18c831ed33e2e68128fcf9fb59a45a9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the error handler.  <br /></td></tr>
 <tr class="separator:aa18c831ed33e2e68128fcf9fb59a45a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -247,6 +247,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a04c1a18619d8684ad6544145ba89b046" id="r_a04c1a18619d8684ad6544145ba89b046"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">DelegateError</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a04c1a18619d8684ad6544145ba89b046">GetError</a> ()</td></tr>
 <tr class="memdesc:a04c1a18619d8684ad6544145ba89b046"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the last error code.  <br /></td></tr>
 <tr class="separator:a04c1a18619d8684ad6544145ba89b046"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2904a3aba138832d79a9af6682173ef7" id="r_a2904a3aba138832d79a9af6682173ef7"><td class="memItemLeft" align="right" valign="top">uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2904a3aba138832d79a9af6682173ef7">GetLastSeqNum</a> () const noexcept</td></tr>
+<tr class="memdesc:a2904a3aba138832d79a9af6682173ef7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the sequence number assigned by the dispatcher to the most recent successful dispatch.  <br /></td></tr>
+<tr class="separator:a2904a3aba138832d79a9af6682173ef7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2f1aded7c9f3421271255516bc2f97eb" id="r_a2f1aded7c9f3421271255516bc2f97eb"><td class="memItemLeft" align="right" valign="top"><a class="el" href="#a4da34092bff15f9692d41376a9aa1578">ClassType</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2f1aded7c9f3421271255516bc2f97eb">operator=</a> (const <a class="el" href="#a4da34092bff15f9692d41376a9aa1578">ClassType</a> &amp;rhs)</td></tr>
 <tr class="memdesc:a2f1aded7c9f3421271255516bc2f97eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Assignment operator that assigns the state of one object to another.  <br /></td></tr>
 <tr class="separator:a2f1aded7c9f3421271255516bc2f97eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -1160,6 +1163,36 @@ template&lt;class TClass , class RetType , class... Args&gt; </div>
 
 </div>
 </div>
+<a id="a2904a3aba138832d79a9af6682173ef7" name="a2904a3aba138832d79a9af6682173ef7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2904a3aba138832d79a9af6682173ef7">&#9670;&#160;</a></span>GetLastSeqNum()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class TClass , class RetType , class... Args&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint16_t <a class="el" href="classdmq_1_1_delegate_member_remote.html">dmq::DelegateMemberRemote</a>&lt; TClass, RetType(Args...)&gt;::GetLastSeqNum </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">noexcept</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Get the sequence number assigned by the dispatcher to the most recent successful dispatch. </p>
+<dl class="section return"><dt>Returns</dt><dd>The last dispatched sequence number, or 0 if nothing has been dispatched yet. </dd></dl>
+
+</div>
+</div>
 <a id="a5735b4b641601c4c8336a17bbb9f4ae4" name="a5735b4b641601c4c8336a17bbb9f4ae4"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a5735b4b641601c4c8336a17bbb9f4ae4">&#9670;&#160;</a></span>GetRemoteId()</h2>
 
@@ -1703,8 +1736,8 @@ template&lt;class TClass , class RetType , class... Args&gt; </div>
 
 </div>
 </div>
-<a id="a2355f4be220c01ab92bd88260ee731a7" name="a2355f4be220c01ab92bd88260ee731a7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2355f4be220c01ab92bd88260ee731a7">&#9670;&#160;</a></span>SetStream()</h2>
+<a id="aa69221b81d3d24cd559bc69c28f084dd" name="aa69221b81d3d24cd559bc69c28f084dd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa69221b81d3d24cd559bc69c28f084dd">&#9670;&#160;</a></span>SetStream()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1717,7 +1750,7 @@ template&lt;class TClass , class RetType , class... Args&gt; </div>
         <tr>
           <td class="memname">void <a class="el" href="classdmq_1_1_delegate_member_remote.html">dmq::DelegateMemberRemote</a>&lt; TClass, RetType(Args...)&gt;::SetStream </td>
           <td>(</td>
-          <td class="paramtype">std::ostream *</td>          <td class="paramname"><span class="paramname"><em>stream</em></span></td><td>)</td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a> *</td>          <td class="paramname"><span class="paramname"><em>stream</em></span></td><td>)</td>
           <td></td>
         </tr>
       </table>

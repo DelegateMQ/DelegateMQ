@@ -258,8 +258,7 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_multicast_delegate.html">MulticastDelegate</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html">MulticastDelegate&lt; RetType(Args...)&gt;</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Not thread-safe multicast delegate container class. The class has a list of <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;&gt;</code> instances. When invoked, each <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a></code> instance within the invocation list is called. <br  />
-  <a href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#details">More...</a><br /></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Not thread-safe multicast delegate container class. The class has a list of <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;&gt;</code> instances. When invoked, each <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a></code> instance within the invocation list is called. A snapshot of the delegates is taken during the broadcast. If a delegate is removed during a broadcast, it will still be invoked in the current broadcast pass if it was in the snapshot.  <a href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_multicast_delegate_safe.html">MulticastDelegateSafe</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -364,8 +363,7 @@ Typedefs</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
-<tr class="memitem:a6364022151f2bf1802343322638e8f25" id="r_a6364022151f2bf1802343322638e8f25"><td class="memItemLeft" align="right" valign="top">enum class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a6364022151f2bf1802343322638e8f25">Priority</a> { <a class="el" href="#a6364022151f2bf1802343322638e8f25a41bc94cbd8eebea13ce0491b2ac11b88">LOW</a>
-, <a class="el" href="#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">NORMAL</a>
+<tr class="memitem:a6364022151f2bf1802343322638e8f25" id="r_a6364022151f2bf1802343322638e8f25"><td class="memItemLeft" align="right" valign="top">enum class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a6364022151f2bf1802343322638e8f25">Priority</a> { <a class="el" href="#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">NORMAL</a>
 , <a class="el" href="#a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c">HIGH</a>
  }</td></tr>
 <tr class="separator:a6364022151f2bf1802343322638e8f25"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -379,6 +377,8 @@ Enumerations</h2></td></tr>
 , <a class="el" href="#a62ea8a73887af62d409322557b4e757dac78b85137bd31a80f22922b807a76556">ERR_DESERIALIZE_EXCEPTION</a> = 5
 , <a class="el" href="#a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594">ERR_NO_DISPATCHER</a> = 6
 , <a class="el" href="#a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb">ERR_DISPATCH</a> = 7
+, <br />
+&#160;&#160;<a class="el" href="#a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7">ERR_TYPE_MISMATCH</a> = 8
 <br />
  }</td></tr>
 <tr class="separator:a62ea8a73887af62d409322557b4e757d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -500,10 +500,10 @@ Functions</h2></td></tr>
 <tr class="memitem:a76d4b9857eda4ac6d55966549da6c8b4" id="r_a76d4b9857eda4ac6d55966549da6c8b4"><td class="memTemplParams" colspan="2">template&lt;class T &gt; </td></tr>
 <tr class="memitem:a76d4b9857eda4ac6d55966549da6c8b4"><td class="memTemplItemLeft" align="right" valign="top">T&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a76d4b9857eda4ac6d55966549da6c8b4">nexthigher</a> (T k)</td></tr>
 <tr class="separator:a76d4b9857eda4ac6d55966549da6c8b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aae24f48dcafb137b7c909f9c0fdb7574" id="r_aae24f48dcafb137b7c909f9c0fdb7574"><td class="memTemplParams" colspan="2">template&lt;class RetType , class... Args&gt; </td></tr>
-<tr class="memitem:aae24f48dcafb137b7c909f9c0fdb7574"><td class="memTemplItemLeft" align="right" valign="top">&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aae24f48dcafb137b7c909f9c0fdb7574">RemoteChannel</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">transport::ITransport</a> &amp;, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;) -&gt; RemoteChannel&lt; RetType(Args...)&gt;</td></tr>
-<tr class="memdesc:aae24f48dcafb137b7c909f9c0fdb7574"><td class="mdescLeft">&#160;</td><td class="mdescRight">C++17 deduction guide — lets the compiler deduce <code>Sig</code> from the serializer type.  <br /></td></tr>
-<tr class="separator:aae24f48dcafb137b7c909f9c0fdb7574"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaf710a024026d72e04ce74cd5389779e" id="r_aaf710a024026d72e04ce74cd5389779e"><td class="memTemplParams" colspan="2">template&lt;class RetType , class... Args&gt; </td></tr>
+<tr class="memitem:aaf710a024026d72e04ce74cd5389779e"><td class="memTemplItemLeft" align="right" valign="top">&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aaf710a024026d72e04ce74cd5389779e">RemoteChannel</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">transport::ITransport</a> &amp;, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;, <a class="el" href="#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>=<a class="el" href="#a0278aebc59e9f350d10a47d1a5ef1acb">INVALID_REMOTE_ID</a>) -&gt; RemoteChannel&lt; RetType(Args...)&gt;</td></tr>
+<tr class="memdesc:aaf710a024026d72e04ce74cd5389779e"><td class="mdescLeft">&#160;</td><td class="mdescRight">C++17 deduction guide — lets the compiler deduce <code>Sig</code> from the serializer type.  <br /></td></tr>
+<tr class="separator:aaf710a024026d72e04ce74cd5389779e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afee4bd02938ee2ec6cbde95d62037561" id="r_afee4bd02938ee2ec6cbde95d62037561"><td class="memTemplParams" colspan="2">template&lt;class RetType , class... Args&gt; </td></tr>
 <tr class="memitem:afee4bd02938ee2ec6cbde95d62037561"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#afee4bd02938ee2ec6cbde95d62037561">MakeDelegate</a> (RetType(*func)(Args...), <a class="el" href="#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a> id, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; RetType(Args...)&gt; &amp;channel)</td></tr>
 <tr class="memdesc:afee4bd02938ee2ec6cbde95d62037561"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a remote delegate bound to a free function via a <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>.  <br /></td></tr>
@@ -876,6 +876,7 @@ template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Al
 <tr><td class="fieldname"><a id="a62ea8a73887af62d409322557b4e757dac78b85137bd31a80f22922b807a76556" name="a62ea8a73887af62d409322557b4e757dac78b85137bd31a80f22922b807a76556"></a>ERR_DESERIALIZE_EXCEPTION&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594" name="a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594"></a>ERR_NO_DISPATCHER&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb" name="a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb"></a>ERR_DISPATCH&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7" name="a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7"></a>ERR_TYPE_MISMATCH&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
 </div>
@@ -900,8 +901,7 @@ template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Al
 </table>
 </div><div class="memdoc">
 <table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a6364022151f2bf1802343322638e8f25a41bc94cbd8eebea13ce0491b2ac11b88" name="a6364022151f2bf1802343322638e8f25a41bc94cbd8eebea13ce0491b2ac11b88"></a>LOW&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051" name="a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051"></a>NORMAL&#160;</td><td class="fielddoc"></td></tr>
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051" name="a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051"></a>NORMAL&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c" name="a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c"></a>HIGH&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
@@ -2232,8 +2232,8 @@ template&lt;typename T , typename U &gt; </div>
 
 </div>
 </div>
-<a id="aae24f48dcafb137b7c909f9c0fdb7574" name="aae24f48dcafb137b7c909f9c0fdb7574"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aae24f48dcafb137b7c909f9c0fdb7574">&#9670;&#160;</a></span>RemoteChannel()</h2>
+<a id="aaf710a024026d72e04ce74cd5389779e" name="aaf710a024026d72e04ce74cd5389779e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaf710a024026d72e04ce74cd5389779e">&#9670;&#160;</a></span>RemoteChannel()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -2248,13 +2248,18 @@ template&lt;class RetType , class... Args&gt; </div>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;) -&gt;  RemoteChannel&lt; RetType(Args...)&gt;</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="#a0278aebc59e9f350d10a47d1a5ef1acb">INVALID_REMOTE_ID</a></span>&#160;) -&gt;  RemoteChannel&lt; RetType(Args...)&gt;</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>C++17 deduction guide — lets the compiler deduce <code>Sig</code> from the serializer type. </p>
-<p>Enables <code><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a> channel(transport, serializer)</code> without an explicit template argument. </p>
+<p>Enables <code><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a> channel(transport, serializer)</code> and <code><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a> channel(transport, serializer, id)</code> without an explicit template argument. </p>
 
 </div>
 </div>

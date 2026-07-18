@@ -8,5 +8,6 @@ var searchData=
   ['err_5fno_5fdispatcher_5',['ERR_NO_DISPATCHER',['../namespacedmq.html#a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594',1,'dmq']]],
   ['err_5fno_5fserializer_6',['ERR_NO_SERIALIZER',['../namespacedmq.html#a62ea8a73887af62d409322557b4e757dafdbb48f8e830dba35bd9fbd08a92e3ce',1,'dmq']]],
   ['err_5fserialize_7',['ERR_SERIALIZE',['../namespacedmq.html#a62ea8a73887af62d409322557b4e757da27dd8c402d16b3f4525b8a2d3d6e8cf8',1,'dmq']]],
-  ['err_5fstream_5fnot_5fgood_8',['ERR_STREAM_NOT_GOOD',['../namespacedmq.html#a62ea8a73887af62d409322557b4e757da78d23b7ddceca52b8912f668760e1766',1,'dmq']]]
+  ['err_5fstream_5fnot_5fgood_8',['ERR_STREAM_NOT_GOOD',['../namespacedmq.html#a62ea8a73887af62d409322557b4e757da78d23b7ddceca52b8912f668760e1766',1,'dmq']]],
+  ['err_5ftype_5fmismatch_9',['ERR_TYPE_MISMATCH',['../namespacedmq.html#a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7',1,'dmq']]]
 ];

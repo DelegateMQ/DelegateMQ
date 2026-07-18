@@ -25,6 +25,7 @@ var classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_
     [ "Clone", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#aad5a169baf98024bb3de0ec2262f2d59", null ],
     [ "Equal", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a5e0e0bd41a3b0d41a005e074ec52eafa", null ],
     [ "GetError", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a04c1a18619d8684ad6544145ba89b046", null ],
+    [ "GetLastSeqNum", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a2904a3aba138832d79a9af6682173ef7", null ],
     [ "GetRemoteId", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a5735b4b641601c4c8336a17bbb9f4ae4", null ],
     [ "Invoke", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a05c6bd6e4050ee062290b456717bf964", null ],
     [ "operator!=", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a45b0a0c8b1d7dfe092f049f1e413ab5b", null ],
@@ -41,7 +42,7 @@ var classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_
     [ "SetErrorHandler", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#abca978c2a61bb2f0e75bd47da8f7a07e", null ],
     [ "SetRemoteId", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#acadf734aee8ce3ddbafba2f88b2d13f6", null ],
     [ "SetSerializer", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a82bec9db227f5de30c01cf4d33a40d05", null ],
-    [ "SetStream", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a2355f4be220c01ab92bd88260ee731a7", null ],
+    [ "SetStream", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#aa69221b81d3d24cd559bc69c28f084dd", null ],
     [ "operator!=", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a9060a79c701f93a271858cb8b787f534", null ],
     [ "operator==", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a4c3606cc50df42a8086afe833332c797", null ]
 ];

@@ -16,6 +16,7 @@ var classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4 =
     [ "Clone", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a5e1bcfc7eae630d87b172503d3c64b91", null ],
     [ "Equal", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a9ab546040ae72a317b8434b22873e76e", null ],
     [ "GetError", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a3a9b01350223748e35b9b97cbfe579aa", null ],
+    [ "GetLastSeqNum", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a6ff3107fbc61a5f23450ba50fe22a145", null ],
     [ "GetRemoteId", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#ae10315ca674718430c7919b7b9046292", null ],
     [ "Invoke", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a0f8fb6eaca9ced863facea4375509177", null ],
     [ "operator!=", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af147326eee40d35ce64dcedc69825825", null ],
@@ -32,7 +33,7 @@ var classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4 =
     [ "SetErrorHandler", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a6f5d8ba4722f0ed57e157c670d60631e", null ],
     [ "SetRemoteId", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a068e571e7c3951589fc214fc9930234b", null ],
     [ "SetSerializer", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a1e6c58709f5d6c6484172489bfaf896b", null ],
-    [ "SetStream", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#af626a540f95d9f63153e5b6070b97ca6", null ],
+    [ "SetStream", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a5b16102d8b0561f5f58e06ec2e37a635", null ],
     [ "operator!=", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a9060a79c701f93a271858cb8b787f534", null ],
     [ "operator==", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a4c3606cc50df42a8086afe833332c797", null ]
 ];

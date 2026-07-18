@@ -264,7 +264,7 @@ Synchronous</h3>
 <div class="line">Sensor sensor;</div>
 <div class="line"><span class="keyword">auto</span> readDelegate = <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;sensor, &amp;Sensor::Read);</div>
 <div class="line"><span class="keywordtype">float</span> value = readDelegate();</div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:888</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
 </div><!-- fragment --><h3><a class="anchor" id="autotoc_md111"></a>
 Asynchronous — Non-Blocking (Fire-and-Forget)</h3>
 <p>Add a <code>thread</code> argument. The function is queued onto that thread and the caller returns immediately. No return value is available.</p>
@@ -316,8 +316,8 @@ Publish / Subscribe with Signal</h2>
 Remote Delegate</h2>
 <p>Remote delegates send a function call across a process or network boundary. The receiver doesn't need to know a call is coming over a transport — it just implements a normal member function.</p>
 <p><b>Three concepts to understand:</b></p><ul>
-<li><b><code><a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;Sig&gt;</code></b> — one instance per message signature; owns the transport wiring.</li>
-<li><b><code>Bind(obj, func, id)</code></b> — connects a member function to a remote ID on the channel.</li>
+<li><b><code><a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;Sig&gt;</code></b> — one instance per message signature; owns the transport wiring. A sender passes the remote ID to the constructor and needs nothing else.</li>
+<li><b><code>Bind(obj, func, id)</code></b> — receive side only: connects a member function to a remote ID on the channel.</li>
 <li><b><code>dmq::RegisterEndpoint(id, channel.GetEndpoint())</code></b> — tells the receive side which function to call when a message with that ID arrives.</li>
 </ul>
 <div class="fragment"><div class="line"><span class="comment">// --- Shared message ID (known to both sender and receiver) ---</span></div>
@@ -349,11 +349,9 @@ Remote Delegate</h2>
 <div class="line"><span class="keyword">public</span>:</div>
 <div class="line">    Thermometer(<a class="code hl_class" href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a>&amp; transport, <a class="code hl_class" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt;<span class="keywordtype">void</span>(<span class="keywordtype">float</span>)&gt;&amp; ser)</div>
 <div class="line">    {</div>
-<div class="line">        m_channel.emplace(transport, ser);</div>
-<div class="line">        <span class="comment">// Bind() wires up the remote ID, dispatcher, serializer, and stream.</span></div>
-<div class="line">        <span class="comment">// The bound function is never called on the sender side; it is a</span></div>
-<div class="line">        <span class="comment">// required placeholder so Bind() can configure the channel.</span></div>
-<div class="line">        m_channel-&gt;Bind(<span class="keyword">this</span>, &amp;Thermometer::Unused, TEMPERATURE_ID);</div>
+<div class="line">        <span class="comment">// Passing the remote ID to the constructor makes this a send-ready</span></div>
+<div class="line">        <span class="comment">// channel — no Bind() needed on the sender side.</span></div>
+<div class="line">        m_channel.emplace(transport, ser, TEMPERATURE_ID);</div>
 <div class="line">    }</div>
 <div class="line"> </div>
 <div class="line">    <span class="comment">// Fire-and-forget send (operator() on the optional&lt;dmq::RemoteChannel&gt;)</span></div>
@@ -363,13 +361,12 @@ Remote Delegate</h2>
 <div class="line">    <span class="keywordtype">bool</span> SendWait(<span class="keywordtype">float</span> value) { <span class="keywordflow">return</span> dmq::RemoteInvokeWait(*m_channel, value); }</div>
 <div class="line"> </div>
 <div class="line"><span class="keyword">private</span>:</div>
-<div class="line">    <span class="keywordtype">void</span> Unused(<span class="keywordtype">float</span>) {}  <span class="comment">// required by Bind(); never invoked on the sender side</span></div>
 <div class="line">    std::optional&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(<span class="keywordtype">float</span>)&gt;&gt; m_channel;</div>
 <div class="line">};</div>
 <div class="ttc" id="aclassdmq_1_1_i_serializer_html"><div class="ttname"><a href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a></div><div class="ttdef"><b>Definition</b> ISerializer.h:14</div></div>
 <div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
 <div class="ttc" id="aclassdmq_1_1transport_1_1_i_transport_html"><div class="ttname"><a href="classdmq_1_1transport_1_1_i_transport.html">dmq::transport::ITransport</a></div><div class="ttdoc">DelegateMQ transport interface.</div><div class="ttdef"><b>Definition</b> ITransport.h:12</div></div>
-<div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:12</div></div>
+<div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:13</div></div>
 </div><!-- fragment --><p>The sender calls <code>(*m_channel)(value)</code> or <code>dmq::RemoteInvokeWait(*m_channel, value)</code>. The transport serializes the argument, sends it, and on the receiver side <code>OnTemperature()</code> is called — just like a normal function. See Sample Projects for complete working examples with real transports.</p>
 <hr  />
 <h2><a class="anchor" id="autotoc_md119"></a>
@@ -465,20 +462,20 @@ Delegates</h2>
 <div class="line"><a class="code hl_class" href="classdmq_1_1_i_thread.html">dmq::IThread</a></div>
 <div class="line"><a class="code hl_class" href="classdmq_1_1_i_thread_invoker.html">dmq::IThreadInvoker</a></div>
 <div class="line"><a class="code hl_class" href="classdmq_1_1_i_remote_invoker.html">dmq::IRemoteInvoker</a></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_base_html"><div class="ttname"><a href="classdmq_1_1_delegate_base.html">dmq::DelegateBase</a></div><div class="ttdoc">Non-template base class for all delegates.</div><div class="ttdef"><b>Definition</b> Delegate.h:92</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_base_html"><div class="ttname"><a href="classdmq_1_1_delegate_base.html">dmq::DelegateBase</a></div><div class="ttdoc">Non-template base class for all delegates.</div><div class="ttdef"><b>Definition</b> Delegate.h:104</div></div>
 <div class="ttc" id="aclassdmq_1_1_delegate_free_async_html"><div class="ttname"><a href="classdmq_1_1_delegate_free_async.html">dmq::DelegateFreeAsync</a></div><div class="ttdef"><b>Definition</b> DelegateAsync.h:106</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_free_html"><div class="ttname"><a href="classdmq_1_1_delegate_free.html">dmq::DelegateFree</a></div><div class="ttdef"><b>Definition</b> Delegate.h:155</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_free_remote_html"><div class="ttname"><a href="classdmq_1_1_delegate_free_remote.html">dmq::DelegateFreeRemote</a></div><div class="ttdef"><b>Definition</b> DelegateRemote.h:134</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_function_async_html"><div class="ttname"><a href="classdmq_1_1_delegate_function_async.html">dmq::DelegateFunctionAsync</a></div><div class="ttdef"><b>Definition</b> DelegateAsync.h:912</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_function_html"><div class="ttname"><a href="classdmq_1_1_delegate_function.html">dmq::DelegateFunction</a></div><div class="ttdef"><b>Definition</b> Delegate.h:684</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_function_remote_html"><div class="ttname"><a href="classdmq_1_1_delegate_function_remote.html">dmq::DelegateFunctionRemote</a></div><div class="ttdef"><b>Definition</b> DelegateRemote.h:1031</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_html"><div class="ttname"><a href="classdmq_1_1_delegate.html">dmq::Delegate</a></div><div class="ttdef"><b>Definition</b> Delegate.h:134</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_member_async_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_async.html">dmq::DelegateMemberAsync</a></div><div class="ttdef"><b>Definition</b> DelegateAsync.h:355</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_member_async_sp_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_async_sp.html">dmq::DelegateMemberAsyncSp</a></div><div class="ttdef"><b>Definition</b> DelegateAsync.h:669</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_member_html"><div class="ttname"><a href="classdmq_1_1_delegate_member.html">dmq::DelegateMember</a></div><div class="ttdef"><b>Definition</b> Delegate.h:311</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_member_remote_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_remote.html">dmq::DelegateMemberRemote</a></div><div class="ttdef"><b>Definition</b> DelegateRemote.h:550</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_member_sp_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_sp.html">dmq::DelegateMemberSp</a></div><div class="ttdef"><b>Definition</b> Delegate.h:541</div></div>
-<div class="ttc" id="aclassdmq_1_1_i_dispatcher_html"><div class="ttname"><a href="classdmq_1_1_i_dispatcher.html">dmq::IDispatcher</a></div><div class="ttdoc">Delegate interface class to dispatch serialized function argument data to a remote destination....</div><div class="ttdef"><b>Definition</b> IDispatcher.h:27</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_free_html"><div class="ttname"><a href="classdmq_1_1_delegate_free.html">dmq::DelegateFree</a></div><div class="ttdef"><b>Definition</b> Delegate.h:167</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_free_remote_html"><div class="ttname"><a href="classdmq_1_1_delegate_free_remote.html">dmq::DelegateFreeRemote</a></div><div class="ttdef"><b>Definition</b> DelegateRemote.h:159</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_function_async_html"><div class="ttname"><a href="classdmq_1_1_delegate_function_async.html">dmq::DelegateFunctionAsync</a></div><div class="ttdef"><b>Definition</b> DelegateAsync.h:906</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_function_html"><div class="ttname"><a href="classdmq_1_1_delegate_function.html">dmq::DelegateFunction</a></div><div class="ttdef"><b>Definition</b> Delegate.h:702</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_function_remote_html"><div class="ttname"><a href="classdmq_1_1_delegate_function_remote.html">dmq::DelegateFunctionRemote</a></div><div class="ttdef"><b>Definition</b> DelegateRemote.h:1082</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_html"><div class="ttname"><a href="classdmq_1_1_delegate.html">dmq::Delegate</a></div><div class="ttdef"><b>Definition</b> Delegate.h:146</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_member_async_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_async.html">dmq::DelegateMemberAsync</a></div><div class="ttdef"><b>Definition</b> DelegateAsync.h:353</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_member_async_sp_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_async_sp.html">dmq::DelegateMemberAsyncSp</a></div><div class="ttdef"><b>Definition</b> DelegateAsync.h:665</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_member_html"><div class="ttname"><a href="classdmq_1_1_delegate_member.html">dmq::DelegateMember</a></div><div class="ttdef"><b>Definition</b> Delegate.h:323</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_member_remote_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_remote.html">dmq::DelegateMemberRemote</a></div><div class="ttdef"><b>Definition</b> DelegateRemote.h:588</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_member_sp_html"><div class="ttname"><a href="classdmq_1_1_delegate_member_sp.html">dmq::DelegateMemberSp</a></div><div class="ttdef"><b>Definition</b> Delegate.h:557</div></div>
+<div class="ttc" id="aclassdmq_1_1_i_dispatcher_html"><div class="ttname"><a href="classdmq_1_1_i_dispatcher.html">dmq::IDispatcher</a></div><div class="ttdoc">Delegate interface class to dispatch serialized function argument data to a remote destination....</div><div class="ttdef"><b>Definition</b> IDispatcher.h:28</div></div>
 <div class="ttc" id="aclassdmq_1_1_i_remote_invoker_html"><div class="ttname"><a href="classdmq_1_1_i_remote_invoker.html">dmq::IRemoteInvoker</a></div><div class="ttdoc">Abstract base class to support remote delegate function invoke to a remote system....</div><div class="ttdef"><b>Definition</b> IInvoker.h:31</div></div>
 <div class="ttc" id="aclassdmq_1_1_i_thread_html"><div class="ttname"><a href="classdmq_1_1_i_thread.html">dmq::IThread</a></div><div class="ttdoc">A base class for a delegate enabled execution thread. Implemented by application code if asynchronous...</div><div class="ttdef"><b>Definition</b> IThread.h:22</div></div>
 <div class="ttc" id="aclassdmq_1_1_i_thread_invoker_html"><div class="ttname"><a href="classdmq_1_1_i_thread_invoker.html">dmq::IThreadInvoker</a></div><div class="ttdoc">Abstract base class to support asynchronous delegate function invoke on destination thread of control...</div><div class="ttdef"><b>Definition</b> IInvoker.h:17</div></div>
@@ -496,7 +493,7 @@ Delegate Containers</h2>
 <div class="line"><a class="code hl_class" href="classdmq_1_1_multicast_delegate.html">dmq::MulticastDelegate&lt;&gt;</a></div>
 <div class="line">    <a class="code hl_class" href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe&lt;&gt;</a></div>
 <div class="line"><a class="code hl_class" href="classdmq_1_1_signal.html">dmq::Signal&lt;&gt;</a>          <span class="comment">// thread-safe multicast with RAII ScopedConnection</span></div>
-<div class="ttc" id="aclassdmq_1_1_multicast_delegate_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate.html">dmq::MulticastDelegate</a></div><div class="ttdef"><b>Definition</b> MulticastDelegate.h:17</div></div>
+<div class="ttc" id="aclassdmq_1_1_multicast_delegate_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate.html">dmq::MulticastDelegate</a></div><div class="ttdef"><b>Definition</b> MulticastDelegate.h:16</div></div>
 <div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:13</div></div>
 <div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:32</div></div>
 <div class="ttc" id="aclassdmq_1_1_unicast_delegate_html"><div class="ttname"><a href="classdmq_1_1_unicast_delegate.html">dmq::UnicastDelegate</a></div><div class="ttdef"><b>Definition</b> UnicastDelegate.h:14</div></div>
@@ -642,8 +639,9 @@ Remote Delegates</h2>
 <div class="line"><span class="keyword">public</span>:</div>
 <div class="line">    <span class="keyword">virtual</span> ~IDispatcher() = <span class="keywordflow">default</span>;</div>
 <div class="line"> </div>
-<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">int</span> Dispatch(std::ostream&amp; os, DelegateRemoteId <span class="keywordtype">id</span>) = 0;</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">int</span> Dispatch(<a class="code hl_typedef" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a>&amp; os, DelegateRemoteId <span class="keywordtype">id</span>, uint16_t* outSeqNum = <span class="keyword">nullptr</span>) = 0;</div>
 <div class="line">};</div>
+<div class="ttc" id="anamespacedmq_html_aa67d7309f9b005cc369e448ec28f8129"><div class="ttname"><a href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a></div><div class="ttdeci">std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt;, stl_allocator&lt; char &gt; &gt; xostringstream</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:318</div></div>
 </div><!-- fragment --><p>The sender sends the remote delegate. All function argument data is serialized and sent using the dispatcher.</p>
 <div class="fragment"><div class="line"><span class="comment">// Dispatcher and serializer instances</span></div>
 <div class="line">dmq::util::Dispatcher dispatcher;</div>
@@ -980,9 +978,9 @@ Heap Template Parameter Pack</h2>
 <div class="line">    <span class="keywordflow">return</span> <a class="code hl_function" href="namespacedmq.html#af29d8c3f370422dfe61232f1226c9c09">dmq::make_tuple_heap</a>(heapArgs, new_tup, args...);</div>
 <div class="line">}</div>
 <div class="ttc" id="aclassdmq_1_1xlist_html"><div class="ttname"><a href="classdmq_1_1xlist.html">dmq::xlist</a></div><div class="ttdef"><b>Definition</b> DelegateOpt.h:312</div></div>
-<div class="ttc" id="anamespacedmq_html_af29d8c3f370422dfe61232f1226c9c09"><div class="ttname"><a href="namespacedmq.html#af29d8c3f370422dfe61232f1226c9c09">dmq::make_tuple_heap</a></div><div class="ttdeci">auto make_tuple_heap(xlist&lt; std::shared_ptr&lt; heap_arg_deleter_base &gt; &gt; &amp;heapArgs, std::tuple&lt; Ts... &gt; tup)</div><div class="ttdoc">Terminate the template metaprogramming argument loop. This function is called when there are no more ...</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:232</div></div>
-<div class="ttc" id="anamespacedmq_html_afa227e805c1482bf7069b21db90f64f9"><div class="ttname"><a href="namespacedmq.html#afa227e805c1482bf7069b21db90f64f9">dmq::tuple_append</a></div><div class="ttdeci">auto tuple_append(xlist&lt; std::shared_ptr&lt; heap_arg_deleter_base &gt; &gt; &amp;heapArgs, const std::tuple&lt; TupleElem... &gt; &amp;tup, Arg **arg)</div><div class="ttdoc">Append a pointer to pointer argument to the tuple.</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:111</div></div>
-<div class="ttc" id="astructdmq_1_1is__shared__ptr_html"><div class="ttname"><a href="structdmq_1_1is__shared__ptr.html">dmq::is_shared_ptr</a></div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:33</div></div>
+<div class="ttc" id="anamespacedmq_html_af29d8c3f370422dfe61232f1226c9c09"><div class="ttname"><a href="namespacedmq.html#af29d8c3f370422dfe61232f1226c9c09">dmq::make_tuple_heap</a></div><div class="ttdeci">auto make_tuple_heap(xlist&lt; std::shared_ptr&lt; heap_arg_deleter_base &gt; &gt; &amp;heapArgs, std::tuple&lt; Ts... &gt; tup)</div><div class="ttdoc">Terminate the template metaprogramming argument loop. This function is called when there are no more ...</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:227</div></div>
+<div class="ttc" id="anamespacedmq_html_afa227e805c1482bf7069b21db90f64f9"><div class="ttname"><a href="namespacedmq.html#afa227e805c1482bf7069b21db90f64f9">dmq::tuple_append</a></div><div class="ttdeci">auto tuple_append(xlist&lt; std::shared_ptr&lt; heap_arg_deleter_base &gt; &gt; &amp;heapArgs, const std::tuple&lt; TupleElem... &gt; &amp;tup, Arg **arg)</div><div class="ttdoc">Append a pointer to pointer argument to the tuple.</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:106</div></div>
+<div class="ttc" id="astructdmq_1_1is__shared__ptr_html"><div class="ttname"><a href="structdmq_1_1is__shared__ptr.html">dmq::is_shared_ptr</a></div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:28</div></div>
 </div><!-- fragment --><p>Template metaprogramming uses the C++ template system to perform compile-time computations within the code. Notice the recursive compiler call of <code><a class="el" href="namespacedmq.html#af29d8c3f370422dfe61232f1226c9c09" title="Terminate the template metaprogramming argument loop. This function is called when there are no more ...">dmq::make_tuple_heap()</a></code> as the <code>Arg1</code> template parameter gets consumed by the function until no arguments remain and the recursion is terminated. The snippet above shows the concatenation of heap allocated tuple function arguments. This allows for the arguments to be copied into dynamic memory for transport to the target thread through a message queue.</p>
 <p>This bit of code inside <code><a class="el" href="make__tuple__heap_8h.html" title="Helper functions for creating dynamic copies of function arguments stored within a tuple.">make_tuple_heap.h</a></code> was tricky to create in that each argument must have memory allocated, data copied, appended to the tuple, then subsequently deallocated all based on its type. To further complicate things, this all has to be done generically with N number of disparate template argument parameters. This was the key to getting a template parameter pack of arguments through a message queue. <code>dmq::DelegateMsgHeapArgs</code> then stores the tuple parameters for easy usage by the target thread. The target thread uses <code>std::apply()</code> to invoke the bound function with the heap allocated tuple argument(s).</p>
 <p>The pointer argument <code><a class="el" href="namespacedmq.html#afa227e805c1482bf7069b21db90f64f9" title="Append a pointer to pointer argument to the tuple.">dmq::tuple_append()</a></code> implementation is shown below. It creates dynamic memory for the argument, argument data copied, adds to a deleter list for subsequent later cleanup after the target function is invoked, and finally returns the appended tuple.</p>
@@ -1010,7 +1008,7 @@ Heap Template Parameter Pack</h2>
 <div class="line">        <span class="keywordflow">throw</span>;</div>
 <div class="line">    }</div>
 <div class="line">}</div>
-<div class="ttc" id="aclassdmq_1_1heap__arg__deleter_html"><div class="ttname"><a href="classdmq_1_1heap__arg__deleter.html">dmq::heap_arg_deleter</a></div><div class="ttdoc">Frees heap memory for reference heap argument.</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:68</div></div>
+<div class="ttc" id="aclassdmq_1_1heap__arg__deleter_html"><div class="ttname"><a href="classdmq_1_1heap__arg__deleter.html">dmq::heap_arg_deleter</a></div><div class="ttdoc">Frees heap memory for reference heap argument.</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:63</div></div>
 </div><!-- fragment --><p>The pointer argument deleter is implemented below. When the target function invocation is complete, the <code><a class="el" href="classdmq_1_1heap__arg__deleter.html" title="Frees heap memory for reference heap argument.">dmq::heap_arg_deleter</a></code> destructor will <code>delete</code> the heap argument memory. The heap argument cannot be a changed to a smart pointer because it would change the argument type used in the target function signature. Therefore, the <code><a class="el" href="classdmq_1_1heap__arg__deleter.html" title="Frees heap memory for reference heap argument.">dmq::heap_arg_deleter</a></code> is used as a smart pointer wrapper around the (potentially) non-smart heap argument.</p>
 <div class="fragment"><div class="line"> </div>
 <div class="line"><span class="keyword">template</span>&lt;<span class="keyword">typename</span> T&gt;</div>
@@ -1025,7 +1023,7 @@ Heap Template Parameter Pack</h2>
 <div class="line"><span class="keyword">private</span>:</div>
 <div class="line">    T* m_arg;</div>
 <div class="line">};</div>
-<div class="ttc" id="aclassdmq_1_1heap__arg__deleter__base_html"><div class="ttname"><a href="classdmq_1_1heap__arg__deleter__base.html">dmq::heap_arg_deleter_base</a></div><div class="ttdoc">Base class for all deleter's.</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:58</div></div>
+<div class="ttc" id="aclassdmq_1_1heap__arg__deleter__base_html"><div class="ttname"><a href="classdmq_1_1heap__arg__deleter__base.html">dmq::heap_arg_deleter_base</a></div><div class="ttdoc">Base class for all deleter's.</div><div class="ttdef"><b>Definition</b> make_tuple_heap.h:53</div></div>
 </div><!-- fragment --><h3><a class="anchor" id="autotoc_md154"></a>
 Argument Heap Copy</h3>
 <p>Asynchronous non-blocking delegate invocations mean that all argument data must be copied to the heap for transport to the destination thread. All arguments, regardless of their type, will be duplicated, including: value, pointer, pointer to pointer, and reference. If your data is not plain old data (POD) and cannot be bitwise copied, be sure to implement an appropriate copy constructor to handle the copying yourself.</p>

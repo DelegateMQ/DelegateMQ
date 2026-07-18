@@ -1,6 +1,5 @@
 var stdlib_2_thread_8h =
 [
-    [ "dmq::os::ThreadMsgComparator", "structdmq_1_1os_1_1_thread_msg_comparator.html", "structdmq_1_1os_1_1_thread_msg_comparator" ],
     [ "dmq::os::Thread", "classdmq_1_1os_1_1_thread.html", "classdmq_1_1os_1_1_thread" ],
     [ "FullPolicy", "stdlib_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030", [
       [ "DROP", "stdlib_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030abf8f3be424eb6a72b21549fbb24ffb57", null ],

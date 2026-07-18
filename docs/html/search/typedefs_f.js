@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['weakptr_0',['WeakPtr',['../classdmq_1_1_delegate_member_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ae25f88d679c18ebd3d3b4e5db62eda20',1,'dmq::DelegateMemberSp&lt; TClass, RetType(Args...)&gt;']]]
+  ['value_5ftype_0',['value_type',['../classdmq_1_1stl__allocator_3_01void_01_4.html#ae3dfd27a2bc8cbafc83376b58a812dbc',1,'dmq::stl_allocator&lt; void &gt;::value_type'],['../classdmq_1_1stl__allocator.html#a43e637803c04f5a60a265e07dc2a8ad4',1,'dmq::stl_allocator::value_type']]]
 ];

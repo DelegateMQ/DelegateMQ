@@ -16,6 +16,7 @@ var classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4 =
     [ "Clone", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#ac56985043710a44668759152893a5b16", null ],
     [ "Equal", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#ae7e4ad271251cada9c8973af1eb6dd0c", null ],
     [ "GetError", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#adda0c90a83a45869c398f045ebf9da92", null ],
+    [ "GetLastSeqNum", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a1bcd33647b8c47413f10b62a6c17b8c1", null ],
     [ "GetRemoteId", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#aadbcd03cabe06ae69f91a0e8690c0fc9", null ],
     [ "Invoke", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a415f6556e980d57784c04a1d568f27e5", null ],
     [ "operator!=", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#adb3ae43655b3cf166b3ebaf77d0b6a43", null ],
@@ -32,7 +33,7 @@ var classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4 =
     [ "SetErrorHandler", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a7f1b5ece9b20629853d31f7ae3c3291f", null ],
     [ "SetRemoteId", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a8f35591644507884aaf6ec2e5d5e4936", null ],
     [ "SetSerializer", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#ab805f096f0efde8274cf9fb48ae80eeb", null ],
-    [ "SetStream", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a0589a7a6721fc41ff154b852febba12c", null ],
+    [ "SetStream", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a3b042fc79a38b122a1f26494ab959d86", null ],
     [ "operator!=", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a9060a79c701f93a271858cb8b787f534", null ],
     [ "operator==", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a4c3606cc50df42a8086afe833332c797", null ]
 ];

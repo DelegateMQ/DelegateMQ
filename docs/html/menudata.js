@@ -134,6 +134,7 @@ var menudata={children:[
 {text:"e",url:"functions_type.html#index_e"},
 {text:"f",url:"functions_type.html#index_f"},
 {text:"m",url:"functions_type.html#index_m"},
+{text:"n",url:"functions_type.html#index_n"},
 {text:"o",url:"functions_type.html#index_o"},
 {text:"p",url:"functions_type.html#index_p"},
 {text:"r",url:"functions_type.html#index_r"},

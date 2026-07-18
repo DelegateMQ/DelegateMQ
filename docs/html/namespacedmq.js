@@ -105,10 +105,10 @@ var namespacedmq =
       [ "ERR_DESERIALIZE", "namespacedmq.html#a62ea8a73887af62d409322557b4e757dacd71045ed3f42c6989cdc860fc93371c", null ],
       [ "ERR_DESERIALIZE_EXCEPTION", "namespacedmq.html#a62ea8a73887af62d409322557b4e757dac78b85137bd31a80f22922b807a76556", null ],
       [ "ERR_NO_DISPATCHER", "namespacedmq.html#a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594", null ],
-      [ "ERR_DISPATCH", "namespacedmq.html#a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb", null ]
+      [ "ERR_DISPATCH", "namespacedmq.html#a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb", null ],
+      [ "ERR_TYPE_MISMATCH", "namespacedmq.html#a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7", null ]
     ] ],
     [ "Priority", "namespacedmq.html#a6364022151f2bf1802343322638e8f25", [
-      [ "LOW", "namespacedmq.html#a6364022151f2bf1802343322638e8f25a41bc94cbd8eebea13ce0491b2ac11b88", null ],
       [ "NORMAL", "namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051", null ],
       [ "HIGH", "namespacedmq.html#a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c", null ]
     ] ],
@@ -142,7 +142,7 @@ var namespacedmq =
     [ "nexthigher", "namespacedmq.html#a76d4b9857eda4ac6d55966549da6c8b4", null ],
     [ "operator!=", "namespacedmq.html#a3a3481568ef3def162505f3c669ea725", null ],
     [ "operator==", "namespacedmq.html#ab0ec5ce8da9b4d572cc4fbe2ab465974", null ],
-    [ "RemoteChannel", "namespacedmq.html#aae24f48dcafb137b7c909f9c0fdb7574", null ],
+    [ "RemoteChannel", "namespacedmq.html#aaf710a024026d72e04ce74cd5389779e", null ],
     [ "tuple_append", "namespacedmq.html#af9e832ed1ea2342072d7fec269159f0e", null ],
     [ "tuple_append", "namespacedmq.html#afa227e805c1482bf7069b21db90f64f9", null ],
     [ "tuple_append", "namespacedmq.html#a2fc402f34b913d06933fe25814f8ddaa", null ],

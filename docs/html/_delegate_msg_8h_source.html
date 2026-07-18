@@ -107,66 +107,61 @@ $(function(){initNavTree('_delegate_msg_8h_source.html',''); initResizable(true)
 <div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#include &quot;<a class="code" href="_delegate_opt_8h.html">DelegateOpt.h</a>&quot;</span></div>
 <div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#include &quot;<a class="code" href="make__tuple__heap_8h.html">make_tuple_heap.h</a>&quot;</span></div>
 <div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#include &lt;tuple&gt;</span></div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#include &lt;list&gt;</span></div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="preprocessor">#include &lt;memory&gt;</span></div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#include &lt;mutex&gt;</span></div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="preprocessor">#include &lt;stdexcept&gt;</span></div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span> </div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="keyword">namespace </span><a class="code hl_namespace" href="namespacedmq.html">dmq</a> {</div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span> </div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="comment">// Async delegate message priority</span></div>
-<div class="foldopen" id="foldopen00019" data-start="{" data-end="};">
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno"><a class="line" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">   19</a></span><span class="keyword">enum class</span> <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>{</div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    <a class="code hl_enumvalue" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a41bc94cbd8eebea13ce0491b2ac11b88">LOW</a>,</div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    <a class="code hl_enumvalue" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">NORMAL</a>,</div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>    <a class="code hl_enumvalue" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c">HIGH</a></div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>};</div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#include &lt;memory&gt;</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span> </div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="keyword">namespace </span><a class="code hl_namespace" href="namespacedmq.html">dmq</a> {</div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="comment">// Async delegate message priority</span></div>
+<div class="foldopen" id="foldopen00016" data-start="{" data-end="};">
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno"><a class="line" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">   16</a></span><span class="keyword">enum class</span> <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>{</div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    <a class="code hl_enumvalue" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">NORMAL</a>,</div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <a class="code hl_enumvalue" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c">HIGH</a></div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>};</div>
 </div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span> </div>
-<div class="foldopen" id="foldopen00027" data-start="{" data-end="};">
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html">   27</a></span><span class="keyword">class </span><a class="code hl_class" href="classdmq_1_1_delegate_msg.html">DelegateMsg</a></div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>{</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="keyword">public</span>:</div>
-<div class="foldopen" id="foldopen00032" data-start="{" data-end="}">
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#ad2a4e8fc485fe36b196f425fe6f307cf">   32</a></span>    <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#ad2a4e8fc485fe36b196f425fe6f307cf">DelegateMsg</a>(std::shared_ptr&lt;IThreadInvoker&gt; invoker, <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> priority) :</div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>        m_invoker(invoker), m_priority(priority)</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    {</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    }</div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span> </div>
+<div class="foldopen" id="foldopen00023" data-start="{" data-end="};">
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html">   23</a></span><span class="keyword">class </span><a class="code hl_class" href="classdmq_1_1_delegate_msg.html">DelegateMsg</a></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>{</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="keyword">public</span>:</div>
+<div class="foldopen" id="foldopen00028" data-start="{" data-end="}">
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#ad2a4e8fc485fe36b196f425fe6f307cf">   28</a></span>    <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#ad2a4e8fc485fe36b196f425fe6f307cf">DelegateMsg</a>(std::shared_ptr&lt;IThreadInvoker&gt; invoker, <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> priority) :</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>        m_invoker(invoker), m_priority(priority)</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    {</div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    }</div>
 </div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#aec162428ef92af0c6401518884ac5415">   37</a></span>    <span class="keyword">virtual</span> <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#aec162428ef92af0c6401518884ac5415">~DelegateMsg</a>() = <span class="keywordflow">default</span>;</div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span> </div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#aec162428ef92af0c6401518884ac5415">   33</a></span>    <span class="keyword">virtual</span> <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#aec162428ef92af0c6401518884ac5415">~DelegateMsg</a>() = <span class="keywordflow">default</span>;</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span> </div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#a9313fb470f24e6d61c3370242bcc4345">   37</a></span>    std::shared_ptr&lt;IThreadInvoker&gt; <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#a9313fb470f24e6d61c3370242bcc4345">GetInvoker</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> m_invoker; }</div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#a9313fb470f24e6d61c3370242bcc4345">   41</a></span>    std::shared_ptr&lt;IThreadInvoker&gt; <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#a9313fb470f24e6d61c3370242bcc4345">GetInvoker</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> m_invoker; }</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#a8c7f7e3628cdef8c5af1578835be9217">   41</a></span>    <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#a8c7f7e3628cdef8c5af1578835be9217">GetPriority</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> m_priority; }</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span> </div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno"><a class="line" href="classdmq_1_1_delegate_msg.html#a8c7f7e3628cdef8c5af1578835be9217">   45</a></span>    <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> <a class="code hl_function" href="classdmq_1_1_delegate_msg.html#a8c7f7e3628cdef8c5af1578835be9217">GetPriority</a>()<span class="keyword"> const </span>{ <span class="keywordflow">return</span> m_priority; }</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span> </div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="keyword">private</span>:</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    std::shared_ptr&lt;IThreadInvoker&gt; m_invoker;</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span> </div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> m_priority = <a class="code hl_enumvalue" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">Priority::NORMAL</a>;</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span> </div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    <span class="comment">// Use fixed-block memory allocator if DMQ_ALLOCATOR set</span></div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <a class="code hl_define" href="_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c">XALLOCATOR</a></div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>};</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="keyword">private</span>:</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    std::shared_ptr&lt;IThreadInvoker&gt; m_invoker;</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <a class="code hl_enumeration" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> m_priority = <a class="code hl_enumvalue" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">Priority::NORMAL</a>;</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="comment">// Use fixed-block memory allocator if DMQ_ALLOCATOR set</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <a class="code hl_define" href="_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c">XALLOCATOR</a></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>};</div>
 </div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>}</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span> </div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span> </div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>}</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="a_delegate_opt_8h_html"><div class="ttname"><a href="_delegate_opt_8h.html">DelegateOpt.h</a></div><div class="ttdoc">Delegate library options header file.</div></div>
 <div class="ttc" id="a_delegate_opt_8h_html_a5e800c556290ed548055177c33a66f5c"><div class="ttname"><a href="_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c">XALLOCATOR</a></div><div class="ttdeci">#define XALLOCATOR</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:304</div></div>
 <div class="ttc" id="a_i_invoker_8h_html"><div class="ttname"><a href="_i_invoker_8h.html">IInvoker.h</a></div><div class="ttdoc">Delegate inter-thread invoker base class.</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_msg_html"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html">dmq::DelegateMsg</a></div><div class="ttdoc">Base class for all delegate inter-thread messages.</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:28</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_msg_html_a8c7f7e3628cdef8c5af1578835be9217"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html#a8c7f7e3628cdef8c5af1578835be9217">dmq::DelegateMsg::GetPriority</a></div><div class="ttdeci">Priority GetPriority() const</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:45</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_msg_html_a9313fb470f24e6d61c3370242bcc4345"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html#a9313fb470f24e6d61c3370242bcc4345">dmq::DelegateMsg::GetInvoker</a></div><div class="ttdeci">std::shared_ptr&lt; IThreadInvoker &gt; GetInvoker() const</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:41</div></div>
-<div class="ttc" id="aclassdmq_1_1_delegate_msg_html_ad2a4e8fc485fe36b196f425fe6f307cf"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html#ad2a4e8fc485fe36b196f425fe6f307cf">dmq::DelegateMsg::DelegateMsg</a></div><div class="ttdeci">DelegateMsg(std::shared_ptr&lt; IThreadInvoker &gt; invoker, Priority priority)</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:32</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_msg_html"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html">dmq::DelegateMsg</a></div><div class="ttdoc">Base class for all delegate inter-thread messages.</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:24</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_msg_html_a8c7f7e3628cdef8c5af1578835be9217"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html#a8c7f7e3628cdef8c5af1578835be9217">dmq::DelegateMsg::GetPriority</a></div><div class="ttdeci">Priority GetPriority() const</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:41</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_msg_html_a9313fb470f24e6d61c3370242bcc4345"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html#a9313fb470f24e6d61c3370242bcc4345">dmq::DelegateMsg::GetInvoker</a></div><div class="ttdeci">std::shared_ptr&lt; IThreadInvoker &gt; GetInvoker() const</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:37</div></div>
+<div class="ttc" id="aclassdmq_1_1_delegate_msg_html_ad2a4e8fc485fe36b196f425fe6f307cf"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html#ad2a4e8fc485fe36b196f425fe6f307cf">dmq::DelegateMsg::DelegateMsg</a></div><div class="ttdeci">DelegateMsg(std::shared_ptr&lt; IThreadInvoker &gt; invoker, Priority priority)</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:28</div></div>
 <div class="ttc" id="aclassdmq_1_1_delegate_msg_html_aec162428ef92af0c6401518884ac5415"><div class="ttname"><a href="classdmq_1_1_delegate_msg.html#aec162428ef92af0c6401518884ac5415">dmq::DelegateMsg::~DelegateMsg</a></div><div class="ttdeci">virtual ~DelegateMsg()=default</div></div>
 <div class="ttc" id="amake__tuple__heap_8h_html"><div class="ttname"><a href="make__tuple__heap_8h.html">make_tuple_heap.h</a></div><div class="ttdoc">Helper functions for creating dynamic copies of function arguments stored within a tuple.</div></div>
 <div class="ttc" id="anamespacedmq_html"><div class="ttname"><a href="namespacedmq.html">dmq</a></div><div class="ttdoc">The delegate library namespace.</div><div class="ttdef"><b>Definition</b> Delegate.h:27</div></div>
-<div class="ttc" id="anamespacedmq_html_a6364022151f2bf1802343322638e8f25"><div class="ttname"><a href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">dmq::Priority</a></div><div class="ttdeci">Priority</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:20</div></div>
+<div class="ttc" id="anamespacedmq_html_a6364022151f2bf1802343322638e8f25"><div class="ttname"><a href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">dmq::Priority</a></div><div class="ttdeci">Priority</div><div class="ttdef"><b>Definition</b> DelegateMsg.h:17</div></div>
 <div class="ttc" id="anamespacedmq_html_a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051"><div class="ttname"><a href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051">dmq::Priority::NORMAL</a></div><div class="ttdeci">@ NORMAL</div></div>
-<div class="ttc" id="anamespacedmq_html_a6364022151f2bf1802343322638e8f25a41bc94cbd8eebea13ce0491b2ac11b88"><div class="ttname"><a href="namespacedmq.html#a6364022151f2bf1802343322638e8f25a41bc94cbd8eebea13ce0491b2ac11b88">dmq::Priority::LOW</a></div><div class="ttdeci">@ LOW</div></div>
 <div class="ttc" id="anamespacedmq_html_a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c"><div class="ttname"><a href="namespacedmq.html#a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c">dmq::Priority::HIGH</a></div><div class="ttdeci">@ HIGH</div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

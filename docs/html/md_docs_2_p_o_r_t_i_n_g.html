@@ -283,8 +283,9 @@ Receive <code>dmq::DelegateMsg</code></h3>
 <div class="line"><span class="keyword">public</span>:</div>
 <div class="line">    <span class="keyword">virtual</span> ~IDispatcher() = <span class="keywordflow">default</span>;</div>
 <div class="line"> </div>
-<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">int</span> Dispatch(std::ostream&amp; os, DelegateRemoteId <span class="keywordtype">id</span>) = 0;</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">int</span> Dispatch(<a class="code hl_typedef" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a>&amp; os, DelegateRemoteId <span class="keywordtype">id</span>, uint16_t* outSeqNum = <span class="keyword">nullptr</span>) = 0;</div>
 <div class="line">};</div>
+<div class="ttc" id="anamespacedmq_html_aa67d7309f9b005cc369e448ec28f8129"><div class="ttname"><a href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a></div><div class="ttdeci">std::basic_ostringstream&lt; char, std::char_traits&lt; char &gt;, stl_allocator&lt; char &gt; &gt; xostringstream</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:318</div></div>
 </div><!-- fragment --><hr  />
 <h1><a class="anchor" id="autotoc_md218"></a>
 Thread Implementations</h1>

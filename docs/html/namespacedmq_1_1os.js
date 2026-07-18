@@ -10,7 +10,6 @@ var namespacedmq_1_1os =
     [ "FreeRTOSRecursiveMutex", "classdmq_1_1os_1_1_free_r_t_o_s_recursive_mutex.html", "classdmq_1_1os_1_1_free_r_t_o_s_recursive_mutex" ],
     [ "Thread", "classdmq_1_1os_1_1_thread.html", "classdmq_1_1os_1_1_thread" ],
     [ "ThreadMsg", "classdmq_1_1os_1_1_thread_msg.html", "classdmq_1_1os_1_1_thread_msg" ],
-    [ "ThreadMsgComparator", "structdmq_1_1os_1_1_thread_msg_comparator.html", "structdmq_1_1os_1_1_thread_msg_comparator" ],
     [ "ThreadXClock", "structdmq_1_1os_1_1_thread_x_clock.html", "structdmq_1_1os_1_1_thread_x_clock" ],
     [ "ThreadXConditionVariable", "classdmq_1_1os_1_1_thread_x_condition_variable.html", "classdmq_1_1os_1_1_thread_x_condition_variable" ],
     [ "ThreadXMutex", "classdmq_1_1os_1_1_thread_x_mutex.html", "classdmq_1_1os_1_1_thread_x_mutex" ],
