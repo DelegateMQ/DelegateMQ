@@ -19,7 +19,7 @@ The `dmq::util::Dispatcher` is responsible for taking the serialized payload (fu
 3. **Transport Handoff**: It forwards the framed message (Header + Payload) to the registered `dmq::transport::ITransport` instance for physical transmission.
 
 #### dmq::RemoteChannel
-`dmq::RemoteChannel<Sig>` owns a `dmq::DelegateFunctionRemote` internally and handles all wiring automatically. Call `Bind()` once to configure the channel, then invoke it with `operator()`.
+`dmq::RemoteChannel<Sig>` owns a `dmq::DelegateFunctionRemote` internally and handles all wiring automatically. Call `Bind()` once to configure the channel (for receiving), or pass the ID to the constructor (for sending), then invoke it with `operator()`.
 
 ```cpp
 // Create one channel per message signature
