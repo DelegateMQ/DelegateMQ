@@ -7,7 +7,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
-## [2.0.1] - 2026-07-17
+## [2.0.1] - 2026-07-18
 
 ### Added
 - `RemoteChannel` constructor accepts an optional `DelegateRemoteId` — send-only channels no longer require a placeholder `Bind()`; construct with the ID and invoke.
@@ -15,6 +15,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - `DelegateError::ERR_TYPE_MISMATCH` — a publish/subscribe topic type mismatch is now reported through the error signal for diagnosability before faulting.
 
 ### Fixed
+- **Remote delegate initialization** — fixed a bug across test and sample projects where `MakeDelegate` assignments on a `DelegateMemberRemote` inadvertently overwrote explicitly configured stream, serializer, and error handlers, causing `ERR_NO_SERIALIZER` runtime crashes.
 - **`MulticastDelegate` reentrancy** — broadcast now invokes a snapshot (SBO) of the delegate list; adding or removing delegates from within a callback no longer causes infinite loops. `Remove()` now erases all duplicate targets instead of only the first occurrence.
 - **`RemoteArg<Arg*>` dangling pointer** — added missing copy and move constructors, fixing a dangling pointer when remote argument wrappers were copied.
 - **DataBus remote topic registration** — registering topics now records the topic-to-remote-ID mapping on the participant (`AddRemoteTopic`), fixing inter-node topic forwarding.
@@ -23,6 +24,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **bare-metal-remote sample** — Fixed compile error by updating `BareMetalDispatcher` to match the new `IDispatcher::Dispatch` signature.
 
 ### Changed
+- **Exception Handling & Documentation** — explicitly document `std::runtime_error` and `std::invalid_argument` usage in the library. All OS port `Thread::Process()` loops now explicitly catch these exceptions alongside `std::bad_alloc` when `DMQ_ASSERTS` is disabled.
 - `std::shared_ptr` argument rules on asynchronous delegates refined: `const std::shared_ptr<T>&` and `const std::shared_ptr<T>*` are now accepted; non-const reference and pointer forms are rejected at compile time with a clearer diagnostic. Remote delegates still require `std::shared_ptr` by value.
 - DataBus internals simplified: `TopicForwarder` helper removed in favor of thin lambda captures on `Participant::RegisterHandler`.
 - `ISerializer::Read()` documentation now explains the `const_cast` requirement when deserializing `const T*` arguments.
