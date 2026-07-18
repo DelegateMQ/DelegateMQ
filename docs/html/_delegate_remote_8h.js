@@ -16,7 +16,8 @@ var _delegate_remote_8h =
       [ "ERR_DESERIALIZE", "_delegate_remote_8h.html#a62ea8a73887af62d409322557b4e757dacd71045ed3f42c6989cdc860fc93371c", null ],
       [ "ERR_DESERIALIZE_EXCEPTION", "_delegate_remote_8h.html#a62ea8a73887af62d409322557b4e757dac78b85137bd31a80f22922b807a76556", null ],
       [ "ERR_NO_DISPATCHER", "_delegate_remote_8h.html#a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594", null ],
-      [ "ERR_DISPATCH", "_delegate_remote_8h.html#a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb", null ]
+      [ "ERR_DISPATCH", "_delegate_remote_8h.html#a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb", null ],
+      [ "ERR_TYPE_MISMATCH", "_delegate_remote_8h.html#a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7", null ]
     ] ],
     [ "ArgValueOf", "_delegate_remote_8h.html#ab494047f3f6f52df9a9d5293449f316f", null ],
     [ "MakeDelegate", "_delegate_remote_8h.html#a0ceca83a90727c8bdbca0bcda518a54f", null ],

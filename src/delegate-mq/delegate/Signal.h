@@ -223,7 +223,14 @@ public:
         if (s.count <= SIGNAL_SBO_COUNT) {
             size_t i = 0;
             for (auto& d : m_state->delegates) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#endif
                 s.small_buf[i++] = d;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
             }
         } else {
             s.large_buf = m_state->delegates;
@@ -235,8 +242,15 @@ public:
     static void InvokeSnapshot(const Snapshot& s, Args... args) {
         if (s.count <= SIGNAL_SBO_COUNT) {
             for (size_t i = 0; i < s.count; ++i) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#endif
                 if (s.small_buf[i])
                     (*s.small_buf[i])(args...);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
             }
         } else {
             for (auto& d : s.large_buf) {

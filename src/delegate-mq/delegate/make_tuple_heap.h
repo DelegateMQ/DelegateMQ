@@ -18,17 +18,12 @@
 /// file `DelegateAsync.h` for example usage.
 
 #include <tuple>
-#include <list>
 #include <memory>
 #include <type_traits>
 #include "DelegateOpt.h"
 
 namespace dmq 
 {
-// std::shared_ptr reference arguments are not allowed with asynchronous delegates as the behavior is 
-// undefined. In other words:
-// void MyFunc(std::shared_ptr<T> data)		// Ok!
-// void MyFunc(std::shared_ptr<T>* data)	// Error if DelegateAsync or DelegateSpAsync target!
 template<class T>
 struct is_shared_ptr : std::false_type {};
 
@@ -98,8 +93,8 @@ public:
     // *arg (e.g. an outgoing-argument pattern like (*s) = new T).
     heap_arg_deleter(T** arg) : m_arg(arg), m_inner(*arg) {}
     virtual ~heap_arg_deleter() {
-        xdelete(m_inner);   // free the original xnew'd inner copy (may be nullptr)
-        xdelete(m_arg);     // free the outer pointer storage
+        xdelete(m_inner);       // free the original xnew'd inner copy (may be nullptr)
+        xdelete(m_arg);         // free the outer pointer storage
     }
 private:
     T** m_arg;
@@ -254,11 +249,7 @@ auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, st
 template<typename Arg1, typename... Args, typename... Ts>
 auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1 arg1, Args... args)
 {
-    static_assert(!(
-        (is_shared_ptr<Arg1>::value && (std::is_lvalue_reference_v<Arg1> || std::is_pointer_v<Arg1>))),
-        "std::shared_ptr reference argument not allowed");
-    static_assert(!std::is_same<Arg1, void*>::value, "void* argument not allowed");
-
+    static_assert(!std::is_same<std::decay_t<Arg1>, void*>::value, "void* argument not allowed");
     auto new_tup = tuple_append(heapArgs, tup, arg1);
     return make_tuple_heap(heapArgs, new_tup, args...);
 }

@@ -7,7 +7,6 @@
 /// Class is not thread-safe.
 
 #include "Delegate.h"
-#include <list>
 #include <algorithm>
 #include <memory>
 
@@ -18,7 +17,9 @@ class MulticastDelegate; // Not defined
 
 /// @brief Not thread-safe multicast delegate container class. The class has a list of 
 /// `Delegate<>` instances. When invoked, each `Delegate` instance within the invocation 
-/// list is called. 
+/// list is called. A snapshot of the delegates is taken during the broadcast. If a 
+/// delegate is removed during a broadcast, it will still be invoked in the current 
+/// broadcast pass if it was in the snapshot.
 template<class RetType, class... Args>
 class MulticastDelegate<RetType(Args...)>
 {
@@ -104,7 +105,11 @@ public:
     /// @return A reference to the current object.
     MulticastDelegate& operator=(MulticastDelegate&& rhs) noexcept {
         if (&rhs != this) {
-            m_delegates = std::move(rhs.m_delegates);
+            Clear();
+            for (auto& delegate : rhs.m_delegates) {
+                m_delegates.push_back(std::move(delegate));
+            }
+            rhs.m_delegates.clear();
         }
         return *this;
     }
@@ -166,7 +171,17 @@ public:
     bool Empty() const { return m_delegates.empty(); }
 
     /// Removal all registered delegates.
-    void Clear() { m_delegates.clear(); }
+    void Clear() {
+        if (m_broadcastCount > 0) {
+            for (auto& delegate : m_delegates) {
+                delegate.reset();
+            }
+            m_cleanup = true;
+        }
+        else {
+            m_delegates.clear();
+        }
+    }
 
     /// Get the number of delegates stored.
     /// @return The number of delegates stored.
@@ -181,7 +196,7 @@ private:
     /// @param[in] other The container to copy from
     void CopyFrom(const MulticastDelegate& other) {
         for (auto& delegate : other.m_delegates) {
-            if (!delegate) continue;  // Skip soft-deleted entries (mid-broadcast nulls)
+            if (!delegate) continue;
             auto delegateClone = delegate->Clone();
             if (!delegateClone)
                 BAD_ALLOC();
@@ -203,7 +218,6 @@ private:
         }
     }
 
-    /// Deferred cleanup (soft delete) if reentrency detected
     void Cleanup() {
         // Skip cleanup if nothing removed
         if (!m_cleanup)

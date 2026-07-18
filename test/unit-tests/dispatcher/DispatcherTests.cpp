@@ -42,13 +42,25 @@ void DispatcherTests()
         os << "test data";
         DelegateRemoteId id(100);
 
-        uint16_t expectedSeq = 0;
-        int err = dispatcher.Dispatch(os, id);
-        
+        // Sequence numbers come from a process-wide counter, so the absolute
+        // value is unknown here. Verify the seq reported via outSeqNum matches
+        // what was sent on the wire, and that consecutive sends increment it.
+        uint16_t seq1 = 0;
+        int err = dispatcher.Dispatch(os, id, &seq1);
+
         ASSERT_TRUE(err == 0);
         ASSERT_TRUE(transport.sendCount == 1);
         ASSERT_TRUE(transport.lastId == 100);
-        ASSERT_TRUE(transport.lastSeq == expectedSeq);
+        ASSERT_TRUE(transport.lastSeq == seq1);
+
+        os << "test data";
+        uint16_t seq2 = 0;
+        err = dispatcher.Dispatch(os, id, &seq2);
+
+        ASSERT_TRUE(err == 0);
+        ASSERT_TRUE(transport.sendCount == 2);
+        ASSERT_TRUE(transport.lastSeq == seq2);
+        ASSERT_TRUE(static_cast<uint16_t>(seq1 + 1) == seq2);
     }
 
     // Test RemoteChannel class

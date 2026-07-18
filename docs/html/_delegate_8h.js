@@ -2,9 +2,12 @@ var _delegate_8h =
 [
     [ "dmq::trait::is_shared_ptr_reference< T >", "structdmq_1_1trait_1_1is__shared__ptr__reference.html", null ],
     [ "dmq::trait::is_shared_ptr_reference< std::shared_ptr< T > & >", "structdmq_1_1trait_1_1is__shared__ptr__reference_3_01std_1_1shared__ptr_3_01_t_01_4_01_6_01_4.html", null ],
-    [ "dmq::trait::is_shared_ptr_reference< std::shared_ptr< T > * >", "structdmq_1_1trait_1_1is__shared__ptr__reference_3_01std_1_1shared__ptr_3_01_t_01_4_01_5_01_4.html", null ],
     [ "dmq::trait::is_shared_ptr_reference< const std::shared_ptr< T > & >", "structdmq_1_1trait_1_1is__shared__ptr__reference_3_01const_01std_1_1shared__ptr_3_01_t_01_4_01_6_01_4.html", null ],
+    [ "dmq::trait::is_shared_ptr_reference< std::shared_ptr< T > * >", "structdmq_1_1trait_1_1is__shared__ptr__reference_3_01std_1_1shared__ptr_3_01_t_01_4_01_5_01_4.html", null ],
     [ "dmq::trait::is_shared_ptr_reference< const std::shared_ptr< T > * >", "structdmq_1_1trait_1_1is__shared__ptr__reference_3_01const_01std_1_1shared__ptr_3_01_t_01_4_01_5_01_4.html", null ],
+    [ "dmq::trait::is_non_const_shared_ptr_reference< T >", "structdmq_1_1trait_1_1is__non__const__shared__ptr__reference.html", null ],
+    [ "dmq::trait::is_non_const_shared_ptr_reference< std::shared_ptr< T > & >", "structdmq_1_1trait_1_1is__non__const__shared__ptr__reference_3_01std_1_1shared__ptr_3_01_t_01_4_01_6_01_4.html", null ],
+    [ "dmq::trait::is_non_const_shared_ptr_reference< std::shared_ptr< T > * >", "structdmq_1_1trait_1_1is__non__const__shared__ptr__reference_3_01std_1_1shared__ptr_3_01_t_01_4_01_5_01_4.html", null ],
     [ "dmq::trait::is_double_pointer< T >", "structdmq_1_1trait_1_1is__double__pointer.html", "structdmq_1_1trait_1_1is__double__pointer" ],
     [ "dmq::trait::is_std_function< T >", "structdmq_1_1trait_1_1is__std__function.html", null ],
     [ "dmq::trait::is_std_function< std::function< Sig > >", "structdmq_1_1trait_1_1is__std__function_3_01std_1_1function_3_01_sig_01_4_01_4.html", null ],

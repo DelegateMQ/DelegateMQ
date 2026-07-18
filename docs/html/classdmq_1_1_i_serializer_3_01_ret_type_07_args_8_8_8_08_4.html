@@ -174,6 +174,7 @@ template&lt;class RetType , class... Args&gt; </div>
 
 <p>Deserializes data from the input stream into function arguments. </p>
 <p>Called by the receiving endpoint before invoking the target function. The implementation must read data from <code>is</code> and populate the references in <code>args</code>.</p>
+<dl class="section note"><dt>Note</dt><dd>When deserializing pointer arguments like <code>const T*</code>, <code>args</code> will be a reference to a <code>const T*</code> (<code>const T*&amp;</code>). Because the object is conceptually const, writing deserialized data directly to <code>*arg</code> is ill-formed. As a workaround, implementations must use <code>const_cast&lt;T*&gt;(arg)</code> to cast away constness and write to the underlying mutable storage provided by the framework, or allocate a new object if preferred.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">is</td><td>The input stream (buffer) containing received data. </td></tr>

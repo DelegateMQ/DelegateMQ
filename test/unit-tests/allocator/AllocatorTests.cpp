@@ -13,6 +13,7 @@
 #include <set>
 
 using namespace std;
+using namespace dmq;  // Allocator, AllocatorPool, stl_allocator
 
 // A class to test DECLARE_ALLOCATOR/IMPLEMENT_ALLOCATOR
 class MyClass {

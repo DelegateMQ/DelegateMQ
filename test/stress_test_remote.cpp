@@ -107,14 +107,13 @@ public:
 
 class TestDispatcher : public dmq::IDispatcher {
 public:
-    using SendFunc = std::function<void(dmq::xstringstream&)>;
+    using SendFunc = std::function<void(dmq::xostringstream&)>;
 
     TestDispatcher(SendFunc func) : m_func(func) {}
 
-    virtual int Dispatch(std::ostream& os, dmq::DelegateRemoteId id) override {
-        auto* ss = dynamic_cast<dmq::xstringstream*>(&os);
-        if (ss && m_func) {
-            m_func(*ss);
+    virtual int Dispatch(dmq::xostringstream& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
+        if (m_func) {
+            m_func(os);
             return 0; // Success
         }
         return -1; // Error
@@ -129,7 +128,7 @@ class VirtualTransport
 public:
     using Packet = dmq::xstring;
 
-    void Send(const dmq::xstringstream& ss)
+    void Send(const dmq::xostringstream& ss)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_queue.push(ss.str());
@@ -166,18 +165,26 @@ public:
 
     ServerNode() : m_remoteDelegate(REMOTE_ID)
     {
+        m_remoteDelegate = MakeDelegate(this, &ServerNode::OnRemoteCall, REMOTE_ID);
         m_remoteDelegate.SetStream(&m_stream);
         m_remoteDelegate.SetSerializer(&m_serializer);
         m_remoteDelegate.SetErrorHandler(MakeDelegate(this, &ServerNode::OnError));
-        m_remoteDelegate = MakeDelegate(this, &ServerNode::OnRemoteCall, REMOTE_ID);
     }
 
     void Start() {
         m_thread = std::thread([this]() {
             dmq::xstringstream incoming;
-            // Drain loop: continue until Receive returns false (queue empty & stopped)
-            while (g_transport.Receive(incoming)) {
-                m_remoteDelegate.Invoke(incoming);
+            try {
+                // Drain loop: continue until Receive returns false (queue empty & stopped)
+                while (g_transport.Receive(incoming)) {
+                    m_remoteDelegate.Invoke(incoming);
+                }
+            } catch (const std::runtime_error& e) {
+                std::cerr << "Unhandled runtime_error in ServerNode thread: " << e.what() << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Unhandled exception in ServerNode thread: " << e.what() << std::endl;
+            } catch (...) {
+                std::cerr << "Unhandled unknown exception in ServerNode thread." << std::endl;
             }
             });
     }
@@ -195,7 +202,7 @@ public:
 
 private:
     std::thread m_thread;
-    dmq::xstringstream m_stream{ std::ios::in | std::ios::out | std::ios::binary };
+    dmq::xostringstream m_stream{ std::ios::out | std::ios::binary };
     TestSerializer<void(Payload)> m_serializer;
     dmq::DelegateMemberRemote<ServerNode, void(Payload)> m_remoteDelegate;
 };
@@ -209,7 +216,7 @@ public:
     ClientNode(int id)
         : m_id(id)
         , m_remote(REMOTE_ID)
-        , m_dispatcher([this](dmq::xstringstream& ss) { this->TransportSend(ss); })
+        , m_dispatcher([this](dmq::xostringstream& ss) { this->TransportSend(ss); })
     {
         m_remote.SetStream(&m_stream);
         m_remote.SetSerializer(&m_serializer);
@@ -220,14 +227,22 @@ public:
     void Start() {
         m_thread = std::thread([this]() {
             int seq = 0;
-            // Check global client stop flag
-            while (!g_stopClients) {
-                for (int i = 0; i < BURST_SIZE && !g_stopClients; ++i) {
-                    Payload p(seq++, m_id);
-                    g_sentCount++;
-                    m_remote(p);
+            try {
+                // Check global client stop flag
+                while (!g_stopClients) {
+                    for (int i = 0; i < BURST_SIZE && !g_stopClients; ++i) {
+                        Payload p(seq++, m_id);
+                        g_sentCount++;
+                        m_remote(p);
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            } catch (const std::runtime_error& e) {
+                std::cerr << "Unhandled runtime_error in ClientNode thread: " << e.what() << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Unhandled exception in ClientNode thread: " << e.what() << std::endl;
+            } catch (...) {
+                std::cerr << "Unhandled unknown exception in ClientNode thread." << std::endl;
             }
             });
     }
@@ -238,7 +253,7 @@ public:
     }
 
 private:
-    void TransportSend(dmq::xstringstream& ss) {
+    void TransportSend(dmq::xostringstream& ss) {
         g_transport.Send(ss);
         ss.str("");
         ss.clear();
@@ -246,7 +261,7 @@ private:
 
     int m_id;
     std::thread m_thread;
-    dmq::xstringstream m_stream{ std::ios::in | std::ios::out | std::ios::binary };
+    dmq::xostringstream m_stream{ std::ios::out | std::ios::binary };
     TestSerializer<void(Payload)> m_serializer;
     TestDispatcher m_dispatcher;
     dmq::DelegateFreeRemote<void(Payload)> m_remote;
@@ -307,7 +322,7 @@ int stress_test_remote()
     g_running = false;
 
     // 4. Wake server if it's idle
-    g_transport.Send(dmq::xstringstream());
+    g_transport.Send(dmq::xostringstream());
 
     std::cout << "Draining pipe (3s)..." << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(3));

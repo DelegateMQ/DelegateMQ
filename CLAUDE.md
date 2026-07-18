@@ -36,14 +36,14 @@ When a fixed-size container is full, call `ASSERT_TRUE(condition)` or `ASSERT()`
 
 The library supports two error-handling modes, selected at build time:
 
-- **Without `DMQ_ASSERTS`** (desktop default): allocation failures throw `std::bad_alloc`; exceptions are enabled.
+- **Without `DMQ_ASSERTS`** (desktop default): allocation failures throw `std::bad_alloc`; invalid arguments and unhandled faults throw `std::invalid_argument` and `std::runtime_error`; exceptions are enabled.
 - **With `DMQ_ASSERTS`** (embedded default, or when `__cpp_exceptions` is absent): `BAD_ALLOC()` calls `dmq::util::FaultHandler`. Exceptions are disabled. `DelegateOpt.h` auto-enables `DMQ_ASSERTS` when the compiler has no exception support.
 
 Rules:
 - Always use the `BAD_ALLOC()` macro for allocation failure paths — never write `throw std::bad_alloc()` directly or bare `assert`.
 - Use `ASSERT()` or `ASSERT_TRUE(condition)` for invariant/capacity violations (wrong type, full container, protocol error) — these are hard faults, not recoverable errors.
 - Use `dmq::DelegateError` + `SetErrorHandler` for soft operational errors (serialization failure, dispatch timeout) — these are recoverable and reported to the caller.
-- Never add `try`/`catch` inside library internals; exception handling is the application's responsibility.
+- Never add `try`/`catch` inside library internals; exception handling is the application's responsibility. (Exception: OS thread dispatch loops explicitly catch generic exceptions and `std::bad_alloc`, `std::invalid_argument`, and `std::runtime_error`).
 
 ## `XALLOCATOR` Macro
 
@@ -86,7 +86,7 @@ Under `DMQ_ALLOCATOR` these use the fixed-block allocator for internal buffers. 
 
 ## Error Reporting
 
-- Library errors surface through `dmq::DelegateError` and a `SetErrorHandler` delegate on the relevant channel/participant, not through exceptions or return codes.
+- Library errors surface through `dmq::DelegateError` and a `SetErrorHandler` delegate on the relevant channel/participant, not through exceptions or return codes. However, unhandled critical faults (e.g., missing error handlers) may throw `std::runtime_error` as a final fallback.
 - DataBus-level errors propagate via `DataBus::SubscribeError` (global) and `Participant::SubscribeError` (per-node).
 - `InternalReportError` is private; do not expose error injection as public API.
 

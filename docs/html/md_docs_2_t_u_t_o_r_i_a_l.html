@@ -136,7 +136,7 @@ Phase 1: The Direct Call (Synchronous)</h1>
 <div class="line">    <span class="keywordflow">return</span> 0;</div>
 <div class="line">}</div>
 <div class="ttc" id="a_delegate_m_q_8h_html"><div class="ttname"><a href="_delegate_m_q_8h.html">DelegateMQ.h</a></div><div class="ttdoc">A single-include header for the complete DelegateMQ library functionality.</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:888</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
 </div><!-- fragment --><p> <b>Why do this?</b> You've just created a type-safe "command" object. You can pass this <code>setSpeed</code> object to other components without them needing to know anything about the <code>Motor</code> class.</p>
 <hr  />
 <h1><a class="anchor" id="autotoc_md242"></a>
@@ -256,17 +256,14 @@ Phase 5: The Network (Remote Delegates)</h1>
 <div class="line"><span class="keyword">constexpr</span> <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> MOTOR_SPEED_ID = 100;</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// --- Controller Node (Sender) ---</span></div>
-<div class="line"><span class="comment">// 1. Create a channel using a transport and a serializer</span></div>
+<div class="line"><span class="comment">// 1. Create a channel using a transport and a serializer, passing the remote ID</span></div>
 <div class="line"><span class="comment">// (e.g., UdpTransport transport; MsgPackSerializer serializer;)</span></div>
-<div class="line"><a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(<span class="keywordtype">int</span>)&gt; motorChannel(transport, serializer);</div>
+<div class="line"><a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(<span class="keywordtype">int</span>)&gt; motorChannel(transport, serializer, MOTOR_SPEED_ID);</div>
 <div class="line"> </div>
-<div class="line"><span class="comment">// 2. Tell the channel which Remote ID to use for outgoing messages</span></div>
-<div class="line">motorChannel.SetRemoteId(MOTOR_SPEED_ID);</div>
-<div class="line"> </div>
-<div class="line"><span class="comment">// 3. Send the command across the wire</span></div>
+<div class="line"><span class="comment">// 2. Send the command across the wire</span></div>
 <div class="line">motorChannel(3000); </div>
 <div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
-<div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:12</div></div>
+<div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:13</div></div>
 </div><!-- fragment --><p>The code on the <b>Motor Node</b> (Receiver) maps that same ID to a local function: </p><div class="fragment"><div class="line"><span class="comment">// --- Motor Node (Receiver) ---</span></div>
 <div class="line"><span class="comment">// Bind the ID to a specific handler function</span></div>
 <div class="line"><span class="comment">// (Note: motor and transport objects must be defined on this node)</span></div>
@@ -287,8 +284,8 @@ Phase 6: The Middleware (DataBus)</h1>
 <div class="line"><span class="keyword">auto</span> conn = <a class="code hl_function" href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe&lt;int&gt;</a>(<span class="stringliteral">&quot;motor/set_speed&quot;</span>, [](<span class="keywordtype">int</span> speed) {</div>
 <div class="line">    std::cout &lt;&lt; <span class="stringliteral">&quot;Received speed request: &quot;</span> &lt;&lt; speed &lt;&lt; <span class="stringliteral">&quot;\n&quot;</span>;</div>
 <div class="line">}, &amp;motorThread);</div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:95</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:126</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:83</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:114</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md252"></a>
 High-Level Features:</h2>
 <ul>

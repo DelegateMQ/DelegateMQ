@@ -116,17 +116,17 @@ $(function(){initNavTree('_thread_monitor_8h_source.html',''); initResizable(tru
 <div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="keyword">struct </span>ThreadStatsPacket {</div>
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>    <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> cpu_name;</div>
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span>    <a class="code hl_typedef" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> thread_name;</div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    uint32_t    queue_depth;</div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    uint32_t    queue_depth_max_window;</div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    uint32_t    queue_depth_max_all;</div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    uint32_t    queue_size_limit;</div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>    <span class="keywordtype">float</span>       latency_avg_ms;</div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    <span class="keywordtype">float</span>       latency_max_window_ms;</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    <span class="keywordtype">float</span>       latency_max_all_ms;</div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <span class="keywordtype">float</span>       invoke_avg_ms;</div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>    <span class="keywordtype">float</span>       invoke_max_window_ms;</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <span class="keywordtype">float</span>       invoke_max_all_ms;</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>    uint64_t    dispatch_count;</div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    uint32_t    queue_depth = 0;</div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    uint32_t    queue_depth_max_window = 0;</div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>    uint32_t    queue_depth_max_all = 0;</div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    uint32_t    queue_size_limit = 0;</div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>    <span class="keywordtype">float</span>       latency_avg_ms = 0.0f;</div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>    <span class="keywordtype">float</span>       latency_max_window_ms = 0.0f;</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    <span class="keywordtype">float</span>       latency_max_all_ms = 0.0f;</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <span class="keywordtype">float</span>       invoke_avg_ms = 0.0f;</div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>    <span class="keywordtype">float</span>       invoke_max_window_ms = 0.0f;</div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <span class="keywordtype">float</span>       invoke_max_all_ms = 0.0f;</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>    uint64_t    dispatch_count = 0;</div>
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>};</div>
 <div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> </div>
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="keyword">class </span>ThreadMonitor {</div>

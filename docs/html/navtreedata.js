@@ -40,8 +40,8 @@ var NAVTREE =
       [ "Signal / Slot", "index.html#autotoc_md11", null ]
     ] ],
     [ "DataBus (DDS Lite)", "index.html#autotoc_md12", null ],
-    [ "DelegateMQ Tools", "index.html#autotoc_md13", null ],
-    [ "Modular Architecture", "index.html#autotoc_md14", null ],
+    [ "Remote Delegates", "index.html#autotoc_md13", null ],
+    [ "DelegateMQ Tools", "index.html#autotoc_md14", null ],
     [ "Features", "index.html#autotoc_md15", null ],
     [ "Documentation", "index.html#autotoc_md16", null ],
     [ "Other Projects Using DelegateMQ", "index.html#autotoc_md17", null ],
@@ -390,20 +390,20 @@ var NAVTREEINDEX =
 [
 "_allocator_8cpp.html",
 "_timer_delegate_8h.html#ada905f47a8832081bb61f4a9cb524e49",
-"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a651408a9ac273d81d8d39712b4242c57",
-"classdmq_1_1_delegate_member_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a9630317dc0673d283efb22fe897381ed",
-"classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#abcd2b07d2b4eb21e7df69868cd29fe7e",
-"classdmq_1_1_remote_arg_3_01_arg_01_5_01_4.html#aaffeafd0d89ade4b2b433cee1a75aa7c",
-"classdmq_1_1databus_1_1detail_1_1_filter.html",
-"classdmq_1_1os_1_1_thread.html#ac329d05b5bc16a24948ac295891f609c",
-"classdmq_1_1transport_1_1_dmq_header.html#a2c6f5a01348c86d3bbb52399ba260e36",
-"classdmq_1_1transport_1_1_serial_transport.html#a15fd5f52039179ab0a0a7646de6d1b4e",
-"classdmq_1_1util_1_1_reliable_transport.html#ae760ac975c0337aebe4a92849502d0fd",
-"freertos_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030abf8f3be424eb6a72b21549fbb24ffb57",
-"md_docs_2_p_o_r_t_i_n_g.html#autotoc_md218",
+"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a5e1bcfc7eae630d87b172503d3c64b91",
+"classdmq_1_1_delegate_member_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a8dfce0c28347959468e6c16aab29ec45",
+"classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ab2ca3ed68915d333ca0689964fcd1d28",
+"classdmq_1_1_remote_arg.html#a8730d0588aeaa4a0da3d2718a42c5275",
+"classdmq_1_1databus_1_1_participant.html",
+"classdmq_1_1os_1_1_thread.html#abfd17da027ea9f5c7ece2579b4a7cca3",
+"classdmq_1_1stl__allocator.html#ae6301cb29e61ae9fea7bccd340b2c8bc",
+"classdmq_1_1transport_1_1_nng_transport.html#aa4299d3eda05bee47a2fb4275e275dd5",
+"classdmq_1_1util_1_1_paced_dispatch.html#a395ecc3db310338b37fc8002968652f4",
+"freertos_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030a070a0fb40f6c308ab544b227660aadff",
+"md_docs_2_i_n_t_e_r_o_p.html#autotoc_md193",
 "namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72",
-"structdmq_1_1is__shared__ptr_3_01std_1_1shared__ptr_3_01_t_01_4_01_6_01_4.html",
-"xallocator_8h.html"
+"structdmq_1_1databus_1_1_spy_packet.html#ab055fcc5a64aa0400d950479c2e3c595",
+"win32_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030abf8f3be424eb6a72b21549fbb24ffb57"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

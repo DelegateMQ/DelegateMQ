@@ -86,26 +86,44 @@ namespace Example
     };
 
     // Sender is an active object that periodically sends Data to the remote.
-    class Sender
+    class Sender : public std::enable_shared_from_this<Sender>
     {
     public:
         Sender(MockTransport& transport, DelegateRemoteId id)
             : m_thread("Sender")
             , m_channel(transport, m_serializer)
+            , m_id(id)
+        {
+        }
+
+        void Init()
         {
             // Sender-side bind: no-op target (only the signature matters for dispatch)
             // Bind a raw lambda (no std::function wrapper needed)
-            m_channel.Bind([](Data msg) { std::cout << "Remote lambda data: " << msg.x << std::endl; }, id);
+            m_channel.Bind([](Data msg) { std::cout << "Remote lambda data: " << msg.x << std::endl; }, m_id);
 
             m_thread.CreateThread();
 
-            m_sendTimerConn = m_sendTimer.OnExpired.Connect(MakeDelegate(this, &Sender::Send, m_thread));
+            m_sendTimerConn = m_sendTimer.OnExpired.Connect(MakeDelegate(shared_from_this(), &Sender::Send, m_thread));
             m_sendTimer.Start(std::chrono::milliseconds(100));
         }
 
         ~Sender()
         {
+            Term();
+        }
+
+        // Quiesce all activity. Must be called while the transport is still alive:
+        // stops the timer, severs the timer connection, and joins the worker thread
+        // so no in-flight Send() can touch the transport afterward. Calling Term()
+        // explicitly (rather than relying on the destructor) also guarantees the
+        // final shared_ptr release destroys Sender on the caller's thread — if the
+        // worker's async delegate held the last reference, ~Sender would run on the
+        // worker thread and ExitThread() could not join itself.
+        void Term()
+        {
             m_sendTimer.Stop();
+            m_sendTimerConn.Disconnect();
             m_thread.ExitThread();
         }
 
@@ -127,29 +145,43 @@ namespace Example
 
         dmq::serialization::serializer::Serializer<void(Data)> m_serializer;
         dmq::RemoteChannel<void(Data)> m_channel;
+        DelegateRemoteId m_id;
     };
 
     // Receiver is an active object that polls the transport and dispatches incoming data.
-    class Receiver
+    class Receiver : public std::enable_shared_from_this<Receiver>
     {
     public:
         Receiver(MockTransport& transport, DelegateRemoteId id)
             : m_thread("Receiver")
             , m_transport(transport)
             , m_channel(transport, m_serializer)
+            , m_id(id)
+        {
+        }
+
+        void Init()
         {
             // Receiver-side bind: wire DataUpdate as the remote target function
-            m_channel.Bind(this, &Receiver::DataUpdate, id);
+            m_channel.Bind(this, &Receiver::DataUpdate, m_id);
 
             m_thread.CreateThread();
 
-            m_recvTimerConn = m_recvTimer.OnExpired.Connect(MakeDelegate(this, &Receiver::Poll, m_thread));
+            m_recvTimerConn = m_recvTimer.OnExpired.Connect(MakeDelegate(shared_from_this(), &Receiver::Poll, m_thread));
             m_recvTimer.Start(std::chrono::milliseconds(50));
         }
 
         ~Receiver()
         {
+            Term();
+        }
+
+        // Quiesce all activity. See Sender::Term() for why this must be called
+        // explicitly before the transport is destroyed.
+        void Term()
+        {
             m_recvTimer.Stop();
+            m_recvTimerConn.Disconnect();
             m_thread.ExitThread();
         }
 
@@ -178,6 +210,7 @@ namespace Example
         MockTransport& m_transport;
         dmq::serialization::serializer::Serializer<void(Data)> m_serializer;
         dmq::RemoteChannel<void(Data)> m_channel;
+        DelegateRemoteId m_id;
     };
 
     void RemoteCommunicationExample()
@@ -185,10 +218,20 @@ namespace Example
         DelegateRemoteId id = 1;
 
         MockTransport transport;
-        Sender sender(transport, id);
-        Receiver receiver(transport, id);
+        auto sender = xmake_shared<Sender>(transport, id);
+        sender->Init();
+        auto receiver = xmake_shared<Receiver>(transport, id);
+        receiver->Init();
 
         // Wait while sender and receiver communicate
         this_thread::sleep_for(chrono::seconds(2));
+
+        // Quiesce sender and receiver BEFORE transport goes out of scope. The timer
+        // dispatches Send()/Poll() through async delegates that lock a shared_ptr to
+        // the target during invocation; without an explicit join here, a worker thread
+        // can still be inside Send()/Poll() using the transport after this scope
+        // destroys it (use-after-free).
+        sender->Term();
+        receiver->Term();
     }
 }

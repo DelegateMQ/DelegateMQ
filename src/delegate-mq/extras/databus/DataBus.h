@@ -19,6 +19,7 @@
 #include <typeindex>
 #include <atomic>
 #include <type_traits>
+#include <optional>
 
 namespace dmq::databus {
 
@@ -65,19 +66,6 @@ namespace detail {
         dmq::UnicastDelegate<bool(const T&)> m_predicate;
     };
 
-    // Helper class to implement topic forwarding without heavy lambda captures.
-    template <typename T>
-    class TopicForwarder {
-        XALLOCATOR
-    public:
-        TopicForwarder(dmq::xstring topic, bool localOnly) : m_topic(std::move(topic)), m_localOnly(localOnly) {}
-
-        void Invoke(const T& msg);
-
-    private:
-        dmq::xstring m_topic;
-        bool m_localOnly;
-    };
 }
 
 // The DataBus is a central registry for topic-based communication.
@@ -140,6 +128,10 @@ public:
         GetInstance().InternalAddParticipant(participant);
     }
 
+    static void RemoveParticipant(std::shared_ptr<Participant> participant) {
+        GetInstance().InternalRemoveParticipant(participant);
+    }
+
     // Register a serializer for a topic (required for remote distribution).
     // Use this overload if the serializer is a long-lived object (e.g., static or 
     // global). The DataBus does NOT take ownership.
@@ -166,9 +158,8 @@ public:
     // use AddRelayTopic instead.
     template <typename T>
     static void AddIncomingTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, Participant& participant, dmq::ISerializer<void(T)>& serializer) {
-        auto forwarder = dmq::xmake_shared<detail::TopicForwarder<T>>(topic, true);
-        participant.RegisterHandler<T>(remoteId, serializer, [forwarder](const T& msg) {
-            forwarder->Invoke(msg);
+        participant.RegisterHandler(remoteId, serializer, [topic](const T& data) {
+            PublishLocal(topic, data);
         });
     }
 
@@ -181,10 +172,10 @@ public:
     // create an infinite relay loop. Use AddIncomingTopic instead for subscriber-only nodes.
     template <typename T>
     static void AddRelayTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId, Participant& participant, dmq::ISerializer<void(T)>& serializer) {
-        auto forwarder = dmq::xmake_shared<detail::TopicForwarder<T>>(topic, false);
-        participant.RegisterHandler<T>(remoteId, serializer, [forwarder](const T& msg) {
-            forwarder->Invoke(msg);
+        participant.RegisterHandler(remoteId, serializer, [topic](const T& data) {
+            Publish(topic, data);
         });
+        participant.AddRemoteTopic(topic, remoteId);
     }
 
     // Register a stringifier for a topic to enable spying/logging.
@@ -256,7 +247,40 @@ public:
         GetInstance().InternalReset();
     }
 
+    // Enable or disable continuous error mode (disables error latching).
+    static void EnableContinuousErrors(bool enable) {
+        GetInstance().InternalEnableContinuousErrors(enable);
+    }
+
 private:
+    void InternalEnableContinuousErrors(bool enable) {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        m_continuousErrors = enable;
+        for (size_t i = 0; i < m_participantCount; ++i) {
+            if (m_participants[i]) {
+                m_participants[i]->EnableContinuousErrors(enable);
+            }
+        }
+    }
+
+    void InternalReportLatchedError(const dmq::xstring& topic, dmq::DelegateError error) {
+        bool shouldFire = false;
+        {
+            dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+            uint16_t bit = uint16_t(1u << static_cast<int>(error));
+            auto& bits = m_reportedErrors[topic];
+            if (!(bits & bit)) {
+                bits |= bit;
+                shouldFire = true;
+            } else if (m_continuousErrors) {
+                shouldFire = true;
+            }
+        }
+        if (shouldFire) {
+            m_errorSignal(topic, error);
+        }
+    }
+
     void InternalReportError(const dmq::xstring& topic, dmq::DelegateError error) {
         m_errorSignal(topic, error);
     }
@@ -296,7 +320,7 @@ private:
         }
 
         T* cachedValPtr = nullptr;
-        T cachedVal;
+        std::optional<T> cachedVal;
         dmq::ScopedConnection conn;
 
         {
@@ -312,7 +336,11 @@ private:
         }
 
         if (!signal) {
-            return {}; // Type mismatch or other failure
+            // Type mismatch: report through the error signal for diagnosability,
+            // then hard fault (wrong type is an invariant violation).
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
+            return {};
         }
 
         // 3. Establish connection OUTSIDE the lock to prevent deadlock with Timer/Signal locks.
@@ -342,8 +370,8 @@ private:
                         expired = (age > qos.lifespan.value());
                     }
                     if (!expired) {
-                        cachedVal = *std::static_pointer_cast<T>(it->second.value);
-                        cachedValPtr = &cachedVal;
+                        cachedVal.emplace(*std::static_pointer_cast<T>(it->second.value));
+                        cachedValPtr = &cachedVal.value();
                     }
                 }
             }
@@ -385,6 +413,7 @@ private:
         dmq::xstring strVal = "?";
         bool hasMonitor = false;
 
+        bool typeMismatch = false;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
 
@@ -392,44 +421,54 @@ private:
             // Must be first — before any writes — so a mismatch never corrupts LVC.
             auto itType = m_typeIndices.find(topic);
             if (itType != m_typeIndices.end()) {
-                ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
-            }
-
-            // 2. Update LVC ONLY if enabled for this topic to save memory.
-            // NOTE: QoS lastValueCache is currently "sticky" per topic. Once enabled
-            // by any subscriber, it remains active for that topic until ResetForTesting().
-            auto itQos = m_topicQos.find(topic);
-            if (itQos != m_topicQos.end() && itQos->second.lastValueCache) {
-                m_lastValues[topic] = LvcEntry{ dmq::xmake_shared<T>(data), now };
-            }
-
-            // 3. Prepare monitor data
-            if (!m_monitorSignal.Empty()) {
-                hasMonitor = true;
-                auto itStr = m_stringifiers.find(topic);
-                if (itStr != m_stringifiers.end()) {
-                    auto func = static_cast<dmq::UnicastDelegate<dmq::xstring(const T&)>*>(itStr->second.get());
-                    strVal = (*func)(data);
+                if (itType->second != std::type_index(typeid(T))) {
+                    typeMismatch = true;
                 }
             }
 
-            // 4. Get signal and remote info. Only create Signal if there is local interest.
-            auto itSig = m_signals.find(topic);
-            if (itSig != m_signals.end()) {
-                signal = std::static_pointer_cast<dmq::Signal<void(const T&)>>(itSig->second);
-            }
+            if (!typeMismatch) {
+                // 2. Update LVC ONLY if enabled for this topic to save memory.
+                // NOTE: QoS lastValueCache is currently "sticky" per topic. Once enabled
+                // by any subscriber, it remains active for that topic until ResetForTesting().
+                auto itQos = m_topicQos.find(topic);
+                if (itQos != m_topicQos.end() && itQos->second.lastValueCache) {
+                    m_lastValues[topic] = LvcEntry{ dmq::xmake_shared<T>(data), now };
+                }
 
-            auto itSer = m_serializers.find(topic);
-            if (itSer != m_serializers.end()) {
-                serializerPtr = itSer->second;
-                serializer = static_cast<dmq::ISerializer<void(T)>*>(serializerPtr.get());
-            }
+                // 3. Prepare monitor data
+                if (!m_monitorSignal.Empty()) {
+                    hasMonitor = true;
+                    auto itStr = m_stringifiers.find(topic);
+                    if (itStr != m_stringifiers.end()) {
+                        auto func = static_cast<dmq::UnicastDelegate<dmq::xstring(const T&)>*>(itStr->second.get());
+                        strVal = (*func)(data);
+                    }
+                }
 
-            // 5. Snapshot participants while locked to ensure atomicity between
-            // local and remote dispatch sets.
-            for (size_t i = 0; i < m_participantCount; ++i)
-                participantsSnapshot[i] = m_participants[i];
-            participantSnapshotCount = m_participantCount;
+                // 4. Get signal and remote info. Only create Signal if there is local interest.
+                auto itSig = m_signals.find(topic);
+                if (itSig != m_signals.end()) {
+                    signal = std::static_pointer_cast<dmq::Signal<void(const T&)>>(itSig->second);
+                }
+
+                auto itSer = m_serializers.find(topic);
+                if (itSer != m_serializers.end()) {
+                    serializerPtr = itSer->second;
+                    serializer = static_cast<dmq::ISerializer<void(T)>*>(serializerPtr.get());
+                }
+
+                // 5. Snapshot participants while locked to ensure atomicity between
+                // local and remote dispatch sets.
+                for (size_t i = 0; i < m_participantCount; ++i)
+                    participantsSnapshot[i] = m_participants[i];
+                participantSnapshotCount = m_participantCount;
+            }
+        }
+
+        if (typeMismatch) {
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
+            return;
         }
 
         // 6. Dispatch Monitor outside lock to allow re-entry/prevent deadlocks
@@ -464,15 +503,7 @@ private:
                     }
                 } else {
                     // Topic has remote interest but no serializer — fire once per topic.
-                    bool shouldFire = false;
-                    {
-                        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-                        constexpr uint8_t bit = uint8_t(1u << static_cast<int>(dmq::DelegateError::ERR_NO_SERIALIZER));
-                        auto& bits = m_reportedErrors[topic];
-                        if (!(bits & bit)) { bits |= bit; shouldFire = true; }
-                    }
-                    if (shouldFire)
-                        m_errorSignal(topic, dmq::DelegateError::ERR_NO_SERIALIZER);
+                    InternalReportLatchedError(topic, dmq::DelegateError::ERR_NO_SERIALIZER);
                     handled = true;
                 }
             }
@@ -484,52 +515,87 @@ private:
         }
     }
 
+    void InternalRemoveParticipant(std::shared_ptr<Participant> participant) {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        for (size_t i = 0; i < m_participantCount; ++i) {
+            if (m_participants[i] == participant) {
+                m_participantErrorConnections[i].Disconnect();
+                for (size_t j = i; j < m_participantCount - 1; ++j) {
+                    m_participants[j] = std::move(m_participants[j + 1]);
+                    m_participantErrorConnections[j] = std::move(m_participantErrorConnections[j + 1]);
+                }
+                --m_participantCount;
+                m_participants[m_participantCount].reset();
+                break;
+            }
+        }
+    }
+
     void InternalAddParticipant(std::shared_ptr<Participant> participant) {
         // Establish connection OUTSIDE the global DataBus lock to prevent
         // lock inversion deadlocks. Signal::Connect() is already thread-safe.
         auto conn = participant->SubscribeError(
-            dmq::MakeDelegate(this, &DataBus::InternalReportError));
+            dmq::MakeDelegate(this, &DataBus::InternalReportLatchedError));
 
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         ASSERT_TRUE(m_participantCount < dmq::MAX_PARTICIPANTS);
         m_participantErrorConnections[m_participantCount] = std::move(conn);
+        participant->EnableContinuousErrors(m_continuousErrors);
         m_participants[m_participantCount++] = participant;
     }
 
     template <typename T>
     void InternalRegisterSerializer(const dmq::xstring& topic, std::shared_ptr<void> serializer) {
-        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        bool typeMismatch = false;
+        {
+            dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
 
-        auto itType = m_typeIndices.find(topic);
-        if (itType != m_typeIndices.end()) {
-            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
-        } else {
-            m_typeIndices.emplace(topic, std::type_index(typeid(T)));
+            auto itType = m_typeIndices.find(topic);
+            if (itType != m_typeIndices.end()) {
+                if (itType->second != std::type_index(typeid(T))) typeMismatch = true;
+            } else {
+                m_typeIndices.emplace(topic, std::type_index(typeid(T)));
+            }
+
+            if (!typeMismatch) {
+                m_serializers[topic] = std::move(serializer);
+            }
         }
-
-        m_serializers[topic] = std::move(serializer);
+        if (typeMismatch) {
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
+        }
     }
 
     template <typename T>
     void InternalRegisterStringifier(const dmq::xstring& topic, dmq::UnicastDelegate<dmq::xstring(const T&)> func) {
-        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        bool typeMismatch = false;
+        {
+            dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
 
-        // Runtime Type Safety: Ensure topic is not registered with multiple types
-        auto itType = m_typeIndices.find(topic);
-        if (itType != m_typeIndices.end()) {
-            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
-        } else {
-            m_typeIndices.emplace(topic, std::type_index(typeid(T)));
+            // Runtime Type Safety: Ensure topic is not registered with multiple types
+            auto itType = m_typeIndices.find(topic);
+            if (itType != m_typeIndices.end()) {
+                if (itType->second != std::type_index(typeid(T))) typeMismatch = true;
+            } else {
+                m_typeIndices.emplace(topic, std::type_index(typeid(T)));
+            }
+
+            if (!typeMismatch) {
+                // Use shared_ptr with custom deleter and stl_allocator.
+                // Allocate function object from fixed-block pool using xnew.
+                using DelegateType = dmq::UnicastDelegate<dmq::xstring(const T&)>;
+                m_stringifiers[topic] = std::shared_ptr<void>(
+                    dmq::xnew<DelegateType>(std::move(func)),
+                    [](void* ptr) { dmq::xdelete(static_cast<DelegateType*>(ptr)); },
+                    ::dmq::stl_allocator<void>()
+                );
+            }
         }
-
-        // Use shared_ptr with custom deleter and stl_allocator.
-        // Allocate function object from fixed-block pool using xnew.
-        using DelegateType = dmq::UnicastDelegate<dmq::xstring(const T&)>;
-        m_stringifiers[topic] = std::shared_ptr<void>(
-            dmq::xnew<DelegateType>(std::move(func)),
-            [](void* ptr) { dmq::xdelete(static_cast<DelegateType*>(ptr)); },
-            ::dmq::stl_allocator<void>()
-        );
+        if (typeMismatch) {
+            InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
+            ASSERT();
+        }
     }
 
     void InternalReset() {
@@ -547,6 +613,8 @@ private:
         m_stringifiers.clear();
         m_typeIndices.clear();
         m_monitorSignal.Clear();
+        m_unhandledSignal.Clear();
+        m_errorSignal.Clear();
         m_reportedErrors.clear();
     }
 
@@ -556,7 +624,7 @@ private:
         auto itType = m_typeIndices.find(topic);
         if (itType != m_typeIndices.end()) {
             // Runtime Type Safety: Catch same topic string used with different types
-            ASSERT_TRUE(itType->second == std::type_index(typeid(T)));
+            if (itType->second != std::type_index(typeid(T))) return nullptr;
         } else {
             m_typeIndices.emplace(topic, std::type_index(typeid(T)));
         }
@@ -576,8 +644,9 @@ private:
         dmq::TimePoint timestamp;
     };
 
+    bool m_continuousErrors = false;
     dmq::RecursiveMutex m_mutex;
-    dmq::xmap<dmq::xstring, uint8_t> m_reportedErrors;
+    dmq::xmap<dmq::xstring, uint16_t> m_reportedErrors;
     dmq::xmap<dmq::xstring, std::shared_ptr<void>> m_signals;
     dmq::xmap<dmq::xstring, std::type_index> m_typeIndices;
     std::array<std::shared_ptr<Participant>, dmq::MAX_PARTICIPANTS> m_participants{};
@@ -591,15 +660,6 @@ private:
     dmq::Signal<void(const dmq::xstring& topic, dmq::DelegateError error)> m_errorSignal;
     std::array<dmq::ScopedConnection, dmq::MAX_PARTICIPANTS> m_participantErrorConnections;
 };
-
-// Definition of TopicForwarder::Invoke must follow DataBus definition
-template <typename T>
-void detail::TopicForwarder<T>::Invoke(const T& msg) {
-    if (m_localOnly)
-        DataBus::PublishLocal<T>(m_topic, msg);
-    else
-        DataBus::Publish<T>(m_topic, msg);
-}
 
 } // namespace dmq::databus
 

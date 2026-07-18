@@ -171,14 +171,11 @@ Your system grows. You move the `Motor` logic to a dedicated Microcontroller, bu
 constexpr dmq::DelegateRemoteId MOTOR_SPEED_ID = 100;
 
 // --- Controller Node (Sender) ---
-// 1. Create a channel using a transport and a serializer
+// 1. Create a channel using a transport and a serializer, passing the remote ID
 // (e.g., UdpTransport transport; MsgPackSerializer serializer;)
-dmq::RemoteChannel<void(int)> motorChannel(transport, serializer);
+dmq::RemoteChannel<void(int)> motorChannel(transport, serializer, MOTOR_SPEED_ID);
 
-// 2. Tell the channel which Remote ID to use for outgoing messages
-motorChannel.SetRemoteId(MOTOR_SPEED_ID);
-
-// 3. Send the command across the wire
+// 2. Send the command across the wire
 motorChannel(3000); 
 ```
 

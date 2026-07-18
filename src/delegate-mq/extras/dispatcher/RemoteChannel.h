@@ -54,16 +54,21 @@ class RemoteChannel; // Not defined
 /// signature. It owns the `Dispatcher`, the serialization stream, and the internal
 /// `DelegateFunctionRemote` that handles both sending and receiving.
 ///
-/// **Usage pattern (preferred):**
+/// **Receive-side usage (preferred):**
 /// @code
 ///   // Declare per signature — one channel replaces channel + separate delegate
 ///   std::optional<RemoteChannel<void(AlarmMsg&)>> m_alarmChannel;
 ///
 ///   // In Create():
-///   m_alarmChannel.emplace(GetSendTransport(), m_alarmSer);
+///   m_alarmChannel.emplace(GetRecvTransport(), m_alarmSer);
 ///   m_alarmChannel->Bind(this, &MyClass::OnAlarm, ALARM_ID);
 ///   m_alarmChannel->SetErrorHandler(MakeDelegate(this, &MyClass::OnError));
 ///   RegisterEndpoint(ALARM_ID, m_alarmChannel->GetEndpoint());
+/// @endcode
+///
+/// **Send-side usage — no Bind() required:**
+/// @code
+///   m_alarmChannel.emplace(GetSendTransport(), m_alarmSer, ALARM_ID);
 ///
 ///   // Send (fire-and-forget):
 ///   (*m_alarmChannel)(msg);
@@ -88,13 +93,21 @@ class RemoteChannel<RetType(Args...)>
     XALLOCATOR
 public:
     /// @brief Construct a RemoteChannel.
+    /// @details A send-only channel needs no `Bind()` — pass the remote ID here and
+    /// invoke the channel directly. The receive side must invoke `Bind()` to attach the
+    /// target function invoked on message arrival (`Bind()` overwrites the ID with the
+    /// same value).
     /// @param[in] transport  The transport used to send serialized data. Caller owns it.
     /// @param[in] serializer The serializer matching the delegate signature. Caller owns it.
-    RemoteChannel(transport::ITransport& transport, dmq::ISerializer<RetType(Args...)>& serializer)
+    /// @param[in] id         The remote delegate identifier shared with the receiver.
+    /// Optional for receive channels where `Bind()` supplies the ID.
+    RemoteChannel(transport::ITransport& transport, dmq::ISerializer<RetType(Args...)>& serializer,
+        DelegateRemoteId id = INVALID_REMOTE_ID)
         : m_stream(std::ios::in | std::ios::out | std::ios::binary)
         , m_serializer(&serializer)
     {
         m_dispatcher.SetTransport(&transport);
+        m_delegate.SetRemoteId(id);
         m_delegate.SetDispatcher(&m_dispatcher);
         m_delegate.SetSerializer(m_serializer);
         m_delegate.SetStream(&m_stream);
@@ -169,6 +182,9 @@ public:
     /// @brief The error status of the most recent invocation.
     DelegateError GetError() noexcept { return m_delegate.GetError(); }
 
+    /// @brief The sequence number assigned to the most recent send.
+    uint16_t GetLastSeqNum() const noexcept { return m_delegate.GetLastSeqNum(); }
+
     /// @brief Returns the internal delegate as an IRemoteInvoker* for RegisterEndpoint().
     IRemoteInvoker* GetEndpoint() noexcept { return &m_delegate; }
 
@@ -201,10 +217,10 @@ private:
 };
 
 /// @brief C++17 deduction guide — lets the compiler deduce `Sig` from the serializer type.
-/// @details Enables `RemoteChannel channel(transport, serializer)` without an explicit
-/// template argument.
+/// @details Enables `RemoteChannel channel(transport, serializer)` and
+/// `RemoteChannel channel(transport, serializer, id)` without an explicit template argument.
 template <class RetType, class... Args>
-RemoteChannel(transport::ITransport&, dmq::ISerializer<RetType(Args...)>&) -> RemoteChannel<RetType(Args...)>;
+RemoteChannel(transport::ITransport&, dmq::ISerializer<RetType(Args...)>&, DelegateRemoteId = INVALID_REMOTE_ID) -> RemoteChannel<RetType(Args...)>;
 
 // ---- MakeDelegate overloads for RemoteChannel ----------------------------------
 //

@@ -1,4 +1,5 @@
 #include "PumpProcess.h"
+#include "Logger.h"
 #include "actuators/Actuators.h"
 #include <cstdio>
 

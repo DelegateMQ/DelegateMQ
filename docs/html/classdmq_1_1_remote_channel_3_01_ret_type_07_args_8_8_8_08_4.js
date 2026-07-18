@@ -1,6 +1,6 @@
 var classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4 =
 [
-    [ "RemoteChannel", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a57212892c866d706bb55c7394d412a01", null ],
+    [ "RemoteChannel", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a90892d4eab49f2a22c0d872467b1a92a", null ],
     [ "~RemoteChannel", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#aecd2c6641f9fc996dabd77046ac991ec", null ],
     [ "RemoteChannel", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#aedc8aaea43e85c7aa08d0fc62bdb28da", null ],
     [ "Bind", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a0aa3859da6160b525590547c7efb60b2", null ],
@@ -10,6 +10,7 @@ var classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4 =
     [ "GetDispatcher", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a1eaa7382eb689868b165809ced2a9220", null ],
     [ "GetEndpoint", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a9e3ed9f9d154122dbef3b82fafcbdec1", null ],
     [ "GetError", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a70f0d55e7da5c11ef5a740a3f53fb501", null ],
+    [ "GetLastSeqNum", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#aa10a9caaa950072cb212b90f39cfa3eb", null ],
     [ "GetRemoteId", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a6b21bb7b77c0b89df77ce0c3ac31c389", null ],
     [ "GetSerializer", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#a17ab113d13d429b4d48e2a89d5b4209a", null ],
     [ "GetStream", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html#afd9f8fbe0496844aaaa4b1380732257c", null ],

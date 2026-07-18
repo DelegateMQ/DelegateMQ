@@ -45,7 +45,7 @@ var searchData=
   ['api_20tt_20dmqinterop_20h_20tt_42',['C-API (&lt;tt&gt;DmqInterop.h&lt;/tt&gt;)',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md174',1,'']]],
   ['api_3a_20the_20core_20differentiator_43',['Unified API: The Core Differentiator',['../md_docs_2_c_o_m_p_a_r_i_s_o_n.html#autotoc_md69',1,'']]],
   ['application_20build_44',['Main Application Build',['../md_docs_2_b_u_i_l_d.html#autotoc_md23',1,'']]],
-  ['architecture_45',['Architecture',['../index.html#autotoc_md14',1,'Modular Architecture'],['../md_docs_2_d_a_t_a_b_u_s.html#autotoc_md74',1,'System Architecture'],['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md167',1,'Why this Architecture?']]],
+  ['architecture_45',['Architecture',['../md_docs_2_d_a_t_a_b_u_s.html#autotoc_md74',1,'System Architecture'],['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md167',1,'Why this Architecture?']]],
   ['architecture_3a_20shared_20native_20core_46',['Architecture: Shared Native Core',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md166',1,'']]],
   ['argcnt_47',['ArgCnt',['../classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a788db856552838d5f41c336deb39a01c',1,'dmq::DelegateFreeRemote&lt; RetType(Args...)&gt;::ArgCnt'],['../classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#acd218c2768e92f62f032692216a7e2d3',1,'dmq::DelegateMemberRemote&lt; TClass, RetType(Args...)&gt;::ArgCnt'],['../classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#aa1dac43851e168e6f8e67e770d16a6fe',1,'dmq::DelegateFunctionRemote&lt; RetType(Args...)&gt;::ArgCnt']]],
   ['argtypeof_48',['ArgTypeOf',['../namespacedmq.html#aa5033450a33d262cadf38fc666741732',1,'dmq']]],

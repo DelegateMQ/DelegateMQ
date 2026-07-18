@@ -527,6 +527,39 @@ static void RemoteChannel_MakeDelegate_RawLambda()
     ASSERT_TRUE(transport.m_sendCount == 3);
 }
 
+// ---- Send-only channel: ctor ID, no Bind() required on the sender --------------
+
+static void RemoteChannel_SendOnly_CtorId()
+{
+    MockTransport transport;
+    RCSerializer<void(int)> serializer;
+
+    // Default ctor ID is invalid until set
+    RemoteChannel<void(int)> unbound(transport, serializer);
+    ASSERT_TRUE(unbound.GetRemoteId() == INVALID_REMOTE_ID);
+
+    // Sender: ID from ctor, never calls Bind()
+    RemoteChannel<void(int)> tx(transport, serializer, REMOTE_ID);
+    ASSERT_TRUE(tx.GetRemoteId() == REMOTE_ID);
+
+    tx(TEST_INT);
+    ASSERT_TRUE(transport.m_sendCount == 1);
+    ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
+
+    // Receiver: separate channel binds a handler to the same ID
+    g_invoked = false;
+    g_lastInt = 0;
+    RemoteChannel<void(int)> rx(transport, serializer);
+    rx.Bind(&FreeFuncInt, REMOTE_ID);
+
+    auto recvStream = transport.GetPayloadStream();
+    recvStream.seekg(0);
+    rx.GetEndpoint()->Invoke(recvStream);
+
+    ASSERT_TRUE(g_invoked);
+    ASSERT_TRUE(g_lastInt == TEST_INT);
+}
+
 // ---- Raw lambda Bind on receive side with round-trip ---------------------------
 
 static void RemoteChannel_Bind_RawLambda()
@@ -578,5 +611,6 @@ void RemoteChannelTests()
 
     RemoteChannel_DispatchError_PropagatedToErrorHandler();
     RemoteChannel_MakeDelegate_MatchesManualWiring();
+    RemoteChannel_SendOnly_CtorId();
     RemoteChannel_Bind_RawLambda();
 }

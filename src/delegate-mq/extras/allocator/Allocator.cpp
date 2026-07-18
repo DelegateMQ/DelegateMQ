@@ -83,11 +83,18 @@ void* Allocator::Allocate([[maybe_unused]] size_t size)
                 std::new_handler handler = std::set_new_handler(0);
                 std::set_new_handler(handler);
 
-                // If a new handler is defined, call it
-                if (handler)
-                    (*handler)();
-                else
-                    ASSERT();
+                while (!pBlock)
+                {
+                    if (handler)
+                    {
+                        (*handler)();
+                        pBlock = Pop();
+                    }
+                    else
+                    {
+                        BAD_ALLOC();
+                    }
+                }
             }
         }
         else
@@ -97,8 +104,11 @@ void* Allocator::Allocate([[maybe_unused]] size_t size)
         }
     }
 
-    m_blocksInUse++;
-    m_allocations++;
+    if (pBlock)
+    {
+        m_blocksInUse++;
+        m_allocations++;
+    }
 	
     return pBlock;
 }

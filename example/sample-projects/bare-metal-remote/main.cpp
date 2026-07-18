@@ -58,14 +58,16 @@ class BareMetalDispatcher : public IDispatcher
 {
 public:
     // Send argument data to the transport
-    virtual int Dispatch(std::ostream& os, DelegateRemoteId id) {
+    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
         std::stringstream ss(ios::in | ios::out | ios::binary);
-        ss << os.rdbuf();
+        ss << os.str();
+        os.str(dmq::xstring());
+        os.clear();
+        os.seekp(0);
         Transport::Send(ss);
         return 0;
     }
 };
-
 // make_serialized serializes each remote function argument
 template<typename... Ts>
 void make_serialized(std::ostream& os) { }
@@ -214,6 +216,8 @@ public:
         m_thread("Receiver"),
         m_args(ios::in | ios::out | ios::binary)
     {
+        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
+
         // Set the delegate interfaces
         m_recvDelegate.SetStream(&m_args);
         m_recvDelegate.SetSerializer(&m_serializer);
@@ -221,8 +225,6 @@ public:
         // Register the Error Handler. 
         // This prevents the delegate from throwing std::runtime_error on failure.
         m_recvDelegate.SetErrorHandler(MakeDelegate(this, &Receiver::ErrorHandler));
-
-        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
 
         m_thread.CreateThread();
 

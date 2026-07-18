@@ -7,5 +7,5 @@ var _remote_channel_8h =
     [ "MakeDelegate", "_remote_channel_8h.html#adabcaaa5d4608a8b671ae9a5349a18a5", null ],
     [ "MakeDelegate", "_remote_channel_8h.html#a4647d41848095b8f5416e910f5278ee7", null ],
     [ "MakeDelegate", "_remote_channel_8h.html#a89d77222944e72ee57f8621e93eb8a5a", null ],
-    [ "RemoteChannel", "_remote_channel_8h.html#aae24f48dcafb137b7c909f9c0fdb7574", null ]
+    [ "RemoteChannel", "_remote_channel_8h.html#aaf710a024026d72e04ce74cd5389779e", null ]
 ];

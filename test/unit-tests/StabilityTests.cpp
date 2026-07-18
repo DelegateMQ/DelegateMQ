@@ -53,7 +53,7 @@ void Test_DispatcherStreamReset() {
     
     if (transport.lastSentSize != 5) {
         std::cerr << "FAIL: Stream did not reset! Size was " << transport.lastSentSize << " (expected 5)" << std::endl;
-        exit(1);
+        ASSERT_TRUE(false);
     }
     assert(transport.sendCount == 2);
 }
@@ -83,7 +83,7 @@ void Test_TransportMonitorCongestion() {
 
     if (err != -1) {
         std::cerr << "FAIL: TransportMonitor did not reject overflow! (Limit: " << dmq::MAX_TRANSPORT_MONITOR_PENDING << ")" << std::endl;
-        exit(1);
+        ASSERT_TRUE(false);
     }
 }
 

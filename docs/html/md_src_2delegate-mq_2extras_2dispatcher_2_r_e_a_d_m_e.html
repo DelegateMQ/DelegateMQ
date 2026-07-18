@@ -121,7 +121,7 @@ dmq::util::Dispatcher</h3>
 </ol>
 <h3><a class="anchor" id="autotoc_md284"></a>
 dmq::RemoteChannel</h3>
-<p><code><a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;Sig&gt;</code> owns a <code><a class="el" href="classdmq_1_1_delegate_function_remote.html">dmq::DelegateFunctionRemote</a></code> internally and handles all wiring automatically. Call <code>Bind()</code> once to configure the channel, then invoke it with <code>operator()</code>.</p>
+<p><code><a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;Sig&gt;</code> owns a <code><a class="el" href="classdmq_1_1_delegate_function_remote.html">dmq::DelegateFunctionRemote</a></code> internally and handles all wiring automatically. Call <code>Bind()</code> once to configure the channel (for receiving), or pass the ID to the constructor (for sending), then invoke it with <code>operator()</code>.</p>
 <div class="fragment"><div class="line"><span class="comment">// Create one channel per message signature</span></div>
 <div class="line"><a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(AlarmMsg&amp;, AlarmNote&amp;)&gt; alarmChannel(transport, alarmSerializer);</div>
 <div class="line"> </div>
@@ -141,7 +141,7 @@ dmq::RemoteChannel</h3>
 <div class="line"><span class="comment">// Or invoke with blocking wait</span></div>
 <div class="line"><span class="keywordtype">bool</span> ok = dmq::RemoteInvokeWait(alarmChannel, msg, note);</div>
 <div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:888</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
 </div><!-- fragment --><p>Key accessors:</p><ul>
 <li><code>Bind(obj, func, id)</code> — binds a member function and configures all internal plumbing.</li>
 <li><code>operator()(args...)</code> — invokes (sends) the remote message.</li>

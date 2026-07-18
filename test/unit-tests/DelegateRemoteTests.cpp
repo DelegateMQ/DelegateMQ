@@ -37,6 +37,13 @@ namespace Remote
         ASSERT_TRUE(pi); 
         ASSERT_TRUE(*pi == TEST_INT); 
     }
+    void FreeFuncConstIntPtr(const int* pi) { 
+        ASSERT_TRUE(pi); 
+        ASSERT_TRUE(*pi == TEST_INT); 
+    }
+    void FreeFuncConstIntRef(const int& i) {
+        ASSERT_TRUE(i == TEST_INT);
+    }
     void FreeFuncIntPtrPtr(int** pi) {
         ASSERT_TRUE(pi);
         ASSERT_TRUE(*pi);
@@ -116,11 +123,13 @@ namespace Remote
     public:
         MockDispatcher() : m_ss(ios::in | ios::out | ios::binary) {}
 
-        virtual int Dispatch(std::ostream& os, DelegateRemoteId id) {
+        virtual int Dispatch(dmq::xostringstream& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
             // Save dispatched string to simulate sending data over a transport
             m_ss.str("");
             m_ss.clear();
-            m_ss << os.rdbuf();                
+            m_ss << os.str();
+            os.str("");
+            os.clear();
             return 0;
         }
 
@@ -155,13 +164,13 @@ namespace Remote
 
     template<typename Arg1, typename... Args>
     void make_unserialized(std::istream& is, Arg1& arg1, Args&&... args) {
-        is >> arg1;
+        is >> const_cast<std::remove_const_t<Arg1>&>(arg1);
         make_unserialized(is, args...);
     }
 
     template<typename Arg1, typename... Args>
     void make_unserialized(std::istream& is, Arg1* arg1, Args&&... args) {
-        is >> *arg1;
+        is >> const_cast<std::remove_const_t<Arg1>&>(*arg1);
         make_unserialized(is, args...);
     }
 
@@ -195,9 +204,14 @@ static void DelegateFreeRemoteTests()
     using Del = DelegateFreeRemote<void(int)>;
 
     Del delegate1(FreeFuncInt1, REMOTE_ID);
+
+    // Invoking a remote delegate with no serializer/stream configured raises
+    // ERR_NO_SERIALIZER through the error handler (no throw when handled).
+    delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::SUCCESS);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
     ASSERT_TRUE(delegate1 == delegate2);
@@ -241,13 +255,56 @@ static void DelegateFreeRemoteTests()
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateFreeRemote<TestReturn()> testRet;
+    testRet.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     ASSERT_TRUE(TestReturn::val == 0);
     testRet();
     ASSERT_TRUE(TestReturn::val == 1);
 
     DelegateFreeRemote<std::unique_ptr<int>(int)> delUnique;
+    delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
     ASSERT_TRUE(tmp == nullptr);
+
+    // Test const pointer and reference arguments
+    {
+        MockDispatcher dispatcher;
+        Serializer<void(const int*)> serializer;
+        xostringstream os(ios::in | ios::out | ios::binary);
+        auto d = MakeDelegate(&FreeFuncConstIntPtr, REMOTE_ID);
+        d.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        d.SetStream(&os);
+        d.SetDispatcher(&dispatcher);
+        d.SetSerializer(&serializer);
+        
+        int val = TEST_INT;
+        d(&val);
+
+        std::stringstream& ss = dispatcher.GetDispached();
+        DelegateFreeRemote<void(const int*)> dest(&FreeFuncConstIntPtr, REMOTE_ID);
+        dest.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        dest.SetSerializer(&serializer);
+        dest.Invoke(ss);
+    }
+
+    {
+        MockDispatcher dispatcher;
+        Serializer<void(const int&)> serializer;
+        xostringstream os(ios::in | ios::out | ios::binary);
+        auto d = MakeDelegate(&FreeFuncConstIntRef, REMOTE_ID);
+        d.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        d.SetStream(&os);
+        d.SetDispatcher(&dispatcher);
+        d.SetSerializer(&serializer);
+        
+        int val = TEST_INT;
+        d(val);
+
+        std::stringstream& ss = dispatcher.GetDispached();
+        DelegateFreeRemote<void(const int&)> dest(&FreeFuncConstIntRef, REMOTE_ID);
+        dest.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
+        dest.SetSerializer(&serializer);
+        dest.Invoke(ss);
+    }
     delUnique.Bind(&FuncUnique, REMOTE_ID);
     std::unique_ptr<int> up = delUnique(12);
     ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
@@ -267,7 +324,11 @@ static void DelegateFreeRemoteTests()
     ASSERT_TRUE(!delS1.Empty());
     ASSERT_TRUE(delS2.Empty());
 
-    std::function<int(int)> stdFunc = MakeDelegate(&FreeFuncIntWithReturn1, REMOTE_ID);
+    // Error handler is copied with the delegate into std::function, so the
+    // unconfigured invoke reports ERR_NO_SERIALIZER instead of throwing.
+    auto stdFuncDel = MakeDelegate(&FreeFuncIntWithReturn1, REMOTE_ID);
+    stdFuncDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
+    std::function<int(int)> stdFunc = stdFuncDel;
     int stdFuncRetVal = stdFunc(TEST_INT);
     ASSERT_TRUE(stdFuncRetVal == 0);
 
@@ -295,6 +356,7 @@ static void DelegateFreeRemoteTests()
     // Shared pointer does not copy singleton object; no copy of shared_ptr arg.
     auto singletonSp = ClassSingleton::GetInstanceSp();
     auto delShared = MakeDelegate(&SetClassSingletonShared, REMOTE_ID);
+    delShared.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delShared(singletonSp);
 
 #if 0  // Arg** not supported on remote delegate
@@ -312,6 +374,7 @@ static void DelegateFreeRemoteTests()
     int iparam = 100;
     sparam.val = TEST_INT;
     auto outgoingArg = MakeDelegate(&OutgoingPtrArg, REMOTE_ID);
+    outgoingArg.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     outgoingArg(&sparam, &iparam);
     ASSERT_TRUE(sparam.val == TEST_INT);
@@ -321,7 +384,7 @@ static void DelegateFreeRemoteTests()
     // Test outgoing ptr-ptr argument
     StructParam* psparam = nullptr;
     auto outgoingArg2 = MakeDelegate(&OutgoingPtrPtrArg, REMOTE_ID);
-    outgoingArg2(&psparam);
+    // outgoingArg2(&psparam);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     ASSERT_TRUE(psparam == nullptr);
 #endif
@@ -329,6 +392,7 @@ static void DelegateFreeRemoteTests()
     // Test outgoing ref argument
     sparam.val = TEST_INT;
     auto outgoingArg3 = MakeDelegate(&OutgoingRefArg, REMOTE_ID);
+    outgoingArg3.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     outgoingArg3(sparam);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     ASSERT_TRUE(sparam.val == TEST_INT);
@@ -341,6 +405,7 @@ static void DelegateFreeRemoteTests()
         Class classInstance;
         Class::m_construtorCnt = 0;
         auto cntDel = MakeDelegate(&ConstructorCnt, REMOTE_ID);
+        cntDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
         cntDel.SetDispatcher(&dispatcher);
         cntDel.SetSerializer(&serializer);
         cntDel(&classInstance);
@@ -361,6 +426,7 @@ static void DelegateFreeRemoteTests()
     // Test void* return. Return value is nullptr because return 
     // value is invalid on a non-blocking remote delegate
     auto retVoidPtrDel = MakeDelegate(&RetVoidPtr, REMOTE_ID);
+    retVoidPtrDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto retVoidPtr = retVoidPtrDel();
     ASSERT_TRUE(retVoidPtr == nullptr);
     const char* retStr = (const char*)retVoidPtr;
@@ -379,8 +445,10 @@ static void DelegateFreeRemoteTests()
     Del* arr = new Del[2];
     arr[0].Bind(FreeFuncInt1, REMOTE_ID);
     arr[1].Bind(FreeFuncInt1, REMOTE_ID);
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; i++) {
+        arr[i].SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
         arr[i](TEST_INT);
+    }
     delete[] arr;
 
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandler = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {
@@ -498,9 +566,11 @@ static void DelegateMemberRemoteTests()
     TestClass1 testClass1;
 
     Del delegate1(&testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
+    delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::SUCCESS);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
     ASSERT_TRUE(delegate1 == delegate2);
@@ -544,6 +614,7 @@ static void DelegateMemberRemoteTests()
     // Check for const correctness
     const Class c;
     DelegateMemberRemote<const Class, std::uint16_t(void)> dConstClass;
+    dConstClass.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     //dConstClass.Bind(&c, &Class::Func, REMOTE_ID);     // Not OK. Should fail compile.
     dConstClass.Bind(&c, &Class::FuncConst, REMOTE_ID);  // OK
     auto rConst = dConstClass();
@@ -551,12 +622,14 @@ static void DelegateMemberRemoteTests()
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateMemberRemote<TestReturnClass, TestReturn()> testRet;
+    testRet.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     ASSERT_TRUE(TestReturn::val == 0);
     testRet();
     ASSERT_TRUE(TestReturn::val == 1);
 
     Class c2;
     DelegateMemberRemote<Class, std::unique_ptr<int>(int)> delUnique;
+    delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
     ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(&c2, &Class::FuncUnique, REMOTE_ID);
@@ -576,6 +649,7 @@ static void DelegateMemberRemoteTests()
 
     const TestClass1 tcConst;
     auto delConstCheck = MakeDelegate(&tcConst, &TestClass1::ConstCheck, REMOTE_ID);
+    delConstCheck.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto delConstCheckRetVal = delConstCheck(TEST_INT);
     ASSERT_TRUE(delConstCheckRetVal == 0);
 
@@ -585,7 +659,9 @@ static void DelegateMemberRemoteTests()
     ASSERT_TRUE(!delS1.Empty());
     ASSERT_TRUE(delS2.Empty());
 
-    std::function<int(int)> stdFunc = MakeDelegate(&testClass1, &TestClass1::MemberFuncIntWithReturn1, REMOTE_ID);
+    auto stdFuncDel = MakeDelegate(&testClass1, &TestClass1::MemberFuncIntWithReturn1, REMOTE_ID);
+    stdFuncDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
+    std::function<int(int)> stdFunc = stdFuncDel;
     int stdFuncRetVal = stdFunc(TEST_INT);
     ASSERT_TRUE(stdFuncRetVal == 0);
 
@@ -615,6 +691,7 @@ static void DelegateMemberRemoteTests()
     // Shared pointer does not copy singleton object; no copy of shared_ptr arg.
     auto singletonSp = ClassSingleton::GetInstanceSp();
     auto delShared = MakeDelegate(&setClassSingleton, &SetClassSingleton::Shared, REMOTE_ID);
+    delShared.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delShared(singletonSp);
 
     Class voidTest;
@@ -632,6 +709,7 @@ static void DelegateMemberRemoteTests()
     // Test void* return. Return value is nullptr because return 
     // value is invalid on a non-blocking remote delegate
     auto retVoidPtrDel = MakeDelegate(&voidTest, &Class::RetVoidPtr, REMOTE_ID);
+    retVoidPtrDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto retVoidPtr = retVoidPtrDel();
     ASSERT_TRUE(retVoidPtr == nullptr);
     const char* retStr = (const char*)retVoidPtr;
@@ -641,8 +719,10 @@ static void DelegateMemberRemoteTests()
     Del* arr = new Del[2];
     arr[0].Bind(&testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     arr[1].Bind(&testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; i++) {
+        arr[i].SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
         arr[i](TEST_INT);
+    }
     delete[] arr;
 
     std::function<void(DelegateRemoteId, DelegateError, DelegateErrorAux)> errorHandler = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {
@@ -744,8 +824,11 @@ static void DelegateMemberSpRemoteTests()
 
     Del delegate1(testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     ASSERT_TRUE(delegate1.GetError() == DelegateError::SUCCESS);
+    delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
     ASSERT_TRUE(delegate1 == delegate2);
@@ -789,6 +872,7 @@ static void DelegateMemberSpRemoteTests()
     // Check for const correctness
     auto c = std::make_shared<const Class>();
     DelegateMemberRemote<const Class, std::uint16_t(void)> dConstClass;
+    dConstClass.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     //dConstClass.Bind(c, &Class::Func, REMOTE_ID);     // Not OK. Should fail compile.
     dConstClass.Bind(c, &Class::FuncConst, REMOTE_ID);  // OK
     auto rConst = dConstClass();
@@ -796,12 +880,14 @@ static void DelegateMemberSpRemoteTests()
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateMemberRemote<TestReturnClass, TestReturn()> testRet;
+    testRet.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     ASSERT_TRUE(TestReturn::val == 0);
     testRet();
     ASSERT_TRUE(TestReturn::val == 1);
 
     auto c2 = std::make_shared<Class>();
     DelegateMemberRemote<Class, std::unique_ptr<int>(int)> delUnique;
+    delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
     ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(c2, &Class::FuncUnique, REMOTE_ID);
@@ -825,7 +911,9 @@ static void DelegateMemberSpRemoteTests()
     ASSERT_TRUE(!delS1.Empty());
     ASSERT_TRUE(delS2.Empty());
 
-    std::function<int(int)> stdFunc = MakeDelegate(testClass1, &TestClass1::MemberFuncIntWithReturn1, REMOTE_ID);
+    auto stdFuncDel = MakeDelegate(testClass1, &TestClass1::MemberFuncIntWithReturn1, REMOTE_ID);
+    stdFuncDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
+    std::function<int(int)> stdFunc = stdFuncDel;
     int stdFuncRetVal = stdFunc(TEST_INT);
     ASSERT_TRUE(stdFuncRetVal == 0);
 
@@ -833,8 +921,10 @@ static void DelegateMemberSpRemoteTests()
     Del* arr = new Del[2];
     arr[0].Bind(testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     arr[1].Bind(testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; i++) {
+        arr[i].SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
         arr[i](TEST_INT);
+    }
     delete[] arr;
 
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandler = [](DelegateRemoteId id, DelegateError error, int code) {
@@ -951,9 +1041,11 @@ static void DelegateFunctionRemoteTests()
     using Del = DelegateFunctionRemote<void(int)>;
 
     Del delegate1(LambdaNoCapture, REMOTE_ID);
+    delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::SUCCESS);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
+    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
     ASSERT_TRUE(delegate1 == delegate2);
@@ -1003,6 +1095,7 @@ static void DelegateFunctionRemoteTests()
 
     auto c2 = std::make_shared<Class>();
     DelegateFunctionRemote<std::unique_ptr<int>(int)> delUnique;
+    delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
     ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(LambdaUnqiue, REMOTE_ID);
@@ -1028,8 +1121,10 @@ static void DelegateFunctionRemoteTests()
     Del* arr = new Del[2];
     arr[0].Bind(LambdaNoCapture, REMOTE_ID);
     arr[1].Bind(LambdaNoCapture, REMOTE_ID);
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; i++) {
+        arr[i].SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
         arr[i](TEST_INT);
+    }
     delete[] arr;
 
     std::function NoError = [](std::shared_ptr<const StructParam> c) {};

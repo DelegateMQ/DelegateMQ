@@ -5,6 +5,7 @@
 /// @brief Delegate dispatcher interface class. 
 
 #include <cstdint>
+#include "DelegateOpt.h"
 
 namespace dmq {
 
@@ -33,7 +34,7 @@ public:
     /// serial, ...). 
     /// @param[in] os An outgoing stream to send to the remote destination.
     /// @param[in] id The unique delegate identifier shared between sender and receiver.
-    virtual int Dispatch(std::ostream& os, DelegateRemoteId id) = 0;
+    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
 };
 
 }

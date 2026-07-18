@@ -112,30 +112,24 @@ Delegates in C++</h1>
 <p>The library is unit-tested, built for portability (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.</p>
 <h1><a class="anchor" id="autotoc_md1"></a>
 Motivation</h1>
-<p>Systems are composed of various design patterns or libraries to implement callbacks, asynchronous APIs, and inter-thread or inter-processor communications. These elements typically lack shared commonality. Callbacks are one-off implementations by individual developers, messages between threads rely on OS message queues, and communication libraries handle data transfer complexities. However, the underlying commonality lies in the need to move argument data to the target handler function, regardless of its location.</p>
-<p>The DelegateMQ middleware effectively encapsulates all data movement and function invocation within a single library. Whether the target function is a static method, class method, or lambda—residing locally in a separate thread or remotely on a different processor—the library ensures the movement of argument data (marshalling when necessary) and invokes the target function. The low-level details of data movement and function invocation are neatly abstracted from the application layer.</p>
+<p>Applications typically use one mechanism for callbacks, another for inter-thread messaging, and a third for inter-processor communication — each with its own API and data-passing rules. Yet all three solve the same underlying problem: move argument data to a target function and invoke it.</p>
+<p>DelegateMQ unifies them in a single library. Bind a delegate to any callable — free function, method, or lambda — and invoke it synchronously, on another thread, or on another processor. The library handles the copying, marshalling, and dispatch; the call site stays the same.</p>
 <h1><a class="anchor" id="autotoc_md2"></a>
 Advantages</h1>
-<p>Key advantages of using DelegateMQ in your application.</p>
+<p>Why choose DelegateMQ over a callback, signal/slot, or messaging library.</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
 <th class="markdownTableHeadNone">Advantage   </th><th class="markdownTableHeadNone">Description    </th></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone">One invocation model   </td><td class="markdownTableBodyNone">Sync, async, and remote delegates share the same <code><a class="el" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2" title="Creates a delegate that binds to a free function.">dmq::MakeDelegate</a></code> syntax — promoting a call to async or remote is a one-line change.    </td></tr>
+<td class="markdownTableBodyNone">One invocation model   </td><td class="markdownTableBodyNone">Sync, async, and remote calls share the same <code><a class="el" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2" title="Creates a delegate that binds to a free function.">dmq::MakeDelegate</a></code> syntax — promoting a local callback to async or remote is a one-line change.    </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone">Targeted thread dispatch   </td><td class="markdownTableBodyNone">Callbacks, signal slots, and DataBus subscribers each specify the thread they run on — the library handles the dispatch, so handlers always execute in the correct thread context without manual queuing.    </td></tr>
+<td class="markdownTableBodyNone">Targeted thread dispatch   </td><td class="markdownTableBodyNone">Handlers specify the thread they run on; the library queues and dispatches the call, so code always executes in the correct thread context.    </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone">Pay for what you use   </td><td class="markdownTableBodyNone">Completely modular architecture. Use only the features you need (e.g., basic synchronous delegates) without the overhead of asynchronous or remote features.    </td></tr>
+<td class="markdownTableBodyNone">Application owns every thread   </td><td class="markdownTableBodyNone">The library creates no internal threads — scheduling, stack sizes, and watchdogs stay explicit and auditable.    </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone">Runs everywhere C++ runs   </td><td class="markdownTableBodyNone">Small pure-virtual interfaces (<code><a class="el" href="classdmq_1_1_i_thread.html" title="A base class for a delegate enabled execution thread. Implemented by application code if asynchronous...">dmq::IThread</a></code>, <code><a class="el" href="classdmq_1_1transport_1_1_i_transport.html" title="DelegateMQ transport interface.">dmq::transport::ITransport</a></code>) mean the same application code compiles on Windows, Linux, FreeRTOS, and bare metal.    </td></tr>
+<td class="markdownTableBodyNone">Off-target development   </td><td class="markdownTableBodyNone">Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport.    </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone">No imposed dependencies   </td><td class="markdownTableBodyNone">Header-only core requires only C++17; serialization, transport, and threading are injected externally with no mandatory third-party packages.    </td></tr>
-<tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone">Application owns every thread   </td><td class="markdownTableBodyNone">No internal threads are created — every <code><a class="el" href="classdmq_1_1os_1_1_thread.html" title="Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).">dmq::os::Thread</a></code> is constructed by the application, keeping scheduling, watchdogs, and stack sizes explicit and auditable.    </td></tr>
-<tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone">Off-target development   </td><td class="markdownTableBodyNone">The stdlib port lets embedded application logic run and be tested on a Windows or Linux host without target hardware; moving to the device swaps the thread port (e.g. FreeRTOS) and transport — application code is unchanged.    </td></tr>
-<tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone">DataBus location transparency   </td><td class="markdownTableBodyNone">Subscribers receive data identically whether the publisher is in the same thread, a different process, or a remote processor — no code change when moving between local and remote.   </td></tr>
+<td class="markdownTableBodyNone">Location transparency   </td><td class="markdownTableBodyNone">DataBus subscribers receive data identically whether the publisher is in the same thread, another process, or a remote processor.   </td></tr>
 </table>
 <h1><a class="anchor" id="autotoc_md3"></a>
 Supported Integrations</h1>
@@ -171,8 +165,10 @@ Example Projects</h2>
 <p>See <a href="docs/BUILD.md#example-ecosystem-sandbox">Example Projects</a> for stand-alone projects demonstrating core features like Signal/Slot and async delegates, remote communication (TCP, UDP, ZeroMQ, MQTT), and more.</p>
 <h1><a class="anchor" id="autotoc_md7"></a>
 Overview</h1>
-<p>In C++, a delegate function object encapsulates a callable entity, such as a function, method, or lambda, so it can be invoked later. A delegate is a type-safe wrapper around a callable function that allows it to be passed around, stored, or invoked at a later time, typically within different contexts or on different threads. Delegates are particularly useful for event-driven programming, signal-slots, data distribution, callbacks, asynchronous APIs, or when you need to pass functions as arguments.</p>
-<p>DelegateMQ serves as a middleware library that utilizes simple, pure virtual interface classes for the OS, transport, and serializer. This architecture allows easy swapping of underlying technologies without changing application logic.</p>
+<p>A delegate is a type-safe wrapper around any callable — function, method, or lambda — that can be stored and invoked later, in a different context or on a different thread. DelegateMQ builds everything on this one primitive: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.</p>
+<p>The OS, transport, and serializer sit behind small pure-virtual interfaces, so underlying technologies swap without changing application logic:</p>
+<p><img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram" style="pointer-events: none; max-width: 800px; width: 100%;" class="inline"/><br  />
+ <em>DelegateMQ Layer Diagram</em></p>
 <h2><a class="anchor" id="autotoc_md8"></a>
 Key Concepts</h2>
 <ul>
@@ -200,7 +196,7 @@ Synchronous Delegates</h2>
 <div class="line">    <span class="keywordflow">return</span> 0;</div>
 <div class="line">}</div>
 <div class="ttc" id="a_delegate_m_q_8h_html"><div class="ttname"><a href="_delegate_m_q_8h.html">DelegateMQ.h</a></div><div class="ttdoc">A single-include header for the complete DelegateMQ library functionality.</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:888</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md10"></a>
 Asynchronous Delegates</h2>
 <p>Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely and effortlessly. The library automatically marshals all arguments—whether passed by value, pointer, or reference—ensuring thread safety without manual locking or complex queue management.</p>
@@ -211,27 +207,27 @@ Asynchronous Delegates</h2>
 <div class="line"><span class="keyword">auto</span> async = <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;MsgOut, thread);</div>
 <div class="line">async(<span class="stringliteral">&quot;Invoke MsgOut async (non-blocking)!&quot;</span>);</div>
 <div class="line"> </div>
-<div class="line"><span class="comment">// 2. Asynchronous Callback Pattern</span></div>
-<div class="line"><a class="code hl_class" href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a>&lt;void(<span class="keywordtype">int</span>)&gt; onComplete;</div>
-<div class="line">onComplete += <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>([](<span class="keywordtype">int</span> result) {</div>
-<div class="line">    <span class="comment">// Callback executed on &#39;thread&#39;</span></div>
-<div class="line">}, thread);</div>
-<div class="line">onComplete(123); <span class="comment">// Broadcast to all registered callbacks</span></div>
-<div class="line"> </div>
-<div class="line"><span class="comment">// 3. Asynchronous Invocation (Blocking / Wait for result)</span></div>
+<div class="line"><span class="comment">// 2. Asynchronous Invocation (Blocking / Wait for result)</span></div>
 <div class="line"><span class="keyword">auto</span> asyncWait = <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;MsgOut, thread, dmq::WAIT_INFINITE);</div>
 <div class="line"><span class="keywordtype">size_t</span> size = asyncWait(<span class="stringliteral">&quot;Invoke MsgOut async wait (blocking)!&quot;</span>);</div>
 <div class="line"> </div>
-<div class="line"><span class="comment">// 4. Asynchronous Invocation with Timeout</span></div>
+<div class="line"><span class="comment">// 3. Asynchronous Invocation with Timeout</span></div>
 <div class="line"><span class="keyword">auto</span> asyncWait1s = <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;MsgOut, thread, std::chrono::seconds(1));</div>
 <div class="line"><span class="keyword">auto</span> retVal = asyncWait1s.AsyncInvoke(<span class="stringliteral">&quot;Invoke MsgOut async wait (blocking max 1s)!&quot;</span>);</div>
 <div class="line"><span class="keywordflow">if</span> (retVal.has_value())     <span class="comment">// Async invoke completed within 1 second?</span></div>
 <div class="line">    size = retVal.value();  <span class="comment">// Get return value</span></div>
-<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:13</div></div>
 <div class="ttc" id="aclassdmq_1_1os_1_1_thread_html"><div class="ttname"><a href="classdmq_1_1os_1_1_thread.html">dmq::os::Thread</a></div><div class="ttdoc">Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).</div><div class="ttdef"><b>Definition</b> zephyr/Thread.h:46</div></div>
+</div><!-- fragment --><p>Multiple asynchronous delegates can also be stored in a <code><a class="el" href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></code> container and invoked as a group — a common pattern for completion callbacks, where each registered callback executes on its own target thread:</p>
+<div class="fragment"><div class="line"><span class="comment">// Asynchronous Callback Pattern (broadcast to all registered callbacks)</span></div>
+<div class="line"><a class="code hl_class" href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a>&lt;void(<span class="keywordtype">int</span>)&gt; onComplete;</div>
+<div class="line">onComplete += <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>([](<span class="keywordtype">int</span> result) {</div>
+<div class="line">    <span class="comment">// Callback executed on &#39;thread&#39;</span></div>
+<div class="line">}, thread);</div>
+<div class="line">onComplete(123);</div>
+<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:13</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md11"></a>
 Signal / Slot</h2>
-<p><code><a class="el" href="classdmq_1_1_signal.html">dmq::Signal</a>&lt;Sig&gt;</code> is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently. <b>Crucially, DelegateMQ signals support both synchronous and asynchronous dispatch</b>, meaning slots can be executed in the caller's context or automatically queued onto a target worker thread chosen at connect time. <code>Connect()</code> returns a <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">dmq::ScopedConnection</a></code> that auto-disconnects when it goes out of scope — no manual unsubscribe needed.</p>
+<p><code><a class="el" href="classdmq_1_1_signal.html">dmq::Signal</a>&lt;Sig&gt;</code> is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently. DelegateMQ signals support both synchronous and asynchronous dispatch, meaning slots can be executed in the caller's context or automatically queued onto a target worker thread chosen at connect time. <code>Connect()</code> returns a <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">dmq::ScopedConnection</a></code> that auto-disconnects when it goes out of scope — no manual unsubscribe needed.</p>
 <p>Declare the signal as a plain class member — no <code>shared_ptr</code> or heap allocation required:</p>
 <div class="fragment"><div class="line"><span class="keyword">class </span>Button</div>
 <div class="line">{</div>
@@ -272,8 +268,8 @@ Signal / Slot</h2>
 <div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:116</div></div>
 </div><!-- fragment --><h1><a class="anchor" id="autotoc_md12"></a>
 DataBus (DDS Lite)</h1>
-<p><code><a class="el" href="classdmq_1_1databus_1_1_data_bus.html">dmq::databus::DataBus</a></code> is a high-level middleware built on DelegateMQ's core delegates. It provides a type-safe, topic-based distribution system (similar to a lightweight DDS or MQTT) that works seamlessly across local threads and remote network nodes. <b>A key differentiator is thread-targeted distribution: subscribers specify exactly which thread receives the data, ensuring thread-safe delivery to the correct context without manual queuing or synchronization.</b></p>
-<p>It requires zero internal library threads and supports Quality of Service (QoS) features like <b>Last Value Cache (LVC)</b> to immediately update new subscribers. Unlike full DDS style systems, DataBus is lightweight enough for small embedded systems while maintaining location transparency across threads, processes, and processors.</p>
+<p><code><a class="el" href="classdmq_1_1databus_1_1_data_bus.html">dmq::databus::DataBus</a></code> is a type-safe, topic-based publish/subscribe system (similar to a lightweight DDS or MQTT) built on DelegateMQ delegates. It works across local threads and remote network nodes alike. Each subscriber specifies the thread that receives its data, so delivery always lands in the correct thread context with no manual queuing or synchronization.</p>
+<p>DataBus creates no internal threads and is small enough for embedded targets, unlike full DDS systems. Quality of Service (QoS) options such as Last Value Cache (LVC) deliver the most recent value to new subscribers immediately.</p>
 <div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="_delegate_m_q_8h.html">DelegateMQ.h</a>&quot;</span></div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// 1. Subscribe to a topic (dispatched to a worker thread)</span></div>
@@ -290,13 +286,29 @@ DataBus (DDS Lite)</h1>
 <div class="line"><span class="keyword">auto</span> conn2 = <a class="code hl_function" href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe&lt;int&gt;</a>(<span class="stringliteral">&quot;status&quot;</span>, [](<span class="keywordtype">int</span> s) {</div>
 <div class="line">    <span class="comment">// New subscribers get the last published value immediately</span></div>
 <div class="line">}, &amp;workerThread, qos);</div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:95</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:126</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:83</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:114</div></div>
 <div class="ttc" id="astructdmq_1_1databus_1_1_qo_s_html"><div class="ttname"><a href="structdmq_1_1databus_1_1_qo_s.html">dmq::databus::QoS</a></div><div class="ttdef"><b>Definition</b> DataBusQos.h:10</div></div>
 <div class="ttc" id="astructdmq_1_1databus_1_1_qo_s_html_a947158f15627b2803d3f202e5bc8d813"><div class="ttname"><a href="structdmq_1_1databus_1_1_qo_s.html#a947158f15627b2803d3f202e5bc8d813">dmq::databus::QoS::lastValueCache</a></div><div class="ttdeci">bool lastValueCache</div><div class="ttdef"><b>Definition</b> DataBusQos.h:12</div></div>
 </div><!-- fragment --><h1><a class="anchor" id="autotoc_md13"></a>
+Remote Delegates</h1>
+<p>Remote delegates send a function call across a process or network boundary. Both sides share a message ID; the receiver binds a member function to it, and the sender's invocation is serialized, transported, and executed remotely — just like a normal function call.</p>
+<div class="fragment"><div class="line"><span class="keyword">constexpr</span> <a class="code hl_typedef" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a> TEMPERATURE_ID = 1;</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// --- Receiver process: bind a handler to the ID ---</span></div>
+<div class="line"><a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(<span class="keywordtype">float</span>)&gt; rx(transport, serializer);</div>
+<div class="line">rx.Bind(&amp;logger, &amp;DataLogger::OnTemperature, TEMPERATURE_ID);</div>
+<div class="line">dmq::RegisterEndpoint(TEMPERATURE_ID, rx.GetEndpoint());</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// --- Sender process: invoke the channel to send ---</span></div>
+<div class="line"><a class="code hl_class" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt;void(<span class="keywordtype">float</span>)&gt; tx(transport, serializer, TEMPERATURE_ID);</div>
+<div class="line">tx(25.5f);  <span class="comment">// invoke; argument is serialized and sent to the receiver</span></div>
+<div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
+<div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:13</div></div>
+</div><!-- fragment --><p>Any transport (ZeroMQ, TCP, UDP, serial, ...) and serializer (MessagePack, Cereal, ...) can carry the call. See <a class="el" href="md_docs_2_d_e_t_a_i_l_s.html">Design Details</a> for the complete pattern and <a href="docs/BUILD.md#example-ecosystem-sandbox">Example Projects</a> for working programs with real transports.</p>
+<h1><a class="anchor" id="autotoc_md14"></a>
 DelegateMQ Tools</h1>
-<p>DelegateMQ includes built-in diagnostic tools for real-time monitoring of DataBus traffic, network topology, and thread performance. These tools operate with <b>zero impact</b> on your application via an asynchronous bridge, ensuring monitoring never blocks execution. Built with FTXUI, they provide a responsive, cross-platform terminal dashboard featuring <b>regex filtering</b> for instant traffic analysis. Three TUI (Terminal User Interface) consoles are provided:</p>
+<p>DelegateMQ includes three diagnostic TUI (Terminal User Interface) consoles for real-time monitoring of DataBus traffic, network topology, and thread performance. Monitoring runs through an asynchronous bridge and never blocks the application. Built with FTXUI, the consoles run cross-platform in any terminal and support regex filtering for traffic analysis:</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
 <th class="markdownTableHeadNone">Tool   </th><th class="markdownTableHeadNone">Purpose    </th></tr>
@@ -308,12 +320,6 @@ DelegateMQ Tools</h1>
 <td class="markdownTableBodyNone"><b><code>dmq-thread</code></b>   </td><td class="markdownTableBodyNone">Performance dashboard — monitors thread health, queue depths, and dispatch latency (Avg/Max)   </td></tr>
 </table>
 <p><img src="docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;" class="inline"/></p>
-<h1><a class="anchor" id="autotoc_md14"></a>
-Modular Architecture</h1>
-<p>DelegateMQ uses an external thread, transport, and serializer, all of which are based on simple, well-defined interfaces.</p>
-<p><img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram" style="pointer-events: none; max-width: 800px; width: 100%;" class="inline"/><br  />
- <em>DelegateMQ Layer Diagram</em></p>
-<p>The library's flexible CMake build options allow for the inclusion of only the necessary features. Synchronous, asynchronous, and remote delegates can be used individually or in combination.</p>
 <h1><a class="anchor" id="autotoc_md15"></a>
 Features</h1>
 <p>DelegateMQ at a glance.</p>

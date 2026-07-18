@@ -68,10 +68,14 @@ OnEvent(42);  // conn auto-disconnects when it goes out of scope
 ### Remote delegate
 
 ```cpp
-dmq::RemoteChannel<void(int)> channel(transport, serializer);
-channel.Bind(this, &Class::Handler, MSG_ID);
-dmq::RegisterEndpoint(MSG_ID, channel.GetEndpoint());
-channel(42);  // serialized and sent over the network
+// Receiver: bind a handler to the shared message ID
+dmq::RemoteChannel<void(int)> rx(transport, serializer);
+rx.Bind(this, &Class::Handler, MSG_ID);
+dmq::RegisterEndpoint(MSG_ID, rx.GetEndpoint());
+
+// Sender: pass the ID to the constructor — no Bind() needed
+dmq::RemoteChannel<void(int)> tx(transport, serializer, MSG_ID);
+tx(42);  // serialized and sent over the network
 ```
 
 ### DataBus publish/subscribe
@@ -326,7 +330,7 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 - Include `DelegateMQ.h`; the core is header-only and requires only C++17.
 - CMake is the primary build system; it auto-detects the platform and selects defaults.
 - For async delegates or DataBus, also compile the `DMQ_PORT_SOURCES` for the target OS/thread port.
-- Key CMake options: `DMQ_THREAD` (e.g., `DMQ_THREAD_STDLIB`, `DMQ_THREAD_FREERTOS`, `DMQ_THREAD_WIN32`), `DMQ_ALLOCATOR` (fixed-block allocator), `DMQ_ASSERTS`, `DMQ_DATABUS_TOOLS`.
+- Key CMake options: `DMQ_THREAD` (e.g., `DMQ_THREAD_STDLIB`, `DMQ_THREAD_FREERTOS`, `DMQ_THREAD_WIN32`), `DMQ_ALLOCATOR` (fixed-block allocator), `DMQ_ASSERTS`, `DMQ_TOOLS`.
 
 ## Diagnostic Tools (DMQ_TOOLS=ON)
 
@@ -336,7 +340,7 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 
 ## Documentation
 
-- [README](README.md) — overview, quick start, comparison table
+- [README](README.md) — overview, quick start, feature table
 - [DETAILS](docs/DETAILS.md) — in-depth API documentation and design rationale
 - [PORTING](docs/PORTING.md) — how to port to a new OS or thread model
 - [SIGNALS](docs/SIGNALS.md) — Signal/ScopedConnection usage guide

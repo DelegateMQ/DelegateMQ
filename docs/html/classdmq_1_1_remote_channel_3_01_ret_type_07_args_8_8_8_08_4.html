@@ -110,9 +110,9 @@ $(function(){initNavTree('classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:a57212892c866d706bb55c7394d412a01" id="r_a57212892c866d706bb55c7394d412a01"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a57212892c866d706bb55c7394d412a01">RemoteChannel</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">transport::ITransport</a> &amp;transport, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;serializer)</td></tr>
-<tr class="memdesc:a57212892c866d706bb55c7394d412a01"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct a <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>.  <br /></td></tr>
-<tr class="separator:a57212892c866d706bb55c7394d412a01"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a90892d4eab49f2a22c0d872467b1a92a" id="r_a90892d4eab49f2a22c0d872467b1a92a"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a90892d4eab49f2a22c0d872467b1a92a">RemoteChannel</a> (<a class="el" href="classdmq_1_1transport_1_1_i_transport.html">transport::ITransport</a> &amp;transport, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;serializer, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a> id=<a class="el" href="namespacedmq.html#a0278aebc59e9f350d10a47d1a5ef1acb">INVALID_REMOTE_ID</a>)</td></tr>
+<tr class="memdesc:a90892d4eab49f2a22c0d872467b1a92a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct a <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>.  <br /></td></tr>
+<tr class="separator:a90892d4eab49f2a22c0d872467b1a92a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aecd2c6641f9fc996dabd77046ac991ec" id="r_aecd2c6641f9fc996dabd77046ac991ec"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aecd2c6641f9fc996dabd77046ac991ec">~RemoteChannel</a> ()=default</td></tr>
 <tr class="separator:aecd2c6641f9fc996dabd77046ac991ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aedc8aaea43e85c7aa08d0fc62bdb28da" id="r_aedc8aaea43e85c7aa08d0fc62bdb28da"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aedc8aaea43e85c7aa08d0fc62bdb28da">RemoteChannel</a> (const <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a> &amp;)=delete</td></tr>
@@ -150,6 +150,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a70f0d55e7da5c11ef5a740a3f53fb501" id="r_a70f0d55e7da5c11ef5a740a3f53fb501"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#a62ea8a73887af62d409322557b4e757d">DelegateError</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a70f0d55e7da5c11ef5a740a3f53fb501">GetError</a> () noexcept</td></tr>
 <tr class="memdesc:a70f0d55e7da5c11ef5a740a3f53fb501"><td class="mdescLeft">&#160;</td><td class="mdescRight">The error status of the most recent invocation.  <br /></td></tr>
 <tr class="separator:a70f0d55e7da5c11ef5a740a3f53fb501"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa10a9caaa950072cb212b90f39cfa3eb" id="r_aa10a9caaa950072cb212b90f39cfa3eb"><td class="memItemLeft" align="right" valign="top">uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa10a9caaa950072cb212b90f39cfa3eb">GetLastSeqNum</a> () const noexcept</td></tr>
+<tr class="memdesc:aa10a9caaa950072cb212b90f39cfa3eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">The sequence number assigned to the most recent send.  <br /></td></tr>
+<tr class="separator:aa10a9caaa950072cb212b90f39cfa3eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9e3ed9f9d154122dbef3b82fafcbdec1" id="r_a9e3ed9f9d154122dbef3b82fafcbdec1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1_i_remote_invoker.html">IRemoteInvoker</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9e3ed9f9d154122dbef3b82fafcbdec1">GetEndpoint</a> () noexcept</td></tr>
 <tr class="memdesc:a9e3ed9f9d154122dbef3b82fafcbdec1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the internal delegate as an IRemoteInvoker* for RegisterEndpoint().  <br /></td></tr>
 <tr class="separator:a9e3ed9f9d154122dbef3b82fafcbdec1"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -164,22 +167,23 @@ Public Member Functions</h2></td></tr>
 <div class="textblock"><div class="compoundTemplParams">template&lt;class RetType, class... Args&gt;<br />
 class dmq::RemoteChannel&lt; RetType(Args...)&gt;</div><p>Aggregates dispatcher, stream, serializer, and delegate binding for a single function signature. The canonical way to configure a remote endpoint. </p>
 <p><code><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a></code> is the single object a user needs to declare per message signature. It owns the <code><a class="el" href="classdmq_1_1_dispatcher.html" title="Dispatcher sends data to the transport for transmission to the endpoint.">Dispatcher</a></code>, the serialization stream, and the internal <code><a class="el" href="classdmq_1_1_delegate_function_remote.html">DelegateFunctionRemote</a></code> that handles both sending and receiving.</p>
-<p><b>Usage pattern (preferred):</b> </p><div class="fragment"><div class="line"><span class="comment">// Declare per signature — one channel replaces channel + separate delegate</span></div>
+<p><b>Receive-side usage (preferred):</b> </p><div class="fragment"><div class="line"><span class="comment">// Declare per signature — one channel replaces channel + separate delegate</span></div>
 <div class="line">std::optional&lt;<a class="code hl_class" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt;void(AlarmMsg&amp;)&gt;&gt; m_alarmChannel;</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// In Create():</span></div>
-<div class="line">m_alarmChannel.emplace(GetSendTransport(), m_alarmSer);</div>
+<div class="line">m_alarmChannel.emplace(GetRecvTransport(), m_alarmSer);</div>
 <div class="line">m_alarmChannel-&gt;Bind(<span class="keyword">this</span>, &amp;MyClass::OnAlarm, ALARM_ID);</div>
 <div class="line">m_alarmChannel-&gt;SetErrorHandler(<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">MakeDelegate</a>(<span class="keyword">this</span>, &amp;MyClass::OnError));</div>
 <div class="line">RegisterEndpoint(ALARM_ID, m_alarmChannel-&gt;GetEndpoint());</div>
+<div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
+</div><!-- fragment --><p><b>Send-side usage — no <a class="el" href="#accc5b32807f245e737a4097535927cef" title="Bind a non-const member function as the receive-side handler.">Bind()</a> required:</b> </p><div class="fragment"><div class="line">m_alarmChannel.emplace(GetSendTransport(), m_alarmSer, ALARM_ID);</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// Send (fire-and-forget):</span></div>
 <div class="line">(*m_alarmChannel)(msg);</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// Send (blocking wait):</span></div>
 <div class="line">RemoteInvokeWait(*m_alarmChannel, msg);</div>
-<div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:888</div></div>
 </div><!-- fragment --><p><b>Legacy MakeDelegate pattern (still supported):</b> </p><div class="fragment"><div class="line"><span class="keyword">auto</span> d = <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">MakeDelegate</a>(&amp;MyFunc, REMOTE_ID, channel);</div>
 </div><!-- fragment --><p><code><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a></code> is non-copyable because it owns mutable stream state and the internal delegate holds raw pointers into the channel.</p>
 <dl class="tparams"><dt>Template Parameters</dt><dd>
@@ -190,8 +194,8 @@ class dmq::RemoteChannel&lt; RetType(Args...)&gt;</div><p>Aggregates dispatcher,
   </dd>
 </dl>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="a57212892c866d706bb55c7394d412a01" name="a57212892c866d706bb55c7394d412a01"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a57212892c866d706bb55c7394d412a01">&#9670;&#160;</a></span>RemoteChannel() <span class="overload">[1/2]</span></h2>
+<a id="a90892d4eab49f2a22c0d872467b1a92a" name="a90892d4eab49f2a22c0d872467b1a92a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a90892d4eab49f2a22c0d872467b1a92a">&#9670;&#160;</a></span>RemoteChannel() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -209,7 +213,12 @@ template&lt;class RetType , class... Args&gt; </div>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>serializer</em></span>&#160;)</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>serializer</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em>id</em></span><span class="paramdefsep"> = </span><span class="paramdefval"><a class="el" href="namespacedmq.html#a0278aebc59e9f350d10a47d1a5ef1acb">INVALID_REMOTE_ID</a></span>&#160;)</td>
         </tr>
       </table>
   </td>
@@ -220,10 +229,11 @@ template&lt;class RetType , class... Args&gt; </div>
 </div><div class="memdoc">
 
 <p>Construct a <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>. </p>
-<dl class="params"><dt>Parameters</dt><dd>
+<p>A send-only channel needs no <code><a class="el" href="#accc5b32807f245e737a4097535927cef" title="Bind a non-const member function as the receive-side handler.">Bind()</a></code> — pass the remote ID here and invoke the channel directly. The receive side must invoke <code><a class="el" href="#accc5b32807f245e737a4097535927cef" title="Bind a non-const member function as the receive-side handler.">Bind()</a></code> to attach the target function invoked on message arrival (<code><a class="el" href="#accc5b32807f245e737a4097535927cef" title="Bind a non-const member function as the receive-side handler.">Bind()</a></code> overwrites the ID with the same value). </p><dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">transport</td><td>The transport used to send serialized data. Caller owns it. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">serializer</td><td>The serializer matching the delegate signature. Caller owns it. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">id</td><td>The remote delegate identifier shared with the receiver. Optional for receive channels where <code><a class="el" href="#accc5b32807f245e737a4097535927cef" title="Bind a non-const member function as the receive-side handler.">Bind()</a></code> supplies the ID. </td></tr>
   </table>
   </dd>
 </dl>
@@ -523,6 +533,35 @@ template&lt;class RetType , class... Args&gt; </div>
 </div><div class="memdoc">
 
 <p>The error status of the most recent invocation. </p>
+
+</div>
+</div>
+<a id="aa10a9caaa950072cb212b90f39cfa3eb" name="aa10a9caaa950072cb212b90f39cfa3eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa10a9caaa950072cb212b90f39cfa3eb">&#9670;&#160;</a></span>GetLastSeqNum()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint16_t <a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt; RetType(Args...)&gt;::GetLastSeqNum </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">noexcept</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>The sequence number assigned to the most recent send. </p>
 
 </div>
 </div>

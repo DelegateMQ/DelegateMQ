@@ -2,6 +2,7 @@
 #define _VALVE_H
 
 #include "DelegateMQ.h"
+#include "Logger.h"
 #include "messages/ActuatorStatusMsg.h"
 #include "util/Constants.h"
 #include <cstdio>

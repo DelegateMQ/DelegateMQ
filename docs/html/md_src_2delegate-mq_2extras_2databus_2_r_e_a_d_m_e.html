@@ -122,12 +122,12 @@ Quickstart</h1>
 <div class="line">    [](<span class="keyword">const</span> TemperatureMsg&amp; msg) {</div>
 <div class="line">        printf(<span class="stringliteral">&quot;Temp: %.1f C\n&quot;</span>, msg.celsius);</div>
 <div class="line">    });</div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:95</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:83</div></div>
 </div><!-- fragment --><p><b>3. Publish</b> </p><div class="fragment"><div class="line">TemperatureMsg msg;</div>
 <div class="line">msg.celsius = 36.6f;</div>
 <div class="line"><a class="code hl_function" href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a>(<span class="stringliteral">&quot;sensor/temperature&quot;</span>, msg);</div>
 <div class="line"><span class="comment">// → subscriber lambda fires immediately on the calling thread</span></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:126</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:114</div></div>
 </div><!-- fragment --><blockquote class="doxtable">
 <p>&zwj;<b>Connection lifetime</b>: <code>Subscribe</code> returns a <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">dmq::ScopedConnection</a></code>. Letting it go out of scope silently unsubscribes — store it in a member variable. </p>
 </blockquote>
@@ -135,7 +135,7 @@ Quickstart</h1>
 <div class="line">    <span class="stringliteral">&quot;sensor/temperature&quot;</span>,</div>
 <div class="line">    <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;MySensor::OnTemp, <span class="keyword">this</span>),</div>
 <div class="line">    &amp;m_workerThread);   <span class="comment">// callback executes on m_workerThread, not the publisher&#39;s thread</span></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:888</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
 </div><!-- fragment --><p>To span multiple processes over a network, see Multi-Process Quickstart — `NetworkNode` below.</p>
 <hr  />
 <h1><a class="anchor" id="autotoc_md268"></a>
@@ -189,7 +189,7 @@ Minimal two-node example</h2>
 <div class="line">    <span class="keyword">extern</span> <a class="code hl_struct" href="structdmq_1_1serialization_1_1serializer_1_1_serializer.html">dmq::serialization::serializer::Serializer</a>&lt;void(AlarmMsg)&gt;       serAlarm;</div>
 <div class="line">}</div>
 <div class="ttc" id="a_delegate_m_q_8h_html"><div class="ttname"><a href="_delegate_m_q_8h.html">DelegateMQ.h</a></div><div class="ttdoc">A single-include header for the complete DelegateMQ library functionality.</div></div>
-<div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:12</div></div>
+<div class="ttc" id="anamespacedmq_html_a5c5e55328ae2cd1d800dfb6c83a21bda"><div class="ttname"><a href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">dmq::DelegateRemoteId</a></div><div class="ttdeci">uint16_t DelegateRemoteId</div><div class="ttdef"><b>Definition</b> IDispatcher.h:13</div></div>
 <div class="ttc" id="astructdmq_1_1serialization_1_1serializer_1_1_serializer_html"><div class="ttname"><a href="structdmq_1_1serialization_1_1serializer_1_1_serializer.html">dmq::serialization::serializer::Serializer</a></div><div class="ttdef"><b>Definition</b> serialize/Serializer.h:18</div></div>
 </div><!-- fragment --><p><b><code>node_a/System.cpp</code></b> — the sensor node (publishes temperature, receives alarms): </p><div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="_network_node_8h.html">extras/databus/NetworkNode.h</a>&quot;</span></div>
 <div class="line"><span class="preprocessor">#include &quot;<a class="code" href="_win32_udp_transport_8h.html">port/transport/win32-udp/Win32UdpTransport.h</a>&quot;</span>  <span class="comment">// or LinuxUdpTransport</span></div>

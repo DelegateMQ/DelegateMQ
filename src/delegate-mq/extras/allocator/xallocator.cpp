@@ -50,16 +50,16 @@ struct BlockHeader {
 	#define MAX_BLOCKS		32
 
 	// Create static storage for each static allocator instance
-	static char _allocator8 [sizeof(AllocatorPool<char[8], MAX_BLOCKS>)];
-	static char _allocator16 [sizeof(AllocatorPool<char[16], MAX_BLOCKS>)];
-	static char _allocator32 [sizeof(AllocatorPool<char[32], MAX_BLOCKS>)];
-	static char _allocator64 [sizeof(AllocatorPool<char[64], MAX_BLOCKS>)];
-	static char _allocator128 [sizeof(AllocatorPool<char[128], MAX_BLOCKS>)];
-	static char _allocator256 [sizeof(AllocatorPool<char[256], MAX_BLOCKS>)];
-	static char _allocator512 [sizeof(AllocatorPool<char[512], MAX_BLOCKS>)];
-	static char _allocator1024 [sizeof(AllocatorPool<char[1024], MAX_BLOCKS>)];
-	static char _allocator2048 [sizeof(AllocatorPool<char[2048], MAX_BLOCKS>)];	
-	static char _allocator4096 [sizeof(AllocatorPool<char[4096], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator8 [sizeof(AllocatorPool<char[8], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator16 [sizeof(AllocatorPool<char[16], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator32 [sizeof(AllocatorPool<char[32], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator64 [sizeof(AllocatorPool<char[64], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator128 [sizeof(AllocatorPool<char[128], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator256 [sizeof(AllocatorPool<char[256], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator512 [sizeof(AllocatorPool<char[512], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator1024 [sizeof(AllocatorPool<char[1024], MAX_BLOCKS>)];
+	static alignas(std::max_align_t) char _allocator2048 [sizeof(AllocatorPool<char[2048], MAX_BLOCKS>)];	
+	static alignas(std::max_align_t) char _allocator4096 [sizeof(AllocatorPool<char[4096], MAX_BLOCKS>)];
 
 	// Array of pointers to all allocator instances
 	static Allocator* _allocators[MAX_ALLOCATORS];

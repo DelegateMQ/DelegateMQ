@@ -5,6 +5,7 @@
 // David Lafreniere
 
 #include "xallocator.h"
+#include "delegate/DelegateOpt.h"
 #include <memory>    // For std::allocator and std::allocator_traits
 #include <utility>   // For std::forward
 
@@ -52,7 +53,9 @@ public:
 	// Override allocate method to use custom allocation function
 	pointer allocate(size_type n, typename std::allocator_traits<stl_allocator<void>>::const_pointer /*hint*/ = 0) 
 	{
-		return static_cast<pointer>(xmalloc(n * sizeof(T)));
+		void* p = xmalloc(n * sizeof(T));
+		if (!p) BAD_ALLOC();
+		return static_cast<pointer>(p);
 	}
 
 	// Override deallocate method to use custom deallocation function

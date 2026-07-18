@@ -2586,6 +2586,7 @@ extern void TimerDelegateTests();
 #ifdef DMQ_ALLOCATOR
 extern void AllocatorTests();
 #endif
+extern void MakeTupleHeapTests();
 
 void RunDelegateUnitTests()
 {
@@ -2607,6 +2608,7 @@ void RunDelegateUnitTests()
 #ifdef DMQ_ALLOCATOR
 		AllocatorTests();
 #endif
+		MakeTupleHeapTests();
 	}
 	catch (const std::exception& e)
 	{
