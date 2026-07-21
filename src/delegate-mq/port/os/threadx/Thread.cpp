@@ -199,33 +199,39 @@ void Thread::ExitThread()
     {
         m_exit.store(true);
 
-        // Send exit message
-        ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
-        if (msg)
-        {
-            // Wait forever to ensure message is sent
-            if (tx_queue_send(&m_queue, &msg, TX_WAIT_FOREVER) != TX_SUCCESS)
-            {
-                delete msg; // Failed to send, prevent leak
-            }
-        }
-
-        // Wait for thread to terminate using semaphore logic.
-        // We only wait if we are NOT the thread itself (avoid deadlock).
-        // If tx_thread_identify() returns NULL (ISR context), we also shouldn't block.
+        // Determine self-exit BEFORE attempting to enqueue the exit message.
+        // If this thread is destroying itself from within its own dispatched
+        // callback, it is not consuming its own queue right now -- it is
+        // blocked here, inside ExitThread(). A blocking tx_queue_send() would
+        // deadlock forever if the queue happened to be full. No message needs
+        // to be queued in that case: Run()'s dispatch loop already checks
+        // m_selfExitPtr immediately after the current callback invoke
+        // returns, and unwinds without touching 'this' again.
         TX_THREAD* currentThread = tx_thread_identify();
-        if (currentThread != &m_thread) {
+        bool isSelfExit = (currentThread == &m_thread);
+
+        if (isSelfExit) {
+            if (m_selfExitPtr) *m_selfExitPtr = true;
+        } else {
+            // Send exit message
+            ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (msg)
+            {
+                // Wait forever to ensure message is sent
+                if (tx_queue_send(&m_queue, &msg, TX_WAIT_FOREVER) != TX_SUCCESS)
+                {
+                    delete msg; // Failed to send, prevent leak
+                }
+            }
+
+            // If tx_thread_identify() returns NULL (ISR context), we shouldn't block.
             if (currentThread != nullptr) {
                 // Wait for Run() to signal completion
                 tx_semaphore_get(&m_exitSem, TX_WAIT_FOREVER);
             }
-        } else {
-            if (m_selfExitPtr) *m_selfExitPtr = true;
-        }
 
-        // Force terminate if still running (safety net)
-        // tx_thread_terminate returns TX_SUCCESS if terminated or TX_THREAD_ERROR if already terminated
-        if (currentThread != &m_thread) {
+            // Force terminate if still running (safety net)
+            // tx_thread_terminate returns TX_SUCCESS if terminated or TX_THREAD_ERROR if already terminated
             tx_thread_terminate(&m_thread);
             tx_thread_delete(&m_thread);
         }

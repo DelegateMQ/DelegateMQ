@@ -272,7 +272,15 @@ private:
         };
 
         // 5. [Caller Thread] Dispatch the lambda to the Network Thread queue.
-        auto retVal = dmq::MakeDelegate(std::move(asyncCallFunc), m_thread, SEND_TIMEOUT)
+        // Must block until asyncCallFunc actually runs (or throws) on the network
+        // thread rather than timing out on the *queueing* wait: asyncCallFunc
+        // captures a raw pointer to the caller's `target`. If this wait timed out
+        // while the message was still queued (a short SEND_TIMEOUT was previously
+        // used here), a caller seeing "failed" could free `target` while the
+        // still-queued closure later runs against a dangling pointer. Every other
+        // marshal-to-network-thread call site in this file (Initialize, Start,
+        // RegisterEndpoint, Stop) uses WAIT_INFINITE for the same reason.
+        auto retVal = dmq::MakeDelegate(std::move(asyncCallFunc), m_thread, dmq::WAIT_INFINITE)
             .AsyncInvoke(std::forward<Args>(args)...);
 
         if (retVal.has_value() && retVal.value() == true)
@@ -354,7 +362,6 @@ private:
     dmq::xmap<dmq::DelegateRemoteId, dmq::IRemoteInvoker*> m_receiveIdMap;
     dmq::ScopedConnection m_statusConn;
 
-    static const std::chrono::milliseconds SEND_TIMEOUT;
     static const std::chrono::milliseconds RECV_TIMEOUT;
 };
 

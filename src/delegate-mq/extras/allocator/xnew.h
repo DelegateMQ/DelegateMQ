@@ -26,7 +26,21 @@ namespace dmq {
     {
         void* mem = xmalloc(sizeof(T));
         if (!mem) return nullptr;
+
+#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+        // Exceptions unavailable/disabled: T's constructor is assumed not to throw.
         return ::new(mem) T(std::forward<Args>(args)...);
+#else
+        try {
+            return ::new(mem) T(std::forward<Args>(args)...);
+        }
+        catch (...) {
+            // Return the block to the pool before propagating -- otherwise a
+            // throwing T constructor permanently leaks a fixed-block-pool slot.
+            xfree(mem);
+            throw;
+        }
+#endif
     }
 
     /// @brief Destroy T and return its memory to the fixed-block pool.

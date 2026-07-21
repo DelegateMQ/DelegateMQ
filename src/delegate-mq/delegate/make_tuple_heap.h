@@ -106,14 +106,14 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
         // Allocate memory for heap_arg and copy the value
         heap_arg = xnew<Arg*>();
         if (!heap_arg) {
+            // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
+            // otherwise it throws std::bad_alloc. Nothing below this call executes.
             BAD_ALLOC();
-            heap_arg = arg;
         } else {
             *heap_arg = xnew<Arg>(**arg);
             if (!*heap_arg) {
                 xdelete(heap_arg);
                 BAD_ALLOC();
-                heap_arg = arg;
             } else {
                 del_arg = heap_arg;
             }
@@ -124,7 +124,6 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
         heap_arg = xnew<Arg*>(nullptr);
         if (!heap_arg) {
             BAD_ALLOC();
-            heap_arg = arg;
         } else {
             del_arg = heap_arg;
         }
@@ -137,7 +136,6 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
             xdelete(del_arg);
         }
         BAD_ALLOC();
-        heap_arg = arg;
     }
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
@@ -166,8 +164,9 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
     if (arg != nullptr) {
         heap_arg = xnew<Arg>(*arg);
         if (!heap_arg) {
+            // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
+            // otherwise it throws std::bad_alloc. Nothing below this call executes.
             BAD_ALLOC();
-            heap_arg = arg;
         } else {
             del_arg = heap_arg;
         }
@@ -178,7 +177,6 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
             xdelete(del_arg);
         }
         BAD_ALLOC();
-        heap_arg = arg;
     }
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
@@ -205,8 +203,9 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
     Arg* heap_arg = xnew<Arg>(arg);
     Arg* del_arg = nullptr;
     if (!heap_arg) {
+        // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
+        // otherwise it throws std::bad_alloc. Nothing below this call executes.
         BAD_ALLOC();
-        heap_arg = &arg;
     } else {
         del_arg = heap_arg;
     }
@@ -216,7 +215,6 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
             xdelete(del_arg);
         }
         BAD_ALLOC();
-        heap_arg = &arg;
     }
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)

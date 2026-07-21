@@ -175,23 +175,31 @@ void Thread::ExitThread()
     if (m_queue) {
         m_exit.store(true);
 
-        ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+        // Check self-exit BEFORE attempting to enqueue the exit message. If
+        // this thread is destroying itself from within its own dispatched
+        // callback, it is not consuming its own queue right now -- it is
+        // blocked here, inside ExitThread(). A blocking xQueueSend() would
+        // deadlock forever if the queue happened to be full. No message needs
+        // to be queued in that case: Run()'s dispatch loop already checks
+        // m_selfExitPtr immediately after the current callback invoke
+        // returns, and unwinds without touching 'this' again.
+        if (xTaskGetCurrentTaskHandle() == m_thread) {
+            if (m_selfExitPtr) *m_selfExitPtr = true;
+        } else {
+            ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
 
-        if (msg) {
-            // Block until message is sent. This ensures the thread WILL receive it.
-            // If the thread is deadlocked, we hang here, which is better than 
-            // hanging at the semaphore after dropping the message.
-            if (xQueueSend(m_queue, &msg, portMAX_DELAY) != pdPASS) {
-                delete msg;
+            if (msg) {
+                // Block until message is sent. This ensures the thread WILL receive it.
+                // If the thread is deadlocked, we hang here, which is better than
+                // hanging at the semaphore after dropping the message.
+                if (xQueueSend(m_queue, &msg, portMAX_DELAY) != pdPASS) {
+                    delete msg;
+                }
             }
-        }
 
-        if (xTaskGetCurrentTaskHandle() != m_thread) {
             if (m_exitSem) {
                 xSemaphoreTake(m_exitSem, portMAX_DELAY);
             }
-        } else {
-            if (m_selfExitPtr) *m_selfExitPtr = true;
         }
 
         if (m_queue) {

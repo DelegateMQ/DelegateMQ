@@ -927,6 +927,13 @@ static void DelegateFunctionAsyncWaitTests()
 // operator() call parked on the semaphore until m_timeout expired (or forever,
 // since the default timeout is WAIT_INFINITE).
 //
+// Also verifies a related fix: `DelegateAsyncWaitMsg::GetInvokeSucceeded()`
+// must remain false when the target throws. Before that fix, the source
+// thread's operator() set `m_success = true` (and therefore IsSuccess()
+// returned true) merely because the semaphore was signaled, even though the
+// destination thread's target function never actually completed -- silently
+// masking the exception as a successful, empty-return-value call.
+//
 // This deliberately calls Invoke() directly instead of going through a live
 // IThread's dispatch loop and a real operator() call. Every OS thread port's
 // dispatch loop (see port/os/*/Thread.cpp) treats any exception escaping a
@@ -936,7 +943,8 @@ static void DelegateFunctionAsyncWaitTests()
 // library, but it means the real end-to-end path can't be exercised inside
 // this shared test binary without killing the rest of the test suite.
 // Calling Invoke() directly isolates just the fix under test: the semaphore
-// must be signaled even when the target throws.
+// must be signaled, and GetInvokeSucceeded() must stay false, even when the
+// target throws.
 static void AsyncWaitExceptionSafetyTests()
 {
     // Free function target
@@ -958,6 +966,7 @@ static void AsyncWaitExceptionSafetyTests()
         // The fix: the semaphore is already signaled, so a zero-timeout wait
         // succeeds immediately instead of the caller blocking until timeout.
         ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
     }
 
     // Member function target
@@ -977,6 +986,7 @@ static void AsyncWaitExceptionSafetyTests()
         }
         ASSERT_TRUE(caught);
         ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
     }
 
     // Shared-pointer member function target
@@ -996,6 +1006,7 @@ static void AsyncWaitExceptionSafetyTests()
         }
         ASSERT_TRUE(caught);
         ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
     }
 
     // Lambda (std::function) target
@@ -1015,6 +1026,7 @@ static void AsyncWaitExceptionSafetyTests()
         }
         ASSERT_TRUE(caught);
         ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
     }
 }
 

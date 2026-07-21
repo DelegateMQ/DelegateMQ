@@ -10,7 +10,6 @@ using namespace dmq;
 using namespace dmq::transport;
 using namespace std;
 
-const std::chrono::milliseconds NetworkEngine::SEND_TIMEOUT(100);
 const std::chrono::milliseconds NetworkEngine::RECV_TIMEOUT(2000);
 
 // [STM32-FreeRTOS] Define Static Stack for Network Thread

@@ -146,23 +146,30 @@ void Thread::ExitThread()
     {
         m_exit.store(true);
 
-        // Send exit message
-        ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
-        if (msg)
-        {
-            // Wait forever to ensure message is sent
-            if (k_msgq_put(&m_msgq, &msg, K_FOREVER) != 0) 
-            {
-                delete msg; 
-            }
-        }
-        
-        // Wait for thread to actually finish to avoid use-after-free of the stack.
-        // We only wait if we are NOT the thread itself (avoid deadlock).
-        if (k_current_get() != &m_thread) {
-            k_sem_take(&m_exitSem, K_FOREVER);
-        } else {
+        // Check self-exit BEFORE attempting to enqueue the exit message. If
+        // this thread is destroying itself from within its own dispatched
+        // callback, it is not consuming its own queue right now -- it is
+        // blocked here, inside ExitThread(). A blocking k_msgq_put() would
+        // deadlock forever if the queue happened to be full. No message needs
+        // to be queued in that case: Run()'s dispatch loop already checks
+        // m_selfExitPtr immediately after the current callback invoke
+        // returns, and unwinds without touching 'this' again.
+        if (k_current_get() == &m_thread) {
             if (m_selfExitPtr) *m_selfExitPtr = true;
+        } else {
+            // Send exit message
+            ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (msg)
+            {
+                // Wait forever to ensure message is sent
+                if (k_msgq_put(&m_msgq, &msg, K_FOREVER) != 0)
+                {
+                    delete msg;
+                }
+            }
+
+            // Wait for thread to actually finish to avoid use-after-free of the stack.
+            k_sem_take(&m_exitSem, K_FOREVER);
         }
 
         ThreadMsg* drainMsg = nullptr;

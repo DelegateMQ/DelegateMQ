@@ -159,24 +159,30 @@ void Thread::ExitThread()
     {
         m_exit.store(true);
 
-        // Send exit message
-        ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
-        if (msg)
-        {
-            // Send pointer, wait forever to ensure it gets in.
-            if (osMessageQueuePut(m_msgq, &msg, 0, osWaitForever) != osOK) 
-            {
-                delete msg; // Failed to send
-            }
-        }
-
-        // Wait for thread to process the exit message and signal completion.
-        // We only wait if we are NOT the thread itself (prevent deadlock).
-        // If osThreadGetId() returns NULL or error, we skip wait.
-        if (osThreadGetId() != m_thread) {
-            if (m_exitSem != NULL) osSemaphoreAcquire(m_exitSem, osWaitForever);
-        } else {
+        // Check self-exit BEFORE attempting to enqueue the exit message. If
+        // this thread is destroying itself from within its own dispatched
+        // callback, it is not consuming its own queue right now -- it is
+        // blocked here, inside ExitThread(). A blocking osMessageQueuePut()
+        // would deadlock forever if the queue happened to be full. No message
+        // needs to be queued in that case: Run()'s dispatch loop already
+        // checks m_selfExitPtr immediately after the current callback invoke
+        // returns, and unwinds without touching 'this' again.
+        if (osThreadGetId() == m_thread) {
             if (m_selfExitPtr) *m_selfExitPtr = true;
+        } else {
+            // Send exit message
+            ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (msg)
+            {
+                // Send pointer, wait forever to ensure it gets in.
+                if (osMessageQueuePut(m_msgq, &msg, 0, osWaitForever) != osOK)
+                {
+                    delete msg; // Failed to send
+                }
+            }
+
+            // Wait for thread to process the exit message and signal completion.
+            if (m_exitSem != NULL) osSemaphoreAcquire(m_exitSem, osWaitForever);
         }
 
         // Thread has finished Run(). Now we can safely clean up resources.
