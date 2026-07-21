@@ -9,6 +9,7 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 
+#include "delegate/DelegateOpt.h"
 #include "port/transport/ITransport.h"
 #include "port/transport/DmqHeader.h"
 #include <windows.h>
@@ -29,6 +30,7 @@ public:
 
     int Create(Type type, LPCSTR groupAddr, USHORT port, LPCSTR localInterface = "0.0.0.0")
     {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
         m_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (m_socket == INVALID_SOCKET) return -1;
@@ -59,14 +61,14 @@ public:
             m_addr.sin_port = htons(port);
             m_addr.sin_addr.s_addr = INADDR_ANY;
 
-            if (::bind(m_socket, (sockaddr*)&m_addr, sizeof(m_addr)) == SOCKET_ERROR) return -1;
+            if (::bind(m_socket, (sockaddr*)&m_addr, sizeof(m_addr)) == SOCKET_ERROR) { Close(); return -1; }
 
             ip_mreq mreq;
             inet_pton(AF_INET, groupAddr, &mreq.imr_multiaddr);
             inet_pton(AF_INET, localInterface, &mreq.imr_interface);
             if (setsockopt(m_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == SOCKET_ERROR) {
                 std::cerr << "[Multicast] Join Failed: " << WSAGetLastError() << std::endl;
-                return -1;
+                Close(); return -1;
             }
             
             DWORD timeout = 1000;
@@ -77,6 +79,7 @@ public:
     }
 
     void Close() {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket != INVALID_SOCKET) {
             closesocket(m_socket);
             m_socket = INVALID_SOCKET;
@@ -84,6 +87,7 @@ public:
     }
 
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::PUB) return -1;
         auto payload = os.str();
         DmqHeader headerCopy = header;
@@ -112,12 +116,13 @@ public:
     }
 
     virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::SUB) return -1;
         int addrLen = sizeof(m_addr);
         int size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, (sockaddr*)&m_addr, &addrLen);
         
         if (size == SOCKET_ERROR) return -1;
-        if (size <= (int)DmqHeader::HEADER_SIZE) return -1;
+        if (size < (int)DmqHeader::HEADER_SIZE) return -1;
 
         dmq::xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
         headerStream.write(m_buffer, DmqHeader::HEADER_SIZE);
@@ -129,7 +134,11 @@ public:
         headerStream.read((char*)&val, 2); header.SetSeqNum(ntohs(val));
         headerStream.read((char*)&val, 2); header.SetLength(ntohs(val));
 
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, size - DmqHeader::HEADER_SIZE);
+        if (header.GetMarker() != DmqHeader::MARKER) return -1;
+
+        int payloadSize = size - DmqHeader::HEADER_SIZE;
+        if (header.GetLength() > payloadSize) return -1;
+        is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }
 
@@ -139,6 +148,7 @@ private:
     Type m_type = Type::PUB;
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = { 0 };
+    dmq::RecursiveMutex m_mutex;
 };
 
 } // namespace dmq::transport

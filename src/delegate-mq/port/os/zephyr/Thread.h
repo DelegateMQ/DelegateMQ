@@ -154,6 +154,7 @@ private:
     struct k_msgq m_msgq;
     struct k_sem m_exitSem; // Semaphore to signal thread completion
     std::atomic<bool> m_exit = false;
+    bool* m_selfExitPtr = nullptr;
 
     // Define pointer type for the message queue
     using MsgPtr = ThreadMsg*;

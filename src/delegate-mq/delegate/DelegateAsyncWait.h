@@ -419,18 +419,23 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
-
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
         }
         return true;
     }
@@ -452,9 +457,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -857,18 +861,23 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
-
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
         }
         return true;
     }
@@ -890,9 +899,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -1212,18 +1220,23 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
-
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
         }
         return true;
     }
@@ -1245,9 +1258,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -1569,18 +1581,23 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
-
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
         }
         return true;
     }
@@ -1602,9 +1619,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {

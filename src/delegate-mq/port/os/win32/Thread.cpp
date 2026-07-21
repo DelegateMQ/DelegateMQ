@@ -14,6 +14,12 @@ using namespace dmq::util;
 #define MSG_DISPATCH_DELEGATE    1
 #define MSG_EXIT_THREAD          2
 
+// Thread-local pointer into Process()'s stack frame. Set non-null only while
+// Process() is running on a given thread. ExitThread() writes true through it
+// when the thread destroys its own owning object so Process() can exit without
+// touching freed members.
+static thread_local bool* t_self_exit = nullptr;
+
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
@@ -198,10 +204,15 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 void Thread::Process()
 {
+    // selfExit is set by ExitThread() when the thread destroys its own owner.
+    // It lives on this stack frame so it remains valid even after 'this' is freed.
+    bool selfExit = false;
+    t_self_exit = &selfExit;
+
     // Signal that the thread has started processing to notify CreateThread
     SetEvent(m_hStartEvent);
 
-    while (true)
+    while (!selfExit)
     {
         dmq::Duration watchdogTimeout;
         {
@@ -291,7 +302,7 @@ void Thread::Process()
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
                 try {
                     bool success = invoker->Invoke(delegateMsg);
-                    ASSERT_TRUE(success);
+                    if (!selfExit) ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
@@ -315,11 +326,15 @@ void Thread::Process()
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
-                ASSERT_TRUE(success);
+                if (!selfExit) ASSERT_TRUE(success);
 #endif
+                if (selfExit) {
+                    t_self_exit = nullptr;
+                    return;
+                }
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::Duration invokeTime = Timer::GetNow() - start;
-                {
+                if (!selfExit) {
                     EnterCriticalSection(&m_cs);
                     m_invokeTotalWindow += invokeTime;
                     m_invokeCountWindow++;
@@ -333,6 +348,7 @@ void Thread::Process()
 
             case MSG_EXIT_THREAD:
             {
+                t_self_exit = nullptr;
                 return;
             }
 
@@ -342,6 +358,7 @@ void Thread::Process()
             }
         }
     }
+    t_self_exit = nullptr;
 }
 
 //----------------------------------------------------------------------------
@@ -373,6 +390,10 @@ void Thread::ExitThread()
     if (::GetCurrentThreadId() != m_threadId)
     {
         WaitForSingleObject(m_hThread, INFINITE);
+    }
+    else
+    {
+        if (t_self_exit) *t_self_exit = true;
     }
 
     CloseHandle(m_hThread);
@@ -415,21 +436,13 @@ void Thread::Sleep(dmq::Duration timeout) {
 //----------------------------------------------------------------------------
 void Thread::WatchdogCheckAll()
 {
-    Thread* snapshot[dmq::MAX_WATCHDOG_THREADS];
-    int count = 0;
-
+    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    Thread* p = GetWatchdogHead();
+    while (p != nullptr)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-        Thread* p = GetWatchdogHead();
-        while (p != nullptr && count < static_cast<int>(dmq::MAX_WATCHDOG_THREADS))
-        {
-            snapshot[count++] = p;
-            p = p->m_watchdogNext;
-        }
+        p->WatchdogCheck();
+        p = p->m_watchdogNext;
     }
-
-    for (int i = 0; i < count; i++)
-        snapshot[i]->WatchdogCheck();
 }
 
 //----------------------------------------------------------------------------

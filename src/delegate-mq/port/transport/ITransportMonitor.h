@@ -11,6 +11,7 @@ namespace dmq::transport {
 class ITransportMonitor
 {
 public:
+    virtual ~ITransportMonitor() = default;
     /// Add a sequence number
     /// param[in] seqNum - the message sequence number
     /// param[in] remoteId - the remote ID

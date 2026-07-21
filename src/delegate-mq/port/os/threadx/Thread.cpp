@@ -214,15 +214,21 @@ void Thread::ExitThread()
         // We only wait if we are NOT the thread itself (avoid deadlock).
         // If tx_thread_identify() returns NULL (ISR context), we also shouldn't block.
         TX_THREAD* currentThread = tx_thread_identify();
-        if (currentThread != &m_thread && currentThread != nullptr) {
-            // Wait for Run() to signal completion
-            tx_semaphore_get(&m_exitSem, TX_WAIT_FOREVER);
+        if (currentThread != &m_thread) {
+            if (currentThread != nullptr) {
+                // Wait for Run() to signal completion
+                tx_semaphore_get(&m_exitSem, TX_WAIT_FOREVER);
+            }
+        } else {
+            if (m_selfExitPtr) *m_selfExitPtr = true;
         }
 
         // Force terminate if still running (safety net)
         // tx_thread_terminate returns TX_SUCCESS if terminated or TX_THREAD_ERROR if already terminated
-        tx_thread_terminate(&m_thread);
-        tx_thread_delete(&m_thread);
+        if (currentThread != &m_thread) {
+            tx_thread_terminate(&m_thread);
+            tx_thread_delete(&m_thread);
+        }
 
         ThreadMsg* drainMsg = nullptr;
         while (tx_queue_receive(&m_queue, &drainMsg, TX_NO_WAIT) == TX_SUCCESS) {
@@ -392,21 +398,13 @@ void Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 void Thread::WatchdogCheckAll()
 {
-    Thread* snapshot[dmq::MAX_WATCHDOG_THREADS];
-    int count = 0;
-
+    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    Thread* p = GetWatchdogHead();
+    while (p != nullptr)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-        Thread* p = GetWatchdogHead();
-        while (p != nullptr && count < static_cast<int>(dmq::MAX_WATCHDOG_THREADS))
-        {
-            snapshot[count++] = p;
-            p = p->m_watchdogNext;
-        }
+        p->WatchdogCheck();
+        p = p->m_watchdogNext;
     }
-
-    for (int i = 0; i < count; i++)
-        snapshot[i]->WatchdogCheck();
 }
 
 //----------------------------------------------------------------------------
@@ -432,8 +430,11 @@ dmq::RecursiveMutex& Thread::GetWatchdogLock()
 //----------------------------------------------------------------------------
 void Thread::Run()
 {
+    bool selfExit = false;
+    m_selfExitPtr = &selfExit;
+
     ThreadMsg* msg = nullptr;
-    while (!m_exit.load())
+    while (!selfExit && !m_exit.load())
     {
         dmq::Duration timeout;
         {
@@ -508,8 +509,13 @@ void Thread::Run()
             }
 #else
             bool success = invoker->Invoke(delegateMsg);
-            ASSERT_TRUE(success);
+            if (!selfExit) ASSERT_TRUE(success);
 #endif
+            if (selfExit) {
+                delete msg;
+                return;
+            }
+
 #if defined(DMQ_DATABUS_TOOLS)
             dmq::Duration invokeTime = Timer::GetNow() - start;
             {

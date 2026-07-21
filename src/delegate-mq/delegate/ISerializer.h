@@ -30,6 +30,8 @@ namespace dmq {
     class ISerializer<RetType(Args...)>
     {
     public:
+        virtual ~ISerializer() = default;
+
         /// @brief Serializes function arguments into the output stream.
         /// 
         /// @details 

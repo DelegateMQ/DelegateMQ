@@ -112,17 +112,21 @@ private:
 #define DECLARE_ALLOCATOR \
     public: \
         void* operator new(size_t size) { \
+            dmq::LockGuard<dmq::Mutex> lock(_allocatorMutex); \
             return _allocator.Allocate(size); \
         } \
         void operator delete(void* pObject) { \
+            dmq::LockGuard<dmq::Mutex> lock(_allocatorMutex); \
             _allocator.Deallocate(pObject); \
         } \
     private: \
-        static dmq::Allocator _allocator; 
+        static dmq::Allocator _allocator; \
+        static dmq::Mutex _allocatorMutex;
 
 // macro to provide source file interface
 #define IMPLEMENT_ALLOCATOR(class, objects, memory) \
-	dmq::Allocator class::_allocator(sizeof(class), objects, memory, #class);
+	dmq::Allocator class::_allocator(sizeof(class), objects, memory, #class); \
+	dmq::Mutex class::_allocatorMutex;
 
 #endif
 

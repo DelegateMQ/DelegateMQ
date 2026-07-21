@@ -186,8 +186,12 @@ void Thread::ExitThread()
             }
         }
 
-        if (xTaskGetCurrentTaskHandle() != m_thread && m_exitSem) {
-            xSemaphoreTake(m_exitSem, portMAX_DELAY);
+        if (xTaskGetCurrentTaskHandle() != m_thread) {
+            if (m_exitSem) {
+                xSemaphoreTake(m_exitSem, portMAX_DELAY);
+            }
+        } else {
+            if (m_selfExitPtr) *m_selfExitPtr = true;
         }
 
         if (m_queue) {
@@ -310,21 +314,13 @@ void Thread::Process(void* instance)
 //----------------------------------------------------------------------------
 void Thread::WatchdogCheckAll()
 {
-    Thread* snapshot[dmq::MAX_WATCHDOG_THREADS];
-    int count = 0;
-
+    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    Thread* p = GetWatchdogHead();
+    while (p != nullptr)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-        Thread* p = GetWatchdogHead();
-        while (p != nullptr && count < static_cast<int>(dmq::MAX_WATCHDOG_THREADS))
-        {
-            snapshot[count++] = p;
-            p = p->m_watchdogNext;
-        }
+        p->WatchdogCheck();
+        p = p->m_watchdogNext;
     }
-
-    for (int i = 0; i < count; i++)
-        snapshot[i]->WatchdogCheck();
 }
 
 //----------------------------------------------------------------------------
@@ -356,8 +352,11 @@ void Thread::ThreadCheck()
 
 void Thread::Run()
 {
+    bool selfExit = false;
+    m_selfExitPtr = &selfExit;
+
     ThreadMsg* msg = nullptr;
-    while (!m_exit.load())
+    while (!selfExit && !m_exit.load())
     {
         m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
         auto watchdogTimeout = m_watchdogTimeout.load();
@@ -429,8 +428,13 @@ void Thread::Run()
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
-                ASSERT_TRUE(success);
+                if (!selfExit) ASSERT_TRUE(success);
 #endif
+                if (selfExit) {
+                    delete msg;
+                    return;
+                }
+
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::Duration invokeTime = Timer::GetNow() - start;
                 int64_t invokeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(invokeTime).count();

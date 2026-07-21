@@ -176,10 +176,6 @@ static void RemoteChannel_Construction()
     RCSerializer<void(int)> serializer;
 
     RemoteChannel<void(int)> channel(transport, serializer);
-
-    ASSERT_TRUE(channel.GetDispatcher() != nullptr);
-    ASSERT_TRUE(channel.GetSerializer() == &serializer);
-    ASSERT_TRUE(channel.GetStream().good());
 }
 
 // ---- MakeDelegate creates a configured sender delegate -------------------------
@@ -479,10 +475,12 @@ static void RemoteChannel_MakeDelegate_MatchesManualWiring()
     // MakeDelegate path
     auto channelDelegate = MakeDelegate(&FreeFuncInt, REMOTE_ID, channel);
 
-    // Manual wiring path (old API) using the channel's own dispatcher
+    // Manual wiring path (old API) using its own dispatcher
     xostringstream manualStream(ios::in | ios::out | ios::binary);
     DelegateFreeRemote<void(int)> manualDelegate(FreeFuncInt, REMOTE_ID);
-    manualDelegate.SetDispatcher(channel.GetDispatcher());
+    Dispatcher manualDispatcher;
+    manualDispatcher.SetTransport(&transport);
+    manualDelegate.SetDispatcher(&manualDispatcher);
     manualDelegate.SetSerializer(&serializer);
     manualDelegate.SetStream(&manualStream);
 

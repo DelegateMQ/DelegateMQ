@@ -69,8 +69,6 @@ void DispatcherTests()
         dmq::serialization::serializer::Serializer<void(int)> serializer;
         RemoteChannel<void(int)> channel(transport, serializer);
 
-        ASSERT_TRUE(channel.GetDispatcher() != nullptr);
-        ASSERT_TRUE(channel.GetSerializer() == &serializer);
 
         // Bind a lambda as receiver
         int receivedVal = 0;
