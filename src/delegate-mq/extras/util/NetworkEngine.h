@@ -272,7 +272,7 @@ private:
         };
 
         // 5. [Caller Thread] Dispatch the lambda to the Network Thread queue.
-        auto retVal = dmq::MakeDelegate(std::move(asyncCallFunc), m_thread)
+        auto retVal = dmq::MakeDelegate(std::move(asyncCallFunc), m_thread, SEND_TIMEOUT)
             .AsyncInvoke(std::forward<Args>(args)...);
 
         if (retVal.has_value() && retVal.value() == true)

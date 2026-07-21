@@ -41,7 +41,8 @@ set(SYSTEM_FILES
 
 add_executable(cellutron_safety 
     main.cpp 
-    ${SYSTEM_FILES}
+    system/System.cpp
+    system/System.h
     ${COMMON_SOURCES}
     ${DMQ_LIB_SOURCES} 
     ${DMQ_PORT_SOURCES}
