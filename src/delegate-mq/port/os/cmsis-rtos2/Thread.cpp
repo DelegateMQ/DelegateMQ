@@ -249,7 +249,9 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
     if (!threadMsg) return false;
+#if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
+#endif
 
     // 2. Send pointer to queue
     uint32_t timeout;

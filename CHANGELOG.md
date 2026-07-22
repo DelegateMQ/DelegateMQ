@@ -11,12 +11,18 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ### Added
 - New GitHub Actions workflows for CMake embedded and CMake stress tests.
+- `embedded_ports_compile.yml` — compiles the FreeRTOS, ThreadX, and CMSIS-RTOS2 thread ports against their real vendor headers (ARM GNU toolchain, compile-only, no execution) on every push/PR. Previously none of these ports were exercised by any CI workflow.
 
 ### Fixed
 - Fixed Node 20 deprecation warnings in GitHub Actions by updating `actions/checkout` to `v7`.
 - DataBus QoS bugs and associated unit tests.
 - Build errors in `NetworkEngine.h` and the Cellutron safety example CMake configuration.
 - Addressed multiple code review findings across `DelegateAsyncWait`, `DelegateRemote`, fixed-block allocator (`xnew.h`), `NetworkEngine`, and embedded thread ports (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2).
+- **RTOS thread self-exit dangling pointer** — `m_selfExitPtr` was never reset to `nullptr` before `Thread::Run()` returned in the FreeRTOS, ThreadX, Zephyr, and CMSIS-RTOS2 ports, leaving it pointing at a destroyed stack variable (caught by GCC `-Wdangling-pointer` on a real embedded build). Now matches the pattern already used correctly in the stdlib port.
+- **ThreadX port compile correctness** — `port/os/threadx/Thread.cpp` referenced `ULONG_PTR` and a `TX_THREAD::tx_thread_user_data` member, neither of which exist in the real ThreadX API; `this` is now passed through the standard `tx_thread_create` `entry_input` / `Process(ULONG instance)` mechanism instead. Also fixed `TX_NULL` not implicitly converting to `CHAR**` under C++ in `tx_queue_info_get`.
+- **`DelegateOpt.h` include order** — `extras/util/Fault.h` (defining `ASSERT_TRUE`) is now included before `ThreadXMutex.h` / `ThreadXConditionVariable.h`, which call it from their constructors.
+- **CMSIS-RTOS2 port** — `DispatchDelegate()` called `ThreadMsg::SetEnqueueTime()` unconditionally, but that method only exists under `DMQ_DATABUS_TOOLS`; now guarded consistently with the other RTOS ports.
+- Test fixes: `AllocatorTests.cpp`'s xnew leak-on-throw regression check now only runs when the library actually guards against a throwing constructor (`__cpp_exceptions && !DMQ_ASSERTS`); `DataBusQosTest.cpp`'s `ThrowOnMoveOnce` helper gained a default constructor, fixing a GCC 14 template-instantiation compile failure.
 
 ### Changed
 - Hardening updates across the core library and transport layer.

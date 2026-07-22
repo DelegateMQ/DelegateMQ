@@ -1,0 +1,114 @@
+name: Embedded RTOS Ports (Compile Only)
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+# These jobs compile a single translation unit per RTOS port against real
+# vendor headers (not a simulator, not stub headers) using the ARM GNU
+# toolchain, with -c (compile only, no link, no run). No RTOS execution
+# happens here -- the goal is catching the class of bug that only shows up
+# when compiling against the actual API: type/member mismatches, missing
+# macros, and compiler warnings (-Wdangling-pointer, etc.) that a desktop
+# build with DMQ_THREAD_STDLIB can never exercise, since none of these
+# ports are otherwise compiled by any other workflow in this repo.
+jobs:
+  freertos:
+    name: FreeRTOS (Cortex-M4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Install ARM GCC toolchain
+      run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+
+    # FreeRTOS-Kernel source and a working FreeRTOSConfig.h are already
+    # vendored under the stm32-freertos sample project -- reuse them
+    # instead of fetching a second copy.
+    - name: Compile port/os/freertos/Thread.cpp
+      run: |
+        arm-none-eabi-g++ \
+          src/delegate-mq/port/os/freertos/Thread.cpp \
+          -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
+          -std=gnu++17 -DDMQ_THREAD_FREERTOS -DDMQ_MAX_TIMER_EXPIRED=8 \
+          -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
+          -I src/delegate-mq \
+          -I example/sample-projects/stm32-freertos/server/Inc \
+          -I example/sample-projects/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/include \
+          -I example/sample-projects/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/portable \
+          -o /tmp/freertos_thread.o
+
+  threadx:
+    name: ThreadX (Cortex-M4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Install ARM GCC toolchain
+      run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+
+    # Fetch only the two headers actually needed (tx_api.h + the Cortex-M4
+    # GNU port's tx_port.h) directly from the upstream Eclipse ThreadX repo,
+    # rather than cloning the whole kernel -- this is a compile check, not
+    # a build of ThreadX itself.
+    - name: Fetch ThreadX headers
+      run: |
+        mkdir -p /tmp/threadx/common/inc /tmp/threadx/ports/cortex_m4/gnu/inc
+        curl -sL -o /tmp/threadx/common/inc/tx_api.h \
+          https://raw.githubusercontent.com/eclipse-threadx/threadx/master/common/inc/tx_api.h
+        curl -sL -o /tmp/threadx/ports/cortex_m4/gnu/inc/tx_port.h \
+          https://raw.githubusercontent.com/eclipse-threadx/threadx/master/ports/cortex_m4/gnu/inc/tx_port.h
+
+    - name: Compile port/os/threadx/Thread.cpp
+      run: |
+        arm-none-eabi-g++ \
+          src/delegate-mq/port/os/threadx/Thread.cpp \
+          -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
+          -std=gnu++17 -DDMQ_THREAD_THREADX -DDMQ_MAX_TIMER_EXPIRED=8 \
+          -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
+          -I src/delegate-mq \
+          -I /tmp/threadx/common/inc \
+          -I /tmp/threadx/ports/cortex_m4/gnu/inc \
+          -o /tmp/threadx_thread.o
+
+  cmsis-rtos2:
+    name: CMSIS-RTOS2 (Cortex-M4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Install ARM GCC toolchain
+      run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+
+    # cmsis_os2.h is a self-contained API header (only <stdint.h>/<stddef.h>
+    # deps) from ARM's CMSIS_5 -- no RTX5 kernel implementation needed for
+    # a compile-only check of the port's usage of the API surface.
+    - name: Fetch CMSIS-RTOS2 API header
+      run: |
+        mkdir -p /tmp/cmsis/RTOS2/Include
+        curl -sL -o /tmp/cmsis/RTOS2/Include/cmsis_os2.h \
+          https://raw.githubusercontent.com/ARM-software/CMSIS_5/develop/CMSIS/RTOS2/Include/cmsis_os2.h
+
+    - name: Compile port/os/cmsis-rtos2/Thread.cpp
+      run: |
+        arm-none-eabi-g++ \
+          src/delegate-mq/port/os/cmsis-rtos2/Thread.cpp \
+          -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
+          -std=gnu++17 -DDMQ_THREAD_CMSIS_RTOS2 -DDMQ_MAX_TIMER_EXPIRED=8 \
+          -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
+          -I src/delegate-mq \
+          -I /tmp/cmsis/RTOS2/Include \
+          -o /tmp/cmsis_thread.o

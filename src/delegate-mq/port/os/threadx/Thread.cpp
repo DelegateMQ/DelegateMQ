@@ -119,17 +119,13 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         ret = tx_thread_create(&m_thread,
                                (CHAR*)THREAD_NAME.c_str(),
                                &Thread::Process,
-                               (ULONG)(ULONG_PTR)this, // Pass 'this' as entry input (truncated on 64-bit)
+                               reinterpret_cast<ULONG>(this), // Pass 'this' as entry input
                                m_stackMemory.get(),
                                stackSizeWords * sizeof(ULONG),
                                m_priority,
                                m_priority,
                                TX_NO_TIME_SLICE,
                                TX_DONT_START);
-
-        // Store 'this' pointer in user data to avoid truncation issues on 64-bit.
-        // We set this BEFORE resuming the thread to avoid a race condition in Process().
-        m_thread.tx_thread_user_data = (ULONG_PTR)this;
 
         if (ret == TX_SUCCESS) {
             tx_thread_resume(&m_thread);
@@ -285,7 +281,7 @@ size_t Thread::GetQueueSize()
         TX_THREAD* suspension_list;
         ULONG suspension_count;
         TX_QUEUE* next_queue;
-        if (tx_queue_info_get(&m_queue, TX_NULL, &enqueued, &available, &suspension_list, &suspension_count, &next_queue) == TX_SUCCESS) {
+        if (tx_queue_info_get(&m_queue, nullptr, &enqueued, &available, &suspension_list, &suspension_count, &next_queue) == TX_SUCCESS) {
             return (size_t)enqueued;
         }
     }
@@ -363,11 +359,8 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 void Thread::Process(ULONG instance)
 {
-    (void)instance;
-    // Retrieve the pointer from user data which is ULONG_PTR (pointer width)
-    TX_THREAD* current_thread = tx_thread_identify();
-    Thread* thread = reinterpret_cast<Thread*>(current_thread->tx_thread_user_data);
-    
+    Thread* thread = reinterpret_cast<Thread*>(instance);
+
     ASSERT_TRUE(thread != nullptr);
     thread->Run();
 }

@@ -77,6 +77,12 @@
     #error "RTTI compiler option is disabled but required by the DelegateMQ library."
 #endif
 
+// Some OS port headers below (e.g. ThreadXMutex.h, ThreadXConditionVariable.h) use
+// ASSERT_TRUE in constructors. Include Fault.h here, ahead of those port headers,
+// so the macro is defined before first use. Fault.h is include-guarded, so the
+// later #include "extras/util/Fault.h" below is a harmless no-op.
+#include "extras/util/Fault.h"
+
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
     // Windows / Linux / macOS / Qt (Standard Library)
     #include <condition_variable>
