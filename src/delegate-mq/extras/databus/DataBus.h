@@ -453,7 +453,34 @@ private:
                         T* cachedObj = static_cast<T*>(itLvc->second.value.get());
                         T replacement(data);
                         cachedObj->~T();
+#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
                         ::new (static_cast<void*>(cachedObj)) T(std::move(replacement));
+#else
+                        try {
+                            ::new (static_cast<void*>(cachedObj)) T(std::move(replacement));
+                        }
+                        catch (...) {
+                            // The move constructor threw, leaving cachedObj's memory
+                            // destroyed with no live object in it -- but the shared_ptr
+                            // from xmake_shared<T> still expects to destroy a live T at
+                            // this address whenever the entry is later replaced or the
+                            // topic is reset/torn down. Reconstruct a valid object in
+                            // place from a fresh copy of `data` (T is already required
+                            // to be copy-constructible for use with DataBus) so that
+                            // invariant holds again, then propagate the original
+                            // exception to the caller.
+                            try {
+                                ::new (static_cast<void*>(cachedObj)) T(data);
+                            }
+                            catch (...) {
+                                // Recovery copy also failed: the slot cannot be safely
+                                // restored to a valid state. This is an unrecoverable
+                                // invariant violation, not a normal operational error.
+                                ASSERT();
+                            }
+                            throw;
+                        }
+#endif
                         itLvc->second.timestamp = now;
                     } else {
                         // First publish for this topic: perform the initial allocation

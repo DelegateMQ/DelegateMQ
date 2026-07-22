@@ -3,11 +3,34 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <stdexcept>
 
 #if defined(DMQ_DATABUS)
 
 using namespace dmq;
 using namespace dmq::databus;
+
+namespace {
+    // A type whose move constructor can be made to throw exactly once, used to
+    // verify that InternalPublish's in-place LVC slot reuse recovers cleanly
+    // instead of leaving corrupted shared state (see DataBus.h InternalPublish
+    // exception-safety fix).
+    struct ThrowOnMoveOnce {
+        int value;
+        static bool shouldThrow;
+
+        explicit ThrowOnMoveOnce(int v) : value(v) {}
+        ThrowOnMoveOnce(const ThrowOnMoveOnce& other) : value(other.value) {}
+        ThrowOnMoveOnce(ThrowOnMoveOnce&& other) {
+            if (shouldThrow) {
+                shouldThrow = false;
+                throw std::runtime_error("ThrowOnMoveOnce");
+            }
+            value = other.value;
+        }
+    };
+    bool ThrowOnMoveOnce::shouldThrow = false;
+}
 
 int DataBusQosTestMain() {
     std::cout << "Starting DataBusQosTest..." << std::endl;
@@ -42,6 +65,45 @@ int DataBusQosTestMain() {
                 receivedNoLvc = val;
             });
             ASSERT_TRUE(receivedNoLvc == 0); // Should NOT receive the cached value
+        }
+    }
+
+    // 1b. Test LVC exception safety: a throwing move constructor during the
+    // in-place slot reuse must not corrupt the cache (regression test for the
+    // DataBus.h InternalPublish LVC exception-safety fix).
+    {
+        std::cout << "Testing LVC exception safety..." << std::endl;
+        DataBus::ResetForTesting();
+        DataBus::LastValueCache("throwtopic", true);
+
+        // First publish: no cached entry yet, goes through the "first publish"
+        // allocation path, not the in-place reuse path.
+        DataBus::Publish<ThrowOnMoveOnce>("throwtopic", ThrowOnMoveOnce(1));
+
+        // Second publish hits the in-place reuse path. Force the move
+        // constructor to throw during reconstruction into the cached slot.
+        ThrowOnMoveOnce::shouldThrow = true;
+        bool caught = false;
+        try {
+            DataBus::Publish<ThrowOnMoveOnce>("throwtopic", ThrowOnMoveOnce(2));
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        ASSERT_TRUE(caught);
+
+        // The cache slot must still be in a valid state: a subsequent publish
+        // (which no longer throws) must succeed and be observable.
+        DataBus::Publish<ThrowOnMoveOnce>("throwtopic", ThrowOnMoveOnce(3));
+
+        int receivedValue = -1;
+        {
+            QoS qos;
+            qos.lastValueCache = true;
+            auto conn = DataBus::Subscribe<ThrowOnMoveOnce>("throwtopic", [&](const ThrowOnMoveOnce& v) {
+                receivedValue = v.value;
+            }, nullptr, qos);
+            ASSERT_TRUE(receivedValue == 3);
         }
     }
 
