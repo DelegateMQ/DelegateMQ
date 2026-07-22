@@ -20,6 +20,7 @@
 #include <atomic>
 #include <type_traits>
 #include <optional>
+#include <new>
 
 namespace dmq::databus {
 
@@ -424,6 +425,13 @@ private:
                 if (itType->second != std::type_index(typeid(T))) {
                     typeMismatch = true;
                 }
+            } else {
+                // Establish the topic's type on first use (mirrors GetOrCreateSignal and
+                // the serializer registration paths below). Without this, a topic that's
+                // never been subscribed to or serializer-registered would let a later
+                // Publish<U> with a different U reach the LVC reuse block below and
+                // reinterpret a live T object as U.
+                m_typeIndices.emplace(topic, std::type_index(typeid(T)));
             }
 
             if (!typeMismatch) {
@@ -432,7 +440,52 @@ private:
                 // by any subscriber, it remains active for that topic until ResetForTesting().
                 auto itQos = m_topicQos.find(topic);
                 if (itQos != m_topicQos.end() && itQos->second.lastValueCache) {
-                    m_lastValues[topic] = LvcEntry{ dmq::xmake_shared<T>(data), now };
+                    auto itLvc = m_lastValues.find(topic);
+                    if (itLvc != m_lastValues.end()) {
+                        // Avoid hot-path allocation: reuse the existing memory block by
+                        // destroying and copy-constructing in place, rather than
+                        // copy-assigning. This only requires T to be copy-constructible
+                        // (the same requirement as every other T published through
+                        // DataBus) instead of also requiring T to be copy-assignable.
+                        // The copy is built on the stack first so that if T's copy
+                        // constructor throws, the cached slot is untouched rather than
+                        // left destroyed with nothing reconstructed in its place.
+                        T* cachedObj = static_cast<T*>(itLvc->second.value.get());
+                        T replacement(data);
+                        cachedObj->~T();
+#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+                        ::new (static_cast<void*>(cachedObj)) T(std::move(replacement));
+#else
+                        try {
+                            ::new (static_cast<void*>(cachedObj)) T(std::move(replacement));
+                        }
+                        catch (...) {
+                            // The move constructor threw, leaving cachedObj's memory
+                            // destroyed with no live object in it -- but the shared_ptr
+                            // from xmake_shared<T> still expects to destroy a live T at
+                            // this address whenever the entry is later replaced or the
+                            // topic is reset/torn down. Reconstruct a valid object in
+                            // place from a fresh copy of `data` (T is already required
+                            // to be copy-constructible for use with DataBus) so that
+                            // invariant holds again, then propagate the original
+                            // exception to the caller.
+                            try {
+                                ::new (static_cast<void*>(cachedObj)) T(data);
+                            }
+                            catch (...) {
+                                // Recovery copy also failed: the slot cannot be safely
+                                // restored to a valid state. This is an unrecoverable
+                                // invariant violation, not a normal operational error.
+                                ASSERT();
+                            }
+                            throw;
+                        }
+#endif
+                        itLvc->second.timestamp = now;
+                    } else {
+                        // First publish for this topic: perform the initial allocation
+                        m_lastValues[topic] = LvcEntry{ dmq::xmake_shared<T>(data), now };
+                    }
                 }
 
                 // 3. Prepare monitor data
@@ -486,26 +539,19 @@ private:
 
         // 8. Remote distribution using the snapshot
         if (!localOnly) {
-            Participant* interested[dmq::MAX_PARTICIPANTS];
-            size_t interestedCount = 0;
+            bool anyInterested = false;
             for (size_t i = 0; i < participantSnapshotCount; ++i) {
-                dmq::DelegateRemoteId rid;
-                if (participantsSnapshot[i]->GetRemoteId(topic, rid)) {
-                    interested[interestedCount++] = participantsSnapshot[i].get();
+                if (participantsSnapshot[i]->DispatchIfInterested(topic, data, serializer)) {
+                    anyInterested = true;
                 }
             }
 
-            if (interestedCount > 0) {
-                if (serializer) {
-                    for (size_t i = 0; i < interestedCount; ++i) {
-                        interested[i]->Send<T>(topic, data, *serializer);
-                        handled = true;
-                    }
-                } else {
+            if (anyInterested) {
+                if (!serializer) {
                     // Topic has remote interest but no serializer — fire once per topic.
                     InternalReportLatchedError(topic, dmq::DelegateError::ERR_NO_SERIALIZER);
-                    handled = true;
                 }
+                handled = true;
             }
         }
 

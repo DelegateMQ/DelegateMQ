@@ -74,6 +74,11 @@ public:
 
             if (m_pending.size() >= dmq::MAX_TRANSPORT_MONITOR_PENDING) {
                 capSize = m_pending.size();
+            } else if (m_pending.find(key) != m_pending.end()) {
+                // Collision: 16-bit sequence wrapped before the old message timed out.
+                // Reject the send rather than silently clobbering the old message's tracking.
+                LOG_ERROR("TransportMonitor: SeqNum wraparound collision for seq {}", seqNum);
+                return false;
             } else {
                 TimeoutData d;
                 d.timeStamp = dmq::Clock::now();

@@ -79,20 +79,16 @@ public:
             dmq::DelegateRemoteId id = header.GetId();
             uint16_t seqNum = header.GetSeqNum();
 
-            // Filter out duplicate messages (retries)
-            if (id != dmq::ACK_REMOTE_ID) {
-                dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-                if (m_history[id].is_duplicate(seqNum)) {
-                    return 0; // Silently drop duplicate
-                }
-            }
-
             dmq::IRemoteInvoker* invoker = nullptr;
             std::shared_ptr<void> channelLifetime; // keeps channel alive across lock gap
             {
                 dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
                 auto it = m_channels.find(id);
                 if (it != m_channels.end()) {
+                    // Filter out duplicate messages (retries)
+                    if (id != dmq::ACK_REMOTE_ID && m_history[id].is_duplicate(seqNum)) {
+                        return 0; // Silently drop duplicate
+                    }
                     channelLifetime = it->second.channel;
                     invoker = it->second.invoker;
                 }
@@ -112,20 +108,46 @@ public:
     // If a send thread was set via SetSendThread(), the channel invocation is
     // dispatched asynchronously to that thread. Otherwise it executes inline.
     template <typename T>
-    void Send(const dmq::xstring& topic, const T& data, dmq::ISerializer<void(T)>& serializer) {
-        dmq::DelegateRemoteId remoteId;
-        if (GetRemoteId(topic, remoteId)) {
-            auto channel = GetOrCreateChannel<T>(remoteId, serializer);
-            if (channel) {
-                if (m_sendThread) {
-                    // Use a member function to avoid potential shared_ptr circular 
-                    // references. Pass arguments to AsyncInvoke.
-                    (void)dmq::MakeDelegate(this, &Participant::AsyncSend<T>, *m_sendThread).AsyncInvoke(channel, data);
-                } else {
-                    (*channel)(data);
+    bool DispatchIfInterested(const dmq::xstring& topic, const T& data, dmq::ISerializer<void(T)>* serializer) {
+        std::shared_ptr<dmq::RemoteChannel<void(T)>> channel;
+        bool typeMismatch = false;
+        dmq::DelegateRemoteId remoteId = 0;
+
+        {
+            dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+            auto it = m_topicToRemoteId.find(topic);
+            if (it != m_topicToRemoteId.end()) {
+                if (!serializer) {
+                    return true;
                 }
+                remoteId = it->second;
+                channel = GetOrCreateChannelLocked<T>(remoteId, *serializer, typeMismatch);
+            } else {
+                return false;
             }
         }
+
+        if (typeMismatch) {
+            OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
+            ASSERT();
+            return true;
+        }
+
+        if (channel) {
+            if (m_sendThread) {
+                // Use a member function to avoid potential shared_ptr circular 
+                // references. Pass arguments to AsyncInvoke.
+                (void)dmq::MakeDelegate(this, &Participant::AsyncSend<T>, *m_sendThread).AsyncInvoke(channel, data);
+            } else {
+                (*channel)(data);
+            }
+        }
+        return true;
+    }
+
+    template <typename T>
+    void Send(const dmq::xstring& topic, const T& data, dmq::ISerializer<void(T)>& serializer) {
+        DispatchIfInterested(topic, data, &serializer);
     }
 
     /// @brief Internal helper to execute a remote send on a background thread.
@@ -141,42 +163,36 @@ public:
     // Register a local handler for a remote topic using a `std::function`.
     template <typename T>
     void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, std::function<void(T)> func) {
-        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        auto channel = dmq::xmake_shared<dmq::RemoteChannel<void(T)>>(*m_transport, serializer);
-
-        // Use Bind() to register the callback for incoming calls.
-        channel->Bind(func, remoteId);
-
-        AttachErrorHandler(channel);
-
-        m_channels[remoteId] = { channel, channel->GetEndpoint() };
-        auto typeIdx = std::type_index(typeid(T));
-        auto it = m_channelTypes.find(remoteId);
-        if (it != m_channelTypes.end()) {
-            ASSERT_TRUE(it->second == typeIdx);
-        } else {
-            m_channelTypes.emplace(remoteId, typeIdx);
+        bool typeMismatch = false;
+        {
+            dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+            auto channel = GetOrCreateChannelLocked<T>(remoteId, serializer, typeMismatch);
+            if (channel) {
+                // Use Bind() to register the callback for incoming calls.
+                channel->Bind(func, remoteId);
+            }
+        }
+        if (typeMismatch) {
+            OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
+            ASSERT();
         }
     }
 
     // Register a local handler for a remote topic using a raw lambda or functor.
     template <typename T, typename F, typename = std::enable_if_t<dmq::trait::is_callable<F>::value>>
     void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, F&& func) {
-        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        auto channel = dmq::xmake_shared<dmq::RemoteChannel<void(T)>>(*m_transport, serializer);
-
-        // Use Bind() to register the callback for incoming calls.
-        channel->Bind(std::forward<F>(func), remoteId);
-
-        AttachErrorHandler(channel);
-
-        m_channels[remoteId] = { channel, channel->GetEndpoint() };
-        auto typeIdx = std::type_index(typeid(T));
-        auto it = m_channelTypes.find(remoteId);
-        if (it != m_channelTypes.end()) {
-            ASSERT_TRUE(it->second == typeIdx);
-        } else {
-            m_channelTypes.emplace(remoteId, typeIdx);
+        bool typeMismatch = false;
+        {
+            dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+            auto channel = GetOrCreateChannelLocked<T>(remoteId, serializer, typeMismatch);
+            if (channel) {
+                // Use Bind() to register the callback for incoming calls.
+                channel->Bind(std::forward<F>(func), remoteId);
+            }
+        }
+        if (typeMismatch) {
+            OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
+            ASSERT();
         }
     }
 
@@ -247,9 +263,9 @@ private:
     };
 
     template <typename T>
-    std::shared_ptr<dmq::RemoteChannel<void(T)>> GetOrCreateChannel(dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer) {
-        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+    std::shared_ptr<dmq::RemoteChannel<void(T)>> GetOrCreateChannelLocked(dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, bool& outTypeMismatch) {
         std::shared_ptr<dmq::RemoteChannel<void(T)>> channel;
+        outTypeMismatch = false;
 
         auto it = m_channels.find(remoteId);
         if (it != m_channels.end()) {
@@ -257,9 +273,8 @@ private:
             auto itType = m_channelTypes.find(remoteId);
             if (itType != m_channelTypes.end()) {
                 if (itType->second != std::type_index(typeid(T))) {
-                    // Report before faulting so error handlers can log the mismatch
-                    OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
-                    ASSERT();
+                    outTypeMismatch = true;
+                    return nullptr;
                 }
             }
             channel = std::static_pointer_cast<dmq::RemoteChannel<void(T)>>(it->second.channel);

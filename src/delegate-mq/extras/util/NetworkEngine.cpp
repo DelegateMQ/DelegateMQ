@@ -10,7 +10,6 @@ using namespace dmq;
 using namespace dmq::transport;
 using namespace std;
 
-const std::chrono::milliseconds NetworkEngine::SEND_TIMEOUT(100);
 const std::chrono::milliseconds NetworkEngine::RECV_TIMEOUT(2000);
 
 // [STM32-FreeRTOS] Define Static Stack for Network Thread
@@ -205,6 +204,8 @@ void NetworkEngine::Start()
 void NetworkEngine::Stop()
 {
     if (!m_thread.IsCurrentThread()) {
+        if (m_recvThreadExit) return;
+
         // 1. Signal exit flag FIRST so RecvThread knows it should terminate
         m_recvThreadExit = true;
 
@@ -249,11 +250,20 @@ void NetworkEngine::RecvThread()
     // Timeout for enqueuing the message to the main thread.
     static const std::chrono::milliseconds INVOKE_TIMEOUT(1000);
 
+    std::shared_ptr<dmq::xstringstream> arg_data;
+
     while (!m_recvThreadExit)
     {
         DmqHeader header;
-        // Use a shared_ptr for the stream to efficiently pass data between threads
-        auto arg_data = dmq::xmake_shared<dmq::xstringstream>(std::ios::in | std::ios::out | std::ios::binary);
+        
+        // Only allocate a new stream if we dispatched the previous one
+        if (!arg_data) {
+            arg_data = dmq::xmake_shared<dmq::xstringstream>(std::ios::in | std::ios::out | std::ios::binary);
+        } else {
+            // Reuse the existing stream: clear error flags and empty its contents
+            arg_data->clear();
+            arg_data->str(dmq::xstring());
+        }
 
         // Block reading from the physical transport
         int error = m_recvTransport.Receive(*arg_data, header);
@@ -263,6 +273,9 @@ void NetworkEngine::RecvThread()
             // Dispatch processing to the main NetworkEngine thread. 
             // Passes ownership of the data stream via shared_ptr (no deep copy).
             dmq::MakeDelegate(this, &NetworkEngine::Incoming, m_thread, INVOKE_TIMEOUT).AsyncInvoke(header, arg_data);
+            
+            // Release our local reference so a new one is allocated next iteration
+            arg_data.reset();
         }
     }
 }

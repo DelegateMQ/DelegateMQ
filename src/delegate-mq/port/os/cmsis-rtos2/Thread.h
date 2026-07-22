@@ -168,6 +168,7 @@ private:
     osMessageQueueId_t m_msgq = NULL;
     osSemaphoreId_t m_exitSem = NULL; // Semaphore to signal thread completion
     std::atomic<bool> m_exit = false;
+    bool* m_selfExitPtr = nullptr;
     
     // Configurable sizes
     static const uint32_t STACK_SIZE = 2048; // Bytes

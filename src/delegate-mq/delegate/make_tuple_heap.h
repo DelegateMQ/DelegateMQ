@@ -57,18 +57,9 @@ public:
     XALLOCATOR
 };
 
-/// @brief Frees heap memory for reference heap argument
+/// @brief Forward declaration for heap argument deleter
 template<typename T>
-class heap_arg_deleter : public heap_arg_deleter_base
-{
-public:
-    heap_arg_deleter(T& arg) : m_arg(arg) { }
-    virtual ~heap_arg_deleter() {
-        xdelete(&m_arg);
-    }
-private:
-    T& m_arg;
-};
+class heap_arg_deleter;
 
 /// @brief Frees heap memory for pointer heap argument
 template<typename T>
@@ -91,8 +82,11 @@ public:
     // Capture the original inner pointer at construction so the destructor always
     // frees the xnew'd copy, regardless of whether the target function overwrites
     // *arg (e.g. an outgoing-argument pattern like (*s) = new T).
-    heap_arg_deleter(T** arg) : m_arg(arg), m_inner(*arg) {}
+    heap_arg_deleter(T** arg) : m_arg(arg), m_inner(arg ? *arg : nullptr) {}
     virtual ~heap_arg_deleter() {
+        if (m_arg && *m_arg != m_inner) {
+            xdelete(*m_arg);    // free the newly assigned pointer if overwritten by target function
+        }
         xdelete(m_inner);       // free the original xnew'd inner copy (may be nullptr)
         xdelete(m_arg);         // free the outer pointer storage
     }
@@ -106,19 +100,23 @@ template <typename Arg, typename... TupleElem>
 auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg** arg)
 {
     Arg** heap_arg = nullptr;
+    Arg** del_arg = nullptr;
 
-    // Check if arg is nullptr or *arg is nullptr
     if (arg != nullptr && *arg != nullptr) {
         // Allocate memory for heap_arg and copy the value
         heap_arg = xnew<Arg*>();
         if (!heap_arg) {
+            // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
+            // otherwise it throws std::bad_alloc. Nothing below this call executes.
             BAD_ALLOC();
-        }
-
-        *heap_arg = xnew<Arg>(**arg);
-        if (!*heap_arg) {
-            xdelete(heap_arg);
-            BAD_ALLOC();
+        } else {
+            *heap_arg = xnew<Arg>(**arg);
+            if (!*heap_arg) {
+                xdelete(heap_arg);
+                BAD_ALLOC();
+            } else {
+                del_arg = heap_arg;
+            }
         }
     }
     else {
@@ -126,17 +124,24 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
         heap_arg = xnew<Arg*>(nullptr);
         if (!heap_arg) {
             BAD_ALLOC();
+        } else {
+            del_arg = heap_arg;
         }
     }
-    auto deleter = xmake_shared<heap_arg_deleter<Arg**>>(heap_arg);
+
+    auto deleter = xmake_shared<heap_arg_deleter<Arg**>>(del_arg);
     if (!deleter) {
-        xdelete(*heap_arg);
-        xdelete(heap_arg);
+        if (del_arg) {
+            if (*del_arg) xdelete(*del_arg);
+            xdelete(del_arg);
+        }
         BAD_ALLOC();
     }
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    heapArgs.push_back(deleter);
+    if (deleter) {
+        heapArgs.push_back(deleter);
+    }
     return std::tuple_cat(tup, std::make_tuple(heap_arg));
 #else
     try {
@@ -155,20 +160,29 @@ template <typename Arg, typename... TupleElem>
 auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg* arg)
 {
     Arg* heap_arg = nullptr;
+    Arg* del_arg = nullptr;
     if (arg != nullptr) {
         heap_arg = xnew<Arg>(*arg);
         if (!heap_arg) {
+            // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
+            // otherwise it throws std::bad_alloc. Nothing below this call executes.
             BAD_ALLOC();
+        } else {
+            del_arg = heap_arg;
         }
     }
-    auto deleter = xmake_shared<heap_arg_deleter<Arg*>>(heap_arg);
+    auto deleter = xmake_shared<heap_arg_deleter<Arg*>>(del_arg);
     if (!deleter) {
-        xdelete(heap_arg);
+        if (del_arg) {
+            xdelete(del_arg);
+        }
         BAD_ALLOC();
     }
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    heapArgs.push_back(deleter);
+    if (deleter) {
+        heapArgs.push_back(deleter);
+    }
     return std::tuple_cat(tup, std::make_tuple(heap_arg));
 #else
     try {
@@ -187,17 +201,26 @@ template <typename Arg, typename... TupleElem>
 auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg& arg)
 {
     Arg* heap_arg = xnew<Arg>(arg);
+    Arg* del_arg = nullptr;
     if (!heap_arg) {
+        // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
+        // otherwise it throws std::bad_alloc. Nothing below this call executes.
         BAD_ALLOC();
+    } else {
+        del_arg = heap_arg;
     }
-    auto deleter = xmake_shared<heap_arg_deleter<Arg*>>(heap_arg);
+    auto deleter = xmake_shared<heap_arg_deleter<Arg*>>(del_arg);
     if (!deleter) {
-        xdelete(heap_arg);
+        if (del_arg) {
+            xdelete(del_arg);
+        }
         BAD_ALLOC();
     }
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    heapArgs.push_back(deleter);
+    if (deleter) {
+        heapArgs.push_back(deleter);
+    }
 
     auto temp = std::make_tuple(std::forward_as_tuple(*heap_arg));  // Dereference heap_arg when creating tuple element
     auto new_type = std::get<0>(temp);

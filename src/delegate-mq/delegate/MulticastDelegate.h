@@ -17,9 +17,9 @@ class MulticastDelegate; // Not defined
 
 /// @brief Not thread-safe multicast delegate container class. The class has a list of 
 /// `Delegate<>` instances. When invoked, each `Delegate` instance within the invocation 
-/// list is called. A snapshot of the delegates is taken during the broadcast. If a 
-/// delegate is removed during a broadcast, it will still be invoked in the current 
-/// broadcast pass if it was in the snapshot.
+/// list is called. The broadcast iterates over the live list; if a delegate is removed 
+/// during a broadcast, its current execution finishes safely but it is removed from the list.
+/// If a new delegate is added during a broadcast, it may be invoked in the current pass.
 template<class RetType, class... Args>
 class MulticastDelegate<RetType(Args...)>
 {
@@ -59,7 +59,7 @@ public:
 
         // Iterate safely
         for (auto it = m_delegates.begin(); it != m_delegates.end(); ++it) {
-            std::shared_ptr<DelegateType>& delegate = *it;
+            std::shared_ptr<DelegateType> delegate = *it; // Copy to prevent UAF if removed mid-invocation
             if (delegate) {
                 (*delegate)(args...);
             }
@@ -105,11 +105,22 @@ public:
     /// @return A reference to the current object.
     MulticastDelegate& operator=(MulticastDelegate&& rhs) noexcept {
         if (&rhs != this) {
-            Clear();
-            for (auto& delegate : rhs.m_delegates) {
-                m_delegates.push_back(std::move(delegate));
+            if (m_broadcastCount > 0) {
+                // Reentrant: a callback is reassigning the container it's currently
+                // broadcasting from. Clear() only nulls existing entries in this case,
+                // leaving m_delegates itself intact so the active iterator in operator()
+                // stays valid. Append rhs's delegates rather than replacing the
+                // container outright; stale nulls are purged after the broadcast ends.
+                Clear();
+                for (auto& delegate : rhs.m_delegates) {
+                    m_delegates.push_back(std::move(delegate));
+                }
+                rhs.m_delegates.clear();
             }
-            rhs.m_delegates.clear();
+            else {
+                Clear();
+                m_delegates = std::move(rhs.m_delegates);
+            }
         }
         return *this;
     }

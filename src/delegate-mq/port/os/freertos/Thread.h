@@ -197,6 +197,7 @@ private:
     QueueHandle_t m_queue = nullptr;
     SemaphoreHandle_t m_exitSem = nullptr; // Synchronization for safe destruction
     std::atomic<bool> m_exit = false;
+    bool* m_selfExitPtr = nullptr;
 
     // Static allocation support
     StackType_t* m_stackBuffer = nullptr;

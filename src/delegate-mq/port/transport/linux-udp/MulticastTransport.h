@@ -29,6 +29,7 @@ public:
 
     int Create(Type type, const char* groupAddr, uint16_t port, const char* localInterface = "0.0.0.0")
     {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
         m_socket = socket(AF_INET, SOCK_DGRAM, 0);
         if (m_socket < 0) return -1;
@@ -56,13 +57,13 @@ public:
         }
         else {
             m_addr.sin_addr.s_addr = INADDR_ANY;
-            if (bind(m_socket, (struct sockaddr*)&m_addr, sizeof(m_addr)) < 0) return -1;
+            if (bind(m_socket, (struct sockaddr*)&m_addr, sizeof(m_addr)) < 0) { Close(); return -1; }
 
             struct ip_mreq mreq;
             mreq.imr_multiaddr.s_addr = inet_addr(groupAddr);
             mreq.imr_interface.s_addr = inet_addr(localInterface);
             if (setsockopt(m_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-                return -1;
+                Close(); return -1;
             }
 
             struct timeval timeout;
@@ -74,6 +75,7 @@ public:
     }
 
     void Close() {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket != -1) {
             close(m_socket);
             m_socket = -1;
@@ -81,6 +83,7 @@ public:
     }
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::PUB) return -1;
         auto payload = os.str();
         DmqHeader headerCopy = header;
@@ -104,10 +107,11 @@ public:
     }
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::SUB) return -1;
         ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, NULL, NULL);
 
-        if (size <= (ssize_t)DmqHeader::HEADER_SIZE) return -1;
+        if (size < (ssize_t)DmqHeader::HEADER_SIZE) return -1;
 
         xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
         headerStream.write(m_buffer, DmqHeader::HEADER_SIZE);
@@ -124,7 +128,9 @@ public:
             return -1;
         }
 
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, size - DmqHeader::HEADER_SIZE);
+        int payloadSize = size - DmqHeader::HEADER_SIZE;
+        if (header.GetLength() > payloadSize) return -1;
+        is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }
 
@@ -134,6 +140,7 @@ private:
     Type m_type = Type::PUB;
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = { 0 };
+    dmq::RecursiveMutex m_mutex;
 };
 
 } // namespace dmq::transport

@@ -271,10 +271,31 @@ public:
 
                 read(is, size, false);
 
+                std::streampos targetStopPos = startPos + std::streampos(size);
+
+                // Bounds check: ensure size does not exceed stream EOF
+                std::streampos dataPos = is.tellg();
+                is.seekg(0, std::ios::end);
+                std::streampos endPosStream = is.tellg();
+                is.seekg(dataPos);
+
+                if (targetStopPos > endPosStream) {
+                    raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
+                    is.setstate(std::ios::failbit);
+                    return is;
+                }
+
+                // Bounds check: ensure size does not exceed parent object's bounds
+                if (stopParsePosIdx > 0 && targetStopPos > stopParsePosStack[stopParsePosIdx - 1]) {
+                    raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
+                    is.setstate(std::ios::failbit);
+                    return is;
+                }
+
                 parseStatus(typeid(*t_), size);
 
                 // Save the stop parsing position to prevent parsing overrun
-                push_stop_parse_pos(startPos + std::streampos(size));
+                push_stop_parse_pos(targetStopPos);
 
                 t_->read(*this, is);
 
@@ -448,7 +469,13 @@ public:
                 // Backfill the object size into the stream (requires seekable stream)
                 std::streampos currentPos = os.tellp();
                 os.seekp(elementSizePos);
-                elementSize = static_cast<uint16_t>(currentPos - elementSizePos);
+                auto sizeDiff = currentPos - elementSizePos;
+                if (sizeDiff > UINT16_MAX) {
+                    raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
+                    os.setstate(std::ios::failbit);
+                    return os;
+                }
+                elementSize = static_cast<uint16_t>(sizeDiff);
                 write(os, elementSize, false);
                 os.seekp(currentPos);
             }

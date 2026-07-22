@@ -311,21 +311,13 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 void Thread::WatchdogCheckAll()
 {
-    Thread* snapshot[dmq::MAX_WATCHDOG_THREADS];
-    int count = 0;
-
+    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    Thread* p = GetWatchdogHead();
+    while (p != nullptr)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-        Thread* p = GetWatchdogHead();
-        while (p != nullptr && count < static_cast<int>(dmq::MAX_WATCHDOG_THREADS))
-        {
-            snapshot[count++] = p;
-            p = p->m_watchdogNext;
-        }
+        p->WatchdogCheck();
+        p = p->m_watchdogNext;
     }
-
-    for (int i = 0; i < count; i++)
-        snapshot[i]->WatchdogCheck();
 }
 
 //----------------------------------------------------------------------------
@@ -465,7 +457,7 @@ void Thread::Process()
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
                         try {
                             bool success = invoker->Invoke(delegateMsg);
-                            ASSERT_TRUE(success);
+                            if (!selfExit) ASSERT_TRUE(success);
                         }
                         catch (const std::bad_alloc& e) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
@@ -489,11 +481,15 @@ void Thread::Process()
                         }
 #else
                         bool success = invoker->Invoke(delegateMsg);
-                        ASSERT_TRUE(success);
+                        if (!selfExit) ASSERT_TRUE(success);
 #endif
+                        if (selfExit) {
+                            t_self_exit = nullptr;
+                            return;
+                        }
 #if defined(DMQ_DATABUS_TOOLS)
                         dmq::Duration invokeTime = Timer::GetNow() - start;
-                        {
+                        if (!selfExit) {
                             lock_guard<mutex> lock(m_statsMutex);
                             m_invokeTotalWindow += invokeTime;
                             m_invokeCountWindow++;

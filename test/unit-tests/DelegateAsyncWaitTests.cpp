@@ -3,6 +3,7 @@
 #include <iostream>
 #include <set>
 #include <cstring>
+#include <stdexcept>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -28,6 +29,21 @@ namespace AsyncWait
     {
     public:
         TestReturn Func() { return TestReturn{}; }
+    };
+
+    // Target functions/classes used to verify that a target function throwing
+    // an exception on the destination thread does not deadlock the source
+    // thread's blocking operator() call (regression test for a missing
+    // semaphore signal on the exception path in DelegateAsyncWait::Invoke()).
+    static void FreeFuncThrows(int)
+    {
+        throw std::runtime_error("AsyncWait test exception");
+    }
+
+    class ThrowingClass
+    {
+    public:
+        void MemberFuncThrows(int) { throw std::runtime_error("AsyncWait test exception"); }
     };
 }
 using namespace AsyncWait;
@@ -904,6 +920,116 @@ static void DelegateFunctionAsyncWaitTests()
     }
 }
 
+// Regression test: if the target function throws while being invoked on the
+// destination thread, `Invoke()` must still signal the semaphore before the
+// exception propagates out. Before the fix, the signal call was skipped
+// whenever the target function threw, leaving the source thread's blocking
+// operator() call parked on the semaphore until m_timeout expired (or forever,
+// since the default timeout is WAIT_INFINITE).
+//
+// Also verifies a related fix: `DelegateAsyncWaitMsg::GetInvokeSucceeded()`
+// must remain false when the target throws. Before that fix, the source
+// thread's operator() set `m_success = true` (and therefore IsSuccess()
+// returned true) merely because the semaphore was signaled, even though the
+// destination thread's target function never actually completed -- silently
+// masking the exception as a successful, empty-return-value call.
+//
+// This deliberately calls Invoke() directly instead of going through a live
+// IThread's dispatch loop and a real operator() call. Every OS thread port's
+// dispatch loop (see port/os/*/Thread.cpp) treats any exception escaping a
+// delegate callback as an unrecoverable application fault: it calls ASSERT(),
+// which terminates the whole process (abort() on desktop, an infinite loop on
+// several embedded ports). That is correct, by-design behavior for the
+// library, but it means the real end-to-end path can't be exercised inside
+// this shared test binary without killing the rest of the test suite.
+// Calling Invoke() directly isolates just the fix under test: the semaphore
+// must be signaled, and GetInvokeSucceeded() must stay false, even when the
+// target throws.
+static void AsyncWaitExceptionSafetyTests()
+{
+    // Free function target
+    {
+        using Del = DelegateFreeAsyncWait<void(int)>;
+        auto delegate = xmake_shared<Del>(FreeFuncThrows, workerThread, WAIT_INFINITE);
+        auto msg = xmake_shared<DelegateAsyncWaitMsg<int>>(delegate, Priority::NORMAL, TEST_INT);
+        msg->SetInvokerWaiting(true);
+
+        bool caught = false;
+        try {
+            delegate->Invoke(msg);
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        ASSERT_TRUE(caught);
+
+        // The fix: the semaphore is already signaled, so a zero-timeout wait
+        // succeeds immediately instead of the caller blocking until timeout.
+        ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
+    }
+
+    // Member function target
+    {
+        using Del = DelegateMemberAsyncWait<ThrowingClass, void(int)>;
+        ThrowingClass obj;
+        auto delegate = xmake_shared<Del>(&obj, &ThrowingClass::MemberFuncThrows, workerThread, WAIT_INFINITE);
+        auto msg = xmake_shared<DelegateAsyncWaitMsg<int>>(delegate, Priority::NORMAL, TEST_INT);
+        msg->SetInvokerWaiting(true);
+
+        bool caught = false;
+        try {
+            delegate->Invoke(msg);
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        ASSERT_TRUE(caught);
+        ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
+    }
+
+    // Shared-pointer member function target
+    {
+        using Del = DelegateMemberAsyncWaitSp<ThrowingClass, void(int)>;
+        auto obj = std::make_shared<ThrowingClass>();
+        auto delegate = xmake_shared<Del>(obj, &ThrowingClass::MemberFuncThrows, workerThread, WAIT_INFINITE);
+        auto msg = xmake_shared<DelegateAsyncWaitMsg<int>>(delegate, Priority::NORMAL, TEST_INT);
+        msg->SetInvokerWaiting(true);
+
+        bool caught = false;
+        try {
+            delegate->Invoke(msg);
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        ASSERT_TRUE(caught);
+        ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
+    }
+
+    // Lambda (std::function) target
+    {
+        using Del = DelegateFunctionAsyncWait<void(int)>;
+        auto throwingLambda = [](int) { throw std::runtime_error("AsyncWait test exception"); };
+        auto delegate = xmake_shared<Del>(throwingLambda, workerThread, WAIT_INFINITE);
+        auto msg = xmake_shared<DelegateAsyncWaitMsg<int>>(delegate, Priority::NORMAL, TEST_INT);
+        msg->SetInvokerWaiting(true);
+
+        bool caught = false;
+        try {
+            delegate->Invoke(msg);
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        ASSERT_TRUE(caught);
+        ASSERT_TRUE(msg->GetSema().Wait(chrono::milliseconds(0)));
+        ASSERT_TRUE(!msg->GetInvokeSucceeded());
+    }
+}
+
 void DelegateAsyncWaitTests()
 {
     workerThread.CreateThread();
@@ -913,6 +1039,7 @@ void DelegateAsyncWaitTests()
     DelegateMemberSpAsyncWaitTests();
     DelegateMemberAsyncWaitSpTests();
     DelegateFunctionAsyncWaitTests();
+    AsyncWaitExceptionSafetyTests();
 
     workerThread.ExitThread();
 }

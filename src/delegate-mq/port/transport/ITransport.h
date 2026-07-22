@@ -11,6 +11,7 @@ namespace dmq::transport {
 class ITransport
 {
 public:
+    virtual ~ITransport() = default;
     /// Send data to a remote
     /// @param[in] os Output stream to send.
     /// @param[in] header The header to send.

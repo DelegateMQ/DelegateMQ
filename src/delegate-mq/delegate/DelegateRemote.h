@@ -338,36 +338,44 @@ public:
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
         if (m_serializer && m_stream) {
+            // Only true once the whole send succeeds (write + stream check + dispatch).
+            // RaiseSuccess() is deferred to that single point so a write/dispatch failure
+            // is never preceded by a spurious success callback, and a failure is never
+            // reported more than once for the same call.
+            bool writeFailed = false;
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // Serialize all target function arguments into a stream
             m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-            RaiseSuccess(m_id);
 #else
             try {
                 // Serialize all target function arguments into a stream
                 m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-                RaiseSuccess(m_id);
             }
             catch (std::exception&) {
+                writeFailed = true;
                 RaiseError(m_id, DelegateError::ERR_SERIALIZE);
             }
 #endif
 
-            if (!m_stream->good()) {
-                RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
-            }
-            else {
-                // Dispatch delegate invocation to the remote destination
-                if (m_dispatcher) {
+            if (!writeFailed) {
+                if (!m_stream->good()) {
+                    RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
+                }
+                else if (m_dispatcher) {
+                    // Dispatch delegate invocation to the remote destination
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
                     int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                     if (error)
                         RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+                    else
+                        RaiseSuccess(m_id);
 #else
                     try {
                         int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+                        else
+                            RaiseSuccess(m_id);
                     }
                     catch (std::exception&) {
                         RaiseError(m_id, DelegateError::ERR_DISPATCH);
@@ -832,36 +840,44 @@ public:
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
         if (m_serializer && m_stream) {
+            // Only true once the whole send succeeds (write + stream check + dispatch).
+            // RaiseSuccess() is deferred to that single point so a write/dispatch failure
+            // is never preceded by a spurious success callback, and a failure is never
+            // reported more than once for the same call.
+            bool writeFailed = false;
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // Serialize all target function arguments into a stream
             m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-            RaiseSuccess(m_id);
 #else
             try {
                 // Serialize all target function arguments into a stream
                 m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-                RaiseSuccess(m_id);
             }
             catch (std::exception&) {
+                writeFailed = true;
                 RaiseError(m_id, DelegateError::ERR_SERIALIZE);
             }
 #endif
 
-            if (!m_stream->good()) {
-                RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
-            }
-            else {
-                // Dispatch delegate invocation to the remote destination
-                if (m_dispatcher) {
+            if (!writeFailed) {
+                if (!m_stream->good()) {
+                    RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
+                }
+                else if (m_dispatcher) {
+                    // Dispatch delegate invocation to the remote destination
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
                     int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                     if (error)
                         RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+                    else
+                        RaiseSuccess(m_id);
 #else
                     try {
                         int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+                        else
+                            RaiseSuccess(m_id);
                     }
                     catch (std::exception&) {
                         RaiseError(m_id, DelegateError::ERR_DISPATCH);
@@ -1266,36 +1282,44 @@ public:
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
         if (m_serializer && m_stream) {
+            // Only true once the whole send succeeds (write + stream check + dispatch).
+            // RaiseSuccess() is deferred to that single point so a write/dispatch failure
+            // is never preceded by a spurious success callback, and a failure is never
+            // reported more than once for the same call.
+            bool writeFailed = false;
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // Serialize all target function arguments into a stream
             m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-            RaiseSuccess(m_id);
 #else
             try {
                 // Serialize all target function arguments into a stream
                 m_serializer->Write(*m_stream, std::forward<Args>(args)...);
-                RaiseSuccess(m_id);
             }
             catch (std::exception&) {
+                writeFailed = true;
                 RaiseError(m_id, DelegateError::ERR_SERIALIZE);
             }
 #endif
 
-            if (!m_stream->good()) {
-                RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
-            }
-            else {
-                // Dispatch delegate invocation to the remote destination
-                if (m_dispatcher) {
+            if (!writeFailed) {
+                if (!m_stream->good()) {
+                    RaiseError(m_id, DelegateError::ERR_STREAM_NOT_GOOD);
+                }
+                else if (m_dispatcher) {
+                    // Dispatch delegate invocation to the remote destination
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
                     int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                     if (error)
                         RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+                    else
+                        RaiseSuccess(m_id);
 #else
                     try {
                         int error = m_dispatcher->Dispatch(*m_stream, m_id, &m_lastSeqNum);
                         if (error)
                             RaiseError(m_id, DelegateError::ERR_DISPATCH, error);
+                        else
+                            RaiseSuccess(m_id);
                     }
                     catch (std::exception&) {
                         RaiseError(m_id, DelegateError::ERR_DISPATCH);

@@ -7,13 +7,22 @@
 #include "extras/allocator/xallocator.h"
 #include "extras/allocator/stl_allocator.h"
 #include "extras/allocator/xmake_shared.h"
+#include "extras/allocator/xnew.h"
 #include <vector>
 #include <map>
 #include <list>
 #include <set>
+#include <stdexcept>
 
 using namespace std;
 using namespace dmq;  // Allocator, AllocatorPool, stl_allocator
+
+// A class whose constructor always throws, used to verify that xnew<T>()
+// returns the pool block to the allocator instead of leaking it when T's
+// constructor throws.
+struct ThrowingCtor {
+    ThrowingCtor() { throw std::runtime_error("ThrowingCtor"); }
+};
 
 // A class to test DECLARE_ALLOCATOR/IMPLEMENT_ALLOCATOR
 class MyClass {
@@ -153,6 +162,23 @@ void AllocatorTests()
         auto sp = dmq::xmake_shared<int>(123);
         ASSERT_TRUE(sp != NULL);
         ASSERT_TRUE(*sp == 123);
+    }
+
+    // Test xnew<T>() returns the pool block instead of leaking it when T's
+    // constructor throws (regression test for the xnew.h leak-on-throw fix).
+    {
+        Allocator* allocator = xallocator_get_allocator(sizeof(ThrowingCtor));
+        uint32_t before = allocator->GetBlocksInUse();
+
+        bool caught = false;
+        try {
+            dmq::xnew<ThrowingCtor>();
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        ASSERT_TRUE(caught);
+        ASSERT_TRUE(allocator->GetBlocksInUse() == before);
     }
 
 #ifdef DMQ_ALLOCATOR_SAFEGUARDS

@@ -1,0 +1,35 @@
+name: Stress Tests (Windows)
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  windows-msvc:
+    name: Windows (MSVC)
+    runs-on: windows-2022
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # STRESS_TESTS is a source-level #define in test/main.cpp (commented out by
+    # default). Defining it via the compiler flag has the same effect without
+    # editing the file, and routes main() to stress_test()/stress_test_remote()/
+    # stress_test_databus() instead of the normal example/unit-test run.
+    - name: Configure CMake (STRESS_TESTS, Release)
+      run: cmake -S . -B build -DCMAKE_CXX_FLAGS=-DSTRESS_TESTS
+
+    - name: Build
+      run: cmake --build build --config Release --target delegate_app
+
+    - name: Run stress tests
+      run: .\build\delegate_app\Release\delegate_app.exe

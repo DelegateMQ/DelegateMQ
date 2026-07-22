@@ -1,0 +1,47 @@
+name: Embedded Config (Allocator + Asserts)
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  ubuntu-clang:
+    name: Ubuntu (Clang)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure CMake (DMQ_ALLOCATOR + DMQ_ASSERTS)
+      run: cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DDMQ_ALLOCATOR=ON -DDMQ_ASSERTS=ON
+
+    - name: Build
+      run: cmake --build build --target delegate_app
+
+    - name: Run delegate_app to execute tests
+      run: ./build/delegate_app/delegate_app
+
+  windows-msvc:
+    name: Windows (MSVC)
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure CMake (DMQ_ALLOCATOR + DMQ_ASSERTS)
+      run: cmake -S . -B build -DDMQ_ALLOCATOR=ON -DDMQ_ASSERTS=ON
+
+    - name: Build
+      run: cmake --build build --config Release --target delegate_app
+
+    - name: Run delegate_app to execute tests
+      run: .\build\delegate_app\Release\delegate_app.exe

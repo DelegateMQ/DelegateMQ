@@ -121,10 +121,23 @@ public:
     /// the target function invoke.
     bool GetInvokerWaiting() { return m_invokerWaiting; }
 
-    /// Set to true when source thread is waiting for destination thread to complete the 
+    /// Set to true when source thread is waiting for destination thread to complete the
     /// function call.
     /// @param[in] invokerWaiting The status of the invoker waiting flag.
     void SetInvokerWaiting(bool invokerWaiting) { m_invokerWaiting = invokerWaiting; }
+
+    /// True if the destination thread's target function invoke completed without an
+    /// exception propagating out of it. False if the target function threw (or hasn't
+    /// been invoked yet). Distinct from the source thread's semaphore wait succeeding:
+    /// the semaphore is always signaled on scope exit from `Invoke()`, including via an
+    /// exception, so this flag is what lets the source thread tell the two cases apart.
+    /// @return `true` if the target function invoke completed successfully.
+    bool GetInvokeSucceeded() { return m_invokeSucceeded; }
+
+    /// Set to true by the destination thread immediately after the target function
+    /// invoke returns without throwing.
+    /// @param[in] invokeSucceeded The status of the invoke-succeeded flag.
+    void SetInvokeSucceeded(bool invokeSucceeded) { m_invokeSucceeded = invokeSucceeded; }
 
 private:
     /// An empty starting tuple
@@ -141,6 +154,10 @@ private:
 
     /// True if source thread is waiting for destination thread invoke to complete
     bool m_invokerWaiting = false;
+
+    /// True once the destination thread's target function invoke has completed
+    /// without an exception propagating out of it
+    bool m_invokeSucceeded = false;
 };
 
 template <class R>
@@ -356,7 +373,10 @@ public:
             // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
             if (waited) {
-                m_success = true;
+                // Only report success if the target function invoke actually completed;
+                // the semaphore is signaled even when the target function threw, so
+                // `waited` alone is not sufficient to know the call succeeded.
+                m_success = msg->GetInvokeSucceeded();
                 m_retVal = delegate->m_retVal;
             }
             // Set flag that source is not waiting anymore
@@ -419,18 +439,26 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
 
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
+            // Only reached if the std::apply() call above did not throw
+            delegateMsg->SetInvokeSucceeded(true);
         }
         return true;
     }
@@ -452,9 +480,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -794,7 +821,10 @@ public:
             // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
             if (waited) {
-                m_success = true;
+                // Only report success if the target function invoke actually completed;
+                // the semaphore is signaled even when the target function threw, so
+                // `waited` alone is not sufficient to know the call succeeded.
+                m_success = msg->GetInvokeSucceeded();
                 m_retVal = delegate->m_retVal;
             }
             // Set flag that source is not waiting anymore
@@ -857,18 +887,26 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
 
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
+            // Only reached if the std::apply() call above did not throw
+            delegateMsg->SetInvokeSucceeded(true);
         }
         return true;
     }
@@ -890,9 +928,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -1149,7 +1186,10 @@ public:
             // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
             if (waited) {
-                m_success = true;
+                // Only report success if the target function invoke actually completed;
+                // the semaphore is signaled even when the target function threw, so
+                // `waited` alone is not sufficient to know the call succeeded.
+                m_success = msg->GetInvokeSucceeded();
                 m_retVal = delegate->m_retVal;
             }
             // Set flag that source is not waiting anymore
@@ -1212,18 +1252,26 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
 
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
+            // Only reached if the std::apply() call above did not throw
+            delegateMsg->SetInvokeSucceeded(true);
         }
         return true;
     }
@@ -1245,9 +1293,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {
@@ -1506,7 +1553,10 @@ public:
             // Single lock: read return value and clear InvokerWaiting atomically
             const dmq::LockGuard<Mutex> lock(msg->GetLock());
             if (waited) {
-                m_success = true;
+                // Only report success if the target function invoke actually completed;
+                // the semaphore is signaled even when the target function threw, so
+                // `waited` alone is not sufficient to know the call succeeded.
+                m_success = msg->GetInvokeSucceeded();
                 m_retVal = delegate->m_retVal;
             }
             // Set flag that source is not waiting anymore
@@ -1569,18 +1619,26 @@ public:
             // Invoke the delegate function synchronously
             m_sync = true;
 
+            // Signals the source thread when this scope exits, including via an exception
+            // propagating out of the target function invoke below. Without this, a target
+            // function that throws would leave the source thread blocked until timeout.
+            struct SemaSignalGuard {
+                Semaphore& sema;
+                ~SemaSignalGuard() { sema.Signal(); }
+            } semaSignalGuard{ delegateMsg->GetSema() };
+
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
                 // Invoke the target function using the source thread supplied function arguments
                 std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             } else {
-                // Invoke the target function using the source thread supplied function arguments 
+                // Invoke the target function using the source thread supplied function arguments
                 // and get the return value
                 m_retVal = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
             }
 
-            // Signal the source thread that the destination thread function call is complete
-            delegateMsg->GetSema().Signal();
+            // Only reached if the std::apply() call above did not throw
+            delegateMsg->SetInvokeSucceeded(true);
         }
         return true;
     }
@@ -1602,9 +1660,8 @@ public:
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
         ASSERT();
-#else
-        return RetType();
 #endif
+        return RetType();
 #else
         // Standard C++ behavior with Exception Handling
         try {

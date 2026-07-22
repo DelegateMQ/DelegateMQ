@@ -204,32 +204,32 @@ If complex state must be associated with a delegate (e.g., QoS rate limiting or 
 ```cpp
 // Member function, raw pointer
 template <typename TClass>
-auto MakeTimerDelegate(
+TimerDelegate MakeTimerDelegate(
     TClass* obj,
     void (TClass::*method)(),
     dmq::IThread& thread,
-    std::function<void()> onStuck = {},   // optional: called if dispatch is stuck
-    dmq::Duration stuckTimeout = {});     // optional: how long before "stuck"
+    dmq::UnicastDelegate<void()> onStuck = dmq::UnicastDelegate<void()>(),  // optional: called if dispatch is stuck
+    dmq::Duration stuckTimeout = dmq::Duration(0));                        // optional: how long before "stuck"
 
 // Member function, shared_ptr owner (lifetime-safe)
 template <typename TClass>
-auto MakeTimerDelegate(
+TimerDelegate MakeTimerDelegate(
     std::shared_ptr<TClass> obj,
     void (TClass::*method)(),
     dmq::IThread& thread,
-    std::function<void()> onStuck = {},
-    dmq::Duration stuckTimeout = {});
+    dmq::UnicastDelegate<void()> onStuck = dmq::UnicastDelegate<void()>(),
+    dmq::Duration stuckTimeout = dmq::Duration(0));
 
 // Lambda / free function
 template <typename F>
-auto MakeTimerDelegate(
+TimerDelegate MakeTimerDelegate(
     F&& func,
     dmq::IThread& thread,
-    std::function<void()> onStuck = {},
-    dmq::Duration stuckTimeout = {});
+    dmq::UnicastDelegate<void()> onStuck = dmq::UnicastDelegate<void()>(),
+    dmq::Duration stuckTimeout = dmq::Duration(0));
 ```
 
-Returns a `dmq::Delegate<void()>` that can be passed directly to `Timer::OnExpired.Connect()`.
+`onStuck` takes a `dmq::UnicastDelegate<void()>` — bind it with `dmq::MakeDelegate(this, &MyClass::OnThreadStuck)`, not a raw lambda. Returns a `TimerDelegate` (derives from `dmq::Delegate<void()>`) that can be passed directly to `Timer::OnExpired.Connect()`.
 
 ### How it differs from MakeDelegate
 
@@ -258,7 +258,7 @@ self->m_conn = self->m_timer.OnExpired.Connect(d);
 // the previous dispatch has not completed after stuckTimeout
 m_conn = m_timer.OnExpired.Connect(
     dmq::util::MakeTimerDelegate(this, &MyClass::OnTick, m_thread,
-        [this]{ HandleThreadStuck(); }, std::chrono::seconds(2)));
+        dmq::MakeDelegate(this, &MyClass::OnThreadStuck), std::chrono::seconds(2)));
 ```
 
 ### At-most-one guarantee
@@ -337,6 +337,7 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 - `dmq-spy` — real-time feed of all DataBus messages with regex filtering
 - `dmq-monitor` — live network topology dashboard (nodes, IP, uptime, topics)
 - `dmq-thread` — per-thread performance dashboard (latency, queue depth)
+- `dmq-target` — test source app exercising transport bridges (used for tool/integration testing, not a diagnostic console)
 
 ## Documentation
 

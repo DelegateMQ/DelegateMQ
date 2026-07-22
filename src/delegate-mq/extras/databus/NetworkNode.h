@@ -106,6 +106,7 @@ public:
                dmq::Duration watchdog   = std::chrono::seconds(30),
                dmq::Duration tickPeriod = std::chrono::milliseconds(10))
     {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_running) return true;
 
         char threadName[64];
@@ -151,16 +152,26 @@ public:
     /// @brief Stop all transports and exit the receive thread.
     void Stop()
     {
-        if (!m_running) return;
-        m_running = false;
+        {
+            dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+            if (!m_running) return;
+            m_running = false;
 
-        m_recvTimer.Stop();
-        m_recvConn.Disconnect();
-        m_recvTransport.Close();
+            m_recvTimer.Stop();
+            m_recvConn.Disconnect();
+            m_recvTransport.Close();
+        }
 
+        // Exit the receive thread with no lock held. ReceiverThread() is dispatched
+        // asynchronously via TimerDelegate, so a tick may already be queued on
+        // m_thread when Stop() is called; ExitThread() blocks (join()) until the
+        // thread's dispatch loop drains its queue, which includes running any
+        // already-queued ReceiverThread() tick to completion. That tick acquires
+        // m_mutex too, so holding it here while blocked in join() would deadlock.
         if (m_thread)
             m_thread->ExitThread();
 
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         for (size_t i = m_peerCount; i > 0; --i) {
             RemoteNode& node = m_peers[i - 1];
             if (!node.active) continue;
@@ -186,6 +197,7 @@ public:
     /// @param port  UDP port the peer listens on.
     void AddPeer(const char* name, const char* addr, uint16_t port)
     {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         ASSERT_TRUE(m_peerCount < MaxPeers);
 
         RemoteNode& node = m_peers[m_peerCount];
@@ -265,6 +277,7 @@ public:
               dmq::ISerializer<void(T)>& serializer,
               Reliability rel = Reliability::UNRELIABLE)
     {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         ASSERT_TRUE(m_outCount < MaxTopics);
         DataBus::RegisterSerializer<T>(topic, serializer);
         m_outTopics[m_outCount++] = {topic, remoteId, rel};
@@ -293,6 +306,7 @@ public:
                  dmq::DelegateRemoteId remoteId,
                  dmq::ISerializer<void(T)>& serializer)
     {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         ASSERT_TRUE(m_inCount < MaxTopics);
 
         // Store a type-erased adder so it can be replayed when Start() creates the participant.
@@ -312,6 +326,7 @@ public:
 private:
     void ReceiverThread()
     {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         constexpr int MAX_WORK = 20;
 
         if (m_recvParticipant) {
@@ -406,6 +421,7 @@ private:
     dmq::Duration                    m_tickPeriod{};
     dmq::TimePoint                   m_lastMonitorCheck{};
     bool                             m_running = false;
+    mutable dmq::RecursiveMutex      m_mutex;
 };
 
 } // namespace dmq::databus

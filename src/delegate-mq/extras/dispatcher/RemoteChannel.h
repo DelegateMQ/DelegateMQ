@@ -188,10 +188,30 @@ public:
     /// @brief Returns the internal delegate as an IRemoteInvoker* for RegisterEndpoint().
     IRemoteInvoker* GetEndpoint() noexcept { return &m_delegate; }
 
-    // -----------------------------------------------------------------------
-    // Internal accessors — used by the MakeDelegate free-function overloads
-    // defined below. Not intended for direct use by application code.
-    // -----------------------------------------------------------------------
+private:
+    template <class R, class... A>
+    friend auto MakeDelegate(R(*)(A...), DelegateRemoteId, RemoteChannel<R(A...)>&);
+
+    template <class C, class R, class... A>
+    friend auto MakeDelegate(C*, R(C::*)(A...), DelegateRemoteId, RemoteChannel<R(A...)>&);
+
+    template <class C, class R, class... A>
+    friend auto MakeDelegate(C*, R(C::*)(A...) const, DelegateRemoteId, RemoteChannel<R(A...)>&);
+
+    template <class C, class R, class... A>
+    friend auto MakeDelegate(const C*, R(C::*)(A...) const, DelegateRemoteId, RemoteChannel<R(A...)>&);
+
+    template <class C, class R, class... A>
+    friend auto MakeDelegate(std::shared_ptr<C>, R(C::*)(A...), DelegateRemoteId, RemoteChannel<R(A...)>&);
+
+    template <class C, class R, class... A>
+    friend auto MakeDelegate(std::shared_ptr<C>, R(C::*)(A...) const, DelegateRemoteId, RemoteChannel<R(A...)>&);
+
+    template <class R, class... A>
+    friend auto MakeDelegate(std::function<R(A...)>, DelegateRemoteId, RemoteChannel<R(A...)>&);
+
+    template <typename F_, typename Sig_, typename>
+    friend auto MakeDelegate(F_&&, DelegateRemoteId, RemoteChannel<Sig_>&);
 
     /// @internal Used by MakeDelegate overloads. Prefer Bind() in application code.
     dmq::IDispatcher* GetDispatcher() noexcept { return &m_dispatcher; }

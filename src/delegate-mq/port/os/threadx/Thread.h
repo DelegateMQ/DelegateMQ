@@ -181,6 +181,7 @@ private:
     TX_QUEUE m_queue;
     TX_SEMAPHORE m_exitSem; // Semaphore to signal thread completion
     std::atomic<bool> m_exit = false;
+    bool* m_selfExitPtr = nullptr;
 
     // Memory buffers required by ThreadX (Managed by RAII)
     // Using ULONG[] ensures correct alignment for ThreadX stacks and queues

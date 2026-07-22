@@ -14,12 +14,8 @@
 #include "extras/util/RemoteEndpoint.h"
 #include "extras/util/TransportMonitor.h"
 #include "extras/dispatcher/RemoteChannel.h"
-#include <mutex>
 #include <atomic>
-#include <future>
-#include <iostream>
 #include <functional>
-#include <array>
 #include <utility>
 
 #if defined(DMQ_THREAD_STDLIB)
@@ -198,11 +194,8 @@ private:
         bool success = false;       ///< Terminal status was SUCCESS
         bool seqSet = false;        ///< expectedSeq is valid
         uint16_t expectedSeq = 0;   ///< Seq assigned to the dispatched message
-        /// Statuses received before seqSet; sized generously — only statuses
-        /// for this remote ID arriving in the microseconds between dispatch
-        /// and seq registration land here.
-        std::array<std::pair<uint16_t, TransportMonitor::Status>, 8> early{};
-        size_t earlyCnt = 0;
+        /// Statuses received before seqSet land here.
+        dmq::xmap<uint16_t, TransportMonitor::Status> early;
         dmq::Mutex mtx;              // Generic Mutex
         dmq::ConditionVariable cv;   // Generic CV
         XALLOCATOR
@@ -238,8 +231,7 @@ private:
                     if (!state->seqSet) {
                         // Send thread has not recorded the seq yet; buffer the
                         // status so the send lambda can reconcile it.
-                        if (state->earlyCnt < state->early.size())
-                            state->early[state->earlyCnt++] = { seq, status };
+                        state->early[seq] = status;
                     }
                     else if (!state->complete && seq == state->expectedSeq) {
                         state->complete = true;
@@ -263,15 +255,16 @@ private:
                 dmq::LockGuard<dmq::Mutex> lock(state->mtx);
                 state->expectedSeq = targetPtr->GetLastSeqNum();
                 state->seqSet = true;
+
                 // Reconcile any status that arrived before the seq was known
-                for (size_t i = 0; i < state->earlyCnt; i++) {
-                    if (state->early[i].first == state->expectedSeq) {
-                        state->complete = true;
-                        state->success = (state->early[i].second == TransportMonitor::Status::SUCCESS);
-                        notify = true;
-                        break;
-                    }
+                auto it = state->early.find(state->expectedSeq);
+                if (it != state->early.end()) {
+                    state->complete = true;
+                    state->success = (it->second == TransportMonitor::Status::SUCCESS);
+                    notify = true;
                 }
+                
+                state->early.clear();
             }
             if (notify)
                 state->cv.notify_one();
@@ -279,7 +272,15 @@ private:
         };
 
         // 5. [Caller Thread] Dispatch the lambda to the Network Thread queue.
-        auto retVal = dmq::MakeDelegate(asyncCallFunc, m_thread, SEND_TIMEOUT)
+        // Must block until asyncCallFunc actually runs (or throws) on the network
+        // thread rather than timing out on the *queueing* wait: asyncCallFunc
+        // captures a raw pointer to the caller's `target`. If this wait timed out
+        // while the message was still queued (a short SEND_TIMEOUT was previously
+        // used here), a caller seeing "failed" could free `target` while the
+        // still-queued closure later runs against a dangling pointer. Every other
+        // marshal-to-network-thread call site in this file (Initialize, Start,
+        // RegisterEndpoint, Stop) uses WAIT_INFINITE for the same reason.
+        auto retVal = dmq::MakeDelegate(std::move(asyncCallFunc), m_thread, dmq::WAIT_INFINITE)
             .AsyncInvoke(std::forward<Args>(args)...);
 
         if (retVal.has_value() && retVal.value() == true)
@@ -361,7 +362,6 @@ private:
     dmq::xmap<dmq::DelegateRemoteId, dmq::IRemoteInvoker*> m_receiveIdMap;
     dmq::ScopedConnection m_statusConn;
 
-    static const std::chrono::milliseconds SEND_TIMEOUT;
     static const std::chrono::milliseconds RECV_TIMEOUT;
 };
 
