@@ -8,9 +8,6 @@ on:
     branches:
       - master
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   ubuntu-clang:
     name: Ubuntu (Clang)
@@ -18,7 +15,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Configure CMake (DMQ_ALLOCATOR + DMQ_ASSERTS)
       run: cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DDMQ_ALLOCATOR=ON -DDMQ_ASSERTS=ON
@@ -35,7 +32,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Configure CMake (DMQ_ALLOCATOR + DMQ_ASSERTS)
       run: cmake -S . -B build -DDMQ_ALLOCATOR=ON -DDMQ_ASSERTS=ON

@@ -8,16 +8,13 @@ on:
     branches:
       - master  # Trigger on pull 
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: windows-2022  # Explicitly use Windows 2022 to match Visual Studio 2022
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Configure CMake
       # Use default generator for windows-2022 image (Visual Studio 2022)

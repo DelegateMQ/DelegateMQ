@@ -19,6 +19,7 @@ namespace {
         int value;
         static bool shouldThrow;
 
+        ThrowOnMoveOnce() : value(0) {}
         explicit ThrowOnMoveOnce(int v) : value(v) {}
         ThrowOnMoveOnce(const ThrowOnMoveOnce& other) : value(other.value) {}
         ThrowOnMoveOnce(ThrowOnMoveOnce&& other) {

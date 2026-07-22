@@ -8,16 +8,13 @@ on:
     branches:
       - master   # Trigger on pull 
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest  # Use Ubuntu environment for the build
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # Checkout the repository code
+      uses: actions/checkout@v7  # Checkout the repository code
 
     - name: Configure CMake with Clang
       run: cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++  # Configure CMake with Clang as the compiler

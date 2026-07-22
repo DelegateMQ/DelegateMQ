@@ -8,9 +8,6 @@ on:
     branches:
       - master
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   windows-msvc:
     name: Windows (MSVC)
@@ -19,7 +16,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     # STRESS_TESTS is a source-level #define in test/main.cpp (commented out by
     # default). Defining it via the compiler flag has the same effect without
