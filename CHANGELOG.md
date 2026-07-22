@@ -7,6 +7,23 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
+## [2.0.2] - 2026-07-22
+
+### Added
+- New GitHub Actions workflows for CMake embedded and CMake stress tests.
+
+### Fixed
+- Fixed Node 20 deprecation warnings in GitHub Actions by updating `actions/checkout` to `v7`.
+- DataBus QoS bugs and associated unit tests.
+- Build errors in `NetworkEngine.h` and the Cellutron safety example CMake configuration.
+- Addressed multiple code review findings across `DelegateAsyncWait`, `DelegateRemote`, fixed-block allocator (`xnew.h`), `NetworkEngine`, and embedded thread ports (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2).
+
+### Changed
+- Hardening updates across the core library and transport layer.
+- Minor documentation updates in `README.md` and `llms.txt`.
+
+---
+
 ## [2.0.1] - 2026-07-18
 
 ### Added

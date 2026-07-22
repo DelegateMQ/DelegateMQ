@@ -166,6 +166,11 @@ void AllocatorTests()
 
     // Test xnew<T>() returns the pool block instead of leaking it when T's
     // constructor throws (regression test for the xnew.h leak-on-throw fix).
+    // xnew<T>() only guards against a throwing constructor when exceptions
+    // are available and DMQ_ASSERTS is off (see xnew.h); under DMQ_ASSERTS
+    // the library assumes constructors never throw, so this check does not
+    // apply to that build configuration.
+#if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
     {
         Allocator* allocator = xallocator_get_allocator(sizeof(ThrowingCtor));
         uint32_t before = allocator->GetBlocksInUse();
@@ -180,6 +185,7 @@ void AllocatorTests()
         ASSERT_TRUE(caught);
         ASSERT_TRUE(allocator->GetBlocksInUse() == before);
     }
+#endif
 
 #ifdef DMQ_ALLOCATOR_SAFEGUARDS
     // White-box Safeguard Tests — constants come from xallocator.h (single source of truth)

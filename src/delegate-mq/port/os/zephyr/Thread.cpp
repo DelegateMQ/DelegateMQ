@@ -452,6 +452,7 @@ void Thread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
+                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -478,6 +479,7 @@ void Thread::Run()
 
     // Signal that we are about to exit
     k_sem_give(&m_exitSem);
+    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

@@ -449,6 +449,7 @@ void Thread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
+                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -477,6 +478,7 @@ void Thread::Run()
     if (m_exitSem) {
         osSemaphoreRelease(m_exitSem);
     }
+    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)
