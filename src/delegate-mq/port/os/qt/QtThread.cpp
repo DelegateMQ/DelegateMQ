@@ -1,9 +1,9 @@
 #ifndef DMQ_THREAD_QT
-#error "port/os/qt/Thread.cpp requires DMQ_THREAD_QT. Remove this file from your build configuration or define DMQ_THREAD_QT."
+#error "port/os/qt/QtThread.cpp requires DMQ_THREAD_QT. Remove this file from your build configuration or define DMQ_THREAD_QT."
 #endif
 
 #include "DelegateMQ.h"
-#include "Thread.h"
+#include "QtThread.h"
 #include "extras/util/Fault.h"
 #include <QDebug>
 
@@ -73,7 +73,7 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
+QtThread::QtThread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : m_threadName(threadName)
     , m_cpuName(cpuName)
     , m_maxQueueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
@@ -85,12 +85,12 @@ Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolic
 //----------------------------------------------------------------------------
 // Thread Destructor
 //----------------------------------------------------------------------------
-Thread::~Thread()
+QtThread::~QtThread()
 {
     ExitThread();
 
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread** pp = &GetWatchdogHead();
+    QtThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
         if (*pp == this)
@@ -106,7 +106,7 @@ Thread::~Thread()
 //----------------------------------------------------------------------------
 // CreateThread
 //----------------------------------------------------------------------------
-bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
+bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     if (!m_thread)
     {
@@ -120,13 +120,13 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Connect the Dispatch signal to the Worker's slot.
         // Qt::QueuedConnection is mandatory for cross-thread communication,
         // but Qt defaults to AutoConnection which handles this correctly.
-        connect(this, &Thread::SignalDispatch, 
+        connect(this, &QtThread::SignalDispatch, 
                 m_worker, &Worker::OnDispatch, 
                 Qt::QueuedConnection);
 
         // Track when message is processed to decrement m_queueSize
         connect(m_worker, &Worker::MessageProcessed,
-                this, &Thread::OnMessageProcessed);
+                this, &QtThread::OnMessageProcessed);
 
         // Ensure worker is deleted when thread finishes
         connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
@@ -146,7 +146,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             {
                 dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
                 bool found = false;
-                Thread* p = GetWatchdogHead();
+                QtThread* p = GetWatchdogHead();
                 while (p != nullptr)
                 {
                     if (p == this)
@@ -170,7 +170,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheck()
+void QtThread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -189,7 +189,7 @@ void Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 // ThreadCheck
 //----------------------------------------------------------------------------
-void Thread::ThreadCheck()
+void QtThread::ThreadCheck()
 {
     m_lastAliveTime.store(Timer::GetNow());
 }
@@ -197,10 +197,10 @@ void Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 // WatchdogCheckAll
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheckAll()
+void QtThread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread* p = GetWatchdogHead();
+    QtThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
         p->WatchdogCheck();
@@ -211,16 +211,16 @@ void Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 // GetWatchdogHead
 //----------------------------------------------------------------------------
-Thread*& Thread::GetWatchdogHead()
+QtThread*& QtThread::GetWatchdogHead()
 {
-    static Thread* head = nullptr;
+    static QtThread* head = nullptr;
     return head;
 }
 
 //----------------------------------------------------------------------------
 // GetWatchdogLock
 //----------------------------------------------------------------------------
-dmq::RecursiveMutex& Thread::GetWatchdogLock()
+dmq::RecursiveMutex& QtThread::GetWatchdogLock()
 {
     static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
     return *lock;
@@ -229,7 +229,7 @@ dmq::RecursiveMutex& Thread::GetWatchdogLock()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void Thread::ExitThread()
+void QtThread::ExitThread()
 {
     if (m_thread)
     {
@@ -261,7 +261,7 @@ void Thread::ExitThread()
 //----------------------------------------------------------------------------
 // GetThreadId
 //----------------------------------------------------------------------------
-QThread* Thread::GetThreadId()
+QThread* QtThread::GetThreadId()
 {
     return m_thread;
 }
@@ -269,7 +269,7 @@ QThread* Thread::GetThreadId()
 //----------------------------------------------------------------------------
 // GetCurrentThreadId
 //----------------------------------------------------------------------------
-QThread* Thread::GetCurrentThreadId()
+QThread* QtThread::GetCurrentThreadId()
 {
     return QThread::currentThread();
 }
@@ -277,19 +277,19 @@ QThread* Thread::GetCurrentThreadId()
 //----------------------------------------------------------------------------
 // IsCurrentThread
 //----------------------------------------------------------------------------
-bool Thread::IsCurrentThread()
+bool QtThread::IsCurrentThread()
 {
     return GetThreadId() == GetCurrentThreadId();
 }
 
-void Thread::Sleep(dmq::Duration timeout) {
+void QtThread::Sleep(dmq::Duration timeout) {
     dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Safety check: Don't emit if thread is tearing down
     if (m_thread && m_thread->isRunning()) 
@@ -353,7 +353,7 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // UpdateInvokeStats
 //----------------------------------------------------------------------------
-void Thread::UpdateInvokeStats(dmq::Duration invokeTime)
+void QtThread::UpdateInvokeStats(dmq::Duration invokeTime)
 {
     m_mutex.lock();
     m_invokeTotalWindow += invokeTime;
@@ -366,7 +366,7 @@ void Thread::UpdateInvokeStats(dmq::Duration invokeTime)
 //----------------------------------------------------------------------------
 // SnapshotStats
 //----------------------------------------------------------------------------
-Thread::ThreadStats Thread::SnapshotStats()
+QtThread::ThreadStats QtThread::SnapshotStats()
 {
     m_mutex.lock();
     ThreadStats stats;

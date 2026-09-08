@@ -1,63 +1,45 @@
-#ifndef _THREAD_THREADX_H
-#define _THREAD_THREADX_H
+#ifndef _THREAD_ZEPHYR_H
+#define _THREAD_ZEPHYR_H
 
-/// @file Thread.h
-/// @see https://github.com/DelegateMQ/DelegateMQ
-/// David Lafreniere, 2026.
-///
-/// @brief ThreadX implementation of the DelegateMQ IThread interface.
-///
-/// @details
-/// This class provides a concrete implementation of the `IThread` interface using
-/// Azure RTOS ThreadX primitives. It enables DelegateMQ to dispatch asynchronous
-/// delegates to a dedicated ThreadX thread.
+/// @file ZephyrThread.h
+/// @brief Zephyr RTOS implementation of the DelegateMQ IThread interface.
 ///
 /// @note This implementation is a basic port. For reference, the stdlib and win32
 /// implementations provide additional features:
 /// 1. Synchronized Startup: CreateThread() blocks until the worker thread is ready.
 ///
 /// **Key Features:**
-/// * **Task Integration:** Wraps `tx_thread_create` to establish a dedicated worker loop.
+/// * **Task Integration:** Wraps `k_thread_create` to establish a dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities (uses `tx_queue_front_send`).
-/// * **Queue-Based Dispatch:** Uses a `TX_QUEUE` to receive and process incoming
+/// * **Priority Support:** Normal and High priorities. Since Zephyr's `k_msgq` has
+///   no native "send to front", `ZephyrDelegateQueue` keeps two `k_msgq` instances
+///   (mirroring the desktop two-deque model) and always drains the high-priority
+///   one first -- see ZephyrDelegateQueue.h for the tradeoffs this implies.
+/// * **Queue-Based Dispatch:** Uses `ZephyrDelegateQueue` (a thin RAII wrapper
+///   around a pair of `k_msgq` instances) to receive and process incoming
 ///   delegate messages in a thread-safe manner.
-/// * **Priority Control:** Supports runtime priority configuration via `SetThreadPriority`.
-/// * **Dynamic Configuration:** Allows configuring stack size and queue depth at construction.
-/// * **Graceful Shutdown:** Implements robust termination logic using semaphores to ensure
-///   the thread exits cleanly before destruction.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
 ///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
 ///   -- typically a hardware timer ISR or the highest-priority task in the system.
 
 #include "delegate/IThread.h"
-#include "ThreadMsg.h"
+#include "port/os/common/ThreadMsg.h"
+#include "ZephyrDelegateQueue.h"
 #include "extras/util/Timer.h"
-#include <tx_api.h>
+#include <zephyr/kernel.h>
 #include <memory>
 #include <atomic>
 #include <string>
 
 namespace dmq::os {
 
-using namespace dmq::util;
+/// @brief Policy applied when the thread message queue is full. See dmq::FullPolicy
+/// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
+using FullPolicy = dmq::FullPolicy;
 
-/// @brief Policy applied when the thread message queue is full.
-/// @details Only meaningful when maxQueueSize > 0.
-///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
-///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
-///
-/// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. FAULT is the default.
-enum class FullPolicy { DROP, FAULT, TIMEOUT };
-
-// Comparator for priority (ThreadX priority is 0 to N-1, where 0 is highest)
-// This is used for the priority queue if we had one, but ThreadX uses tx_queue_send/tx_queue_front_send.
-
-class Thread : public dmq::IThread
+class ZephyrThread : public dmq::IThread
 {
 public:
 #if defined(DMQ_DATABUS_TOOLS)
@@ -80,50 +62,41 @@ public:
 #endif
 
     /// Default queue size if 0 is passed
-    static const ULONG DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
+    static const size_t DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
 
     /// Constructor
-    /// @param threadName Name for the ThreadX thread
+    /// @param threadName Name for the Zephyr thread
     /// @param maxQueueSize Max number of messages in queue (0 = Default dmq::DEFAULT_QUEUE_SIZE)
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
-    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    ZephyrThread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
 
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    ZephyrThread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
-        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
+        : ZephyrThread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
-    /// Destructor
-    ~Thread();
+    ~ZephyrThread();
 
     /// Called once to create the worker thread. If watchdogTimeout value
     /// provided, the maximum watchdog interval is used. Otherwise no watchdog.
     /// @param[in] watchdogTimeout - optional watchdog timeout.
     /// @return TRUE if thread is created. FALSE otherwise.
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
-
-    /// Terminate the thread gracefully
     void ExitThread();
 
-    /// Get the ID of this thread instance
-    TX_THREAD* GetThreadId();
-
-    /// Get the ID of the currently executing thread
-    static TX_THREAD* GetCurrentThreadId();
+    // Note: k_tid_t is a struct k_thread* in Zephyr
+    k_tid_t GetThreadId();
+    static k_tid_t GetCurrentThreadId();
 
     /// Returns true if the calling thread is this thread
     virtual bool IsCurrentThread() override;
 
-    /// Set the ThreadX Priority (0 = Highest). 
+    /// Set the Zephyr Priority.
     /// Can be called before or after CreateThread().
-    void SetThreadPriority(UINT priority);
+    void SetThreadPriority(int priority);
 
-    /// Get current priority
-    UINT GetThreadPriority();
-
-    /// Get thread name
     dmq::xstring GetThreadName() { return THREAD_NAME; }
 
     /// Get current queue size
@@ -133,7 +106,6 @@ public:
     /// @param[in] timeout - the duration to sleep.
     static void Sleep(dmq::Duration timeout);
 
-    // IThread Interface Implementation
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
     /// @brief Manually update the watchdog alive timestamp.
@@ -151,65 +123,54 @@ public:
 #endif
 
 private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
+    ZephyrThread(const ZephyrThread&) = delete;
+    ZephyrThread& operator=(const ZephyrThread&) = delete;
 
-    /// Entry point for the thread
-    static void Process(ULONG instance);
-
-    // Run loop called by Process
+    // ZephyrThread entry point
+    static void Process(void* p1, void* p2, void* p3);
     void Run();
-
-    /// @brief Registry mapping a ThreadX TX_THREAD control block back to its
-    /// owning Thread instance.
-    /// @details ThreadX's tx_thread_create() entry_input parameter is a
-    /// ULONG, which cannot safely carry a 64-bit 'this' pointer on hosts
-    /// where ULONG is 32 bits (e.g. this Linux/GNU simulation port) --
-    /// reinterpret_cast<ULONG>(this) would truncate it. Process() instead
-    /// looks up 'this' via tx_thread_identify() against this registry.
-    /// Entries are added before tx_thread_resume() is called, so Process()
-    /// can never observe a not-yet-registered thread.
-    static dmq::xmap<TX_THREAD*, Thread*>& GetInstanceRegistry();
-    static dmq::RecursiveMutex& GetInstanceRegistryLock();
 
     /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
-    static Thread*& GetWatchdogHead();
+    static ZephyrThread*& GetWatchdogHead();
 
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock();
 
     const dmq::xstring THREAD_NAME;
     const dmq::xstring CPU_NAME;
-    const size_t m_queueSize; // Stored queue size
+    const size_t m_queueSize;
     const FullPolicy FULL_POLICY;
     const dmq::Duration m_dispatchTimeout;
-    UINT m_priority;    // Stored priority
+    int m_priority;
 
-    // ThreadX Control Blocks
-    TX_THREAD m_thread;
-    TX_QUEUE m_queue;
-    TX_SEMAPHORE m_exitSem; // Semaphore to signal thread completion
+    // Zephyr Kernel Objects
+    struct k_thread m_thread;
+    ZephyrDelegateQueue m_queue;
+    struct k_sem m_exitSem; // Semaphore to signal thread completion
     std::atomic<bool> m_exit = false;
     bool* m_selfExitPtr = nullptr;
 
-    // Memory buffers required by ThreadX (Managed by RAII)
-    // Using ULONG[] ensures correct alignment for ThreadX stacks and queues
-    std::unique_ptr<ULONG[]> m_stackMemory;
-    std::unique_ptr<ULONG[]> m_queueMemory;
+    // Custom deleter for Zephyr kernel memory (wraps k_free)
+    using ZephyrDeleter = void(*)(void*);
 
-    // Configurable stack size (bytes)
-    static const ULONG STACK_SIZE = 2048;
+    // Dynamically allocated stack, managed by unique_ptr but allocated via
+    // k_aligned_alloc and freed via k_free. Also doubles as the
+    // "is thread created" sentinel checked throughout this class.
+    std::unique_ptr<char, ZephyrDeleter> m_stackMemory{nullptr, k_free};
+
+    // Stack size in bytes
+    static const size_t STACK_SIZE = 2048;
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::atomic<dmq::Duration> m_watchdogTimeout;
-    Thread* m_watchdogNext = nullptr;
+    ZephyrThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
-    TX_MUTEX m_statMutex; // Mutex to protect statistics
+    struct k_mutex m_statMutex; // Mutex to protect statistics
     // Monitoring statistics members
     size_t m_queueDepthMaxWindow = 0;
     size_t m_queueDepthMaxAll = 0;
@@ -228,6 +189,10 @@ private:
 #endif
 };
 
+/// @brief Backward-compatible name: existing code referencing dmq::os::Thread
+/// keeps compiling unchanged against the Zephyr port.
+using Thread = ZephyrThread;
+
 } // namespace dmq::os
 
-#endif // _THREAD_THREADX_H
+#endif // _THREAD_ZEPHYR_H

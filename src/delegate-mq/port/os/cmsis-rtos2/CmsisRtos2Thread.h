@@ -1,48 +1,57 @@
-#ifndef _THREAD_ZEPHYR_H
-#define _THREAD_ZEPHYR_H
+#ifndef _THREAD_CMSIS_RTOS2_H
+#define _THREAD_CMSIS_RTOS2_H
 
-/// @file Thread.h
-/// @brief Zephyr RTOS implementation of the DelegateMQ IThread interface.
+/// @file CmsisRtos2Thread.h
+/// @see https://github.com/DelegateMQ/DelegateMQ
+/// David Lafreniere, 2026.
+///
+/// @brief CMSIS-RTOS2 implementation of the DelegateMQ IThread interface.
+///
+/// @details
+/// This class provides a concrete implementation of the `IThread` interface using 
+/// the CMSIS-RTOS2 standard API (`cmsis_os2.h`). It enables DelegateMQ to dispatch 
+/// asynchronous delegates to a dedicated thread on any CMSIS-compliant RTOS 
+/// (e.g., Keil RTX, FreeRTOS wrapped by CMSIS, Zephyr, etc.).
 ///
 /// @note This implementation is a basic port. For reference, the stdlib and win32
 /// implementations provide additional features:
-/// 1. Priority Support: Uses a priority queue to respect dmq::Priority.
-/// 2. Synchronized Startup: CreateThread() blocks until the worker thread is ready.
+/// 1. Synchronized Startup: CreateThread() blocks until the worker thread is ready.
 ///
 /// **Key Features:**
-/// * **Task Integration:** Wraps `k_thread_create` to establish a dedicated worker loop.
+/// * **Task Integration:** Wraps `osThreadNew` to establish a dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Queue-Based Dispatch:** Uses `k_msgq` to receive and process incoming
-///   delegate messages in a thread-safe manner.
+/// * **Priority Support:** Normal and High priorities (uses `osMessageQueuePut`'s
+///   native `msg_prio` argument, via `CmsisRtos2DelegateQueue::Send`'s highPriority flag).
+/// * **Queue-Based Dispatch:** Uses `CmsisRtos2DelegateQueue` (a thin RAII wrapper
+///   around an `osMessageQueue`) to receive and process incoming delegate
+///   messages in a thread-safe manner.
+/// * **Priority Control:** Supports runtime priority configuration via `SetThreadPriority`
+///   using standard `osPriority_t` levels.
+/// * **Graceful Shutdown:** Implements robust termination logic using semaphores to ensure
+///   the thread exits cleanly before destruction.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
 ///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   -- typically a hardware timer ISR or the highest-priority task in the system.
+///   — typically a hardware timer ISR or the highest-priority task in the system.
 
 #include "delegate/IThread.h"
-#include "ThreadMsg.h"
 #include "extras/util/Timer.h"
-#include <zephyr/kernel.h>
+#include "port/os/common/ThreadMsg.h"
+#include "CmsisRtos2DelegateQueue.h"
+#include "cmsis_os2.h"
+#include <string>
 #include <memory>
 #include <atomic>
-#include <string>
+#include <optional>
 
 namespace dmq::os {
 
-/// @brief Policy applied when the thread message queue is full.
-/// @details Only meaningful when maxQueueSize > 0.
-///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
-///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
-///
-/// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics
-/// (commands, state transitions) where every message should be delivered if possible.
-/// FAULT is the default.
-enum class FullPolicy { DROP, FAULT, TIMEOUT };
+/// @brief Policy applied when the thread message queue is full. See dmq::FullPolicy
+/// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
+using FullPolicy = dmq::FullPolicy;
 
-class Thread : public dmq::IThread
+class CmsisRtos2Thread : public dmq::IThread
 {
 public:
 #if defined(DMQ_DATABUS_TOOLS)
@@ -65,22 +74,22 @@ public:
 #endif
 
     /// Default queue size if 0 is passed
-    static const size_t DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
+    static const uint32_t DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
 
     /// Constructor
-    /// @param threadName Name for the Zephyr thread
+    /// @param threadName Name for the thread
     /// @param maxQueueSize Max number of messages in queue (0 = Default dmq::DEFAULT_QUEUE_SIZE)
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
-    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    CmsisRtos2Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
-
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    
+    CmsisRtos2Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
-        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
+        : CmsisRtos2Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
-    ~Thread();
+    ~CmsisRtos2Thread();
 
     /// Called once to create the worker thread. If watchdogTimeout value
     /// provided, the maximum watchdog interval is used. Otherwise no watchdog.
@@ -89,16 +98,18 @@ public:
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
     void ExitThread();
 
-    // Note: k_tid_t is a struct k_thread* in Zephyr
-    k_tid_t GetThreadId();
-    static k_tid_t GetCurrentThreadId();
+    osThreadId_t GetThreadId();
+    static osThreadId_t GetCurrentThreadId();
 
     /// Returns true if the calling thread is this thread
     virtual bool IsCurrentThread() override;
 
-    /// Set the Zephyr Priority.
+    /// Set the thread priority.
     /// Can be called before or after CreateThread().
-    void SetThreadPriority(int priority);
+    void SetThreadPriority(osPriority_t priority);
+
+    /// Get current priority
+    osPriority_t GetThreadPriority();
 
     dmq::xstring GetThreadName() { return THREAD_NAME; }
 
@@ -126,18 +137,18 @@ public:
 #endif
 
 private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
+    CmsisRtos2Thread(const CmsisRtos2Thread&) = delete;
+    CmsisRtos2Thread& operator=(const CmsisRtos2Thread&) = delete;
 
-    // Thread entry point
-    static void Process(void* p1, void* p2, void* p3);
+    // Entry point
+    static void Process(void* argument);
     void Run();
 
     /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
-    static Thread*& GetWatchdogHead();
+    static CmsisRtos2Thread*& GetWatchdogHead();
 
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock();
@@ -147,38 +158,24 @@ private:
     const size_t m_queueSize;
     const FullPolicy FULL_POLICY;
     const dmq::Duration m_dispatchTimeout;
-    int m_priority;
+    osPriority_t m_priority;
 
-    // Zephyr Kernel Objects
-    struct k_thread m_thread;
-    struct k_msgq m_msgq;
-    struct k_sem m_exitSem; // Semaphore to signal thread completion
+    osThreadId_t m_thread = NULL;
+    CmsisRtos2DelegateQueue m_queue;
+    osSemaphoreId_t m_exitSem = NULL; // Semaphore to signal thread completion
     std::atomic<bool> m_exit = false;
     bool* m_selfExitPtr = nullptr;
-
-    // Define pointer type for the message queue
-    using MsgPtr = ThreadMsg*;
-
-    // Custom deleter for Zephyr kernel memory (wraps k_free)
-    using ZephyrDeleter = void(*)(void*);
-
-    // Dynamically allocated stack and message queue buffer
-    // Managed by unique_ptr but allocated via k_aligned_alloc and freed via k_free
-    std::unique_ptr<char, ZephyrDeleter> m_stackMemory{nullptr, k_free};
-    std::unique_ptr<char, ZephyrDeleter> m_msgqBuffer{nullptr, k_free};
-
-    // Stack size in bytes
-    static const size_t STACK_SIZE = 2048;
-    // Size of one message item (the pointer)
-    static const size_t MSG_SIZE = sizeof(MsgPtr);
+    
+    // Configurable sizes
+    static const uint32_t STACK_SIZE = 2048; // Bytes
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::atomic<dmq::Duration> m_watchdogTimeout;
-    Thread* m_watchdogNext = nullptr;
+    CmsisRtos2Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
-    struct k_mutex m_statMutex; // Mutex to protect statistics
+    osMutexId_t m_statMutex = NULL; // Mutex to protect statistics
     // Monitoring statistics members
     size_t m_queueDepthMaxWindow = 0;
     size_t m_queueDepthMaxAll = 0;
@@ -197,6 +194,10 @@ private:
 #endif
 };
 
+/// @brief Backward-compatible name: existing code referencing dmq::os::Thread
+/// keeps compiling unchanged against the CMSIS-RTOS2 port.
+using Thread = CmsisRtos2Thread;
+
 } // namespace dmq::os
 
-#endif // _THREAD_ZEPHYR_H
+#endif // _THREAD_CMSIS_RTOS2_H

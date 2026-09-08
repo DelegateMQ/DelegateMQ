@@ -259,6 +259,19 @@ namespace dmq
     };
 #endif
 
+    /// @brief Policy applied when a dmq::os::Thread port's message queue is full.
+    /// @details Only meaningful when the port's maxQueueSize > 0.
+    ///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
+    ///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
+    ///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
+    ///
+    /// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
+    /// a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics
+    /// (commands, state transitions) where every message should be delivered if possible.
+    /// FAULT is the default. Every dmq::os::Thread port aliases this single definition as
+    /// dmq::os::FullPolicy so existing port-qualified references keep working.
+    enum class FullPolicy { DROP, FAULT, TIMEOUT };
+
     /// @brief Default timeout for the TIMEOUT queue-full policy across all Thread ports.
     /// Override via DMQ_DEFAULT_DISPATCH_TIMEOUT in DelegateMQConfig.h.
     inline constexpr std::chrono::seconds DEFAULT_DISPATCH_TIMEOUT{DMQ_DEFAULT_DISPATCH_TIMEOUT};

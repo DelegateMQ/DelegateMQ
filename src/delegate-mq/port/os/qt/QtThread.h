@@ -33,28 +33,20 @@
 
 namespace dmq::os {
 
-/// @brief Policy applied when the thread message queue is full.
-/// @details Only meaningful when maxQueueSize > 0.
-///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
-///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
-///
-/// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics
-/// (commands, state transitions) where every message should be delivered if possible.
-/// FAULT is the default.
-enum class FullPolicy { DROP, FAULT, TIMEOUT };
+/// @brief Policy applied when the thread message queue is full. See dmq::FullPolicy
+/// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
+using FullPolicy = dmq::FullPolicy;
 
 // ----------------------------------------------------------------------------
 // Worker Object
 // Lives on the target QThread and executes the slots
 // ----------------------------------------------------------------------------
-class Thread;
+class QtThread;
 class Worker : public QObject
 {
     Q_OBJECT
 public:
-    Worker(Thread* thread = nullptr) : m_thread(thread) {}
+    Worker(QtThread* thread = nullptr) : m_thread(thread) {}
     void ClearThread() { m_thread = nullptr; }
 
 public slots:
@@ -64,10 +56,10 @@ signals:
     void MessageProcessed();
 
 private:
-    Thread* m_thread;
+    QtThread* m_thread;
 };
 
-class Thread : public QObject, public dmq::IThread
+class QtThread : public QObject, public dmq::IThread
 {
     Q_OBJECT
 
@@ -100,15 +92,15 @@ public:
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
-    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    QtThread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
 
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    QtThread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
-        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
+        : QtThread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
     /// Destructor
-    ~Thread();
+    ~QtThread();
 
     /// Create and start the internal QThread. If watchdogTimeout value
     /// provided, the maximum watchdog interval is used. Otherwise no watchdog.
@@ -168,14 +160,14 @@ private slots:
     }
 
 private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
+    QtThread(const QtThread&) = delete;
+    QtThread& operator=(const QtThread&) = delete;
 
     /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
-    static Thread*& GetWatchdogHead();
+    static QtThread*& GetWatchdogHead();
 
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock();
@@ -194,7 +186,7 @@ private:
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::atomic<dmq::Duration> m_watchdogTimeout;
-    Thread* m_watchdogNext = nullptr;
+    QtThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Monitoring statistics members
@@ -214,6 +206,10 @@ private:
     uint64_t m_dispatchCountAll = 0;
 #endif
 };
+
+/// @brief Backward-compatible name: existing code referencing dmq::os::Thread
+/// keeps compiling unchanged against the Qt port.
+using Thread = QtThread;
 
 } // namespace dmq::os
 

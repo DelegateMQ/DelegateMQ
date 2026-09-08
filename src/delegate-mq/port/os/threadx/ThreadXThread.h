@@ -1,61 +1,60 @@
-#ifndef _THREAD_CMSIS_RTOS2_H
-#define _THREAD_CMSIS_RTOS2_H
+#ifndef _THREAD_THREADX_H
+#define _THREAD_THREADX_H
 
-/// @file Thread.h
+/// @file ThreadXThread.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2026.
 ///
-/// @brief CMSIS-RTOS2 implementation of the DelegateMQ IThread interface.
+/// @brief ThreadX implementation of the DelegateMQ IThread interface.
 ///
 /// @details
-/// This class provides a concrete implementation of the `IThread` interface using 
-/// the CMSIS-RTOS2 standard API (`cmsis_os2.h`). It enables DelegateMQ to dispatch 
-/// asynchronous delegates to a dedicated thread on any CMSIS-compliant RTOS 
-/// (e.g., Keil RTX, FreeRTOS wrapped by CMSIS, Zephyr, etc.).
+/// This class provides a concrete implementation of the `IThread` interface using
+/// Azure RTOS ThreadX primitives. It enables DelegateMQ to dispatch asynchronous
+/// delegates to a dedicated ThreadX thread.
 ///
 /// @note This implementation is a basic port. For reference, the stdlib and win32
 /// implementations provide additional features:
 /// 1. Synchronized Startup: CreateThread() blocks until the worker thread is ready.
 ///
 /// **Key Features:**
-/// * **Task Integration:** Wraps `osThreadNew` to establish a dedicated worker loop.
+/// * **Task Integration:** Wraps `tx_thread_create` to establish a dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities (uses `msg_prio`).
-/// * **Queue-Based Dispatch:** Uses `osMessageQueue` to receive and process incoming
-///   delegate messages in a thread-safe manner.
-/// * **Priority Control:** Supports runtime priority configuration via `SetThreadPriority`
-///   using standard `osPriority_t` levels.
+/// * **Priority Support:** Normal and High priorities (High jumps the FIFO via
+///   `ThreadXDelegateQueue::Send`'s highPriority flag).
+/// * **Queue-Based Dispatch:** Uses `ThreadXDelegateQueue` (a thin RAII wrapper
+///   around a ThreadX `TX_QUEUE`) to receive and process incoming delegate
+///   messages in a thread-safe manner.
+/// * **Priority Control:** Supports runtime priority configuration via `SetThreadPriority`.
+/// * **Dynamic Configuration:** Allows configuring stack size and queue depth at construction.
 /// * **Graceful Shutdown:** Implements robust termination logic using semaphores to ensure
 ///   the thread exits cleanly before destruction.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
 ///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   — typically a hardware timer ISR or the highest-priority task in the system.
+///   -- typically a hardware timer ISR or the highest-priority task in the system.
 
 #include "delegate/IThread.h"
+#include "port/os/common/ThreadMsg.h"
+#include "ThreadXDelegateQueue.h"
 #include "extras/util/Timer.h"
-#include "cmsis_os2.h"
-#include <string>
+#include <tx_api.h>
 #include <memory>
 #include <atomic>
-#include <optional>
+#include <string>
 
 namespace dmq::os {
 
-class ThreadMsg;
+using namespace dmq::util;
 
-/// @brief Policy applied when the thread message queue is full.
-/// @details Only meaningful when maxQueueSize > 0.
-///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
-///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
-///
-/// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. FAULT is the default.
-enum class FullPolicy { DROP, FAULT, TIMEOUT };
+/// @brief Policy applied when the thread message queue is full. See dmq::FullPolicy
+/// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
+using FullPolicy = dmq::FullPolicy;
 
-class Thread : public dmq::IThread
+// Comparator for priority (ThreadX priority is 0 to N-1, where 0 is highest)
+// This is used for the priority queue if we had one, but ThreadX uses tx_queue_send/tx_queue_front_send.
+
+class ThreadXThread : public dmq::IThread
 {
 public:
 #if defined(DMQ_DATABUS_TOOLS)
@@ -78,43 +77,50 @@ public:
 #endif
 
     /// Default queue size if 0 is passed
-    static const uint32_t DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
+    static const ULONG DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
 
     /// Constructor
-    /// @param threadName Name for the thread
+    /// @param threadName Name for the ThreadX thread
     /// @param maxQueueSize Max number of messages in queue (0 = Default dmq::DEFAULT_QUEUE_SIZE)
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
-    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    ThreadXThread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
-    
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
-           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
-        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
-    ~Thread();
+    ThreadXThread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+           dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
+        : ThreadXThread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
+
+    /// Destructor
+    ~ThreadXThread();
 
     /// Called once to create the worker thread. If watchdogTimeout value
     /// provided, the maximum watchdog interval is used. Otherwise no watchdog.
     /// @param[in] watchdogTimeout - optional watchdog timeout.
     /// @return TRUE if thread is created. FALSE otherwise.
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
+
+    /// Terminate the thread gracefully
     void ExitThread();
 
-    osThreadId_t GetThreadId();
-    static osThreadId_t GetCurrentThreadId();
+    /// Get the ID of this thread instance
+    TX_THREAD* GetThreadId();
+
+    /// Get the ID of the currently executing thread
+    static TX_THREAD* GetCurrentThreadId();
 
     /// Returns true if the calling thread is this thread
     virtual bool IsCurrentThread() override;
 
-    /// Set the thread priority.
+    /// Set the ThreadX Priority (0 = Highest). 
     /// Can be called before or after CreateThread().
-    void SetThreadPriority(osPriority_t priority);
+    void SetThreadPriority(UINT priority);
 
     /// Get current priority
-    osPriority_t GetThreadPriority();
+    UINT GetThreadPriority();
 
+    /// Get thread name
     dmq::xstring GetThreadName() { return THREAD_NAME; }
 
     /// Get current queue size
@@ -124,6 +130,7 @@ public:
     /// @param[in] timeout - the duration to sleep.
     static void Sleep(dmq::Duration timeout);
 
+    // IThread Interface Implementation
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
     /// @brief Manually update the watchdog alive timestamp.
@@ -141,45 +148,64 @@ public:
 #endif
 
 private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
+    ThreadXThread(const ThreadXThread&) = delete;
+    ThreadXThread& operator=(const ThreadXThread&) = delete;
 
-    // Entry point
-    static void Process(void* argument);
+    /// Entry point for the thread
+    static void Process(ULONG instance);
+
+    // Run loop called by Process
     void Run();
+
+    /// @brief Registry mapping a ThreadX TX_THREAD control block back to its
+    /// owning ThreadXThread instance.
+    /// @details ThreadX's tx_thread_create() entry_input parameter is a
+    /// ULONG, which cannot safely carry a 64-bit 'this' pointer on hosts
+    /// where ULONG is 32 bits (e.g. this Linux/GNU simulation port) --
+    /// reinterpret_cast<ULONG>(this) would truncate it. Process() instead
+    /// looks up 'this' via tx_thread_identify() against this registry.
+    /// Entries are added before tx_thread_resume() is called, so Process()
+    /// can never observe a not-yet-registered thread.
+    static dmq::xmap<TX_THREAD*, ThreadXThread*>& GetInstanceRegistry();
+    static dmq::RecursiveMutex& GetInstanceRegistryLock();
 
     /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
-    static Thread*& GetWatchdogHead();
+    static ThreadXThread*& GetWatchdogHead();
 
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock();
 
     const dmq::xstring THREAD_NAME;
     const dmq::xstring CPU_NAME;
-    const size_t m_queueSize;
+    const size_t m_queueSize; // Stored queue size
     const FullPolicy FULL_POLICY;
     const dmq::Duration m_dispatchTimeout;
-    osPriority_t m_priority;
+    UINT m_priority;    // Stored priority
 
-    osThreadId_t m_thread = NULL;
-    osMessageQueueId_t m_msgq = NULL;
-    osSemaphoreId_t m_exitSem = NULL; // Semaphore to signal thread completion
+    // ThreadX Control Blocks
+    TX_THREAD m_thread;
+    ThreadXDelegateQueue m_queue;
+    TX_SEMAPHORE m_exitSem; // Semaphore to signal thread completion
     std::atomic<bool> m_exit = false;
     bool* m_selfExitPtr = nullptr;
-    
-    // Configurable sizes
-    static const uint32_t STACK_SIZE = 2048; // Bytes
+
+    // Stack memory required by ThreadX (Managed by RAII)
+    // Using ULONG[] ensures correct alignment for the ThreadX stack
+    std::unique_ptr<ULONG[]> m_stackMemory;
+
+    // Configurable stack size (bytes)
+    static const ULONG STACK_SIZE = 2048;
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::atomic<dmq::Duration> m_watchdogTimeout;
-    Thread* m_watchdogNext = nullptr;
+    ThreadXThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
-    osMutexId_t m_statMutex = NULL; // Mutex to protect statistics
+    TX_MUTEX m_statMutex; // Mutex to protect statistics
     // Monitoring statistics members
     size_t m_queueDepthMaxWindow = 0;
     size_t m_queueDepthMaxAll = 0;
@@ -198,6 +224,10 @@ private:
 #endif
 };
 
+/// @brief Backward-compatible name: existing code referencing dmq::os::Thread
+/// keeps compiling unchanged against the ThreadX port.
+using Thread = ThreadXThread;
+
 } // namespace dmq::os
 
-#endif // _THREAD_CMSIS_RTOS2_H
+#endif // _THREAD_THREADX_H

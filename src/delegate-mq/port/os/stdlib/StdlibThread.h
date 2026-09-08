@@ -1,7 +1,7 @@
 #ifndef _THREAD_STD_H
 #define _THREAD_STD_H
 
-/// @file Thread.h
+/// @file StdlibThread.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 ///
@@ -28,7 +28,7 @@
 
 #include "delegate/IThread.h"
 #include "./extras/util/Timer.h"
-#include "ThreadMsg.h"
+#include "port/os/common/ThreadMsg.h"
 #include <thread>
 #include <deque>
 #include <atomic>
@@ -38,22 +38,14 @@
 
 namespace dmq::os {
 
-/// @brief Policy applied when the thread message queue is full.
-/// @details Only meaningful when maxQueueSize > 0.
-///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
-///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
-///
-/// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics
-/// (commands, state transitions) where every message should be delivered if possible.
-/// FAULT is the default.
-enum class FullPolicy { DROP, FAULT, TIMEOUT };
+/// @brief Policy applied when the thread message queue is full. See dmq::FullPolicy
+/// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
+using FullPolicy = dmq::FullPolicy;
 
 /// @brief Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).
-/// @details The Thread class creates a worker thread capable of dispatching and
+/// @details The StdlibThread class creates a worker thread capable of dispatching and
 /// invoking asynchronous delegates.
-class Thread : public dmq::IThread
+class StdlibThread : public dmq::IThread
 {
     XALLOCATOR
 public:
@@ -84,14 +76,14 @@ public:
     ///                   Only meaningful when maxQueueSize > 0.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
-    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    StdlibThread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    StdlibThread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
-        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
+        : StdlibThread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
     /// Destructor
-    ~Thread();
+    ~StdlibThread();
 
     /// Called once to create the worker thread. If watchdogTimeout value 
     /// provided, the maximum watchdog interval is used. Otherwise no watchdog.
@@ -141,8 +133,8 @@ public:
 #endif
 
 private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
+    StdlibThread(const StdlibThread&) = delete;
+    StdlibThread& operator=(const StdlibThread&) = delete;
 
     /// Entry point for the thread
     void Process();
@@ -156,7 +148,7 @@ private:
     void WatchdogCheck();
 
     /// @brief Returns the head of the watchdog linked list.
-    static Thread*& GetWatchdogHead();
+    static StdlibThread*& GetWatchdogHead();
 
     /// @brief Returns the recursive mutex for protecting the watchdog list.
     static dmq::RecursiveMutex& GetWatchdogLock();
@@ -196,7 +188,7 @@ private:
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::atomic<dmq::Duration> m_watchdogTimeout;
-    Thread* m_watchdogNext = nullptr;
+    StdlibThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Separate mutex for statistics to reduce contention on m_mutex
@@ -219,6 +211,10 @@ private:
     uint64_t m_dispatchCountAll = 0;
 #endif
 };
+
+/// @brief Backward-compatible name: existing code referencing dmq::os::Thread
+/// keeps compiling unchanged against the stdlib port.
+using Thread = StdlibThread;
 
 } // namespace dmq::os
 

@@ -1,5 +1,18 @@
-#ifndef _THREAD_MSG_H
-#define _THREAD_MSG_H
+#ifndef DMQ_OS_COMMON_THREAD_MSG_H
+#define DMQ_OS_COMMON_THREAD_MSG_H
+
+/// @file ThreadMsg.h
+/// @see https://github.com/DelegateMQ/DelegateMQ
+/// David Lafreniere, 2026.
+///
+/// @brief A class to hold a platform-specific thread message that will be passed
+/// through a dmq::os::Thread port's OS message queue.
+///
+/// @details
+/// Identical across every dmq::os::Thread port (FreeRTOS, ThreadX, Zephyr,
+/// CMSIS-RTOS2, stdlib, Win32) except Qt, which dispatches via Qt's own
+/// signal/slot queued-connection mechanism instead of a ThreadMsg wrapper --
+/// kept as a single shared file here instead of one copy per port directory.
 
 #include "delegate/DelegateOpt.h"
 #include <memory>
@@ -13,7 +26,10 @@ namespace dmq::os {
 class ThreadMsg
 {
 public:
-    // Constructor for generic messages
+    /// Constructor
+    /// @param[in] id - a unique identifier for the thread message
+    /// @param[in] data - a pointer to the message data to be typecast
+    ///     by the receiving task based on the id value.
     ThreadMsg(int id, std::shared_ptr<dmq::DelegateMsg> data = nullptr)
         : m_id(id), m_data(data) {
     }
@@ -40,9 +56,10 @@ private:
     dmq::TimePoint m_enqueueTime;
 #endif
 
+    // Use fixed-block memory allocator if DMQ_ALLOCATOR set
     XALLOCATOR
 };
 
 } // namespace dmq::os
 
-#endif
+#endif // DMQ_OS_COMMON_THREAD_MSG_H

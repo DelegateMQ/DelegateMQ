@@ -101,19 +101,23 @@ if (thread) {
 }
 ```
 
-`DispatchDelegate()` inserts a message into the thread's message queue. The `dmq::os::Thread` class uses an underlying `std::thread` on stdlib/Win32 platforms and a FreeRTOS task on embedded. Create a unique `DispatchDelegate()` implementation based on your platform's OS API.
+`DispatchDelegate()` inserts a message into the thread's message queue. Name your concrete class `<Platform>Thread` (e.g. `FreeRTOSThread`, matching the existing `StdlibThread`, `Win32Thread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `QtThread` ports) in a `<Platform>Thread.h`/`.cpp` pair under `port/os/<platform>/`, and add `using Thread = <Platform>Thread;` inside `namespace dmq::os` at the end of the header — this is what lets application code, tests, and the rest of the library keep referring to `dmq::os::Thread` regardless of which port is active. Create a unique `DispatchDelegate()` implementation based on your platform's OS API.
 
-The implementation should handle the queue-full case according to `dmq::os::FullPolicy` before allocating the message. On platforms with a lockable queue (stdlib, Win32), check first then allocate to avoid wasting heap on drops. On RTOS platforms (FreeRTOS, Zephyr, etc.) the OS queue API is atomic, so allocate first and delete on failure:
+The message type itself, `dmq::os::ThreadMsg`, is a single shared file — `port/os/common/ThreadMsg.h` — used by every port except Qt (which dispatches through Qt's own signal/slot queued-connection mechanism instead). Don't create a per-port copy; `#include "port/os/common/ThreadMsg.h"` from your new port's header.
+
+The implementation should handle the queue-full case according to `dmq::FullPolicy` (defined once in `DelegateOpt.h`; each port aliases it as `using FullPolicy = dmq::FullPolicy;` inside `namespace dmq::os`, so port code just says `FullPolicy` unqualified) before allocating the message. On platforms with a lockable queue (stdlib, Win32), check first then allocate to avoid wasting heap on drops. On RTOS platforms (FreeRTOS, Zephyr, etc.) the OS queue API is atomic, so allocate first and delete on failure.
+
+If your target's native queue API needs more than a couple of calls (buffer sizing, alignment, a create/destroy pair), isolate it behind a small RAII wrapper class — e.g. `port/os/freertos/FreeRTOSDelegateQueue.h` — rather than inlining native calls directly in `DispatchDelegate()`/`Run()`. The wrapper should expose `Create()`/`IsCreated()`/`Send(msg, highPriority, timeout)`/`Receive(timeout)`/`Size()`/`DrainAndDelete()`/`Destroy()` and own no policy decisions itself — `FullPolicy`, timeout computation, watchdog, and stats stay in `<Platform>Thread.cpp`. Use `FreeRTOSDelegateQueue.h`, `ThreadXDelegateQueue.h`, `CmsisRtos2DelegateQueue.h` as direct models; `ZephyrDelegateQueue.h` additionally shows the pattern for a native queue with no priority-send primitive (two queues, high-priority drained first):
 
 ```cpp
 // stdlib / Win32 style — check under lock before allocating
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+void StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     std::unique_lock<std::mutex> lk(m_mutex);
 
     if (MAX_QUEUE_SIZE > 0 && m_queue.size() >= MAX_QUEUE_SIZE)
     {
-        if (FULL_POLICY == dmq::os::FullPolicy::DROP)
+        if (FULL_POLICY == FullPolicy::DROP)
             return;  // discard — no allocation wasted
 
         // BLOCK: wait until consumer drains a slot
@@ -127,15 +131,19 @@ void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     m_cv.notify_one();
 }
 
-// RTOS style (e.g. FreeRTOS) — allocate first, let OS API enforce the limit
-void Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+// RTOS style (e.g. FreeRTOS) — allocate first, let the queue wrapper enforce the limit
+bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
-    if (!threadMsg) return;
+    if (!threadMsg) return false;
 
-    TickType_t timeout = (FULL_POLICY == dmq::os::FullPolicy::DROP) ? 0 : portMAX_DELAY;
-    if (xQueueSend(m_queue, &threadMsg, timeout) != pdPASS)
+    TickType_t timeout = (FULL_POLICY == FullPolicy::DROP) ? 0 : portMAX_DELAY;
+    if (!m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::HIGH, timeout))
+    {
         delete threadMsg;  // queue full, dropped per policy
+        return false;
+    }
+    return true;
 }
 ```
 
@@ -254,7 +262,7 @@ public:
 
 ## Thread Implementations
 
-While DelegateMQ provides the `dmq::IThread` interface, the library includes concrete `dmq::os::Thread` class implementations for many OSs (stdlib, Win32, FreeRTOS, etc.). These implementations provide a standard event loop and several advanced features for robustness and flow control.
+While DelegateMQ provides the `dmq::IThread` interface, the library includes concrete `dmq::os::Thread` class implementations for many OSs (`StdlibThread`, `Win32Thread`, `FreeRTOSThread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `QtThread` — each aliased as `dmq::os::Thread`). These implementations provide a standard event loop and several advanced features for robustness and flow control.
 
 ### Thread Priority and Latency
 
@@ -268,30 +276,30 @@ The end-to-end dispatch latency is primarily dominated by the destination thread
 
 ### Message Queueing
 
-The `dmq::os::Thread` class uses an underlying `std::priority_queue` to ensure high-priority delegate messages jump to the front of the line.
+High-priority delegate messages jump to the front of the line, but the mechanism is port-specific: FreeRTOS/ThreadX send to the front of their native queue; CMSIS-RTOS2 passes priority directly via `osMessageQueuePut`'s `msg_prio` argument; stdlib/Win32/Qt keep two queues (high, normal) and always drain high first; Zephyr's `k_msgq` has no native priority-send, so it also uses the two-queue approach (see `ZephyrDelegateQueue.h`).
 
-#### dmq::os::FullPolicy (Back Pressure / Drop)
+#### dmq::FullPolicy (Back Pressure / Drop)
 
-When a thread's message queue has a fixed size (`maxQueueSize > 0`), `dmq::os::FullPolicy` controls what `DispatchDelegate()` does when the queue is full. The default is `dmq::os::FullPolicy::FAULT`.
+When a thread's message queue has a fixed size (`maxQueueSize > 0`), `dmq::FullPolicy` controls what `DispatchDelegate()` does when the queue is full. It's defined once in `DelegateOpt.h`; every port aliases it as `dmq::os::FullPolicy` for source compatibility, so either name works. The default is `FullPolicy::FAULT`.
 
 ```cpp
 // Fault on overflow — appropriate for threads that must never silently lose messages
-dmq::os::Thread cmdThread("CmdThread", /*maxQueueSize=*/50, dmq::os::FullPolicy::FAULT);
+dmq::os::Thread cmdThread("CmdThread", /*maxQueueSize=*/50, dmq::FullPolicy::FAULT);
 
 // Wait up to 2 s for the consumer to drain a slot, then log a warning and drop
-dmq::os::Thread safetyThread("SafetyThread", /*maxQueueSize=*/50, dmq::os::FullPolicy::TIMEOUT);
+dmq::os::Thread safetyThread("SafetyThread", /*maxQueueSize=*/50, dmq::FullPolicy::TIMEOUT);
 
 // Drop stale samples rather than stall the publisher
-dmq::os::Thread sensorThread("SensorThread", /*maxQueueSize=*/10, dmq::os::FullPolicy::DROP);
+dmq::os::Thread sensorThread("SensorThread", /*maxQueueSize=*/10, dmq::FullPolicy::DROP);
 ```
 
-- **`dmq::os::FullPolicy::FAULT`** *(default)*: `DispatchDelegate()` triggers a system fault if the queue is full. This makes overflow immediately visible during development and integration testing rather than silently degrading. Use when a full queue indicates a design error (producer outrunning consumer) that should not be masked.
-- **`dmq::os::FullPolicy::TIMEOUT`**: `DispatchDelegate()` waits up to `dispatchTimeout` (default `dmq::DEFAULT_DISPATCH_TIMEOUT` = 2 s) for the consumer to drain a slot, then logs a warning and drops the message. This provides bounded back pressure — the publisher is held briefly during transient bursts but is never stalled indefinitely. Use for critical topics (commands, state transitions) where every message should be delivered if possible but unbounded blocking is unacceptable. Choose a timeout shorter than the watchdog timeout so stalls are detected and reported.
-- **`dmq::os::FullPolicy::DROP`**: `DispatchDelegate()` silently discards the message and returns immediately without stalling the caller. Ideal for high-rate best-effort data (sensor telemetry, display updates) where a stale sample is preferable to stalling the publisher.
+- **`FullPolicy::FAULT`** *(default)*: `DispatchDelegate()` triggers a system fault if the queue is full. This makes overflow immediately visible during development and integration testing rather than silently degrading. Use when a full queue indicates a design error (producer outrunning consumer) that should not be masked.
+- **`FullPolicy::TIMEOUT`**: `DispatchDelegate()` waits up to `dispatchTimeout` (default `dmq::DEFAULT_DISPATCH_TIMEOUT` = 2 s) for the consumer to drain a slot, then logs a warning and drops the message. This provides bounded back pressure — the publisher is held briefly during transient bursts but is never stalled indefinitely. Use for critical topics (commands, state transitions) where every message should be delivered if possible but unbounded blocking is unacceptable. Choose a timeout shorter than the watchdog timeout so stalls are detected and reported.
+- **`FullPolicy::DROP`**: `DispatchDelegate()` silently discards the message and returns immediately without stalling the caller. Ideal for high-rate best-effort data (sensor telemetry, display updates) where a stale sample is preferable to stalling the publisher.
 
-Setting `maxQueueSize = 0` disables the limit entirely — `dmq::os::FullPolicy` has no effect and all messages are queued regardless of consumer speed.
+Setting `maxQueueSize = 0` disables the limit entirely — `FullPolicy` has no effect and all messages are queued regardless of consumer speed.
 
-`dmq::os::FullPolicy` is a thread-level setting. All delegates dispatched to the same `dmq::os::Thread` instance share the policy. If a single thread serves both drop-tolerant and loss-intolerant subscribers, split them across separate threads with different policies.
+`FullPolicy` is a thread-level setting. All delegates dispatched to the same `dmq::os::Thread` instance share the policy. If a single thread serves both drop-tolerant and loss-intolerant subscribers, split them across separate threads with different policies.
 
 ### Watchdog Integration
 
@@ -379,7 +387,7 @@ For CPU-spinning runaways, `ProcessTimers()` must run at a higher priority than 
 
 Every `dmq::os::Thread` port supports high-resolution performance monitoring. This requires three pieces of instrumentation in the port layer:
 
-1. **Enqueue Timestamp**: The `ThreadMsg` class must capture a `dmq::TimePoint` (steady clock) the moment a message is created.
+1. **Enqueue Timestamp**: The shared `ThreadMsg` class (`port/os/common/ThreadMsg.h`) already captures a `dmq::TimePoint` (steady clock) via `SetEnqueueTime()`/`GetEnqueueTime()` under `DMQ_DATABUS_TOOLS` — call `SetEnqueueTime(Timer::GetNow())` right after constructing each message in your `DispatchDelegate()`.
 2. **Latency Calculation**: In the thread's `Run()` loop, calculate the "Queue Latency" (Dispatch Time - Enqueue Time) just before invoking the delegate.
 3. **`SnapshotStats()` Implementation**: Implement the `SnapshotStats()` method to return an atomic snapshot of windowed and all-time statistics.
 

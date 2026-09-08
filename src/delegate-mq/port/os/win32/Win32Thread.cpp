@@ -1,18 +1,15 @@
 #ifndef _WIN32
-#error "port/os/win32/Thread.cpp is Windows-only and must not be compiled on non-Windows targets. Remove this file from your build configuration."
+#error "port/os/win32/Win32Thread.cpp is Windows-only and must not be compiled on non-Windows targets. Remove this file from your build configuration."
 #endif
 
 #include "DelegateMQ.h"
-#include "Thread.h"
+#include "Win32Thread.h"
 #include "extras/util/Fault.h"
 #include <iostream>
 
 namespace dmq::os {
 
 using namespace dmq::util;
-
-#define MSG_DISPATCH_DELEGATE    1
-#define MSG_EXIT_THREAD          2
 
 // Thread-local pointer into Process()'s stack frame. Set non-null only while
 // Process() is running on a given thread. ExitThread() writes true through it
@@ -23,7 +20,7 @@ static thread_local bool* t_self_exit = nullptr;
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
-Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
+Win32Thread::Win32Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
     , MAX_QUEUE_SIZE(maxQueueSize)
@@ -39,12 +36,12 @@ Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolic
 //----------------------------------------------------------------------------
 // ~Thread
 //----------------------------------------------------------------------------
-Thread::~Thread()
+Win32Thread::~Win32Thread()
 {
     ExitThread();
 
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread** pp = &GetWatchdogHead();
+    Win32Thread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
         if (*pp == this)
@@ -62,7 +59,7 @@ Thread::~Thread()
 //----------------------------------------------------------------------------
 // CreateThread
 //----------------------------------------------------------------------------
-bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
+bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     if (m_hThread == NULL)
     {
@@ -94,7 +91,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             {
                 dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
                 bool found = false;
-                Thread* p = GetWatchdogHead();
+                Win32Thread* p = GetWatchdogHead();
                 while (p != nullptr)
                 {
                     if (p == this)
@@ -118,16 +115,16 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // ThreadProc
 //----------------------------------------------------------------------------
-DWORD WINAPI Thread::ThreadProc(LPVOID lpParam)
+DWORD WINAPI Win32Thread::ThreadProc(LPVOID lpParam)
 {
-    static_cast<Thread*>(lpParam)->Process();
+    static_cast<Win32Thread*>(lpParam)->Process();
     return 0;
 }
 
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool Win32Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     if (m_exit.load() || m_hThread == NULL) return false;
 
@@ -202,7 +199,7 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // Process
 //----------------------------------------------------------------------------
-void Thread::Process()
+void Win32Thread::Process()
 {
     // selfExit is set by ExitThread() when the thread destroys its own owner.
     // It lives on this stack frame so it remains valid even after 'this' is freed.
@@ -364,7 +361,7 @@ void Thread::Process()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void Thread::ExitThread()
+void Win32Thread::ExitThread()
 {
     if (m_hThread == NULL) return;
 
@@ -403,22 +400,22 @@ void Thread::ExitThread()
 //----------------------------------------------------------------------------
 // GetThreadId
 //----------------------------------------------------------------------------
-DWORD Thread::GetThreadId() { return m_threadId; }
+DWORD Win32Thread::GetThreadId() { return m_threadId; }
 
 //----------------------------------------------------------------------------
 // GetCurrentThreadId
 //----------------------------------------------------------------------------
-DWORD Thread::GetCurrentThreadId() { return ::GetCurrentThreadId(); }
+DWORD Win32Thread::GetCurrentThreadId() { return ::GetCurrentThreadId(); }
 
 //----------------------------------------------------------------------------
 // IsCurrentThread
 //----------------------------------------------------------------------------
-bool Thread::IsCurrentThread() { return GetThreadId() == GetCurrentThreadId(); }
+bool Win32Thread::IsCurrentThread() { return GetThreadId() == GetCurrentThreadId(); }
 
 //----------------------------------------------------------------------------
 // GetQueueSize
 //----------------------------------------------------------------------------
-size_t Thread::GetQueueSize()
+size_t Win32Thread::GetQueueSize()
 {
     EnterCriticalSection(&m_cs);
     size_t size = (m_highQueue.size() + m_normalQueue.size());
@@ -426,17 +423,17 @@ size_t Thread::GetQueueSize()
     return size;
 }
 
-void Thread::Sleep(dmq::Duration timeout) {
+void Win32Thread::Sleep(dmq::Duration timeout) {
     dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------
 // WatchdogCheckAll
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheckAll()
+void Win32Thread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread* p = GetWatchdogHead();
+    Win32Thread* p = GetWatchdogHead();
     while (p != nullptr)
     {
         p->WatchdogCheck();
@@ -447,7 +444,7 @@ void Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheck()
+void Win32Thread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -466,7 +463,7 @@ void Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 // ThreadCheck
 //----------------------------------------------------------------------------
-void Thread::ThreadCheck()
+void Win32Thread::ThreadCheck()
 {
     m_lastAliveTime.store(Timer::GetNow());
 }
@@ -474,16 +471,16 @@ void Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 // GetWatchdogHead
 //----------------------------------------------------------------------------
-Thread*& Thread::GetWatchdogHead()
+Win32Thread*& Win32Thread::GetWatchdogHead()
 {
-    static Thread* head = nullptr;
+    static Win32Thread* head = nullptr;
     return head;
 }
 
 //----------------------------------------------------------------------------
 // GetWatchdogLock
 //----------------------------------------------------------------------------
-dmq::RecursiveMutex& Thread::GetWatchdogLock()
+dmq::RecursiveMutex& Win32Thread::GetWatchdogLock()
 {
     static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
     return *lock;
@@ -493,7 +490,7 @@ dmq::RecursiveMutex& Thread::GetWatchdogLock()
 //----------------------------------------------------------------------------
 // SnapshotStats
 //----------------------------------------------------------------------------
-Thread::ThreadStats Thread::SnapshotStats()
+Win32Thread::ThreadStats Win32Thread::SnapshotStats()
 {
     EnterCriticalSection(&m_cs);
     ThreadStats stats;

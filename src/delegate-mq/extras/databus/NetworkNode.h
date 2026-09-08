@@ -58,19 +58,19 @@
 
 // Select the OS thread implementation based on the build configuration.
 #if defined(DMQ_THREAD_STDLIB)
-    #include "port/os/stdlib/Thread.h"
+    #include "port/os/stdlib/StdlibThread.h"
 #elif defined(DMQ_THREAD_WIN32)
-    #include "port/os/win32/Thread.h"
+    #include "port/os/win32/Win32Thread.h"
 #elif defined(DMQ_THREAD_FREERTOS)
-    #include "port/os/freertos/Thread.h"
+    #include "port/os/freertos/FreeRTOSThread.h"
 #elif defined(DMQ_THREAD_THREADX)
-    #include "port/os/threadx/Thread.h"
+    #include "port/os/threadx/ThreadXThread.h"
 #elif defined(DMQ_THREAD_ZEPHYR)
-    #include "port/os/zephyr/Thread.h"
+    #include "port/os/zephyr/ZephyrThread.h"
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
-    #include "port/os/cmsis-rtos2/Thread.h"
+    #include "port/os/cmsis-rtos2/CmsisRtos2Thread.h"
 #elif defined(DMQ_THREAD_QT)
-    #include "port/os/qt/Thread.h"
+    #include "port/os/qt/QtThread.h"
 #endif
 
 namespace dmq::databus {

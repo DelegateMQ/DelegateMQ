@@ -32,10 +32,10 @@ jobs:
     # FreeRTOS-Kernel source and a working FreeRTOSConfig.h are already
     # vendored under the stm32-freertos sample project -- reuse them
     # instead of fetching a second copy.
-    - name: Compile port/os/freertos/Thread.cpp
+    - name: Compile port/os/freertos/FreeRTOSThread.cpp
       run: |
         arm-none-eabi-g++ \
-          src/delegate-mq/port/os/freertos/Thread.cpp \
+          src/delegate-mq/port/os/freertos/FreeRTOSThread.cpp \
           -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
           -std=gnu++17 -DDMQ_THREAD_FREERTOS -DDMQ_MAX_TIMER_EXPIRED=8 \
           -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
@@ -69,10 +69,10 @@ jobs:
         curl -sL -o /tmp/threadx/ports/cortex_m4/gnu/inc/tx_port.h \
           https://raw.githubusercontent.com/eclipse-threadx/threadx/master/ports/cortex_m4/gnu/inc/tx_port.h
 
-    - name: Compile port/os/threadx/Thread.cpp
+    - name: Compile port/os/threadx/ThreadXThread.cpp
       run: |
         arm-none-eabi-g++ \
-          src/delegate-mq/port/os/threadx/Thread.cpp \
+          src/delegate-mq/port/os/threadx/ThreadXThread.cpp \
           -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
           -std=gnu++17 -DDMQ_THREAD_THREADX -DDMQ_MAX_TIMER_EXPIRED=8 \
           -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
@@ -102,10 +102,10 @@ jobs:
         curl -sL -o /tmp/cmsis/RTOS2/Include/cmsis_os2.h \
           https://raw.githubusercontent.com/ARM-software/CMSIS_5/develop/CMSIS/RTOS2/Include/cmsis_os2.h
 
-    - name: Compile port/os/cmsis-rtos2/Thread.cpp
+    - name: Compile port/os/cmsis-rtos2/CmsisRtos2Thread.cpp
       run: |
         arm-none-eabi-g++ \
-          src/delegate-mq/port/os/cmsis-rtos2/Thread.cpp \
+          src/delegate-mq/port/os/cmsis-rtos2/CmsisRtos2Thread.cpp \
           -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
           -std=gnu++17 -DDMQ_THREAD_CMSIS_RTOS2 -DDMQ_MAX_TIMER_EXPIRED=8 \
           -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
