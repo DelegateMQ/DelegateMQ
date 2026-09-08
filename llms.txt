@@ -131,23 +131,30 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 static void Timer::ProcessTimers();
 ```
 
-Must be called periodically from the highest-priority context available (hardware ISR or highest-priority task). It checks every active timer, collects expired timers, then invokes their `OnExpired` signals **outside the lock** to prevent deadlocks. Frequency must be shorter than the shortest timer period; 5–10 ms is typical.
+Must be called periodically from the highest-priority context available. What that means depends on whether an RTOS is in the build:
 
-**ProcessTimers() must never block.** Three scenarios that cause blocking:
+- **Bare-metal / no RTOS** (`DMQ_THREAD_NONE`): `Timer::GetLock()` resolves to a no-op `NullMutex`, so a hardware ISR (e.g. `SysTick_Handler`) is safe and is the preferred call site — it preempts all software tasks.
+- **Under an RTOS** (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2): `Timer::GetLock()` is a real OS mutex, taken on every `ProcessTimers()` call. OS mutexes cannot be acquired from a genuine hardware ISR on any of these RTOSes (confirmed directly against the ThreadX source: `tx_mutex_get()` returns `TX_CALLER_ERROR` for an ISR caller). `ProcessTimers()` must instead run in a thread/task context — a dedicated high-priority task (see below), or an RTOS software-timer callback, which runs in a real, schedulable thread context rather than a true interrupt handler (see the `threadx-linux` sample project).
+
+It checks every active timer, collects expired timers, then invokes their `OnExpired` signals **outside the lock** to prevent deadlocks. Frequency must be shorter than the shortest timer period; 5–10 ms is typical.
+
+**ProcessTimers() must never block.** Scenarios that cause blocking or faulting:
 
 1. A timer callback dispatches to a thread whose queue is full and the thread uses `FullPolicy::TIMEOUT` — stalls up to the timeout. Fix: use `FullPolicy::FAULT` or `DROP` on threads that receive timer dispatches.
 2. A `DelegateAsyncWait` is connected to `OnExpired` — blocks indefinitely. Never do this.
 3. A synchronous callback connected to `OnExpired` runs slowly — blocks for its duration. Keep sync callbacks fast or dispatch work asynchronously.
+4. Calling `ProcessTimers()` from a genuine hardware ISR on an RTOS build — faults immediately, since `Timer::GetLock()`'s OS mutex cannot be acquired from ISR context. See the RTOS/bare-metal distinction above.
 
 ### Recommended call sites
 
 ```cpp
-// Option 1 — hardware ISR (preempts all tasks; preferred on RTOS)
+// Bare-metal / no RTOS only — hardware ISR (preempts all tasks)
 extern "C" void SysTick_Handler() {
     dmq::util::Timer::ProcessTimers();
 }
 
-// Option 2 — highest-priority dedicated task
+// RTOS builds — highest-priority dedicated task (thread context; safe to
+// acquire Timer::GetLock()'s OS mutex here)
 void WatchdogTask(void*) {
     while (true) {
         dmq::util::Timer::ProcessTimers();
@@ -313,7 +320,7 @@ void MyClass::LongHandler() {
 
 ### Priority requirement
 
-The watchdog only catches a runaway thread if `ProcessTimers()` runs at **higher priority** than the runaway thread. On a single-core RTOS, a CPU-spinning task at equal or higher priority than the `ProcessTimers()` caller will starve the watchdog. The fix is to call `ProcessTimers()` from a hardware ISR, which preempts all software tasks.
+The watchdog only catches a runaway thread if `ProcessTimers()` runs at **higher priority** than the runaway thread. On a single-core RTOS, a CPU-spinning task at equal or higher priority than the `ProcessTimers()` caller will starve the watchdog. On bare-metal (no RTOS), the fix is to call `ProcessTimers()` from a hardware ISR, which preempts all software tasks. Under an RTOS, use the highest-priority task instead — see the RTOS/bare-metal distinction under [ProcessTimers()](#processtimers) for why a genuine hardware ISR is not safe there.
 
 For maximum reliability, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) and kick it only from inside `WatchdogCheck()` — that way a stuck `ProcessTimers()` caller also triggers a hardware reset.
 

@@ -21,6 +21,7 @@ Dependencies Pinned:
     - Bitsery:       v5.2.3       (Serialization stable)
     - MsgPack:       cpp-8.0.0    (Required for C++ headers)
     - FreeRTOS:      202212.00    (LTS Release)
+    - ThreadX:       6.5.1.202602a (Latest stable, Linux/GNU port)
 
 Usage:
     Run this script FIRST to download source code.
@@ -66,7 +67,10 @@ repos = {
     "msgpack-c": ("https://github.com/msgpack/msgpack-c.git", "cpp-8.0.0", False),
 
     # FreeRTOS: Kernel only (much smaller than distribution)
-    "FreeRTOS": ("https://github.com/FreeRTOS/FreeRTOS-Kernel.git", "V11.1.0", False)
+    "FreeRTOS": ("https://github.com/FreeRTOS/FreeRTOS-Kernel.git", "V11.1.0", False),
+
+    # ThreadX: Latest stable release with Linux/GNU simulation port coverage
+    "threadx": ("https://github.com/eclipse-threadx/threadx.git", "v6.5.1.202602a_rel", False)
 }
 
 def fix_zeromq_conflict(workspace_dir):

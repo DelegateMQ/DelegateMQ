@@ -160,6 +160,18 @@ private:
     // Run loop called by Process
     void Run();
 
+    /// @brief Registry mapping a ThreadX TX_THREAD control block back to its
+    /// owning Thread instance.
+    /// @details ThreadX's tx_thread_create() entry_input parameter is a
+    /// ULONG, which cannot safely carry a 64-bit 'this' pointer on hosts
+    /// where ULONG is 32 bits (e.g. this Linux/GNU simulation port) --
+    /// reinterpret_cast<ULONG>(this) would truncate it. Process() instead
+    /// looks up 'this' via tx_thread_identify() against this registry.
+    /// Entries are added before tx_thread_resume() is called, so Process()
+    /// can never observe a not-yet-registered thread.
+    static dmq::xmap<TX_THREAD*, Thread*>& GetInstanceRegistry();
+    static dmq::RecursiveMutex& GetInstanceRegistryLock();
+
     /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
     void WatchdogCheck();
 

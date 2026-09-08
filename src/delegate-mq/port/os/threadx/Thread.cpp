@@ -119,7 +119,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         ret = tx_thread_create(&m_thread,
                                (CHAR*)THREAD_NAME.c_str(),
                                &Thread::Process,
-                               reinterpret_cast<ULONG>(this), // Pass 'this' as entry input
+                               0, // Unused: see GetInstanceRegistry()
                                m_stackMemory.get(),
                                stackSizeWords * sizeof(ULONG),
                                m_priority,
@@ -128,6 +128,12 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                                TX_DONT_START);
 
         if (ret == TX_SUCCESS) {
+            // Register before resuming: the thread must never be able to run
+            // (and call Process()) before its registry entry exists.
+            {
+                const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+                GetInstanceRegistry()[&m_thread] = this;
+            }
             tx_thread_resume(&m_thread);
         }
 
@@ -239,6 +245,13 @@ void Thread::ExitThread()
 
         // Delete queue
         tx_queue_delete(&m_queue);
+
+        // Remove the registry entry before clearing/reusing the control block
+        // (see GetInstanceRegistry() for why this exists).
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+            GetInstanceRegistry().erase(&m_thread);
+        }
 
         // Clear control blocks so CreateThread could potentially be called again
         memset(&m_thread, 0, sizeof(m_thread));
@@ -357,9 +370,15 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // Process (Static Entry Point)
 //----------------------------------------------------------------------------
-void Thread::Process(ULONG instance)
+void Thread::Process(ULONG /*instance*/)
 {
-    Thread* thread = reinterpret_cast<Thread*>(instance);
+    Thread* thread = nullptr;
+    {
+        const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+        auto it = GetInstanceRegistry().find(tx_thread_identify());
+        if (it != GetInstanceRegistry().end())
+            thread = it->second;
+    }
 
     ASSERT_TRUE(thread != nullptr);
     thread->Run();
@@ -404,6 +423,24 @@ void Thread::WatchdogCheckAll()
         p->WatchdogCheck();
         p = p->m_watchdogNext;
     }
+}
+
+//----------------------------------------------------------------------------
+// GetInstanceRegistry
+//----------------------------------------------------------------------------
+dmq::xmap<TX_THREAD*, Thread*>& Thread::GetInstanceRegistry()
+{
+    static dmq::xmap<TX_THREAD*, Thread*> registry;
+    return registry;
+}
+
+//----------------------------------------------------------------------------
+// GetInstanceRegistryLock
+//----------------------------------------------------------------------------
+dmq::RecursiveMutex& Thread::GetInstanceRegistryLock()
+{
+    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    return *lock;
 }
 
 //----------------------------------------------------------------------------

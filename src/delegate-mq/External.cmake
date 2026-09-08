@@ -228,18 +228,32 @@ endif()
 # ---------------------------------------------------------------------------
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
     set_and_check(THREADX_ROOT_DIR "${DMQ_ROOT_DIR}/../../../threadx")
-    
-    # Collect Common Core Sources
-    file(GLOB THREADX_SOURCES 
-        "${THREADX_ROOT_DIR}/common/src/*.c"
-        "${THREADX_ROOT_DIR}/common/inc/*.h"
-    )
 
-    # Note: You generally need to append architecture-specific port sources here
-    # Example for Windows Simulation (MSVC):
-    if(MSVC)
-        # file(GLOB PORT_SOURCES "${THREADX_ROOT_DIR}/ports/win32/vs_2019/src/*.c")
-        # list(APPEND THREADX_SOURCES ${PORT_SOURCES})
+    # ThreadX ships its own top-level CMakeLists.txt, which builds a real
+    # "azrtos::threadx" target from THREADX_ARCH / THREADX_TOOLCHAIN. We link
+    # against that instead of hand-globbing sources (unlike the FreeRTOS case
+    # above, which has no such CMake integration).
+    #
+    # Deliberately NOT using ThreadX's own cmake/linux.cmake toolchain file:
+    # it forces -fno-exceptions -fno-rtti build-wide, which would fight the
+    # desktop exception-based error path (DelegateOpt.h auto-switches to
+    # DMQ_ASSERTS only when the compiler itself lacks exception support).
+    if(UNIX AND NOT APPLE)
+        if(NOT DEFINED THREADX_ARCH)
+            set(THREADX_ARCH "linux")
+        endif()
+        if(NOT DEFINED THREADX_TOOLCHAIN)
+            set(THREADX_TOOLCHAIN "gnu")
+        endif()
+
+        add_subdirectory("${THREADX_ROOT_DIR}" "${CMAKE_BINARY_DIR}/threadx_build")
+
+        # The Linux/GNU port implements ThreadX scheduling on top of POSIX
+        # threads (pthread_create per tx_thread_create, signals for suspend).
+        find_package(Threads REQUIRED)
+        set(THREADX_LIBRARIES azrtos::threadx Threads::Threads)
+    else()
+        message(WARNING "DelegateMQ: No ThreadX simulation port configured for this host platform.")
     endif()
 endif()
 

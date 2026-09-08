@@ -7,6 +7,19 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
+## [Unreleased]
+
+### Added
+- New `example/sample-projects/threadx-linux/` sample: DelegateMQ delegate/Signal/Timer feature demo running on ThreadX's official Linux/GNU simulation port (`ports/linux/gnu`) — builds and runs as an ordinary Linux process, no cross-compiler or target hardware required. `01_fetch_repos.py` now clones `eclipse-threadx/threadx`; `External.cmake` links against ThreadX's own `azrtos::threadx` CMake target instead of hand-globbing sources (the pattern used for FreeRTOS).
+
+### Fixed
+- **ThreadX port 64-bit pointer truncation** — `port/os/threadx/Thread.cpp` passed `this` to the worker thread entry point via `reinterpret_cast<ULONG>(this)` in `tx_thread_create`'s `entry_input` parameter. `ULONG` is 32 bits on the Linux/GNU simulation port, silently truncating the pointer on 64-bit hosts. `Process()` now looks up the owning `Thread*` via `tx_thread_identify()` against a registry (`dmq::xmap<TX_THREAD*, Thread*>`) populated before `tx_thread_resume()`, which works regardless of pointer width.
+- **ThreadX port timer-thread mutex creation** — `dmq::util::Timer::ProcessTimers()` lazily constructs an internal `dmq::RecursiveMutex` on first call. ThreadX forbids creating synchronization objects from its own internal timer thread (`_tx_timer_thread`), so driving `ProcessTimers()` from a ThreadX software timer callback faulted with `TX_CALLER_ERROR` on the very first tick. Documented in the new sample: prime the lock with one `Timer::ProcessTimers()` call from a normal thread context before creating the periodic timer.
+- **`ThreadXClock` tick/millisecond mismatch** — `now()` returned raw `tx_time_get()` ticks labeled as milliseconds, without scaling by `TX_TIMER_TICKS_PER_SECOND`. At the default 100Hz tick rate this made every duration measured against the clock (including `dmq::util::Timer` expirations) run 10x slower than requested.
+- **Incorrect `ProcessTimers()` "call from a hardware ISR" guidance under an RTOS** — `llms.txt` recommended a hardware ISR as the preferred `Timer::ProcessTimers()` call site on RTOS builds. `Timer::GetLock()` is a real OS mutex under FreeRTOS/ThreadX/Zephyr/CMSIS-RTOS2, taken on every `ProcessTimers()` call; OS mutexes cannot be acquired from a genuine hardware ISR on any of these RTOSes (verified directly against the ThreadX source: `tx_mutex_get()` returns `TX_CALLER_ERROR` for an ISR caller, on every call, not just at mutex creation). The hardware-ISR recommendation is now scoped to bare-metal/no-RTOS builds only (where `Timer::GetLock()` is a no-op `NullMutex`); RTOS builds are documented to use a thread/task context instead — a dedicated high-priority task, or an RTOS software-timer callback as used by the `threadx-linux` sample.
+
+---
+
 ## [2.0.2] - 2026-07-22
 
 ### Added
