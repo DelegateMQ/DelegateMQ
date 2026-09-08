@@ -13,6 +13,25 @@
 namespace dmq {
 
 // Async delegate message priority
+//
+// Contract every dmq::os::Thread port's queue implementation must uphold:
+// a HIGH message is always dispatched ahead of any NORMAL message already
+// waiting, but HIGH does NOT mean "jump to the very front" -- among multiple
+// HIGH messages (or multiple NORMAL messages), FIFO order relative to each
+// other must be preserved. I.e. per-priority-lane FIFO, not a LIFO stack.
+//
+// A single queue with a "send to front" primitive (FreeRTOS xQueueSendToFront,
+// ThreadX tx_queue_front_send) gets this wrong: a second HIGH message sent to
+// the front lands ahead of the first HIGH message, turning HIGH ordering into
+// a stack. The correct shape -- used by every port -- is two lanes (one per
+// priority) with new messages always pushed to the BACK of their lane, and
+// the consumer draining the HIGH lane before the NORMAL lane:
+//   - StdlibThread / Win32Thread: two std::deque, one shared mutex+condition_variable.
+//   - ZephyrDelegateQueue:        two k_msgq,       drained via k_poll on both.
+//   - CmsisRtos2: native osMessageQueuePut msg_prio gives this directly (no dual lane needed).
+//   - FreeRTOSDelegateQueue / ThreadXDelegateQueue: two native queues, woken by
+//     one shared counting semaphore "doorbell" (the RTOS-native stand-in for
+//     the stdlib condition_variable, since neither queue API exposes one).
 enum class Priority
 {
 	NORMAL,
