@@ -1,10 +1,10 @@
 #ifndef DMQ_THREAD_FREERTOS
-#error "port/os/freertos/Thread.cpp requires DMQ_THREAD_FREERTOS. Remove this file from your build configuration or define DMQ_THREAD_FREERTOS."
+#error "port/os/freertos/FreeRTOSThread.cpp requires DMQ_THREAD_FREERTOS. Remove this file from your build configuration or define DMQ_THREAD_FREERTOS."
 #endif
 
 #include "DelegateMQ.h"
-#include "Thread.h"
-#include "ThreadMsg.h"
+#include "FreeRTOSThread.h"
+#include "port/os/common/ThreadMsg.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
 
@@ -20,7 +20,7 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
+FreeRTOSThread::FreeRTOSThread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
     , FULL_POLICY(fullPolicy)
@@ -41,13 +41,13 @@ Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolic
 //----------------------------------------------------------------------------
 // Destructor
 //----------------------------------------------------------------------------
-Thread::~Thread()
+FreeRTOSThread::~FreeRTOSThread()
 {
     ExitThread();
 
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-        Thread** pp = &GetWatchdogHead();
+        FreeRTOSThread** pp = &GetWatchdogHead();
         while (*pp != nullptr)
         {
             if (*pp == this)
@@ -69,7 +69,7 @@ Thread::~Thread()
 //----------------------------------------------------------------------------
 // SetStackMem (Static Stack Configuration)
 //----------------------------------------------------------------------------
-void Thread::SetStackMem(StackType_t* stackBuffer, uint32_t stackSizeInWords)
+void FreeRTOSThread::SetStackMem(StackType_t* stackBuffer, uint32_t stackSizeInWords)
 {
     if (stackBuffer && stackSizeInWords > 0) {
         m_stackBuffer = stackBuffer;
@@ -80,7 +80,7 @@ void Thread::SetStackMem(StackType_t* stackBuffer, uint32_t stackSizeInWords)
 //----------------------------------------------------------------------------
 // CreateThread
 //----------------------------------------------------------------------------
-bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
+bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     if (IsThreadCreated())
         return true;
@@ -93,9 +93,8 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
     // 2. Create the Queue NOW (Synchronously)
     // We must do this BEFORE creating the task so it's ready for immediate use.
-    if (!m_queue) {
-        m_queue = xQueueCreate(m_queueSize, sizeof(ThreadMsg*));
-        if (m_queue == nullptr) {
+    if (!m_queue.IsCreated()) {
+        if (!m_queue.Create(m_queueSize)) {
             printf("Error: Thread '%s' failed to create queue.\n", THREAD_NAME.c_str());
             return false;
         }
@@ -111,7 +110,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         
         // Add to watchdog registry if not already present
         bool found = false;
-        Thread* p = GetWatchdogHead();
+        FreeRTOSThread* p = GetWatchdogHead();
         while (p != nullptr)
         {
             if (p == this)
@@ -134,7 +133,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     {
         // --- STATIC ALLOCATION ---
         m_thread = xTaskCreateStatic(
-            (TaskFunction_t)&Thread::Process,
+            (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
             m_stackSize,
             this,
@@ -150,7 +149,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         const uint32_t DYNAMIC_STACK_SIZE = 4096; 
         
         BaseType_t xReturn = xTaskCreate(
-            (TaskFunction_t)&Thread::Process,
+            (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
             DYNAMIC_STACK_SIZE, 
             this,
@@ -170,15 +169,15 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void Thread::ExitThread()
+void FreeRTOSThread::ExitThread()
 {
-    if (m_queue) {
+    if (m_queue.IsCreated()) {
         m_exit.store(true);
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
         // callback, it is not consuming its own queue right now -- it is
-        // blocked here, inside ExitThread(). A blocking xQueueSend() would
+        // blocked here, inside ExitThread(). A blocking Send() would
         // deadlock forever if the queue happened to be full. No message needs
         // to be queued in that case: Run()'s dispatch loop already checks
         // m_selfExitPtr immediately after the current callback invoke
@@ -192,7 +191,7 @@ void Thread::ExitThread()
                 // Block until message is sent. This ensures the thread WILL receive it.
                 // If the thread is deadlocked, we hang here, which is better than
                 // hanging at the semaphore after dropping the message.
-                if (xQueueSend(m_queue, &msg, portMAX_DELAY) != pdPASS) {
+                if (!m_queue.Send(msg, /*highPriority=*/false, portMAX_DELAY)) {
                     delete msg;
                 }
             }
@@ -202,14 +201,8 @@ void Thread::ExitThread()
             }
         }
 
-        if (m_queue) {
-            ThreadMsg* drainMsg = nullptr;
-            while (xQueueReceive(m_queue, &drainMsg, 0) == pdPASS) {
-                delete drainMsg;
-            }
-            vQueueDelete(m_queue);
-            m_queue = nullptr;
-        }
+        m_queue.DrainAndDelete();
+        m_queue.Destroy();
         m_thread = nullptr;
     }
 }
@@ -217,9 +210,9 @@ void Thread::ExitThread()
 //----------------------------------------------------------------------------
 // Getters / Setters
 //----------------------------------------------------------------------------
-TaskHandle_t Thread::GetThreadId() { return m_thread; }
-TaskHandle_t Thread::GetCurrentThreadId() { return xTaskGetCurrentTaskHandle(); }
-bool Thread::IsCurrentThread()
+TaskHandle_t FreeRTOSThread::GetThreadId() { return m_thread; }
+TaskHandle_t FreeRTOSThread::GetCurrentThreadId() { return xTaskGetCurrentTaskHandle(); }
+bool FreeRTOSThread::IsCurrentThread()
 {
     return GetThreadId() == GetCurrentThreadId();
 }
@@ -227,20 +220,16 @@ bool Thread::IsCurrentThread()
 //----------------------------------------------------------------------------
 // GetQueueSize
 //----------------------------------------------------------------------------
-size_t Thread::GetQueueSize()
+size_t FreeRTOSThread::GetQueueSize()
 {
-    if (m_queue) {
-        return static_cast<size_t>(uxQueueMessagesWaiting(m_queue));
-    }
-    return 0;
+    return m_queue.Size();
 }
 
-void Thread::Sleep(dmq::Duration timeout) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
-    vTaskDelay(pdMS_TO_TICKS(ms));
+void FreeRTOSThread::Sleep(dmq::Duration timeout) {
+    dmq::ThisThread::sleep_for(timeout);
 }
 
-void Thread::SetThreadPriority(int priority) {
+void FreeRTOSThread::SetThreadPriority(int priority) {
     m_priority = priority;
     if (m_thread) {
         vTaskPrioritySet(m_thread, static_cast<UBaseType_t>(m_priority));
@@ -250,11 +239,11 @@ void Thread::SetThreadPriority(int priority) {
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
-    if (!m_queue) {
+    if (!m_queue.IsCreated()) {
         printf("[Thread] Error: Dispatch called but queue is null (%s)\n", THREAD_NAME.c_str());
-        return false; 
+        return false;
     }
 
     // If using XALLOCATOR explicit operator new required. See xallocator.h.
@@ -275,17 +264,13 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         timeout = 0;  // DROP and FAULT: non-blocking
 
-    // High priority uses xQueueSendToFront; all others use FIFO SendToBack.
-    BaseType_t status;
-    if (msg->GetPriority() == Priority::HIGH)
-        status = xQueueSendToFront(m_queue, &threadMsg, timeout);
-    else
-        status = xQueueSendToBack(m_queue, &threadMsg, timeout);
+    // High priority jumps the FIFO; all others go to the back.
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::HIGH, timeout);
 
-    if (status != pdPASS) {
+    if (!sent) {
         if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
-            ASSERT_TRUE(status == pdPASS);
+            ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
             printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
@@ -309,9 +294,9 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // Process & Run
 //----------------------------------------------------------------------------
-void Thread::Process(void* instance)
+void FreeRTOSThread::Process(void* instance)
 {
-    Thread* thread = static_cast<Thread*>(instance);
+    FreeRTOSThread* thread = static_cast<FreeRTOSThread*>(instance);
     ASSERT_TRUE(thread != nullptr);
     thread->Run();
     vTaskDelete(NULL);
@@ -320,10 +305,10 @@ void Thread::Process(void* instance)
 //----------------------------------------------------------------------------
 // WatchdogCheckAll
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheckAll()
+void FreeRTOSThread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread* p = GetWatchdogHead();
+    FreeRTOSThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
         p->WatchdogCheck();
@@ -334,7 +319,7 @@ void Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheck()
+void FreeRTOSThread::WatchdogCheck()
 {
     auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
     auto lastAlive = m_lastAliveTime.load();
@@ -353,12 +338,12 @@ void Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 // ThreadCheck
 //----------------------------------------------------------------------------
-void Thread::ThreadCheck()
+void FreeRTOSThread::ThreadCheck()
 {
     m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
 }
 
-void Thread::Run()
+void FreeRTOSThread::Run()
 {
     bool selfExit = false;
     m_selfExitPtr = &selfExit;
@@ -378,9 +363,9 @@ void Thread::Run()
             if (waitTicks == 0) waitTicks = 1;
         }
 
-        if (xQueueReceive(m_queue, &msg, waitTicks) == pdPASS)
+        msg = m_queue.Receive(waitTicks);
+        if (msg != nullptr)
         {
-            if (!msg) continue;
 
             int msgId = msg->GetId();
             if (msgId == MSG_DISPATCH_DELEGATE)
@@ -475,7 +460,7 @@ void Thread::Run()
 //----------------------------------------------------------------------------
 // SnapshotStats
 //----------------------------------------------------------------------------
-Thread::ThreadStats Thread::SnapshotStats()
+FreeRTOSThread::ThreadStats FreeRTOSThread::SnapshotStats()
 {
     ThreadStats stats;
     stats.cpu_name = CPU_NAME;

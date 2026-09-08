@@ -1,10 +1,10 @@
 #ifndef DMQ_THREAD_THREADX
-#error "port/os/threadx/Thread.cpp requires DMQ_THREAD_THREADX. Remove this file from your build configuration or define DMQ_THREAD_THREADX."
+#error "port/os/threadx/ThreadXThread.cpp requires DMQ_THREAD_THREADX. Remove this file from your build configuration or define DMQ_THREAD_THREADX."
 #endif
 
 #include "DelegateMQ.h"
-#include "Thread.h"
-#include "ThreadMsg.h"
+#include "ThreadXThread.h"
+#include "port/os/common/ThreadMsg.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
 #include <cstring> // for memset
@@ -23,7 +23,7 @@ using namespace dmq::util;
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
+ThreadXThread::ThreadXThread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
     , m_queueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
@@ -31,9 +31,9 @@ Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolic
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
-    // Zero out control blocks for safety
+    // Zero out control blocks for safety (m_queue zeroes its own control
+    // block in ThreadXDelegateQueue's constructor)
     memset(&m_thread, 0, sizeof(m_thread));
-    memset(&m_queue, 0, sizeof(m_queue));
     memset(&m_exitSem, 0, sizeof(m_exitSem));
 
 #if defined(DMQ_DATABUS_TOOLS)
@@ -47,12 +47,12 @@ Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolic
 //----------------------------------------------------------------------------
 // Thread Destructor
 //----------------------------------------------------------------------------
-Thread::~Thread()
+ThreadXThread::~ThreadXThread()
 {
     ExitThread();
 
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread** pp = &GetWatchdogHead();
+    ThreadXThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
         if (*pp == this)
@@ -77,7 +77,7 @@ Thread::~Thread()
 //----------------------------------------------------------------------------
 // CreateThread
 //----------------------------------------------------------------------------
-bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
+bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     // Check if thread is already created (tx_thread_id is non-zero if created)
     if (m_thread.tx_thread_id == 0)
@@ -88,24 +88,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         }
 
         // --- 1. Create Queue ---
-        // ThreadX queues store "words" (ULONGs).
-        // We are passing a pointer (ThreadMsg*), so we need enough words to hold a pointer.
-
-        // Round Up Logic (Ceiling division)
-        // Ensures we allocate enough words even if pointer size isn't a perfect multiple of ULONG
-        UINT msgSizeWords = (sizeof(ThreadMsg*) + sizeof(ULONG) - 1) / sizeof(ULONG);
-
-        // Calculate total ULONGs needed for the queue buffer
-        ULONG queueMemSizeWords = m_queueSize * msgSizeWords;
-        m_queueMemory.reset(new (std::nothrow) ULONG[queueMemSizeWords]);
-        ASSERT_TRUE(m_queueMemory != nullptr);
-
-        UINT ret = tx_queue_create(&m_queue,
-                                   (CHAR*)THREAD_NAME.c_str(),
-                                   msgSizeWords,
-                                   m_queueMemory.get(),
-                                   queueMemSizeWords * sizeof(ULONG));
-        ASSERT_TRUE(ret == TX_SUCCESS);
+        ASSERT_TRUE(m_queue.Create(m_queueSize, THREAD_NAME.c_str()));
 
         // --- 2. Create Thread ---
         // Stack must be ULONG aligned.
@@ -116,10 +99,10 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_stackMemory.reset(new (std::nothrow) ULONG[stackSizeWords]);
         ASSERT_TRUE(m_stackMemory != nullptr);
 
-        ret = tx_thread_create(&m_thread,
+        UINT ret = tx_thread_create(&m_thread,
                                (CHAR*)THREAD_NAME.c_str(),
-                               &Thread::Process,
-                               reinterpret_cast<ULONG>(this), // Pass 'this' as entry input
+                               &ThreadXThread::Process,
+                               0, // Unused: see GetInstanceRegistry()
                                m_stackMemory.get(),
                                stackSizeWords * sizeof(ULONG),
                                m_priority,
@@ -128,6 +111,12 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                                TX_DONT_START);
 
         if (ret == TX_SUCCESS) {
+            // Register before resuming: the thread must never be able to run
+            // (and call Process()) before its registry entry exists.
+            {
+                const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+                GetInstanceRegistry()[&m_thread] = this;
+            }
             tx_thread_resume(&m_thread);
         }
 
@@ -143,7 +132,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
             // Add to watchdog registry if not already present
             bool found = false;
-            Thread* p = GetWatchdogHead();
+            ThreadXThread* p = GetWatchdogHead();
             while (p != nullptr)
             {
                 if (p == this)
@@ -167,7 +156,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // SetThreadPriority
 //----------------------------------------------------------------------------
-void Thread::SetThreadPriority(UINT priority)
+void ThreadXThread::SetThreadPriority(UINT priority)
 {
     m_priority = priority;
 
@@ -181,7 +170,7 @@ void Thread::SetThreadPriority(UINT priority)
 //----------------------------------------------------------------------------
 // GetThreadPriority
 //----------------------------------------------------------------------------
-UINT Thread::GetThreadPriority()
+UINT ThreadXThread::GetThreadPriority()
 {
     return m_priority;
 }
@@ -189,9 +178,9 @@ UINT Thread::GetThreadPriority()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void Thread::ExitThread()
+void ThreadXThread::ExitThread()
 {
-    if (m_queue.tx_queue_id != 0)
+    if (m_queue.IsCreated())
     {
         m_exit.store(true);
 
@@ -214,7 +203,7 @@ void Thread::ExitThread()
             if (msg)
             {
                 // Wait forever to ensure message is sent
-                if (tx_queue_send(&m_queue, &msg, TX_WAIT_FOREVER) != TX_SUCCESS)
+                if (!m_queue.Send(msg, /*highPriority=*/false, TX_WAIT_FOREVER))
                 {
                     delete msg; // Failed to send, prevent leak
                 }
@@ -232,24 +221,25 @@ void Thread::ExitThread()
             tx_thread_delete(&m_thread);
         }
 
-        ThreadMsg* drainMsg = nullptr;
-        while (tx_queue_receive(&m_queue, &drainMsg, TX_NO_WAIT) == TX_SUCCESS) {
-            delete drainMsg;
+        m_queue.DrainAndDelete();
+        m_queue.Destroy();
+
+        // Remove the registry entry before clearing/reusing the control block
+        // (see GetInstanceRegistry() for why this exists).
+        {
+            const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+            GetInstanceRegistry().erase(&m_thread);
         }
 
-        // Delete queue
-        tx_queue_delete(&m_queue);
-
-        // Clear control blocks so CreateThread could potentially be called again
+        // Clear control block so CreateThread could potentially be called again
         memset(&m_thread, 0, sizeof(m_thread));
-        memset(&m_queue, 0, sizeof(m_queue));
     }
 }
 
 //----------------------------------------------------------------------------
 // GetThreadId
 //----------------------------------------------------------------------------
-TX_THREAD* Thread::GetThreadId()
+TX_THREAD* ThreadXThread::GetThreadId()
 {
     return &m_thread;
 }
@@ -257,7 +247,7 @@ TX_THREAD* Thread::GetThreadId()
 //----------------------------------------------------------------------------
 // GetCurrentThreadId
 //----------------------------------------------------------------------------
-TX_THREAD* Thread::GetCurrentThreadId()
+TX_THREAD* ThreadXThread::GetCurrentThreadId()
 {
     return tx_thread_identify();
 }
@@ -265,7 +255,7 @@ TX_THREAD* Thread::GetCurrentThreadId()
 //----------------------------------------------------------------------------
 // IsCurrentThread
 //----------------------------------------------------------------------------
-bool Thread::IsCurrentThread()
+bool ThreadXThread::IsCurrentThread()
 {
     return GetThreadId() == GetCurrentThreadId();
 }
@@ -273,37 +263,22 @@ bool Thread::IsCurrentThread()
 //----------------------------------------------------------------------------
 // GetQueueSize
 //----------------------------------------------------------------------------
-size_t Thread::GetQueueSize()
+size_t ThreadXThread::GetQueueSize()
 {
-    if (m_queue.tx_queue_id != 0) {
-        ULONG enqueued;
-        ULONG available;
-        TX_THREAD* suspension_list;
-        ULONG suspension_count;
-        TX_QUEUE* next_queue;
-        if (tx_queue_info_get(&m_queue, nullptr, &enqueued, &available, &suspension_list, &suspension_count, &next_queue) == TX_SUCCESS) {
-            return (size_t)enqueued;
-        }
-    }
-    return 0;
+    return m_queue.Size();
 }
 
-void Thread::Sleep(dmq::Duration timeout) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
-    // Assuming 100 ticks per second (10ms per tick) as a common default.
-    // Ideally use TX_TIMER_TICKS_PER_SECOND if defined.
-    ULONG ticks = (static_cast<ULONG>(ms) * TX_TIMER_TICKS_PER_SECOND) / 1000;
-    if (ticks == 0 && ms > 0) ticks = 1;
-    tx_thread_sleep(ticks);
+void ThreadXThread::Sleep(dmq::Duration timeout) {
+    dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool ThreadXThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Safety check if queue is valid
-    if (m_queue.tx_queue_id == 0) return false;
+    if (!m_queue.IsCreated()) return false;
 
     // Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
@@ -323,18 +298,14 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         wait_option = TX_NO_WAIT;  // DROP and FAULT: non-blocking
 
-    // Option #2: Implement High priority using tx_queue_front_send.
-    UINT ret;
-    if (msg->GetPriority() == Priority::HIGH)
-        ret = tx_queue_front_send(&m_queue, &threadMsg, wait_option);
-    else
-        ret = tx_queue_send(&m_queue, &threadMsg, wait_option);
+    // High priority jumps the FIFO via tx_queue_front_send; all others go to the back.
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::HIGH, wait_option);
 
-    if (ret != TX_SUCCESS)
+    if (!sent)
     {
         if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
-            ASSERT_TRUE(ret == TX_SUCCESS);
+            ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
             printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
@@ -357,9 +328,15 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // Process (Static Entry Point)
 //----------------------------------------------------------------------------
-void Thread::Process(ULONG instance)
+void ThreadXThread::Process(ULONG /*instance*/)
 {
-    Thread* thread = reinterpret_cast<Thread*>(instance);
+    ThreadXThread* thread = nullptr;
+    {
+        const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+        auto it = GetInstanceRegistry().find(tx_thread_identify());
+        if (it != GetInstanceRegistry().end())
+            thread = it->second;
+    }
 
     ASSERT_TRUE(thread != nullptr);
     thread->Run();
@@ -368,7 +345,7 @@ void Thread::Process(ULONG instance)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheck()
+void ThreadXThread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -387,7 +364,7 @@ void Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 // ThreadCheck
 //----------------------------------------------------------------------------
-void Thread::ThreadCheck()
+void ThreadXThread::ThreadCheck()
 {
     m_lastAliveTime.store(Timer::GetNow());
 }
@@ -395,10 +372,10 @@ void Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 // WatchdogCheckAll
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheckAll()
+void ThreadXThread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread* p = GetWatchdogHead();
+    ThreadXThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
         p->WatchdogCheck();
@@ -407,18 +384,36 @@ void Thread::WatchdogCheckAll()
 }
 
 //----------------------------------------------------------------------------
+// GetInstanceRegistry
+//----------------------------------------------------------------------------
+dmq::xmap<TX_THREAD*, ThreadXThread*>& ThreadXThread::GetInstanceRegistry()
+{
+    static dmq::xmap<TX_THREAD*, ThreadXThread*> registry;
+    return registry;
+}
+
+//----------------------------------------------------------------------------
+// GetInstanceRegistryLock
+//----------------------------------------------------------------------------
+dmq::RecursiveMutex& ThreadXThread::GetInstanceRegistryLock()
+{
+    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    return *lock;
+}
+
+//----------------------------------------------------------------------------
 // GetWatchdogHead
 //----------------------------------------------------------------------------
-Thread*& Thread::GetWatchdogHead()
+ThreadXThread*& ThreadXThread::GetWatchdogHead()
 {
-    static Thread* head = nullptr;
+    static ThreadXThread* head = nullptr;
     return head;
 }
 
 //----------------------------------------------------------------------------
 // GetWatchdogLock
 //----------------------------------------------------------------------------
-dmq::RecursiveMutex& Thread::GetWatchdogLock()
+dmq::RecursiveMutex& ThreadXThread::GetWatchdogLock()
 {
     static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
     return *lock;
@@ -427,7 +422,7 @@ dmq::RecursiveMutex& Thread::GetWatchdogLock()
 //----------------------------------------------------------------------------
 // Run (Member Function Loop)
 //----------------------------------------------------------------------------
-void Thread::Run()
+void ThreadXThread::Run()
 {
     bool selfExit = false;
     m_selfExitPtr = &selfExit;
@@ -451,9 +446,8 @@ void Thread::Run()
             if (waitOption == 0) waitOption = 1;
         }
 
-        UINT ret = tx_queue_receive(&m_queue, &msg, waitOption);
-        if (ret != TX_SUCCESS) continue; // Timeout or other failure
-        if (!msg) continue;
+        msg = m_queue.Receive(waitOption);
+        if (!msg) continue; // Timeout or other failure
 
         int msgId = msg->GetId();
         if (msgId == MSG_DISPATCH_DELEGATE)
@@ -545,7 +539,7 @@ void Thread::Run()
 //----------------------------------------------------------------------------
 // SnapshotStats
 //----------------------------------------------------------------------------
-Thread::ThreadStats Thread::SnapshotStats()
+ThreadXThread::ThreadStats ThreadXThread::SnapshotStats()
 {
     tx_mutex_get(&m_statMutex, TX_WAIT_FOREVER);
     ThreadStats stats;

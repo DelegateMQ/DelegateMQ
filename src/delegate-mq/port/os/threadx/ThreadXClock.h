@@ -41,7 +41,14 @@ namespace dmq::os {
             // Exit Critical Section
             TX_RESTORE
 
-            return time_point(duration(static_cast<rep>(ticks)));
+            // tx_time_get() counts ThreadX ticks (TX_TIMER_TICKS_PER_SECOND
+            // per second), not milliseconds -- scale before returning, or
+            // every duration/deadline computed against this clock (e.g.
+            // dmq::util::Timer expirations) would run TX_TIMER_TICKS_PER_SECOND/1000x
+            // slower than requested.
+            uint64_t ms = (ticks * 1000ULL) / TX_TIMER_TICKS_PER_SECOND;
+
+            return time_point(duration(static_cast<rep>(ms)));
         }
     };
 } // namespace dmq::os

@@ -48,4 +48,32 @@
     #define DMQ_XALLOCATOR_MAX_ALLOCATORS   15
 #endif
 
+// Default max remote peers per NetworkNode instance (fixed allocation).
+// Override per-instantiation via NetworkNode's MaxPeers template parameter.
+#ifndef DMQ_NETWORK_NODE_MAX_PEERS
+    #define DMQ_NETWORK_NODE_MAX_PEERS      4
+#endif
+
+// Default max in- or out-topics per NetworkNode instance (fixed allocation).
+// Override per-instantiation via NetworkNode's MaxTopics template parameter.
+#ifndef DMQ_NETWORK_NODE_MAX_TOPICS
+    #define DMQ_NETWORK_NODE_MAX_TOPICS     16
+#endif
+
+// Max messages drained per NetworkNode::ReceiverThread() tick (applies to both
+// the incoming-message drain and the per-peer ACK drain).
+#ifndef DMQ_NETWORK_NODE_MAX_WORK
+    #define DMQ_NETWORK_NODE_MAX_WORK       20
+#endif
+
+// Default number of retries before RetryMonitor gives up on an unacknowledged message.
+#ifndef DMQ_RETRY_MONITOR_MAX_RETRIES
+    #define DMQ_RETRY_MONITOR_MAX_RETRIES   3
+#endif
+
+// Default per-message ACK timeout (seconds) for TransportMonitor.
+#ifndef DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC
+    #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
+#endif
+
 #endif // _DELEGATEMQ_CONFIG_DEFAULT_H

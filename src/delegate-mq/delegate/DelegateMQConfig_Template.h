@@ -33,4 +33,22 @@
 /// Max number of remote Participants the DataBus can hold without heap allocation.
 #define DMQ_MAX_PARTICIPANTS            8
 
+/// Default max remote peers per NetworkNode instance (fixed allocation).
+/// Override per-instantiation via NetworkNode's MaxPeers template parameter.
+#define DMQ_NETWORK_NODE_MAX_PEERS      4
+
+/// Default max in- or out-topics per NetworkNode instance (fixed allocation).
+/// Override per-instantiation via NetworkNode's MaxTopics template parameter.
+#define DMQ_NETWORK_NODE_MAX_TOPICS     16
+
+/// Max messages drained per NetworkNode::ReceiverThread() tick (incoming-message
+/// drain and per-peer ACK drain).
+#define DMQ_NETWORK_NODE_MAX_WORK       20
+
+/// Default number of retries before RetryMonitor gives up on an unacknowledged message.
+#define DMQ_RETRY_MONITOR_MAX_RETRIES   3
+
+/// Default per-message ACK timeout (seconds) for TransportMonitor.
+#define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
+
 #endif // _DELEGATEMQ_CONFIG_H

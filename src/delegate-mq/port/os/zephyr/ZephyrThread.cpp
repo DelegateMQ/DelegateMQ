@@ -1,28 +1,27 @@
-#ifndef DMQ_THREAD_CMSIS_RTOS2
-#error "port/os/cmsis-rtos2/Thread.cpp requires DMQ_THREAD_CMSIS_RTOS2. Remove this file from your build configuration or define DMQ_THREAD_CMSIS_RTOS2."
+#ifndef DMQ_THREAD_ZEPHYR
+#error "port/os/zephyr/ZephyrThread.cpp requires DMQ_THREAD_ZEPHYR. Remove this file from your build configuration or define DMQ_THREAD_ZEPHYR."
 #endif
 
 #include "DelegateMQ.h"
-#include "Thread.h"
-#include "ThreadMsg.h"
+#include "ZephyrThread.h"
+#include "port/os/common/ThreadMsg.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
-#include <new>
+#include <cstring> // for memset
 
 // Define ASSERT_TRUE if not already defined
 #ifndef ASSERT_TRUE
-#define ASSERT_TRUE(x) if(!(x)) { while(1); }
+#define ASSERT_TRUE(x) __ASSERT(x, "DelegateMQ Assertion Failed")
 #endif
 
 namespace dmq::os {
 
-using namespace dmq;
 using namespace dmq::util;
 
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
-Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
+ZephyrThread::ZephyrThread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
     , m_queueSize((maxQueueSize == 0) ? DEFAULT_QUEUE_SIZE : maxQueueSize)
@@ -30,23 +29,29 @@ Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolic
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
-    // Default Priority
-    m_priority = osPriorityNormal;
+    m_priority = K_PRIO_PREEMPT(5); // Default priority
+
+    // Initialize objects to zero (m_queue zeroes its own control blocks in
+    // ZephyrDelegateQueue's constructor)
+    memset(&m_thread, 0, sizeof(m_thread));
+
+    // Initialize exit semaphore (Initial count 0, Limit 1)
+    k_sem_init(&m_exitSem, 0, 1);
 
 #if defined(DMQ_DATABUS_TOOLS)
-    m_statMutex = osMutexNew(NULL);
+    k_mutex_init(&m_statMutex);
 #endif
 }
 
 //----------------------------------------------------------------------------
 // Thread Destructor
 //----------------------------------------------------------------------------
-Thread::~Thread()
+ZephyrThread::~ZephyrThread()
 {
     ExitThread();
 
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread** pp = &GetWatchdogHead();
+    ZephyrThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
         if (*pp == this)
@@ -57,46 +62,42 @@ Thread::~Thread()
         }
         pp = &((*pp)->m_watchdogNext);
     }
-
-#if defined(DMQ_DATABUS_TOOLS)
-    if (m_statMutex) {
-        osMutexDelete(m_statMutex);
-        m_statMutex = NULL;
-    }
-#endif
-
-    // Cleanup semaphore if it exists
-    if (m_exitSem) {
-        osSemaphoreDelete(m_exitSem);
-        m_exitSem = NULL;
-    }
 }
 
 //----------------------------------------------------------------------------
 // CreateThread
 //----------------------------------------------------------------------------
-bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
+bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
-    if (m_thread == NULL)
+    // Check if thread is already created (dummy check on stack ptr)
+    if (!m_stackMemory)
     {
-        // 1. Create Exit Semaphore (Max 1, Initial 0)
-        // We use this to wait for the thread to shut down gracefully.
-        m_exitSem = osSemaphoreNew(1, 0, NULL);
-        ASSERT_TRUE(m_exitSem != NULL);
+        // 1. Create Message Queues
+        ASSERT_TRUE(m_queue.Create(m_queueSize));
 
-        // 2. Create Message Queue
-        // We store pointers (ThreadMsg*), so msg_size = sizeof(ThreadMsg*)
-        m_msgq = osMessageQueueNew(m_queueSize, sizeof(ThreadMsg*), NULL);
-        ASSERT_TRUE(m_msgq != NULL);
+        // 2. Create Thread
+        // CRITICAL: Stacks must be aligned to Z_KERNEL_STACK_OBJ_ALIGN for MPU/Arch reasons.
+        // We use k_aligned_alloc instead of new char[].
+        // K_THREAD_STACK_LEN calculates the correct size including guard pages/metadata.
+        size_t stackBytes = K_THREAD_STACK_LEN(STACK_SIZE);
+        char* stackBuf = (char*)k_aligned_alloc(Z_KERNEL_STACK_OBJ_ALIGN, stackBytes);
+        ASSERT_TRUE(stackBuf != nullptr);
 
-        // 3. Create Thread
-        osThreadAttr_t attr = {0};
-        attr.name = THREAD_NAME.c_str();
-        attr.stack_size = STACK_SIZE;
-        attr.priority = m_priority;
+        m_stackMemory.reset(stackBuf); // Ownership passed to unique_ptr
 
-        m_thread = osThreadNew(Thread::Process, this, &attr);
-        ASSERT_TRUE(m_thread != NULL);
+        k_tid_t tid = k_thread_create(&m_thread,
+                                      (k_thread_stack_t*)m_stackMemory.get(),
+                                      STACK_SIZE,
+                                      (k_thread_entry_t)ZephyrThread::Process,
+                                      this, NULL, NULL,
+                                      m_priority,
+                                      0, 
+                                      K_NO_WAIT);
+        
+        ASSERT_TRUE(tid != nullptr);
+        
+        // Optional: Set thread name for debug
+        k_thread_name_set(tid, THREAD_NAME.c_str());
 
         m_lastAliveTime.store(Timer::GetNow());
 
@@ -108,7 +109,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
             // Add to watchdog registry if not already present
             bool found = false;
-            Thread* p = GetWatchdogHead();
+            ZephyrThread* p = GetWatchdogHead();
             while (p != nullptr)
             {
                 if (p == this)
@@ -130,95 +131,84 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 }
 
 //----------------------------------------------------------------------------
-// SetThreadPriority
-//----------------------------------------------------------------------------
-void Thread::SetThreadPriority(osPriority_t priority)
-{
-    m_priority = priority;
-
-    // If the thread is already running, update it live
-    if (m_thread != NULL) {
-        osThreadSetPriority(m_thread, m_priority);
-    }
-}
-
-//----------------------------------------------------------------------------
-// GetThreadPriority
-//----------------------------------------------------------------------------
-osPriority_t Thread::GetThreadPriority()
-{
-    return m_priority;
-}
-
-//----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void Thread::ExitThread()
+void ZephyrThread::ExitThread()
 {
-    if (m_msgq != NULL)
+    if (m_stackMemory)
     {
         m_exit.store(true);
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
         // callback, it is not consuming its own queue right now -- it is
-        // blocked here, inside ExitThread(). A blocking osMessageQueuePut()
-        // would deadlock forever if the queue happened to be full. No message
-        // needs to be queued in that case: Run()'s dispatch loop already
-        // checks m_selfExitPtr immediately after the current callback invoke
+        // blocked here, inside ExitThread(). A blocking k_msgq_put() would
+        // deadlock forever if the queue happened to be full. No message needs
+        // to be queued in that case: Run()'s dispatch loop already checks
+        // m_selfExitPtr immediately after the current callback invoke
         // returns, and unwinds without touching 'this' again.
-        if (osThreadGetId() == m_thread) {
+        if (k_current_get() == &m_thread) {
             if (m_selfExitPtr) *m_selfExitPtr = true;
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
             if (msg)
             {
-                // Send pointer, wait forever to ensure it gets in.
-                if (osMessageQueuePut(m_msgq, &msg, 0, osWaitForever) != osOK)
+                // Wait forever to ensure message is sent
+                if (!m_queue.Send(msg, /*highPriority=*/false, K_FOREVER))
                 {
-                    delete msg; // Failed to send
+                    delete msg;
                 }
             }
 
-            // Wait for thread to process the exit message and signal completion.
-            if (m_exitSem != NULL) osSemaphoreAcquire(m_exitSem, osWaitForever);
+            // Wait for thread to actually finish to avoid use-after-free of the stack.
+            k_sem_take(&m_exitSem, K_FOREVER);
         }
 
-        // Thread has finished Run(). Now we can safely clean up resources.
-        m_thread = NULL;
+        m_queue.DrainAndDelete();
+        m_queue.Destroy();
 
-        if (m_msgq) {
-            ThreadMsg* drainMsg = nullptr;
-            while (osMessageQueueGet(m_msgq, &drainMsg, NULL, 0) == osOK) {
-                delete drainMsg;
-            }
-            osMessageQueueDelete(m_msgq);
-            m_msgq = NULL;
-        }
+        // Reset buffer to mark as exited. This prevents a double-entry deadlock:
+        // ~Thread() calls ExitThread() unconditionally, so if ExitThread() was already
+        // called explicitly, the second call must be a no-op (m_stackMemory is null).
+        m_stackMemory.reset();
+
+        // Note: k_thread_abort is not needed because the thread will
+        // return from Run() and terminate naturally.
+    }
+}
+
+//----------------------------------------------------------------------------
+// SetThreadPriority
+//----------------------------------------------------------------------------
+void ZephyrThread::SetThreadPriority(int priority)
+{
+    m_priority = priority;
+    if (m_stackMemory) {
+        k_thread_priority_set(&m_thread, m_priority);
     }
 }
 
 //----------------------------------------------------------------------------
 // GetThreadId
 //----------------------------------------------------------------------------
-osThreadId_t Thread::GetThreadId()
+k_tid_t ZephyrThread::GetThreadId()
 {
-    return m_thread;
+    return &m_thread;
 }
 
 //----------------------------------------------------------------------------
 // GetCurrentThreadId
 //----------------------------------------------------------------------------
-osThreadId_t Thread::GetCurrentThreadId()
+k_tid_t ZephyrThread::GetCurrentThreadId()
 {
-    return osThreadGetId();
+    return k_current_get();
 }
 
 //----------------------------------------------------------------------------
 // IsCurrentThread
 //----------------------------------------------------------------------------
-bool Thread::IsCurrentThread()
+bool ZephyrThread::IsCurrentThread()
 {
     return GetThreadId() == GetCurrentThreadId();
 }
@@ -226,25 +216,21 @@ bool Thread::IsCurrentThread()
 //----------------------------------------------------------------------------
 // GetQueueSize
 //----------------------------------------------------------------------------
-size_t Thread::GetQueueSize()
+size_t ZephyrThread::GetQueueSize()
 {
-    if (m_msgq != NULL) {
-        return (size_t)osMessageQueueGetCount(m_msgq);
-    }
-    return 0;
+    return m_queue.Size();
 }
 
-void Thread::Sleep(dmq::Duration timeout) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
-    osDelay(static_cast<uint32_t>(ms));
+void ZephyrThread::Sleep(dmq::Duration timeout) {
+    dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
-    ASSERT_TRUE(m_msgq != NULL);
+    ASSERT_TRUE(m_stackMemory != nullptr);
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
@@ -254,36 +240,36 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 #endif
 
     // 2. Send pointer to queue
-    uint32_t timeout;
+    k_timeout_t timeout;
     if (FULL_POLICY == FullPolicy::TIMEOUT)
-        timeout = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
+        timeout = K_MSEC(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
     else
-        timeout = 0;  // DROP and FAULT: non-blocking
+        timeout = K_NO_WAIT;  // DROP and FAULT: non-blocking
 
-    // Option #2: Implement High priority using msg_prio.
-    uint8_t msg_prio = (msg->GetPriority() == Priority::HIGH) ? 1 : 0;
-
-    osStatus_t ret = osMessageQueuePut(m_msgq, &threadMsg, msg_prio, timeout);
-    if (ret != osOK)
+    // High priority routes to the queue Receive() always drains first.
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::HIGH, timeout);
+    if (!sent)
     {
         if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
-            ASSERT_TRUE(ret == osOK);
+            ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
             printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
-        // Failed to send (queue full or timed out)
+        // Failed to enqueue (queue full or timed out)
         delete threadMsg;
         return false;
     }
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Update monitoring stats
-    osMutexAcquire(m_statMutex, osWaitForever);
-    size_t currentDepth = GetQueueSize();
-    if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
-    if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
-    osMutexRelease(m_statMutex);
+    {
+        k_mutex_lock(&m_statMutex, K_FOREVER);
+        size_t currentDepth = GetQueueSize();
+        if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
+        if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
+        k_mutex_unlock(&m_statMutex);
+    }
 #endif
 
     return true;
@@ -292,22 +278,23 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // Process (Static Entry Point)
 //----------------------------------------------------------------------------
-void Thread::Process(void* argument)
+void ZephyrThread::Process(void* p1, void* p2, void* p3)
 {
-    Thread* thread = static_cast<Thread*>(argument);
+    ZephyrThread* thread = static_cast<ZephyrThread*>(p1);
     if (thread)
     {
         thread->Run();
     }
-
-    // Thread terminates automatically when function returns.
-    osThreadExit();
+    // Returning from entry point automatically terminates the thread in Zephyr
 }
 
 //----------------------------------------------------------------------------
+// Run (Member Function Loop)
+//----------------------------------------------------------------------------
+//----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheck()
+void ZephyrThread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -326,7 +313,7 @@ void Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 // ThreadCheck
 //----------------------------------------------------------------------------
-void Thread::ThreadCheck()
+void ZephyrThread::ThreadCheck()
 {
     m_lastAliveTime.store(Timer::GetNow());
 }
@@ -334,10 +321,10 @@ void Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 // WatchdogCheckAll
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheckAll()
+void ZephyrThread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread* p = GetWatchdogHead();
+    ZephyrThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
         p->WatchdogCheck();
@@ -348,28 +335,30 @@ void Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 // GetWatchdogHead
 //----------------------------------------------------------------------------
-Thread*& Thread::GetWatchdogHead()
+ZephyrThread*& ZephyrThread::GetWatchdogHead()
 {
-    static Thread* head = nullptr;
+    static ZephyrThread* head = nullptr;
     return head;
 }
 
 //----------------------------------------------------------------------------
 // GetWatchdogLock
 //----------------------------------------------------------------------------
-dmq::RecursiveMutex& Thread::GetWatchdogLock()
+dmq::RecursiveMutex& ZephyrThread::GetWatchdogLock()
 {
     static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
     return *lock;
 }
 
-void Thread::Run()
+//----------------------------------------------------------------------------
+// Run (Member Function Loop)
+//----------------------------------------------------------------------------
+void ZephyrThread::Run()
 {
     bool selfExit = false;
     m_selfExitPtr = &selfExit;
 
     ThreadMsg* msg = nullptr;
-
     while (!selfExit && !m_exit.load())
     {
         dmq::Duration watchdogTimeout;
@@ -380,36 +369,34 @@ void Thread::Run()
 
         // If watchdog active, use a finite timeout so we can periodically update 
         // m_lastAliveTime while idle. Otherwise, block forever to save power.
-        uint32_t waitOption = osWaitForever;
+        k_timeout_t waitOption = K_FOREVER;
         if (watchdogTimeout.count() > 0)
         {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
-            waitOption = static_cast<uint32_t>(ms / 4);
-            if (waitOption == 0) waitOption = 1;
+            waitOption = K_MSEC(ms / 4);
+            if (K_TIMEOUT_EQ(waitOption, K_NO_WAIT)) waitOption = K_MSEC(1);
         }
 
         // Block for a message or timeout
-        // msg is a pointer to ThreadMsg*. The queue holds the pointer.
-        if (osMessageQueueGet(m_msgq, &msg, NULL, waitOption) == osOK)
+        msg = m_queue.Receive(waitOption);
+        if (msg != nullptr)
         {
-            if (!msg) continue;
-
             int msgId = msg->GetId();
             if (msgId == MSG_DISPATCH_DELEGATE)
             {
-            #if defined(DMQ_DATABUS_TOOLS)
+#if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking
                 dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
                 {
-                    osMutexAcquire(m_statMutex, osWaitForever);
+                    k_mutex_lock(&m_statMutex, K_FOREVER);
                     m_latencyTotalWindow += latency;
                     m_latencyCountWindow++;
                     if (latency > m_latencyMaxWindow) m_latencyMaxWindow = latency;
                     if (latency > m_latencyMaxAll) m_latencyMaxAll = latency;
                     m_dispatchCountAll++;
-                    osMutexRelease(m_statMutex);
+                    k_mutex_unlock(&m_statMutex);
                 }
-            #endif
+#endif
 
                 auto delegateMsg = msg->GetData();
                 ASSERT_TRUE(delegateMsg);
@@ -458,12 +445,12 @@ void Thread::Run()
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::Duration invokeTime = Timer::GetNow() - start;
                 {
-                    osMutexAcquire(m_statMutex, osWaitForever);
+                    k_mutex_lock(&m_statMutex, K_FOREVER);
                     m_invokeTotalWindow += invokeTime;
                     m_invokeCountWindow++;
                     if (invokeTime > m_invokeMaxWindow) m_invokeMaxWindow = invokeTime;
                     if (invokeTime > m_invokeMaxAll) m_invokeMaxAll = invokeTime;
-                    osMutexRelease(m_statMutex);
+                    k_mutex_unlock(&m_statMutex);
                 }
 #endif
             }
@@ -476,10 +463,8 @@ void Thread::Run()
         }
     }
 
-    // Signal ExitThread() that we are done
-    if (m_exitSem) {
-        osSemaphoreRelease(m_exitSem);
-    }
+    // Signal that we are about to exit
+    k_sem_give(&m_exitSem);
     m_selfExitPtr = nullptr;
 }
 
@@ -487,9 +472,9 @@ void Thread::Run()
 //----------------------------------------------------------------------------
 // SnapshotStats
 //----------------------------------------------------------------------------
-Thread::ThreadStats Thread::SnapshotStats()
+ZephyrThread::ThreadStats ZephyrThread::SnapshotStats()
 {
-    osMutexAcquire(m_statMutex, osWaitForever);
+    k_mutex_lock(&m_statMutex, K_FOREVER);
     ThreadStats stats;
     stats.cpu_name = CPU_NAME;
     stats.thread_name = THREAD_NAME;
@@ -499,22 +484,22 @@ Thread::ThreadStats Thread::SnapshotStats()
     stats.queue_size_limit = m_queueSize;
     
     if (m_latencyCountWindow > 0) {
-        stats.latency_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count()) / (static_cast<float>(m_latencyCountWindow) * 1000.0f);
+        stats.latency_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyTotalWindow).count() / (static_cast<float>(m_latencyCountWindow) * 1000.0f);
     } else {
         stats.latency_avg_ms = 0.0f;
     }
 
-    stats.latency_max_window_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count()) / 1000.0f;
-    stats.latency_max_all_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count()) / 1000.0f;
+    stats.latency_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxWindow).count() / 1000.0f;
+    stats.latency_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_latencyMaxAll).count() / 1000.0f;
 
     if (m_invokeCountWindow > 0) {
-        stats.invoke_avg_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count()) / (static_cast<float>(m_invokeCountWindow) * 1000.0f);
+        stats.invoke_avg_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeTotalWindow).count() / (static_cast<float>(m_invokeCountWindow) * 1000.0f);
     } else {
         stats.invoke_avg_ms = 0.0f;
     }
 
-    stats.invoke_max_window_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxWindow).count()) / 1000.0f;
-    stats.invoke_max_all_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count()) / 1000.0f;
+    stats.invoke_max_window_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxWindow).count() / 1000.0f;
+    stats.invoke_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count() / 1000.0f;
 
     stats.dispatch_count = m_dispatchCountAll;
 
@@ -528,7 +513,7 @@ Thread::ThreadStats Thread::SnapshotStats()
     m_invokeCountWindow = 0;
     m_invokeMaxWindow = Duration(0);
 
-    osMutexRelease(m_statMutex);
+    k_mutex_unlock(&m_statMutex);
     return stats;
 }
 #endif

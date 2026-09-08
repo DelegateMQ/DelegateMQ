@@ -121,26 +121,26 @@
 #endif
 
 #if defined(DMQ_THREAD_STDLIB)
-    #include "port/os/stdlib/Thread.h"
-    #include "port/os/stdlib/ThreadMsg.h"
+    #include "port/os/stdlib/StdlibThread.h"
+    #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_WIN32)
-    #include "port/os/win32/Thread.h"
-    #include "port/os/win32/ThreadMsg.h"
+    #include "port/os/win32/Win32Thread.h"
+    #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_FREERTOS)
-    #include "port/os/freertos/Thread.h"
-    #include "port/os/freertos/ThreadMsg.h"
+    #include "port/os/freertos/FreeRTOSThread.h"
+    #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_THREADX)
-    #include "port/os/threadx/Thread.h"
-    #include "port/os/threadx/ThreadMsg.h"
+    #include "port/os/threadx/ThreadXThread.h"
+    #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_ZEPHYR)
-    #include "port/os/zephyr/Thread.h"
-    #include "port/os/zephyr/ThreadMsg.h"
+    #include "port/os/zephyr/ZephyrThread.h"
+    #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
-    #include "port/os/cmsis-rtos2/Thread.h"
-    #include "port/os/cmsis-rtos2/ThreadMsg.h"
+    #include "port/os/cmsis-rtos2/CmsisRtos2Thread.h"
+    #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_QT)
-    #include "port/os/qt/Thread.h"
-    #include "port/os/qt/ThreadMsg.h"
+    #include "port/os/qt/QtThread.h"
+    #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_NONE)
     // Bare metal: User must implement their own polling/interrupt logic
 #else

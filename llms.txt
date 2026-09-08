@@ -131,23 +131,39 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 static void Timer::ProcessTimers();
 ```
 
-Must be called periodically from the highest-priority context available (hardware ISR or highest-priority task). It checks every active timer, collects expired timers, then invokes their `OnExpired` signals **outside the lock** to prevent deadlocks. Frequency must be shorter than the shortest timer period; 5–10 ms is typical.
+Must be called periodically from the highest-priority context available. `Timer::GetLock()` returns `dmq::CriticalSection` — a portable type resolved per-port in `DelegateOpt.h`, distinct from `dmq::Mutex`/`RecursiveMutex` specifically because it must sometimes work from ISR context (an OS mutex categorically cannot: mutexes carry an "owning thread" concept for priority inheritance that has no meaning in interrupt context). Per-port status:
 
-**ProcessTimers() must never block.** Three scenarios that cause blocking:
+| Port | Hardware ISR safe? | Verified how |
+|---|---|---|
+| Bare-metal / no RTOS (`DMQ_THREAD_NONE`) | Yes (`dmq::os::BareMetalCriticalSection`, PRIMASK save/disable/restore) | Mirrors the already-proven `BareMetalClock.h` technique; not separately built/run |
+| ThreadX | Yes (`dmq::os::ThreadXCriticalSection`, interrupt masking, not a `TX_MUTEX`) | Built and run — `example/sample-projects/threadx-linux` |
+| FreeRTOS on real ARM Cortex-M (e.g. `stm32-freertos`) | Yes (`dmq::os::FreeRTOSCriticalSection` auto-detects context via `xPortIsInsideInterrupt()`) | Reasoned through; not run (no Cortex-M hardware/QEMU here) |
+| FreeRTOS on the POSIX/Win32 desktop simulator ports | No — task-context only (no real hardware interrupt to detect there) | Task-context path built and run — `example/sample-projects/freertos-linux` |
+| Zephyr | Yes per documented API (`dmq::os::ZephyrCriticalSection`, `irq_lock()`/`irq_unlock()`) | **Unverified** — no Zephyr SDK/`west` workspace available |
+| CMSIS-RTOS2 | Yes per documented API (`dmq::os::CmsisRtos2CriticalSection`, `__disable_irq()`/`__enable_irq()`, bypassing `osMutex`) | **Unverified** — no CMSIS-RTOS2 SDK or Cortex-M hardware/QEMU available |
+| Desktop (stdlib/Win32/Qt) | N/A — no ISR concept reachable from userspace | Aliased to `RecursiveMutex`; correct as-is |
+
+It checks every active timer, collects expired timers, then invokes their `OnExpired` signals **outside the lock** to prevent deadlocks. Frequency must be shorter than the shortest timer period; 5–10 ms is typical.
+
+**ProcessTimers() must never block.** Scenarios that cause blocking or faulting:
 
 1. A timer callback dispatches to a thread whose queue is full and the thread uses `FullPolicy::TIMEOUT` — stalls up to the timeout. Fix: use `FullPolicy::FAULT` or `DROP` on threads that receive timer dispatches.
 2. A `DelegateAsyncWait` is connected to `OnExpired` — blocks indefinitely. Never do this.
 3. A synchronous callback connected to `OnExpired` runs slowly — blocks for its duration. Keep sync callbacks fast or dispatch work asynchronously.
+4. Calling `ProcessTimers()` from a genuine hardware ISR on the FreeRTOS POSIX/Win32 simulator ports, or on desktop (stdlib/Win32/Qt) — faults or is undefined, since `Timer::GetLock()` is `RecursiveMutex` there. Not an issue on the other ports; see the table above.
 
 ### Recommended call sites
 
 ```cpp
-// Option 1 — hardware ISR (preempts all tasks; preferred on RTOS)
+// Bare-metal, ThreadX, or real ARM Cortex-M FreeRTOS/Zephyr/CMSIS-RTOS2 —
+// hardware ISR is safe (preempts all tasks)
 extern "C" void SysTick_Handler() {
     dmq::util::Timer::ProcessTimers();
 }
 
-// Option 2 — highest-priority dedicated task
+// FreeRTOS/Zephyr/CMSIS-RTOS2 desktop simulator ports, or desktop
+// (stdlib/Win32/Qt) — highest-priority dedicated task (thread context).
+// Also fine on every other port if you'd rather not use an ISR.
 void WatchdogTask(void*) {
     while (true) {
         dmq::util::Timer::ProcessTimers();
@@ -313,7 +329,7 @@ void MyClass::LongHandler() {
 
 ### Priority requirement
 
-The watchdog only catches a runaway thread if `ProcessTimers()` runs at **higher priority** than the runaway thread. On a single-core RTOS, a CPU-spinning task at equal or higher priority than the `ProcessTimers()` caller will starve the watchdog. The fix is to call `ProcessTimers()` from a hardware ISR, which preempts all software tasks.
+The watchdog only catches a runaway thread if `ProcessTimers()` runs at **higher priority** than the runaway thread. On a single-core RTOS, a CPU-spinning task at equal or higher priority than the `ProcessTimers()` caller will starve the watchdog. On bare-metal, ThreadX, or a real ARM Cortex-M FreeRTOS/Zephyr/CMSIS-RTOS2 target, the fix is to call `ProcessTimers()` from a hardware ISR, which preempts all software tasks. On a desktop build, or the FreeRTOS POSIX/Win32 simulator ports, use the highest-priority task instead — see the per-port table under [ProcessTimers()](#processtimers).
 
 For maximum reliability, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) and kick it only from inside `WatchdogCheck()` — that way a stuck `ProcessTimers()` caller also triggers a hardware reset.
 

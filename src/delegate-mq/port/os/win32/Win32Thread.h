@@ -1,7 +1,7 @@
 #ifndef _THREAD_WIN32_H
 #define _THREAD_WIN32_H
 
-/// @file Thread.h
+/// @file Win32Thread.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 ///
@@ -28,7 +28,7 @@
 
 #include "delegate/IThread.h"
 #include "./extras/util/Timer.h"
-#include "ThreadMsg.h"
+#include "port/os/common/ThreadMsg.h"
 #include <deque>
 #include <atomic>
 #include <optional>
@@ -43,22 +43,14 @@
 
 namespace dmq::os {
 
-/// @brief Policy applied when the thread message queue is full.
-/// @details Only meaningful when maxQueueSize > 0.
-///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
-///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
-///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
-///
-/// Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where
-/// a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics
-/// (commands, state transitions) where every message should be delivered if possible.
-/// FAULT is the default.
-enum class FullPolicy { DROP, FAULT, TIMEOUT };
+/// @brief Policy applied when the thread message queue is full. See dmq::FullPolicy
+/// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
+using FullPolicy = dmq::FullPolicy;
 
 /// @brief Windows-native thread for systems using the Win32 API.
-/// @details The Thread class creates a worker thread capable of dispatching and
+/// @details The Win32Thread class creates a worker thread capable of dispatching and
 /// invoking asynchronous delegates.
-class Thread : public dmq::IThread
+class Win32Thread : public dmq::IThread
 {
     XALLOCATOR
 public:
@@ -89,15 +81,15 @@ public:
     ///                   Only meaningful when maxQueueSize > 0.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
-    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    Win32Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
 
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    Win32Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
-        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
+        : Win32Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
     /// Destructor
-    virtual ~Thread();
+    virtual ~Win32Thread();
 
     /// Called once to create the worker thread. If watchdogTimeout value
     /// provided, the maximum watchdog interval is used. Otherwise no watchdog.
@@ -147,8 +139,8 @@ public:
 #endif
 
 private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
+    Win32Thread(const Win32Thread&) = delete;
+    Win32Thread& operator=(const Win32Thread&) = delete;
 
     /// Win32 thread proc entry point
     static DWORD WINAPI ThreadProc(LPVOID lpParam);
@@ -163,7 +155,7 @@ private:
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
-    static Thread*& GetWatchdogHead();
+    static Win32Thread*& GetWatchdogHead();
 
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock();
@@ -202,7 +194,7 @@ private:
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
     std::atomic<dmq::Duration> m_watchdogTimeout;
-    Thread* m_watchdogNext = nullptr;
+    Win32Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Monitoring statistics members
@@ -222,6 +214,10 @@ private:
     uint64_t m_dispatchCountAll = 0;
 #endif
 };
+
+/// @brief Backward-compatible name: existing code referencing dmq::os::Thread
+/// keeps compiling unchanged against the Win32 port.
+using Thread = Win32Thread;
 
 } // namespace dmq::os
 

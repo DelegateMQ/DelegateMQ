@@ -1,9 +1,9 @@
 #ifndef DMQ_THREAD_STDLIB
-#error "port/os/stdlib/Thread.cpp requires DMQ_THREAD_STDLIB. Remove this file from your build configuration or define DMQ_THREAD_STDLIB."
+#error "port/os/stdlib/StdlibThread.cpp requires DMQ_THREAD_STDLIB. Remove this file from your build configuration or define DMQ_THREAD_STDLIB."
 #endif
 
 #include "DelegateMQ.h"
-#include "Thread.h"
+#include "StdlibThread.h"
 #include "extras/util/Fault.h"
 
 #ifdef _WIN32
@@ -21,13 +21,10 @@ namespace dmq::os {
 using namespace std;
 using namespace dmq::util;
 
-#define MSG_DISPATCH_DELEGATE	1
-#define MSG_EXIT_THREAD			2
-
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
-Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
+StdlibThread::StdlibThread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : m_thread(std::nullopt)
     , m_exit(false)
     , THREAD_NAME(threadName)
@@ -41,12 +38,12 @@ Thread::Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolic
 //----------------------------------------------------------------------------
 // ~Thread
 //----------------------------------------------------------------------------
-Thread::~Thread()
+StdlibThread::~StdlibThread()
 {
     ExitThread();
 
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread** pp = &GetWatchdogHead();
+    StdlibThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
         if (*pp == this)
@@ -62,7 +59,7 @@ Thread::~Thread()
 //----------------------------------------------------------------------------
 // CreateThread
 //----------------------------------------------------------------------------
-bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
+bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     if (!m_thread)
     {
@@ -70,7 +67,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_threadStartFuture.emplace(m_threadStartPromise->get_future());
         m_exit = false;
 
-        m_thread.emplace(&Thread::Process, this);
+        m_thread.emplace(&StdlibThread::Process, this);
 
         auto handle = m_thread->native_handle();
         SetThreadName(handle, THREAD_NAME);
@@ -89,7 +86,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             {
                 dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
                 bool found = false;
-                Thread* p = GetWatchdogHead();
+                StdlibThread* p = GetWatchdogHead();
                 while (p != nullptr)
                 {
                     if (p == this)
@@ -113,7 +110,7 @@ bool Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // GetThreadId
 //----------------------------------------------------------------------------
-std::thread::id Thread::GetThreadId()
+std::thread::id StdlibThread::GetThreadId()
 {
     if (!m_thread.has_value())
         throw std::invalid_argument("Thread pointer is null");
@@ -124,7 +121,7 @@ std::thread::id Thread::GetThreadId()
 //----------------------------------------------------------------------------
 // GetCurrentThreadId
 //----------------------------------------------------------------------------
-std::thread::id Thread::GetCurrentThreadId()
+std::thread::id StdlibThread::GetCurrentThreadId()
 {
     return this_thread::get_id();
 }
@@ -132,7 +129,7 @@ std::thread::id Thread::GetCurrentThreadId()
 //----------------------------------------------------------------------------
 // IsCurrentThread
 //----------------------------------------------------------------------------
-bool Thread::IsCurrentThread()
+bool StdlibThread::IsCurrentThread()
 {
     if (!m_thread.has_value())
         return false;
@@ -143,20 +140,20 @@ bool Thread::IsCurrentThread()
 //----------------------------------------------------------------------------
 // GetQueueSize
 //----------------------------------------------------------------------------
-size_t Thread::GetQueueSize()
+size_t StdlibThread::GetQueueSize()
 {
     lock_guard<mutex> lock(m_mutex);
     return (m_highQueue.size() + m_normalQueue.size());
 }
 
-void Thread::Sleep(dmq::Duration timeout) {
-    std::this_thread::sleep_for(timeout);
+void StdlibThread::Sleep(dmq::Duration timeout) {
+    dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------
 // SetThreadName
 //----------------------------------------------------------------------------
-void Thread::SetThreadName(std::thread::native_handle_type handle, const dmq::xstring& name)
+void StdlibThread::SetThreadName(std::thread::native_handle_type handle, const dmq::xstring& name)
 {
     (void)handle;
     (void)name;
@@ -174,7 +171,7 @@ void Thread::SetThreadName(std::thread::native_handle_type handle, const dmq::xs
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void Thread::ExitThread()
+void StdlibThread::ExitThread()
 {
     if (!m_thread)
         return;
@@ -233,7 +230,7 @@ void Thread::ExitThread()
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------
-bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Early check, though we re-check inside lock for safety
     if (m_exit.load())
@@ -309,10 +306,10 @@ bool Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // WatchdogCheckAll
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheckAll()
+void StdlibThread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
-    Thread* p = GetWatchdogHead();
+    StdlibThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
         p->WatchdogCheck();
@@ -323,7 +320,7 @@ void Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void Thread::WatchdogCheck()
+void StdlibThread::WatchdogCheck()
 {
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -342,7 +339,7 @@ void Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 // ThreadCheck
 //----------------------------------------------------------------------------
-void Thread::ThreadCheck()
+void StdlibThread::ThreadCheck()
 {
     m_lastAliveTime.store(Timer::GetNow());
 }
@@ -350,16 +347,16 @@ void Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 // GetWatchdogHead
 //----------------------------------------------------------------------------
-Thread*& Thread::GetWatchdogHead()
+StdlibThread*& StdlibThread::GetWatchdogHead()
 {
-    static Thread* head = nullptr;
+    static StdlibThread* head = nullptr;
     return head;
 }
 
 //----------------------------------------------------------------------------
 // GetWatchdogLock
 //----------------------------------------------------------------------------
-dmq::RecursiveMutex& Thread::GetWatchdogLock()
+dmq::RecursiveMutex& StdlibThread::GetWatchdogLock()
 {
     static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
     return *lock;
@@ -368,7 +365,7 @@ dmq::RecursiveMutex& Thread::GetWatchdogLock()
 //----------------------------------------------------------------------------
 // Process
 //----------------------------------------------------------------------------
-void Thread::Process()
+void StdlibThread::Process()
 {
     // selfExit is set by ExitThread() when the thread destroys its own owner.
     // It lives on this stack frame so it remains valid even after 'this' is freed.
@@ -522,7 +519,7 @@ void Thread::Process()
 //----------------------------------------------------------------------------
 // SnapshotStats
 //----------------------------------------------------------------------------
-Thread::ThreadStats Thread::SnapshotStats()
+StdlibThread::ThreadStats StdlibThread::SnapshotStats()
 {
     // Need m_mutex only for (m_highQueue.size() + m_normalQueue.size())
     size_t currentDepth = GetQueueSize();

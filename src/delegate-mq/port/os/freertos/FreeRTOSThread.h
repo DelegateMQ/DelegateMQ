@@ -1,7 +1,7 @@
 #ifndef _THREAD_FREERTOS_H
 #define _THREAD_FREERTOS_H
 
-/// @file Thread.h
+/// @file FreeRTOSThread.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 ///
@@ -21,9 +21,11 @@
 ///   dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities (uses `xQueueSendToFront`).
-/// * **Queue-Based Dispatch:** Uses a FreeRTOS `QueueHandle_t` to receive and
-///   process incoming delegate messages in a thread-safe manner.
+/// * **Priority Support:** Normal and High priorities (High jumps the FIFO via
+///   `FreeRTOSDelegateQueue::Send`'s highPriority flag).
+/// * **Queue-Based Dispatch:** Uses `FreeRTOSDelegateQueue` (a thin RAII wrapper
+///   around a FreeRTOS `QueueHandle_t`) to receive and process incoming delegate
+///   messages in a thread-safe manner.
 /// * **Thread Identification:** Implements `GetThreadId()` using `TaskHandle_t`
 ///   to ensure correct thread context checks (used by `AsyncInvoke` optimizations).
 /// * **Graceful Shutdown:** Provides mechanisms (`ExitThread`) to cleanup resources,
@@ -35,6 +37,8 @@
 
 #include "delegate/IThread.h"
 #include "extras/util/Timer.h"
+#include "port/os/common/ThreadMsg.h"
+#include "FreeRTOSDelegateQueue.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -46,19 +50,14 @@
 
 namespace dmq::os {
 
-class ThreadMsg;
-
-/// @brief Policy applied when the FreeRTOS task queue is full.
-/// @details Controls the behavior of DispatchDelegate() when the queue has no space.
-///   - DROP:    xQueueSend() with timeout 0 — returns immediately, message discarded.
-///   - FAULT:   xQueueSend() with timeout 0 — returns immediately, triggers a system fault if queue full.
-///   - TIMEOUT: xQueueSend() with a finite timeout — logs and drops if space is not available in time.
-///
+/// @brief Policy applied when the FreeRTOS task queue is full (see dmq::FullPolicy
+/// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port).
+/// DROP/FAULT map to xQueueSend() with timeout 0; TIMEOUT to a finite timeout.
 /// FAULT is the default. For embedded targets where the caller may be an ISR or
 /// high-priority task, consider DROP to avoid blocking at an unsafe context.
-enum class FullPolicy { DROP, FAULT, TIMEOUT };
+using FullPolicy = dmq::FullPolicy;
 
-class Thread : public dmq::IThread
+class FreeRTOSThread : public dmq::IThread
 {
     XALLOCATOR
 public:
@@ -90,15 +89,15 @@ public:
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
-    Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    FreeRTOSThread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const char* cpuName = "");
 
-    Thread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
+    FreeRTOSThread(const std::string& threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
            dmq::Duration dispatchTimeout = dmq::DEFAULT_DISPATCH_TIMEOUT, const std::string& cpuName = "")
-        : Thread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
+        : FreeRTOSThread(threadName.c_str(), maxQueueSize, fullPolicy, dispatchTimeout, cpuName.c_str()) {}
 
     /// Destructor
-    ~Thread();
+    ~FreeRTOSThread();
 
     /// Called once to create the worker thread. If watchdogTimeout value
     /// provided, the maximum watchdog interval is used. Otherwise no watchdog.
@@ -160,8 +159,8 @@ public:
 #endif
 
 private:
-    Thread(const Thread&) = delete;
-    Thread& operator=(const Thread&) = delete;
+    FreeRTOSThread(const FreeRTOSThread&) = delete;
+    FreeRTOSThread& operator=(const FreeRTOSThread&) = delete;
 
     /// Entry point for the thread
     static void Process(void* instance);
@@ -173,9 +172,9 @@ private:
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
-    static Thread*& GetWatchdogHead()
+    static FreeRTOSThread*& GetWatchdogHead()
     {
-        static Thread* head = nullptr;
+        static FreeRTOSThread* head = nullptr;
         return head;
     }
 
@@ -194,7 +193,7 @@ private:
     int m_priority;
 
     TaskHandle_t m_thread = nullptr;
-    QueueHandle_t m_queue = nullptr;
+    FreeRTOSDelegateQueue m_queue;
     SemaphoreHandle_t m_exitSem = nullptr; // Synchronization for safe destruction
     std::atomic<bool> m_exit = false;
     bool* m_selfExitPtr = nullptr;
@@ -207,7 +206,7 @@ private:
     // Watchdog related members
     std::atomic<uint32_t> m_lastAliveTime{0};
     std::atomic<uint32_t> m_watchdogTimeout{0};
-    Thread* m_watchdogNext = nullptr;
+    FreeRTOSThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Monitoring statistics members
@@ -229,6 +228,10 @@ private:
     uint64_t m_dispatchCountAll{0};
 #endif
 };
+
+/// @brief Backward-compatible name: existing code referencing dmq::os::Thread
+/// keeps compiling unchanged against the FreeRTOS port.
+using Thread = FreeRTOSThread;
 
 } // namespace dmq::os
 

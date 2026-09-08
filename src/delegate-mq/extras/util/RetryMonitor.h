@@ -54,13 +54,17 @@ public:
     /// @brief Constructor
     /// @param transport The underlying transport to use for re-sending.
     /// @param monitor The monitor that detects the timeouts.
-    /// @param maxRetries Number of retries before giving up (default 3).
-    RetryMonitor(dmq::transport::ITransport& transport, TransportMonitor& monitor, int maxRetries = 3)
+    /// @param maxRetries Number of retries before giving up.
+    ///        Default is dmq::RETRY_MONITOR_MAX_RETRIES (DMQ_RETRY_MONITOR_MAX_RETRIES
+    ///        in delegatemqconfig.h).
+    RetryMonitor(dmq::transport::ITransport& transport, TransportMonitor& monitor,
+                 int maxRetries = dmq::RETRY_MONITOR_MAX_RETRIES)
     {
         Init(transport, monitor, maxRetries);
     }
 
-    void Init(dmq::transport::ITransport& transport, TransportMonitor& monitor, int maxRetries = 3)
+    void Init(dmq::transport::ITransport& transport, TransportMonitor& monitor,
+              int maxRetries = dmq::RETRY_MONITOR_MAX_RETRIES)
     {
         m_transport  = &transport;
         m_monitor    = &monitor;
@@ -211,7 +215,7 @@ private:
 
     dmq::transport::ITransport* m_transport = nullptr;
     TransportMonitor*           m_monitor   = nullptr;
-    int                         m_maxRetries = 3;
+    int                         m_maxRetries = dmq::RETRY_MONITOR_MAX_RETRIES;
     dmq::xmap<uint32_t, RetryEntry> m_retryStore;
     dmq::RecursiveMutex m_lock;
     dmq::ScopedConnection m_connection;

@@ -105,12 +105,20 @@ private:
         return head;
     }
 
-    /// Get lock using the "Immortal" Pattern
-    static dmq::RecursiveMutex& GetLock()
+    /// Get lock using the "Immortal" Pattern.
+    /// @note dmq::CriticalSection, not dmq::RecursiveMutex: ProcessTimers()
+    /// is documented as callable from the highest-priority context available,
+    /// including a hardware ISR on ports where that's safe (currently just
+    /// ThreadX -- see ThreadXCriticalSection.h). An OS mutex cannot be made
+    /// ISR-safe on any RTOS port; CriticalSection is the portable primitive
+    /// that can be, per-port, once implemented. See DelegateOpt.h for which
+    /// ports currently have a real ISR-safe CriticalSection vs. which still
+    /// alias it to RecursiveMutex (not yet ISR-safe there).
+    static dmq::CriticalSection& GetLock()
     {
-        // Allocate on heap and NEVER delete. Prevents lock from being destroyed 
+        // Allocate on heap and NEVER delete. Prevents lock from being destroyed
         // before the last Timer destructor runs at app shutdown.
-        static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+        static dmq::CriticalSection* lock = new dmq::CriticalSection();
         return *lock;
     }
 

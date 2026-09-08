@@ -62,6 +62,8 @@ WINDOWS_ONLY = {
 LINUX_ONLY = {
     "linux-tcp-serializer",
     "linux-udp-serializer",
+    "threadx-linux",           # ThreadX Linux/GNU simulation port; scheduling requires POSIX threads/signals
+    "freertos-linux",          # FreeRTOS POSIX simulator port; each task is a real pthread
 }
 
 # Projects that contain dotnet sub-projects requiring 'dotnet build' in addition
@@ -73,6 +75,11 @@ DOTNET_BUILDS = {
 
 IS_WINDOWS = platform.system() == "Windows"
 BUILD_CONFIG = "Release"
+# Bare `--parallel` (no count) makes CMake pass a bare `-j` to Make, which is
+# unlimited concurrent jobs, not one-per-core. Multi-subproject trees like
+# cellutron can then fire off enough concurrent, template-heavy compiles to
+# exhaust RAM+swap. Cap it explicitly, leaving one core free for the desktop.
+BUILD_JOBS = max(1, (os.cpu_count() or 1) - 1)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -122,7 +129,7 @@ def build_project(build_dir, label):
     if not os.path.isdir(build_dir):
         return False, f"Build directory not found: {build_dir}"
 
-    cmd = ["cmake", "--build", build_dir, "--config", BUILD_CONFIG, "--parallel"]
+    cmd = ["cmake", "--build", build_dir, "--config", BUILD_CONFIG, "--parallel", str(BUILD_JOBS)]
     try:
         result = subprocess.run(
             cmd,
