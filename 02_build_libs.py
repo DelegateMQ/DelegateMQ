@@ -56,10 +56,14 @@ libs = [
         "name": "mqtt",
         "path": "mqtt",
         # ADDED: -DCMAKE_POLICY_VERSION_MINIMUM=3.5 to fix build on modern CMake
+        # ADDED: -DPAHO_ENABLE_TESTING=FALSE -- Paho's test suite is POSIX-only
+        # (test4.c, test6.c, etc. include <sys/time.h>, which doesn't exist on
+        # MSVC/Windows) and isn't needed to produce the libs DelegateMQ links.
         "flags": [
-            "-DPAHO_BUILD_SHARED=TRUE", 
-            "-DPAHO_BUILD_STATIC=TRUE", 
+            "-DPAHO_BUILD_SHARED=TRUE",
+            "-DPAHO_BUILD_STATIC=TRUE",
             "-DPAHO_BUILD_SAMPLES=FALSE",
+            "-DPAHO_ENABLE_TESTING=FALSE",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
         ]
     }
