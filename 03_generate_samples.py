@@ -92,6 +92,16 @@ def build_samples(use_clang=False, clean=False):
                                        parent_name in WINDOWS_ONLY_PROJECTS):
                     continue
 
+                # --- SKIP LINUX-ONLY PROJECTS ON WINDOWS ---
+                # freertos-linux and threadx-linux are native Linux/GNU simulator
+                # ports; their own CMakeLists.txt refuses to configure on Windows
+                # (FATAL_ERROR). Skip them here instead of letting that surface as
+                # a noisy FAILED entry on every Windows run.
+                LINUX_ONLY_PROJECTS = {"freertos-linux", "threadx-linux"}
+                if IS_WINDOWS and (project_name in LINUX_ONLY_PROJECTS or
+                                   parent_name in LINUX_ONLY_PROJECTS):
+                    continue
+
                 # Build a display label that includes the parent for client/server sub-dirs
                 if project_name in ("client", "server"):
                     display_name = f"{parent_name}/{project_name}"
