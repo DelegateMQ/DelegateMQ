@@ -28,6 +28,17 @@ To add a new allocator-gated type (e.g., `xunordered_map`):
 3. Add a `std::*` fallback alias in the `#else` block of `DelegateOpt.h`.
 4. Reference it in library code with no direct include — `DelegateOpt.h` is already transitively included everywhere via `DelegateRemote.h` → `DelegateOpt.h`.
 
+## Configuration Constants — No Buried Literals
+
+Any compile-time capacity, count, or timeout that an application might reasonably want to tune (array sizes, retry budgets, default timeouts, work-per-tick limits) must be a named `DMQ_*` macro in `DelegateMQConfig_Default.h` (with a matching entry in `DelegateMQConfig_Template.h`), exposed as a `dmq::` constant in `DelegateOpt.h` — never a bare numeric literal hardcoded at the point of use. Follow the existing `DMQ_MAX_PARTICIPANTS` → `dmq::MAX_PARTICIPANTS` pattern:
+
+1. `DelegateMQConfig_Default.h`: `#ifndef DMQ_FOO` / `#define DMQ_FOO <value>` / `#endif`, with a one-line comment on what it controls.
+2. `DelegateMQConfig_Template.h`: the same `#define DMQ_FOO <value>` with a doc comment, so users seeding a custom config see it.
+3. `DelegateOpt.h`: `inline constexpr <type> FOO = DMQ_FOO;` in the `dmq` namespace, doc comment pointing back to `DMQ_FOO`.
+4. At the use site, reference `dmq::FOO` as the default (e.g., a template parameter default or a function parameter default) — this still allows a caller or a specific instantiation to override the value locally; only the *default* moves into config.
+
+Exception: constants tied to protocol framing, wire format, or a genuinely fixed local scratch buffer (not a capacity/count) are implementation details and do not need to be exposed.
+
 ## Fixed-Size Containers and Bounds
 
 When a fixed-size container is full, call `ASSERT_TRUE(condition)` or `ASSERT()` — do not silently drop, resize, or throw. This is the established pattern for capacity violations (see `DataBus::InternalAddParticipant`).

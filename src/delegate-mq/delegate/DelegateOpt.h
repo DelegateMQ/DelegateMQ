@@ -201,6 +201,30 @@ namespace dmq
     /// Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.
     inline constexpr size_t MAX_PARTICIPANTS = DMQ_MAX_PARTICIPANTS;
 
+    /// @brief Default max remote peers per NetworkNode instance (fixed allocation).
+    /// Override via DMQ_NETWORK_NODE_MAX_PEERS in delegatemqconfig.h, or per-instantiation
+    /// via NetworkNode's MaxPeers template parameter.
+    inline constexpr size_t NETWORK_NODE_MAX_PEERS = DMQ_NETWORK_NODE_MAX_PEERS;
+
+    /// @brief Default max in- or out-topics per NetworkNode instance (fixed allocation).
+    /// Override via DMQ_NETWORK_NODE_MAX_TOPICS in delegatemqconfig.h, or per-instantiation
+    /// via NetworkNode's MaxTopics template parameter.
+    inline constexpr size_t NETWORK_NODE_MAX_TOPICS = DMQ_NETWORK_NODE_MAX_TOPICS;
+
+    /// @brief Max messages drained per NetworkNode::ReceiverThread() tick.
+    /// Override via DMQ_NETWORK_NODE_MAX_WORK in delegatemqconfig.h.
+    inline constexpr int NETWORK_NODE_MAX_WORK = DMQ_NETWORK_NODE_MAX_WORK;
+
+    /// @brief Default number of retries before RetryMonitor gives up on an unacknowledged message.
+    /// Override via DMQ_RETRY_MONITOR_MAX_RETRIES in delegatemqconfig.h, or per-call via
+    /// RetryMonitor's maxRetries constructor/Init() parameter.
+    inline constexpr int RETRY_MONITOR_MAX_RETRIES = DMQ_RETRY_MONITOR_MAX_RETRIES;
+
+    /// @brief Default per-message ACK timeout for TransportMonitor.
+    /// Override via DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC in delegatemqconfig.h, or per-instance
+    /// via TransportMonitor's timeout constructor parameter.
+    inline constexpr Duration TRANSPORT_MONITOR_TIMEOUT = std::chrono::seconds(DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC);
+
     /// @brief Max number of pending messages the TransportMonitor can track.
     /// Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.
     inline constexpr size_t MAX_TRANSPORT_MONITOR_PENDING = DMQ_TRANSPORT_MONITOR_MAX_PENDING;

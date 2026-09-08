@@ -162,10 +162,12 @@ void SetupNetwork() {
 
 ```cpp
 template <typename Transport,
-          size_t MaxPeers  = 4,   // maximum remote peers
-          size_t MaxTopics = 16>  // maximum Send() or Receive() calls each
+          size_t MaxPeers  = dmq::NETWORK_NODE_MAX_PEERS,   // maximum remote peers
+          size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS>  // maximum Send() or Receive() calls each
 class NetworkNode;
 ```
+
+`dmq::NETWORK_NODE_MAX_PEERS` (default 4) and `dmq::NETWORK_NODE_MAX_TOPICS` (default 16) come from `DMQ_NETWORK_NODE_MAX_PEERS` / `DMQ_NETWORK_NODE_MAX_TOPICS` in `DelegateMQConfig_Default.h` — override there to change the default for all instantiations, or pass explicit template arguments to override per-instantiation (e.g. `NetworkNode<Transport, 2, 8>`).
 
 ---
 

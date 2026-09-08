@@ -35,8 +35,12 @@
 ///
 /// @tparam Transport  Any ITransport-derived class with a nested Type enum
 ///                    providing Type::PUB (sender) and Type::SUB (receiver).
-/// @tparam MaxPeers   Maximum remote peers (fixed allocation, default 4).
-/// @tparam MaxTopics  Maximum in- or out-topics each (fixed, default 16).
+/// @tparam MaxPeers   Maximum remote peers (fixed allocation). Defaults to
+///                    dmq::NETWORK_NODE_MAX_PEERS (DMQ_NETWORK_NODE_MAX_PEERS
+///                    in delegatemqconfig.h).
+/// @tparam MaxTopics  Maximum in- or out-topics each (fixed allocation). Defaults
+///                    to dmq::NETWORK_NODE_MAX_TOPICS (DMQ_NETWORK_NODE_MAX_TOPICS
+///                    in delegatemqconfig.h).
 
 #include "DataBus.h"
 #include "extras/util/TransportMonitor.h"
@@ -81,7 +85,9 @@ enum class Reliability {
 ///
 /// All member functions are safe to call before Start() or AddPeer(); registrations
 /// are stored and applied when the relevant participant is created.
-template <typename Transport, size_t MaxPeers = 4, size_t MaxTopics = 16>
+template <typename Transport,
+          size_t MaxPeers  = dmq::NETWORK_NODE_MAX_PEERS,
+          size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS>
 class NetworkNode {
     using TransportMonitor  = dmq::util::TransportMonitor;
     using RetryMonitor      = dmq::util::RetryMonitor;
@@ -327,7 +333,8 @@ private:
     void ReceiverThread()
     {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        constexpr int MAX_WORK = 20;
+        // Override via DMQ_NETWORK_NODE_MAX_WORK in delegatemqconfig.h.
+        constexpr int MAX_WORK = dmq::NETWORK_NODE_MAX_WORK;
 
         if (m_recvParticipant) {
             for (int i = 0; i < MAX_WORK; ++i)

@@ -53,7 +53,9 @@ public:
     /// Fired outside the internal lock so subscribers may call back into TransportMonitor safely.
     dmq::Signal<void(size_t)> OnPendingExceeded;
 
-    TransportMonitor(const dmq::Duration timeout = std::chrono::seconds(2)) : TRANSPORT_TIMEOUT(timeout) {}
+    /// @param timeout Per-message ACK timeout. Default is dmq::TRANSPORT_MONITOR_TIMEOUT
+    ///        (DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC in delegatemqconfig.h).
+    TransportMonitor(const dmq::Duration timeout = dmq::TRANSPORT_MONITOR_TIMEOUT) : TRANSPORT_TIMEOUT(timeout) {}
 
     ~TransportMonitor()
     {
