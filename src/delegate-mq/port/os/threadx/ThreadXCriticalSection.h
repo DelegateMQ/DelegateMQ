@@ -18,11 +18,20 @@
 /// callable from the highest-priority context available, including a
 /// hardware ISR.
 ///
-/// It works by disabling/restoring interrupts directly (TX_INTERRUPT_SAVE_AREA
-/// / TX_DISABLE / TX_RESTORE -- the same primitive ThreadXClock.h already
-/// uses for the identical reason), rather than acquiring an OS mutex object.
-/// Global interrupt masking is the only ThreadX primitive that is valid in
-/// both a thread and an ISR.
+/// It works by disabling/restoring interrupts directly, the same underlying
+/// mechanism ThreadXClock.h uses via TX_INTERRUPT_SAVE_AREA / TX_DISABLE /
+/// TX_RESTORE. This class can't use those macros themselves, though: they
+/// declare a local save-area variable whose NAME is port-specific (e.g.
+/// "interrupt_save" on most ARM ports, "tx_saved_posture" on Linux/GNU) and
+/// only valid within the function that declared it -- fine for ThreadXClock.h,
+/// where disable and restore happen in the same function, but lock() and
+/// unlock() here are separate calls, so the saved posture must survive in a
+/// member variable across the gap. Instead this uses tx_interrupt_control(),
+/// the portable, publicly documented ThreadX service for exactly this: it
+/// takes the new posture (TX_INT_DISABLE) and returns the previous one to
+/// restore later, with no port-specific local variable involved. It's the
+/// same interrupt-lockout primitive TX_DISABLE/TX_RESTORE use internally, so
+/// it carries the same ISR-safety guarantee.
 ///
 /// *** NARROW PURPOSE -- DO NOT USE THIS AS A GENERAL-PURPOSE LOCK ***
 /// Holding this masks ALL maskable interrupts on the CPU for as long as it
@@ -58,15 +67,11 @@ namespace dmq::os {
         ThreadXCriticalSection() = default;
 
         void lock() {
-            TX_INTERRUPT_SAVE_AREA
-            TX_DISABLE
-            m_savedPosture = interrupt_save;
+            m_savedPosture = tx_interrupt_control(TX_INT_DISABLE);
         }
 
         void unlock() {
-            TX_INTERRUPT_SAVE_AREA
-            interrupt_save = m_savedPosture;
-            TX_RESTORE
+            tx_interrupt_control(m_savedPosture);
         }
 
         // No try_lock(): interrupt masking cannot fail to "acquire", so a
