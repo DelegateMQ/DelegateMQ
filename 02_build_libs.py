@@ -111,10 +111,26 @@ def build_deps():
         # 3. Configure (Multi-Config for Visual Studio)
         #    We set CMAKE_DEBUG_POSTFIX to "d" so debug libs get named "libzmq-d.lib"
         cmd_config = [
-            "cmake", "-B", "build", 
+            "cmake", "-B", "build",
             f"-DCMAKE_INSTALL_PREFIX={install_dir}",
             "-DCMAKE_DEBUG_POSTFIX=d"
         ] + lib.get("flags", [])
+
+        # Windows: --parallel below only controls how many *projects* in the
+        # solution build concurrently (/maxcpucount) -- it does NOT parallelize
+        # compilation of multiple source files within a single project. None of
+        # these third-party libraries set /MP (MSVC's own multi-file parallel
+        # compile flag) themselves, so without this every .c/.cpp in each
+        # library compiles one at a time regardless of --parallel. This is why
+        # the build is fast on Linux (make -j parallelizes at the file level by
+        # default) but slow on Windows. Not needed on Linux/macOS: GCC/Clang
+        # have no equivalent flag, and make/ninja already parallelize file
+        # compilation via --parallel.
+        if os.name == "nt":
+            cmd_config += [
+                "-DCMAKE_C_FLAGS=/MP",
+                "-DCMAKE_CXX_FLAGS=/MP",
+            ]
 
         # ZeroMQ Specific: Ensure Runtime Library matches DelegateMQ (DLL vs Static)
         if lib["name"] == "zeromq":
