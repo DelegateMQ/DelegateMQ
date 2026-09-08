@@ -141,6 +141,29 @@ Always use the dmq-provided portable types — never raw OS or std primitives in
 | `std::list` | `xlist` |
 | `std::map` / `std::unordered_map` | `xmap` |
 
+## ISR-Safe Locking — `dmq::CriticalSection`
+
+`dmq::Mutex` / `dmq::RecursiveMutex` are real OS mutexes on every RTOS port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2) and **cannot be acquired or created from a genuine hardware ISR on any of them** — mutexes carry an "owning thread" concept for priority inheritance that has no meaning in interrupt context. Verified directly against the ThreadX source: `tx_mutex_get()` and `tx_mutex_create()` both check `TX_THREAD_GET_SYSTEM_STATE()` and return `TX_CALLER_ERROR` for an ISR caller, on *every* call, not just the first.
+
+`dmq::CriticalSection` exists for the narrow set of call sites that must work correctly from **both** thread and ISR context — currently just `dmq::util::Timer`'s internal list lock (`Timer::GetLock()`), since `Timer::ProcessTimers()` is documented as callable from the highest-priority context available, including a hardware ISR where that's safe. Per-port, `DelegateOpt.h` resolves it to:
+
+| Port | `dmq::CriticalSection` | ISR-safe? | Verified how |
+|---|---|---|---|
+| ThreadX | `dmq::os::ThreadXCriticalSection` (interrupt masking, not a `TX_MUTEX`) | **Yes** | Built and run — `example/sample-projects/threadx-linux` |
+| FreeRTOS | `dmq::os::FreeRTOSCriticalSection` (auto-detects context via `xPortIsInsideInterrupt()`, selects `taskENTER_CRITICAL[_FROM_ISR]`) | **Yes on real ARM Cortex-M targets** (e.g. `stm32-freertos`); task-context-only on the POSIX/Win32 simulator ports (no real hardware interrupt to detect there) | Task-context path built and run — `example/sample-projects/freertos-linux`. ISR-context path reasoned through, not exercised (no genuine hardware interrupt on that sample) |
+| Zephyr | `dmq::os::ZephyrCriticalSection` (`irq_lock()`/`irq_unlock(key)`) | Yes, per documented Zephyr API | **Unverified** — no Zephyr SDK/west workspace available; reasoned through only |
+| CMSIS-RTOS2 | `dmq::os::CmsisRtos2CriticalSection` (`__disable_irq()`/`__enable_irq()` via CMSIS-Core, bypassing `osMutex`) | Yes, per documented CMSIS-Core/CMSIS-RTOS2 API | **Unverified** — no CMSIS-RTOS2 SDK or Cortex-M hardware/QEMU target available; reasoned through only |
+| Bare metal (`DMQ_THREAD_NONE`) | `dmq::os::BareMetalCriticalSection` (same PRIMASK save/disable/restore technique as `BareMetalClock.h`) | Yes | Not built/run in this pass — mirrors an already-proven pattern in this codebase |
+| Desktop (stdlib/Win32/Qt) | aliased to `RecursiveMutex` | N/A — no ISR concept reachable from userspace; correct as-is | Built and run as part of every desktop sample |
+
+Rules when touching this:
+
+- **Never use `dmq::CriticalSection` as a general-purpose lock.** It masks *all* maskable interrupts on the CPU for as long as it's held. Reach for it only to protect something genuinely tiny and bounded that may be touched from ISR context (`Timer`'s use case). Anything that can block, take a while, or is normally protected by `dmq::Mutex`/`RecursiveMutex` (DataBus internals, a `Thread`'s message queue, etc.) must never be moved to `CriticalSection` — that's a real-time correctness bug on hardware, not a style choice.
+- **There is no `RecursiveCriticalSection`.** A critical section has no ownership concept, so recursion isn't meaningful the way it is for `RecursiveMutex` — nesting *different* instances in proper LIFO lock/unlock order is safe by construction (each saves/restores its own interrupt state), but calling `lock()` twice on the **same** instance without an intervening `unlock()` is not (see the warning in each `*CriticalSection.h`).
+- **FreeRTOS's ISR detection is scoped to ARM Cortex-M.** `FreeRTOSCriticalSection.h` selects the real `xPortIsInsideInterrupt()` vs. a dummy `pdFALSE` stub via the `__arm__`/`__ARM_ARCH` compiler predefines (set by `arm-none-eabi-gcc`, never set by desktop GCC/Clang building the POSIX/Win32 simulators) — no new `DMQ_*` build option needed. A RISC-V or Xtensa FreeRTOS port would need that detection extended for its own architecture predefines.
+- **Porting to a new RTOS**: use `port/os/threadx/ThreadXCriticalSection.h` as the reference implementation, and pick that port's true interrupt-masking primitive — not its OS mutex, no matter how it's configured.
+- **The Zephyr and CMSIS-RTOS2 implementations are unverified.** Written against documented API behavior, same rigor as ThreadX's, but never built or run — this development environment has no Zephyr SDK/`west` workspace, no CMSIS-RTOS2 SDK, and no ARM hardware/QEMU target. Review carefully and exercise on real hardware or an appropriate simulator before relying on them in production.
+
 ## Testing Conventions
 
 - Tests use `DataBus::ResetForTesting()` between cases — always call it at the top of each test block.

@@ -90,20 +90,26 @@
     #include "port/os/freertos/FreeRTOSClock.h"
     #include "port/os/freertos/FreeRTOSMutex.h"
     #include "port/os/freertos/FreeRTOSConditionVariable.h"
+    #include "port/os/freertos/FreeRTOSCriticalSection.h"
 #elif defined(DMQ_THREAD_THREADX)
     #include "port/os/threadx/ThreadXClock.h"
     #include "port/os/threadx/ThreadXMutex.h"
     #include "port/os/threadx/ThreadXConditionVariable.h"
+    #include "port/os/threadx/ThreadXCriticalSection.h"
 #elif defined(DMQ_THREAD_ZEPHYR)
     #include "port/os/zephyr/ZephyrClock.h"
     #include "port/os/zephyr/ZephyrMutex.h"
+    #include "port/os/zephyr/ZephyrCriticalSection.h"
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
     #include "port/os/cmsis-rtos2/CmsisRtos2Clock.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2Mutex.h"
+    #include "port/os/cmsis-rtos2/CmsisRtos2CriticalSection.h"
 #elif defined(DMQ_THREAD_NONE)
     #include "port/os/bare-metal/BareMetalClock.h"
+    #include "port/os/bare-metal/BareMetalCriticalSection.h"
 #else
     #include "port/os/bare-metal/BareMetalClock.h"
+    #include "port/os/bare-metal/BareMetalCriticalSection.h"
 #endif
 
 namespace dmq
@@ -234,6 +240,12 @@ namespace dmq
     // Windows / Linux / macOS / Qt
     using Mutex = std::mutex;
     using RecursiveMutex = std::recursive_mutex;
+    // No ISR concept reachable from userspace on desktop OSes, and
+    // Timer::ProcessTimers() is always driven from an ordinary thread here
+    // in practice -- CriticalSection is just RecursiveMutex. See
+    // ThreadXCriticalSection.h for what a "real" ISR-safe implementation
+    // looks like on a port where it matters.
+    using CriticalSection = RecursiveMutex;
     using ConditionVariable = std::condition_variable;
     template<typename T> using LockGuard = std::lock_guard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
@@ -243,6 +255,13 @@ namespace dmq
     // Use the custom FreeRTOS wrapper
     using Mutex = dmq::os::FreeRTOSMutex;
     using RecursiveMutex = dmq::os::FreeRTOSRecursiveMutex;
+    // ISR-safe on real ARM Cortex-M FreeRTOS ports (auto-detects context via
+    // xPortIsInsideInterrupt() and selects taskENTER_CRITICAL[_FROM_ISR]
+    // accordingly); on the desktop simulator ports (POSIX/Win32) it is
+    // task-context-only, since there is no real hardware interrupt to
+    // detect there. See FreeRTOSCriticalSection.h for the detection details
+    // and the __arm__/__ARM_ARCH scoping assumption.
+    using CriticalSection = dmq::os::FreeRTOSCriticalSection;
     using ConditionVariable = dmq::os::FreeRTOSConditionVariable;
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
@@ -252,6 +271,10 @@ namespace dmq
     // Use the custom ThreadX wrapper
     using Mutex = dmq::os::ThreadXMutex;
     using RecursiveMutex = dmq::os::ThreadXRecursiveMutex;
+    // Genuinely ISR-safe (interrupt masking, not a TX_MUTEX) -- see
+    // ThreadXCriticalSection.h for why a real OS mutex can never be made
+    // to work here, and for the narrow-use-only warnings that apply to it.
+    using CriticalSection = dmq::os::ThreadXCriticalSection;
     using ConditionVariable = dmq::os::ThreadXConditionVariable;
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
@@ -261,11 +284,22 @@ namespace dmq
     // Use the custom Zephyr wrapper
     using Mutex = dmq::os::ZephyrMutex;
     using RecursiveMutex = dmq::os::ZephyrRecursiveMutex;
+    // ISR-safe (irq_lock()/irq_unlock(key), not a k_mutex) -- see
+    // ZephyrCriticalSection.h. UNVERIFIED: no Zephyr SDK/west workspace is
+    // available in this development environment to build and run it; review
+    // before relying on it in production.
+    using CriticalSection = dmq::os::ZephyrCriticalSection;
     template<typename T> using LockGuard = PortableLockGuard<T>;
 
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
     using Mutex = dmq::os::CmsisRtos2Mutex;
     using RecursiveMutex = dmq::os::CmsisRtos2RecursiveMutex;
+    // ISR-safe (__disable_irq()/__enable_irq() via CMSIS-Core, bypassing
+    // osMutex entirely) -- see CmsisRtos2CriticalSection.h. UNVERIFIED: no
+    // CMSIS-RTOS2 SDK or Cortex-M hardware/QEMU target is available in this
+    // development environment to build and run it; review before relying
+    // on it in production.
+    using CriticalSection = dmq::os::CmsisRtos2CriticalSection;
     template<typename T> using LockGuard = PortableLockGuard<T>;
 
 #else
@@ -277,6 +311,12 @@ namespace dmq
     };
     using Mutex = NullMutex;
     using RecursiveMutex = NullMutex;
+    // Unlike Mutex/RecursiveMutex above, NullMutex would NOT be correct here:
+    // bare metal still has real hardware ISRs that can preempt the main
+    // loop, even with no RTOS/threads. dmq::os::BareMetalCriticalSection
+    // does real interrupt masking (save/disable/restore PRIMASK), the same
+    // technique BareMetalClock.h already uses.
+    using CriticalSection = dmq::os::BareMetalCriticalSection;
     template<typename T> using LockGuard = PortableLockGuard<T>;
     // No DMQ_HAS_CV — Semaphore and DelegateAsyncWait are unavailable on bare metal
 #endif

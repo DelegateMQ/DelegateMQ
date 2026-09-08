@@ -52,9 +52,9 @@ cmake --build .
 
 One of the tests creates a `dmq::os::Thread` object named "WorkerThread". When an asynchronous delegate is invoked on it, DelegateMQ wraps the call into a message and posts it to a ThreadX queue (`TX_QUEUE`); the WorkerThread's own event loop dequeues and executes it — the same cross-thread dispatch pattern as every other `dmq::os::Thread` port.
 
-### A ThreadX-specific gotcha: priming the Timer lock
+### `Timer`'s lock is ISR-safe on this port
 
-`Timer::ProcessTimers()` lazily constructs an internal `dmq::RecursiveMutex` on its first call. ThreadX forbids creating synchronization objects (`tx_mutex_create`, etc.) from its own internal timer thread (`_tx_timer_thread`) — it returns `TX_CALLER_ERROR`. Since the periodic software timer above calls `Timer::ProcessTimers()` from exactly that context, `main_delegate()` calls `Timer::ProcessTimers()` once itself — from the safe `tx_application_define()` context — *before* creating the periodic timer, so the lazy mutex construction happens somewhere ThreadX allows it. Any application driving `dmq::util::Timer` from a ThreadX software timer callback needs this same priming call.
+`Timer::ProcessTimers()` takes an internal lock (`Timer::GetLock()`) on every call. On most RTOS ports that lock is `dmq::RecursiveMutex` — a real OS mutex, which ThreadX (like every other RTOS here) forbids acquiring or creating from a genuine hardware ISR (`tx_mutex_get()`/`tx_mutex_create()` both return `TX_CALLER_ERROR` for an ISR caller). ThreadX is the one port where `dmq::CriticalSection` (what `Timer::GetLock()` actually uses) is implemented for real: `port/os/threadx/ThreadXCriticalSection.h` disables/restores interrupts directly instead of touching a `TX_MUTEX`, which is valid from both thread and ISR context. That's why this sample needs no special priming step even though the periodic timer above calls `Timer::ProcessTimers()` from ThreadX's internal timer thread — and it would work identically if called from a real `SysTick_Handler`-style ISR instead. Every other RTOS port (FreeRTOS, Zephyr, CMSIS-RTOS2) still aliases `dmq::CriticalSection` to `dmq::RecursiveMutex` and is *not* ISR-safe yet — see the comments next to each port's `using CriticalSection = ...;` in `DelegateOpt.h`.
 
 ### Exiting
 

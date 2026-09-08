@@ -109,8 +109,10 @@ def build_samples(use_clang=False, clean=False):
                 # Match standalone projects (e.g. "freertos-bare-metal") by project_name,
                 # and client/server sub-projects by parent_name + role.  The client side of
                 # a mixed-platform project (e.g. databus-freertos/client) must NOT use Win32.
+                # Exclude "*-linux" projects (e.g. "freertos-linux"): they use the FreeRTOS
+                # POSIX simulator port, which is native x86_64 Linux, not Win32.
                 needs_win32 = (
-                    "freertos" in project_name.lower() or
+                    ("freertos" in project_name.lower() and not project_name.lower().endswith("-linux")) or
                     ("freertos" in parent_name.lower() and project_name == "server")
                 )
                 

@@ -14,7 +14,7 @@ std::atomic<bool> Timer::m_timerStopped{false};
 //------------------------------------------------------------------------------
 Timer::Timer()
 {
-    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetLock());
+    const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
     m_enabled = false;
 }
 
@@ -23,7 +23,7 @@ Timer::Timer()
 //------------------------------------------------------------------------------
 Timer::~Timer()
 {
-    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetLock());
+    const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
     
     // Remove 'this' from the intrusive linked list
     Timer** pp = &GetTimersHead();
@@ -54,7 +54,7 @@ void Timer::Start(dmq::Duration timeout, bool once)
 #endif
     }
 
-    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetLock());
+    const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
 
     m_timeout = timeout;
     m_once = once;
@@ -89,7 +89,7 @@ void Timer::Start(dmq::Duration timeout, bool once)
 //------------------------------------------------------------------------------
 void Timer::Stop()
 {
-    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetLock());
+    const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
 
     m_enabled = false;
 
@@ -148,7 +148,7 @@ void Timer::ProcessTimers()
     size_t count = 0;
 
     {
-        const dmq::LockGuard<dmq::RecursiveMutex> lock(GetLock());
+        const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
 
         // Remove disabled timer from the list if stopped
         if (m_timerStopped)

@@ -12,6 +12,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[keil-bare-metal](./keil-bare-metal/)** | Bare-metal example for ARM Cortex-M4. | None | Keil MDK (ARMCLANG) |
 | **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
+| **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
 
 ## Remote Delegate Examples
 

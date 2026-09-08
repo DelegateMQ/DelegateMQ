@@ -2,44 +2,37 @@
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2026.
 ///
-/// @brief DelegateMQ feature demo running on ThreadX (Linux/GNU simulation port).
+/// @brief DelegateMQ feature demo running on FreeRTOS (POSIX/Linux simulation port).
 ///
-/// Mirrors the freertos-bare-metal sample's test suite -- same delegate,
-/// Signal, ScopedConnection, Thread, and Timer usage -- to show that the
-/// application code is identical across RTOS ports; only DMQ_THREAD changes.
+/// Identical test suite to freertos-bare-metal (the Win32-simulator sample)
+/// -- same delegate, Signal, ScopedConnection, Thread, and Timer usage --
+/// showing the application code is unchanged between the two FreeRTOS
+/// simulator ports; only the build target changes. The periodic software
+/// timer below exercises dmq::util::Timer::ProcessTimers() through
+/// dmq::os::FreeRTOSCriticalSection's task-context path (see
+/// port/os/freertos/FreeRTOSCriticalSection.h) on every tick.
 
 #include "DelegateMQ.h"
-#include "tx_api.h"
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "timers.h"
 
 using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
 // --------------------------------------------------------------------------
-// THREADX CONFIGURATION & HELPERS
+// FREERTOS CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
+#define mainTIMER_FREQUENCY_MS pdMS_TO_TICKS(10UL)
+static TimerHandle_t xSystemTimer = nullptr;
 
-// ThreadX's default tick rate is TX_TIMER_TICKS_PER_SECOND (100 Hz == 10ms/tick).
-#define TX_MS_TO_TICKS(ms) ((ms) / (1000UL / TX_TIMER_TICKS_PER_SECOND))
-
-#define MAIN_THREAD_STACK_SIZE 8192
-
-static TX_TIMER g_systemTimer;
-static TX_THREAD g_mainThread;
-static UCHAR g_mainThreadStack[MAIN_THREAD_STACK_SIZE];
-
-static const char* CurrentThreadName()
-{
-    TX_THREAD* thread = tx_thread_identify();
-    return thread ? thread->tx_thread_name : "ISR/Init";
-}
-
-static void SystemTimerCallback(ULONG)
-{
-    // Process all delegate-based timers
+static void TimerCallback(TimerHandle_t /*xTimerHandle*/) {
     Timer::ProcessTimers();
 }
 
@@ -47,17 +40,17 @@ static void SystemTimerCallback(ULONG)
 // CALLBACK FUNCTIONS
 // --------------------------------------------------------------------------
 void FreeFunction(int val) {
-    printf("  [Callback] FreeFunction: %d (Thread: %s)\n", val, CurrentThreadName());
+    printf("  [Callback] FreeFunction: %d (Task: %s)\n", val, pcTaskGetName(NULL));
 }
 
 class TestHandler {
 public:
     void MemberFunc(int val) {
-        printf("  [Callback] MemberFunc: %d (Thread: %s, Instance: %p)\n", val, CurrentThreadName(), (void*)this);
+        printf("  [Callback] MemberFunc: %d (Task: %s, Instance: %p)\n", val, pcTaskGetName(NULL), (void*)this);
     }
 
     void OnTimerExpired() {
-        printf("  [Callback] Timer Expired! (Thread: %s)\n", CurrentThreadName());
+        printf("  [Callback] Timer Expired! (Task: %s)\n", pcTaskGetName(NULL));
     }
 };
 
@@ -66,10 +59,10 @@ public:
 // --------------------------------------------------------------------------
 void ExecuteAllTests() {
     setvbuf(stdout, NULL, _IONBF, 0);
-    tx_thread_sleep(TX_MS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     printf("\n=========================================\n");
-    printf("   THREADX DELEGATE SYSTEM ONLINE        \n");
+    printf("   FREERTOS DELEGATE SYSTEM ONLINE       \n");
     printf("=========================================\n");
 
     // --- TEST 1: Unicast Delegate ---
@@ -144,7 +137,7 @@ void ExecuteAllTests() {
         printf("  -> Dispatching to Worker Thread (Non-Blocking)...\n");
         asyncDelegate(800);
 
-        tx_thread_sleep(TX_MS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     else {
         printf("  [Error] Failed to create WorkerThread!\n");
@@ -162,7 +155,7 @@ void ExecuteAllTests() {
     myTimer.Start(std::chrono::milliseconds(200));
 
     // Wait for timer
-    tx_thread_sleep(TX_MS_TO_TICKS(300));
+    vTaskDelay(pdMS_TO_TICKS(300));
     myTimer.Stop();
 
     printf("\n=========================================\n");
@@ -170,36 +163,38 @@ void ExecuteAllTests() {
     printf("=========================================\n");
 
     // FUNCTION RETURN:
-    // This closing brace '}' forces ~Timer(), ~Thread(), etc. to execute
-    // before the ThreadX main thread falls off its entry function.
+    // This closing brace '}' forces ~Timer(), ~Thread(), etc. to execute.
+    // This safely unregisters the Timer before the task is deleted.
 }
 
 // --------------------------------------------------------------------------
-// MAIN THREAD ENTRY
+// TEST RUNNER TASK
 // --------------------------------------------------------------------------
-static void MainThreadEntry(ULONG)
-{
+void RunTestsTask(void* /*pvParameters*/) {
+
+    // Run all tests in a function to ensure stack unwinding happens
     ExecuteAllTests();
 
-    // ThreadX has no kernel-level "stop scheduler" call, and this is a
-    // simulation running as an ordinary Linux process -- exit() tears down
-    // every thread in the process (WorkerThread, the ThreadX timer thread,
-    // ...) in one step, which is simpler and more predictable here than
-    // trying to individually terminate each ThreadX thread first.
+    // POSIX FreeRTOS simulator: the scheduler runs as the host process, and
+    // vTaskDelete(NULL) on the calling task never returns control here -- so
+    // exit the whole process directly instead (same approach threadx-linux
+    // uses), rather than deleting the task and leaving the idle/timer tasks
+    // running forever with nothing left to demonstrate.
     std::exit(0);
 }
 
 // --------------------------------------------------------------------------
-// APPLICATION DEFINE (called once by tx_kernel_enter() before scheduling starts)
+// MAIN ENTRY POINT
 // --------------------------------------------------------------------------
-extern "C" void main_delegate(void* /*first_unused_memory*/)
+extern "C" void main_delegate(void)
 {
-    // Periodic software timer drives DelegateMQ's Timer::ProcessTimers().
-    // 1 tick == 10ms at the default TX_TIMER_TICKS_PER_SECOND (100Hz).
-    tx_timer_create(&g_systemTimer, const_cast<CHAR*>("SysTimer"), SystemTimerCallback,
-                     0, 1, 1, TX_AUTO_ACTIVATE);
+    xSystemTimer = xTimerCreate("SysTimer", mainTIMER_FREQUENCY_MS, pdTRUE, NULL, TimerCallback);
+    xTimerStart(xSystemTimer, 0);
 
-    tx_thread_create(&g_mainThread, const_cast<CHAR*>("MainThread"), MainThreadEntry, 0,
-                      g_mainThreadStack, MAIN_THREAD_STACK_SIZE,
-                      16, 16, TX_NO_TIME_SLICE, TX_AUTO_START);
+    xTaskCreate(RunTestsTask, "MainTask", 2048, NULL, 2, NULL);
+
+    printf("--- Starting FreeRTOS Scheduler (POSIX simulation) ---\n");
+    vTaskStartScheduler();
+
+    while (1);
 }
