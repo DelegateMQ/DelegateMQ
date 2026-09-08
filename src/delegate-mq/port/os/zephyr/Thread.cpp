@@ -235,8 +235,7 @@ size_t Thread::GetQueueSize()
 }
 
 void Thread::Sleep(dmq::Duration timeout) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
-    k_sleep(K_MSEC(ms));
+    dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------

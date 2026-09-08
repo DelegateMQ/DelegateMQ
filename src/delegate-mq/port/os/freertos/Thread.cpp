@@ -236,8 +236,7 @@ size_t Thread::GetQueueSize()
 }
 
 void Thread::Sleep(dmq::Duration timeout) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
-    vTaskDelay(pdMS_TO_TICKS(ms));
+    dmq::ThisThread::sleep_for(timeout);
 }
 
 void Thread::SetThreadPriority(int priority) {

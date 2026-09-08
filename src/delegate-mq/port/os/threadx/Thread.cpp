@@ -302,12 +302,7 @@ size_t Thread::GetQueueSize()
 }
 
 void Thread::Sleep(dmq::Duration timeout) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
-    // Assuming 100 ticks per second (10ms per tick) as a common default.
-    // Ideally use TX_TIMER_TICKS_PER_SECOND if defined.
-    ULONG ticks = (static_cast<ULONG>(ms) * TX_TIMER_TICKS_PER_SECOND) / 1000;
-    if (ticks == 0 && ms > 0) ticks = 1;
-    tx_thread_sleep(ticks);
+    dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------

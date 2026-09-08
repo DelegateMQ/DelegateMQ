@@ -86,32 +86,39 @@
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
     // Windows / Linux / macOS / Qt (Standard Library)
     #include <condition_variable>
+    #include <thread>
 #elif defined(DMQ_THREAD_FREERTOS)
     #include "port/os/freertos/FreeRTOSClock.h"
     #include "port/os/freertos/FreeRTOSMutex.h"
     #include "port/os/freertos/FreeRTOSConditionVariable.h"
     #include "port/os/freertos/FreeRTOSCriticalSection.h"
+    #include "port/os/freertos/FreeRTOSThisThread.h"
 #elif defined(DMQ_THREAD_THREADX)
     #include "port/os/threadx/ThreadXClock.h"
     #include "port/os/threadx/ThreadXMutex.h"
     #include "port/os/threadx/ThreadXConditionVariable.h"
     #include "port/os/threadx/ThreadXCriticalSection.h"
+    #include "port/os/threadx/ThreadXThisThread.h"
 #elif defined(DMQ_THREAD_ZEPHYR)
     #include "port/os/zephyr/ZephyrClock.h"
     #include "port/os/zephyr/ZephyrMutex.h"
     #include "port/os/zephyr/ZephyrCriticalSection.h"
     #include "port/os/zephyr/ZephyrSemaphore.h"
+    #include "port/os/zephyr/ZephyrThisThread.h"
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
     #include "port/os/cmsis-rtos2/CmsisRtos2Clock.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2Mutex.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2CriticalSection.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2Semaphore.h"
+    #include "port/os/cmsis-rtos2/CmsisRtos2ThisThread.h"
 #elif defined(DMQ_THREAD_NONE)
     #include "port/os/bare-metal/BareMetalClock.h"
     #include "port/os/bare-metal/BareMetalCriticalSection.h"
+    #include "port/os/bare-metal/BareMetalThisThread.h"
 #else
     #include "port/os/bare-metal/BareMetalClock.h"
     #include "port/os/bare-metal/BareMetalCriticalSection.h"
+    #include "port/os/bare-metal/BareMetalThisThread.h"
 #endif
 
 namespace dmq
@@ -181,6 +188,76 @@ namespace dmq
     // Automatically adapt to the underlying Clock's traits
     using Duration = typename Clock::duration;
     using TimePoint = typename Clock::time_point;
+
+    // --- THIS_THREAD (sleep_for / yield) SELECTION ---
+    // Portable equivalents of std::this_thread::sleep_for()/yield() for the
+    // calling thread. Exists so library internals that need to delay or
+    // yield (e.g. RetryMonitor backoff) aren't forced to pull in a full
+    // dmq::os::Thread -- which also drags in the message queue, watchdog,
+    // and stats machinery -- just to sleep. Each dmq::os::Thread::Sleep()
+    // forwards here too, so every port's native delay call is implemented
+    // exactly once.
+    //
+    // A class (not a "this_thread" namespace) deliberately: sample/app code
+    // throughout this project does `using namespace dmq; ... using namespace
+    // std;` together, and a same-named nested namespace would make unqualified
+    // this_thread::sleep_for() calls in that code ambiguous against
+    // std::this_thread.
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
+    // Windows / Linux / macOS / Qt -- std::this_thread is already portable here.
+    struct ThisThread {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) { std::this_thread::sleep_for(d); }
+        static void yield() noexcept { std::this_thread::yield(); }
+    };
+
+#elif defined(DMQ_THREAD_FREERTOS)
+    struct ThisThread {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) {
+            dmq::os::FreeRTOSThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
+        }
+        static void yield() noexcept { dmq::os::FreeRTOSThisThread::yield(); }
+    };
+
+#elif defined(DMQ_THREAD_THREADX)
+    struct ThisThread {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) {
+            dmq::os::ThreadXThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
+        }
+        static void yield() noexcept { dmq::os::ThreadXThisThread::yield(); }
+    };
+
+#elif defined(DMQ_THREAD_ZEPHYR)
+    struct ThisThread {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) {
+            dmq::os::ZephyrThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
+        }
+        static void yield() noexcept { dmq::os::ZephyrThisThread::yield(); }
+    };
+
+#elif defined(DMQ_THREAD_CMSIS_RTOS2)
+    struct ThisThread {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) {
+            dmq::os::CmsisRtos2ThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
+        }
+        static void yield() noexcept { dmq::os::CmsisRtos2ThisThread::yield(); }
+    };
+
+#else
+    // Bare metal (DMQ_THREAD_NONE, or no thread model defined): busy-waits
+    // against BareMetalClock; yield() is a no-op (single thread of control).
+    struct ThisThread {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) {
+            dmq::os::BareMetalThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
+        }
+        static void yield() noexcept { dmq::os::BareMetalThisThread::yield(); }
+    };
+#endif
 
     /// @brief Default timeout for the TIMEOUT queue-full policy across all Thread ports.
     /// Override via DMQ_DEFAULT_DISPATCH_TIMEOUT in DelegateMQConfig.h.

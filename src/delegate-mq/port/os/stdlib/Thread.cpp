@@ -150,7 +150,7 @@ size_t Thread::GetQueueSize()
 }
 
 void Thread::Sleep(dmq::Duration timeout) {
-    std::this_thread::sleep_for(timeout);
+    dmq::ThisThread::sleep_for(timeout);
 }
 
 //----------------------------------------------------------------------------
