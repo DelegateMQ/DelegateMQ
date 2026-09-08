@@ -60,12 +60,12 @@ namespace dmq::os {
         void lock() {
             TX_INTERRUPT_SAVE_AREA
             TX_DISABLE
-            m_savedPosture = tx_saved_posture;
+            m_savedPosture = interrupt_save;
         }
 
         void unlock() {
             TX_INTERRUPT_SAVE_AREA
-            tx_saved_posture = m_savedPosture;
+            interrupt_save = m_savedPosture;
             TX_RESTORE
         }
 

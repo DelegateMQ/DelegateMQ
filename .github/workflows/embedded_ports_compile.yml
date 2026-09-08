@@ -96,19 +96,37 @@ jobs:
     # cmsis_os2.h is a self-contained API header (only <stdint.h>/<stddef.h>
     # deps) from ARM's CMSIS_5 -- no RTX5 kernel implementation needed for
     # a compile-only check of the port's usage of the API surface.
-    - name: Fetch CMSIS-RTOS2 API header
+    #
+    # CmsisRtos2CriticalSection.h also pulls in CMSIS-Core's cmsis_compiler.h,
+    # which dispatches (via __GNUC__) to cmsis_gcc.h for the __get_PRIMASK() /
+    # __disable_irq() / __set_PRIMASK() intrinsics -- fetch both so this check
+    # actually exercises that include, not just cmsis_os2.h.
+    - name: Fetch CMSIS-RTOS2 API and CMSIS-Core headers
       run: |
-        mkdir -p /tmp/cmsis/RTOS2/Include
+        mkdir -p /tmp/cmsis/RTOS2/Include /tmp/cmsis/Core/Include
         curl -sL -o /tmp/cmsis/RTOS2/Include/cmsis_os2.h \
           https://raw.githubusercontent.com/ARM-software/CMSIS_5/develop/CMSIS/RTOS2/Include/cmsis_os2.h
+        curl -sL -o /tmp/cmsis/Core/Include/cmsis_compiler.h \
+          https://raw.githubusercontent.com/ARM-software/CMSIS_5/develop/CMSIS/Core/Include/cmsis_compiler.h
+        curl -sL -o /tmp/cmsis/Core/Include/cmsis_gcc.h \
+          https://raw.githubusercontent.com/ARM-software/CMSIS_5/develop/CMSIS/Core/Include/cmsis_gcc.h
 
+    # -D__PROGRAM_START=1: cmsis_gcc.h's default __cmsis_start() (data/bss
+    # section init, guarded by #ifndef __PROGRAM_START) declares extern
+    # objects using its own locally-scoped struct types, which newer GCC
+    # rejects without -fpermissive. It's unrelated to what this port
+    # actually uses (__get_PRIMASK/__disable_irq/__set_PRIMASK) -- a real
+    # target always supplies its own startup code and predefines
+    # __PROGRAM_START for the same reason.
     - name: Compile port/os/cmsis-rtos2/CmsisRtos2Thread.cpp
       run: |
         arm-none-eabi-g++ \
           src/delegate-mq/port/os/cmsis-rtos2/CmsisRtos2Thread.cpp \
           -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
           -std=gnu++17 -DDMQ_THREAD_CMSIS_RTOS2 -DDMQ_MAX_TIMER_EXPIRED=8 \
+          -D__PROGRAM_START=1 \
           -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
           -I src/delegate-mq \
           -I /tmp/cmsis/RTOS2/Include \
+          -I /tmp/cmsis/Core/Include \
           -o /tmp/cmsis_thread.o
