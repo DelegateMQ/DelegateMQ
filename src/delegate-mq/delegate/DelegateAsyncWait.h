@@ -2,7 +2,7 @@
 #define _DELEGATE_ASYNC_WAIT_H
 
 #include "DelegateOpt.h"
-#ifdef DMQ_HAS_CV
+#ifdef DMQ_HAS_SEMAPHORE
 
 // DelegateAsyncWait.h
 // @see https://github.com/DelegateMQ/DelegateMQ
@@ -1812,6 +1812,6 @@ auto MakeDelegate(F&& func, IThread& thread, Duration timeout) {
 
 }
 
-#endif // DMQ_HAS_CV
+#endif // DMQ_HAS_SEMAPHORE
 
 #endif

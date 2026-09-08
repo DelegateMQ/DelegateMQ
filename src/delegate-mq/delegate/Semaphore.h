@@ -2,14 +2,25 @@
 #define _DELEGATE_SEMAPHORE_H
 
 /// @file
-/// @brief Delegate library semaphore wrapper class. 
+/// @brief Delegate library semaphore wrapper class.
+///
+/// dmq::Semaphore is available (DMQ_HAS_SEMAPHORE) on every port except
+/// bare metal. On stdlib/Win32/Qt, FreeRTOS, and ThreadX (DMQ_HAS_CV --
+/// these have a real dmq::ConditionVariable) it's the generic class
+/// defined below, built from dmq::ConditionVariable + dmq::Mutex. On
+/// Zephyr and CMSIS-RTOS2 (no ConditionVariable port) DelegateOpt.h
+/// already resolves dmq::Semaphore to a port-native implementation
+/// instead (ZephyrSemaphore / CmsisRtos2Semaphore) -- nothing more to
+/// define here for those two.
 
 #include "DelegateOpt.h"
 
-#ifdef DMQ_HAS_CV
+#ifdef DMQ_HAS_SEMAPHORE
 
 // Fix compiler error on Windows
 #undef max
+
+#ifdef DMQ_HAS_CV
 
 namespace dmq {
 
@@ -72,5 +83,7 @@ private:
 }
 
 #endif // DMQ_HAS_CV
+
+#endif // DMQ_HAS_SEMAPHORE
 
 #endif

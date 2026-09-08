@@ -100,10 +100,12 @@
     #include "port/os/zephyr/ZephyrClock.h"
     #include "port/os/zephyr/ZephyrMutex.h"
     #include "port/os/zephyr/ZephyrCriticalSection.h"
+    #include "port/os/zephyr/ZephyrSemaphore.h"
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
     #include "port/os/cmsis-rtos2/CmsisRtos2Clock.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2Mutex.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2CriticalSection.h"
+    #include "port/os/cmsis-rtos2/CmsisRtos2Semaphore.h"
 #elif defined(DMQ_THREAD_NONE)
     #include "port/os/bare-metal/BareMetalClock.h"
     #include "port/os/bare-metal/BareMetalCriticalSection.h"
@@ -250,6 +252,7 @@ namespace dmq
     template<typename T> using LockGuard = std::lock_guard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
     #define DMQ_HAS_CV
+    #define DMQ_HAS_SEMAPHORE  // generic dmq::Semaphore (delegate/Semaphore.h) needs a real ConditionVariable
 
 #elif defined(DMQ_THREAD_FREERTOS)
     // Use the custom FreeRTOS wrapper
@@ -266,6 +269,7 @@ namespace dmq
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
     #define DMQ_HAS_CV
+    #define DMQ_HAS_SEMAPHORE  // generic dmq::Semaphore (delegate/Semaphore.h) needs a real ConditionVariable
 
 #elif defined(DMQ_THREAD_THREADX)
     // Use the custom ThreadX wrapper
@@ -279,6 +283,7 @@ namespace dmq
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
     #define DMQ_HAS_CV
+    #define DMQ_HAS_SEMAPHORE  // generic dmq::Semaphore (delegate/Semaphore.h) needs a real ConditionVariable
 
 #elif defined(DMQ_THREAD_ZEPHYR)
     // Use the custom Zephyr wrapper
@@ -289,6 +294,13 @@ namespace dmq
     // available in this development environment to build and run it; review
     // before relying on it in production.
     using CriticalSection = dmq::os::ZephyrCriticalSection;
+    // No dmq::ConditionVariable port for Zephyr (no DMQ_HAS_CV), but
+    // dmq::Semaphore is available via Zephyr's own native k_sem instead of
+    // the generic condvar+mutex implementation -- see ZephyrSemaphore.h and
+    // delegate/Semaphore.h. This is what makes DelegateAsyncWait available
+    // here. UNVERIFIED, same caveat as CriticalSection above.
+    using Semaphore = dmq::os::ZephyrSemaphore;
+    #define DMQ_HAS_SEMAPHORE
     template<typename T> using LockGuard = PortableLockGuard<T>;
 
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
@@ -300,6 +312,14 @@ namespace dmq
     // development environment to build and run it; review before relying
     // on it in production.
     using CriticalSection = dmq::os::CmsisRtos2CriticalSection;
+    // No dmq::ConditionVariable port for CMSIS-RTOS2 (no DMQ_HAS_CV, and no
+    // native condvar primitive to build one from), but dmq::Semaphore is
+    // available via osSemaphore directly instead -- see
+    // CmsisRtos2Semaphore.h and delegate/Semaphore.h. This is what makes
+    // DelegateAsyncWait available here. UNVERIFIED, same caveat as
+    // CriticalSection above.
+    using Semaphore = dmq::os::CmsisRtos2Semaphore;
+    #define DMQ_HAS_SEMAPHORE
     template<typename T> using LockGuard = PortableLockGuard<T>;
 
 #else
@@ -318,7 +338,9 @@ namespace dmq
     // technique BareMetalClock.h already uses.
     using CriticalSection = dmq::os::BareMetalCriticalSection;
     template<typename T> using LockGuard = PortableLockGuard<T>;
-    // No DMQ_HAS_CV — Semaphore and DelegateAsyncWait are unavailable on bare metal
+    // No DMQ_HAS_SEMAPHORE — no RTOS means no native semaphore primitive to
+    // build one from either; Semaphore and DelegateAsyncWait are unavailable
+    // on bare metal.
 #endif
 }
 
