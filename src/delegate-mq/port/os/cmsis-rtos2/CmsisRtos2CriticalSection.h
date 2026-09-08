@@ -23,10 +23,10 @@
 /// target is available in this development environment to build and run it
 /// (unlike ThreadXCriticalSection, exercised for real via the threadx-linux
 /// sample). __get_PRIMASK()/__set_PRIMASK()/__disable_irq() are standard
-/// CMSIS-Core intrinsics, declared in the target's core_cmX.h (e.g.
-/// core_cm4.h) and normally reachable transitively through cmsis_os2.h in
-/// a real CMSIS-RTOS2 project -- confirm that on the actual target before
-/// relying on this.
+/// CMSIS-Core intrinsics -- declared in cmsis_gcc.h (or the armclang/IAR
+/// equivalent selected by cmsis_compiler.h), NOT in cmsis_os2.h itself, so
+/// this file includes cmsis_compiler.h directly rather than assuming a
+/// vendor device header already pulled it in transitively.
 ///
 /// *** NARROW PURPOSE -- DO NOT USE THIS AS A GENERAL-PURPOSE LOCK ***
 /// Holding this masks ALL maskable interrupts on the CPU for as long as it
@@ -50,6 +50,7 @@
 /// and restores its own PRIMASK independently.
 
 #include "cmsis_os2.h"
+#include "cmsis_compiler.h"
 
 namespace dmq::os {
 
