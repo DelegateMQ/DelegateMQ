@@ -18,6 +18,11 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
+// Defined in DelegateThreadsTests.cpp -- see Test 9 below and the
+// file-level comment in DelegateThreadsTests.cpp for what it does and does
+// not currently run.
+extern void DelegateThreadsTests();
+
 // --------------------------------------------------------------------------
 // THREADX CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
@@ -25,7 +30,13 @@ using namespace dmq::util;
 // ThreadX's default tick rate is TX_TIMER_TICKS_PER_SECOND (100 Hz == 10ms/tick).
 #define TX_MS_TO_TICKS(ms) ((ms) / (1000UL / TX_TIMER_TICKS_PER_SECOND))
 
-#define MAIN_THREAD_STACK_SIZE 8192
+// 8192 bytes was enough for the original 8-test demo. Left at 65536 bytes
+// (deep call chains, e.g. DelegateThreadsTests(), plus std::mt19937's ~2.5KB
+// of internal state per instance in a getRandomTime()-style helper, can
+// exceed the original size -- confirmed as the actual cause of a segfault on
+// the freertos-linux sibling sample). Ruled out as the cause of the ThreadX
+// hang below -- kept anyway since it's cheap insurance and still correct.
+#define MAIN_THREAD_STACK_SIZE 65536
 
 static TX_TIMER g_systemTimer;
 static TX_THREAD g_mainThread;
@@ -164,6 +175,14 @@ void ExecuteAllTests() {
     // Wait for timer
     tx_thread_sleep(TX_MS_TO_TICKS(300));
     myTimer.Stop();
+
+    // --- TEST 9: FullPolicy Stress Tests ---
+    // DelegateThreadsTests() only runs ThreadFullPolicyTests() here -- see
+    // the file-level comment in DelegateThreadsTests.cpp for why the other
+    // four sub-tests are disabled (a ThreadX Linux/GNU port kernel deadlock,
+    // not a DelegateMQ bug).
+    printf("\n[Test 9] FullPolicy Tests:\n");
+    DelegateThreadsTests();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

@@ -1,18 +1,39 @@
+/// @file DelegateThreadsTests.cpp
+/// @see https://github.com/DelegateMQ/DelegateMQ
+///
+/// @brief Cross-thread delegate dispatch and FullPolicy tests, ported
+/// unchanged from test/unit-tests/DelegateThreadsTests.cpp to exercise
+/// the same coverage against the real FreeRTOS (POSIX/Linux simulation)
+/// Thread port instead of the desktop stdlib port.
+
 #include "DelegateMQ.h"
-#include "UnitTestCommon.h"
 #include <iostream>
 #include <random>
 #include <chrono>
 #include <cstring>
 #include <atomic>
+#include <thread>
+#include <mutex>
 
 using namespace dmq;
 using namespace dmq::os;
 using namespace std;
-using namespace UnitTestData;
 
-static Thread workerThread1("DelegateThreads1Tests");
-static Thread workerThread2("DelegateThreads2Tests");
+// Construct-on-first-use: a plain file-scope `static Thread` would run its
+// constructor before main_delegate() calls vTaskStartScheduler(), when the
+// FreeRTOS scheduler isn't running yet. Function-local statics defer
+// construction to the first call, which only happens from
+// DelegateThreadsTests(), well after the scheduler is up.
+static Thread& workerThread1()
+{
+    static Thread t("DelegateThreads1Tests");
+    return t;
+}
+static Thread& workerThread2()
+{
+    static Thread t("DelegateThreads2Tests");
+    return t;
+}
 
 static std::mutex m_lock;
 static const int LOOPS = 10;
@@ -24,11 +45,11 @@ static const std::chrono::milliseconds TEST_TIMEOUT(5000);
 
 static void Wait()
 {
-    while (workerThread1.GetQueueSize() != 0 || workerThread2.GetQueueSize() != 0)
+    while (workerThread1().GetQueueSize() != 0 || workerThread2().GetQueueSize() != 0)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        dmq::ThisThread::sleep_for(std::chrono::milliseconds(10));
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    dmq::ThisThread::sleep_for(std::chrono::milliseconds(100));
 }
 
 static std::chrono::milliseconds getRandomTime()
@@ -49,14 +70,14 @@ static void FreeThreadSafe(std::chrono::milliseconds delay, int idx)
 {
     const std::lock_guard<std::mutex> lock(m_lock);
     callerCnt[idx]++;
-    std::this_thread::sleep_for(delay);
+    dmq::ThisThread::sleep_for(delay);
 }
 
 static std::function<void(std::chrono::milliseconds, int)> LambdaThreadSafe = [](std::chrono::milliseconds delay, int idx)
     {
         const std::lock_guard<std::mutex> lock(m_lock);
         callerCnt[idx]++;
-        std::this_thread::sleep_for(delay);
+        dmq::ThisThread::sleep_for(delay);
     };
 
 class TestClass
@@ -66,7 +87,7 @@ public:
     {
         const std::lock_guard<std::mutex> lock(m_lock);
         callerCnt[idx]++;
-        std::this_thread::sleep_for(delay);
+        dmq::ThisThread::sleep_for(delay);
     }
 };
 
@@ -76,10 +97,10 @@ static void FreeTests()
 
     auto delegateSync1 = MakeDelegate(&FreeThreadSafe);
     auto delegateSync2 = MakeDelegate(&FreeThreadSafe);
-    auto delegateAsync1 = MakeDelegate(&FreeThreadSafe, workerThread1);
-    auto delegateAsync2 = MakeDelegate(&FreeThreadSafe, workerThread2);
-    auto delegateAsyncWait1 = MakeDelegate(&FreeThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(&FreeThreadSafe, workerThread2, TEST_TIMEOUT);
+    auto delegateAsync1 = MakeDelegate(&FreeThreadSafe, workerThread1());
+    auto delegateAsync2 = MakeDelegate(&FreeThreadSafe, workerThread2());
+    auto delegateAsyncWait1 = MakeDelegate(&FreeThreadSafe, workerThread1(), TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(&FreeThreadSafe, workerThread2(), TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;
@@ -129,10 +150,10 @@ static void MemberTests()
 
     auto delegateSync1 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe);
     auto delegateSync2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe);
-    auto delegateAsync1 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread1);
-    auto delegateAsync2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread2);
-    auto delegateAsyncWait1 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread2, TEST_TIMEOUT);
+    auto delegateAsync1 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread1());
+    auto delegateAsync2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread2());
+    auto delegateAsyncWait1 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread1(), TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread2(), TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;
@@ -182,10 +203,10 @@ static void MemberSpTests()
 
     auto delegateSync1 = MakeDelegate(testClass, &TestClass::MemberThreadSafe);
     auto delegateSync2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe);
-    auto delegateAsync1 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread1);
-    auto delegateAsync2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread2);
-    auto delegateAsyncWait1 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread2, TEST_TIMEOUT);
+    auto delegateAsync1 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread1());
+    auto delegateAsync2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread2());
+    auto delegateAsyncWait1 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread1(), TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread2(), TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;
@@ -234,10 +255,10 @@ static void FunctionTests()
 
     auto delegateSync1 = MakeDelegate(LambdaThreadSafe);
     auto delegateSync2 = MakeDelegate(LambdaThreadSafe);
-    auto delegateAsync1 = MakeDelegate(LambdaThreadSafe, workerThread1);
-    auto delegateAsync2 = MakeDelegate(LambdaThreadSafe, workerThread2);
-    auto delegateAsyncWait1 = MakeDelegate(LambdaThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(LambdaThreadSafe, workerThread2, TEST_TIMEOUT);
+    auto delegateAsync1 = MakeDelegate(LambdaThreadSafe, workerThread1());
+    auto delegateAsync2 = MakeDelegate(LambdaThreadSafe, workerThread2());
+    auto delegateAsyncWait1 = MakeDelegate(LambdaThreadSafe, workerThread1(), TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(LambdaThreadSafe, workerThread2(), TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;
@@ -290,12 +311,22 @@ static void FullPolicy_Drop_DropsWhenFull()
     // Queue holds 3 messages. Consumer sleeps 50ms per message so it drains slowly.
     // We fire 10 messages as fast as possible; some must be dropped.
     Thread dropThread("DropThread", 3, FullPolicy::DROP);
+
+    // Give the consumer a lower priority than the calling thread (this
+    // sample's main task runs at priority 2; FreeRTOS priority convention
+    // is the opposite of ThreadX's -- higher number is higher priority).
+    // Under FreeRTOS's preemptive scheduler, posting to an equal-or-higher
+    // priority task immediately preempts the caller until that task blocks
+    // again, so without this the "publisher never stalls" assumption below
+    // doesn't hold: every post would synchronously wait out the consumer's
+    // 50ms processing instead of just enqueueing and returning.
+    dropThread.SetThreadPriority(1);
     dropThread.CreateThread();
 
     std::atomic<int> deliveredCount{ 0 };
 
     auto slowConsumer = [&deliveredCount]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        dmq::ThisThread::sleep_for(std::chrono::milliseconds(50));
         deliveredCount++;
     };
 
@@ -311,7 +342,7 @@ static void FullPolicy_Drop_DropsWhenFull()
     ASSERT_TRUE(elapsed < std::chrono::milliseconds(30));
 
     // Let the queue drain fully
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    dmq::ThisThread::sleep_for(std::chrono::milliseconds(300));
 
     // With a queue depth of 3 and 10 rapid-fire posts, at least some were dropped.
     // Exactly 3 might be delivered (the ones that fit) but we allow a little slack
@@ -337,8 +368,8 @@ static void FullPolicy_Drop_DeliversAllWhenBelowLimit()
 
     // Wait for all queued messages to be processed
     while (dropThread.GetQueueSize() != 0)
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        dmq::ThisThread::sleep_for(std::chrono::milliseconds(5));
+    dmq::ThisThread::sleep_for(std::chrono::milliseconds(50));
 
     ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
@@ -363,8 +394,8 @@ static void FullPolicy_Timeout_DeliversAll()
     sender.join();
 
     while (timeoutThread.GetQueueSize() != 0)
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        dmq::ThisThread::sleep_for(std::chrono::milliseconds(5));
+    dmq::ThisThread::sleep_for(std::chrono::milliseconds(50));
 
     ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
@@ -388,8 +419,8 @@ static void FullPolicy_DefaultIsFault()
         MakeDelegate([&deliveredCount]() { deliveredCount++; }, defaultThread)();
 
     while (defaultThread.GetQueueSize() != 0)
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        dmq::ThisThread::sleep_for(std::chrono::milliseconds(5));
+    dmq::ThisThread::sleep_for(std::chrono::milliseconds(50));
 
     ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
@@ -409,8 +440,8 @@ static void FullPolicy_Fault_WorksWhenNotFull()
         MakeDelegate([&deliveredCount]() { deliveredCount++; }, faultThread)();
 
     while (faultThread.GetQueueSize() != 0)
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        dmq::ThisThread::sleep_for(std::chrono::milliseconds(5));
+    dmq::ThisThread::sleep_for(std::chrono::milliseconds(50));
 
     ASSERT_TRUE(deliveredCount == 5);
 
@@ -431,8 +462,8 @@ static void FullPolicy_UnlimitedQueue_DeliversAll()
         MakeDelegate([&deliveredCount]() { deliveredCount++; }, unlimitedThread)();
 
     while (unlimitedThread.GetQueueSize() != 0)
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        dmq::ThisThread::sleep_for(std::chrono::milliseconds(5));
+    dmq::ThisThread::sleep_for(std::chrono::milliseconds(50));
 
     ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
@@ -452,16 +483,16 @@ static void ThreadFullPolicyTests()
 
 void DelegateThreadsTests()
 {
-    workerThread1.CreateThread();
-    workerThread2.CreateThread();
+    workerThread1().CreateThread();
+    workerThread2().CreateThread();
 
     FreeTests();
     MemberTests();
     MemberSpTests();
     FunctionTests();
 
-    workerThread1.ExitThread();
-    workerThread2.ExitThread();
+    workerThread1().ExitThread();
+    workerThread2().ExitThread();
 
     ThreadFullPolicyTests();
 }

@@ -248,6 +248,28 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
 
         add_subdirectory("${THREADX_ROOT_DIR}" "${CMAKE_BINARY_DIR}/threadx_build")
 
+        # ThreadX's own ports/linux/gnu/CMakeLists.txt unconditionally adds
+        # -DTX_LINUX_DEBUG_ENABLE as a PUBLIC compile definition on the
+        # "threadx" target. That macro wraps every TX_DISABLE/TX_RESTORE
+        # kernel-wide (see tx_port.h) in a call to _tx_linux_debug_entry_insert(),
+        # which serializes through one global mutex (_tx_linux_mutex). With two
+        # or more real threads actively contending -- exactly what a
+        # multi-worker-thread DelegateMQ app does -- this deadlocks: confirmed
+        # via gdb on a hung run, one thread permanently blocked in
+        # _tx_linux_debug_entry_insert() -> pthread_mutex_lock during its own
+        # startup TX_DISABLE. This is a bug in ThreadX's own debug-tracing
+        # convenience feature, not in DelegateMQ or the application. Strip it
+        # here rather than patching the vendored ThreadX source, so
+        # 01_fetch_repos.py can still pull a clean, unmodified ThreadX tree.
+        # ThreadX's CMakeLists.txt passes both defines as one combined string
+        # ("-D_GNU_SOURCE -DTX_LINUX_DEBUG_ENABLE"), not as separate list
+        # items, so a targeted list(REMOVE_ITEM) on COMPILE_DEFINITIONS can't
+        # match it. -U processes in command-line order after -D, so append it
+        # as a compile option instead of trying to edit the define out.
+        if(TARGET threadx)
+            target_compile_options(threadx PUBLIC "-UTX_LINUX_DEBUG_ENABLE")
+        endif()
+
         # The Linux/GNU port implements ThreadX scheduling on top of POSIX
         # threads (pthread_create per tx_thread_create, signals for suspend).
         find_package(Threads REQUIRED)
