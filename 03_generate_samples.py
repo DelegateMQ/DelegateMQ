@@ -70,7 +70,8 @@ def build_samples(use_clang=False, clean=False):
             if "install" in dirnames: dirnames.remove("install")
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
-            skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal", "stm32-freertos"]
+            # zephyr-linux needs `west build` + a west workspace, not `cmake -B build`
+            skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal", "stm32-freertos", "zephyr-linux"]
             for sd in skip_dirs:
                 if sd in dirnames: dirnames.remove(sd)
 

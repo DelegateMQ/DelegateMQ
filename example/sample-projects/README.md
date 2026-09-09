@@ -13,6 +13,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
 | **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
+| **[zephyr-linux](./zephyr-linux/)** | Zephyr example using the official `native_sim` simulation port (host GCC, no cross-compiler). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | Linux GCC + west |
 
 ## Remote Delegate Examples
 

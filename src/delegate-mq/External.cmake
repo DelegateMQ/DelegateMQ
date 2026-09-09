@@ -285,11 +285,19 @@ endif()
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_ZEPHYR")
     # Zephyr is a build system, not just a library.
     # We typically do NOT manually glob source files here.
-    # The application's main CMakeLists.txt must call `find_package(Zephyr)` 
-    # which sets up the include paths and kernel linking automatically.
-    # Optional: Just verify the root directory exists if you want to be safe
-    set_and_check(ZEPHYR_ROOT_DIR "${DMQ_ROOT_DIR}/../../../zephyr")
-    
+    # The application's main CMakeLists.txt must call `find_package(Zephyr)`
+    # (before including DelegateMQ.cmake), which sets up the include paths
+    # and kernel linking automatically -- unlike ThreadX/FreeRTOS, Zephyr
+    # isn't vendored as a plain sibling directory; its location is a west
+    # workspace found via the ZEPHYR_BASE environment variable that
+    # find_package(Zephyr) itself sets. Sanity-check against that instead
+    # of assuming a "../../../zephyr" sibling clone that doesn't apply here.
+    if(NOT DEFINED ENV{ZEPHYR_BASE})
+        message(WARNING "DelegateMQ: DMQ_THREAD_ZEPHYR is set, but ZEPHYR_BASE "
+                         "is not defined -- ensure find_package(Zephyr) ran "
+                         "before including DelegateMQ.cmake.")
+    endif()
+
     # Do NOT glob sources. Zephyr builds itself.
 endif()
 

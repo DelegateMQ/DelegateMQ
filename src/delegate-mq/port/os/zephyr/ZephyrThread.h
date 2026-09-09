@@ -32,6 +32,7 @@
 #include <memory>
 #include <atomic>
 #include <string>
+#include <optional>
 
 namespace dmq::os {
 

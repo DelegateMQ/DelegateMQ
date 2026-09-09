@@ -22,6 +22,7 @@ Skip List (always excluded):
     - serialport-serializer   Requires physical serial port hardware
     - stm32-freertos          Embedded STM32 target, requires cross-compiler
     - system-architecture-python  Python-only client, no C++ build
+    - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
@@ -49,6 +50,7 @@ SKIP_ALWAYS = {
     "serialport-serializer",
     "stm32-freertos",
     "system-architecture-python",
+    "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
 }
 
 WINDOWS_ONLY = {
