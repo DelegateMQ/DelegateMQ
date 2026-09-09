@@ -21,6 +21,9 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
+// Defined in DelegateThreadsTests.cpp
+extern void DelegateThreadsTests();
+
 // --------------------------------------------------------------------------
 // ZEPHYR CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
@@ -156,6 +159,10 @@ void ExecuteAllTests() {
     // Wait for timer
     k_sleep(K_MSEC(300));
     myTimer.Stop();
+
+    // --- TEST 9: Cross-Thread Dispatch & FullPolicy Stress Tests ---
+    printf("\n[Test 9] Cross-Thread Dispatch & FullPolicy Tests:\n");
+    DelegateThreadsTests();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");
