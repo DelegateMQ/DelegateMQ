@@ -60,6 +60,29 @@ namespace DelegateMQ.Interop
         private Action<string>? _onError;
         private bool _disposed;
 
+        // .NET's default P/Invoke resolution on Linux/macOS applies a "lib" prefix
+        // but keeps the literal extension given in [DllImport] -- it does NOT map
+        // ".dll" to ".so"/".dylib". DllName above stays "DmqInterop.dll" (matches
+        // the actual build artifact on Windows), so a custom resolver is needed to
+        // find the real file on other platforms.
+        static DmqDataBus()
+        {
+            NativeLibrary.SetDllImportResolver(typeof(DmqDataBus).Assembly, ResolveNativeLibrary);
+        }
+
+        private static IntPtr ResolveNativeLibrary(string libraryName, System.Reflection.Assembly assembly, DllImportSearchPath? searchPath)
+        {
+            if (libraryName != DllName)
+                return IntPtr.Zero;
+
+            string platformName =
+                RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "libDmqInterop.so" :
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "libDmqInterop.dylib" :
+                libraryName;
+
+            return NativeLibrary.TryLoad(platformName, assembly, searchPath, out IntPtr handle) ? handle : IntPtr.Zero;
+        }
+
         public DmqDataBus()
         {
             _internalCallback = OnMessageReceived;

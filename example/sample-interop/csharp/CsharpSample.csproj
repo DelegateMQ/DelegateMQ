@@ -20,5 +20,11 @@
       <Link>DmqInterop.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Linux: CMake's single-config Unix Makefiles/Ninja generators build straight
+         into build/lib, not a Debug/Release subdirectory. -->
+    <None Include="../../../interop/native/build/lib/libDmqInterop.so" Condition="Exists('../../../interop/native/build/lib/libDmqInterop.so')">
+      <Link>libDmqInterop.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
