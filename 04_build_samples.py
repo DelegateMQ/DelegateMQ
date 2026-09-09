@@ -23,6 +23,7 @@ Skip List (always excluded):
     - stm32-freertos          Embedded STM32 target, requires cross-compiler
     - system-architecture-python  Python-only client, no C++ build
     - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
+    - zephyr-udp-serializer   Needs `west build` + a west workspace, not `cmake -B build`
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
@@ -51,6 +52,7 @@ SKIP_ALWAYS = {
     "stm32-freertos",
     "system-architecture-python",
     "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
+    "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
 }
 
 WINDOWS_ONLY = {

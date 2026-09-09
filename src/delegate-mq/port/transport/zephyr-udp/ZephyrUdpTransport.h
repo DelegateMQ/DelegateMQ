@@ -13,8 +13,25 @@
 /// 
 /// **Prerequisites:**
 /// * Enable BSD Sockets: `CONFIG_NET_SOCKETS=y`
-/// * Enable POSIX Names: `CONFIG_NET_SOCKETS_POSIX_NAMES=y` (Default)
 /// * Enable IPv4: `CONFIG_NET_IPV4=y`
+/// * A network interface: on `native_sim` the loopback interface
+///   (`CONFIG_NET_LOOPBACK=y`, needs `CONFIG_NET_DRIVERS=y`) is enough for
+///   same-process testing with no host-side setup -- see
+///   `example/sample-projects/zephyr-udp-serializer/prj.conf`. A real
+///   target instead needs its actual link-layer driver (Ethernet, Wi-Fi, etc.).
+///
+/// This file calls the `zsock_*`-prefixed socket functions (`zsock_socket()`,
+/// `zsock_bind()`, `zsock_sendto()`, etc.) rather than the unprefixed BSD
+/// names. Getting the unprefixed names requires `CONFIG_POSIX_API=y`, which
+/// replaces large parts of the standard header set (`<sys/socket.h>`,
+/// pthread types, ...) with Zephyr's own POSIX compatibility layer --
+/// something that collides with the *host's* C++ standard library headers
+/// when building for `native_sim` (which links against the host's real
+/// libstdc++), and is unnecessary weight on a real target that has no such
+/// conflict. `CONFIG_NET_SOCKETS_POSIX_NAMES`, an older, narrower way to get
+/// just the unprefixed socket names without the rest of `CONFIG_POSIX_API`,
+/// was deprecated in Zephyr 3.7 and removed -- `zsock_*` is the current,
+/// portable choice regardless of target.
 /// 
 /// **Key Features:**
 /// 1. **Direct Execution**: Executes network operations directly on the calling thread,
@@ -63,8 +80,9 @@ public:
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
 
-        // Create UDP socket using Zephyr BSD API
-        m_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        // Create UDP socket. zsock_* (not the bare BSD names) so this
+        // compiles without CONFIG_POSIX_API -- see the class doc comment.
+        m_socket = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (m_socket < 0)
         {
             // printk("Socket creation failed: %d\n", errno);
@@ -77,8 +95,7 @@ public:
 
         if (type == Type::PUB)
         {
-            // inet_pton is standard in Zephyr's socket.h
-            if (inet_pton(AF_INET, addr, &m_addr.sin_addr) != 1)
+            if (zsock_inet_pton(AF_INET, addr, &m_addr.sin_addr) != 1)
             {
                 // printk("Invalid IP address format.\n");
                 Close();
@@ -91,7 +108,7 @@ public:
             timeout.tv_sec = 0;
             timeout.tv_usec = 50000; // 50ms
 
-            if (setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+            if (zsock_setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
                 // printk("setsockopt(SO_RCVTIMEO) failed\n");
                 Close();
@@ -102,7 +119,7 @@ public:
         {
             m_addr.sin_addr.s_addr = INADDR_ANY;
 
-            if (bind(m_socket, (struct sockaddr*)&m_addr, sizeof(m_addr)) < 0)
+            if (zsock_bind(m_socket, (struct sockaddr*)&m_addr, sizeof(m_addr)) < 0)
             {
                 // printk("Bind failed: %d\n", errno);
                 Close();
@@ -114,7 +131,7 @@ public:
             timeout.tv_sec = 2;
             timeout.tv_usec = 0;
 
-            if (setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+            if (zsock_setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
                 // printk("setsockopt(SO_RCVTIMEO) failed\n");
                 Close();
@@ -145,7 +162,7 @@ public:
             struct timeval tv;
             tv.tv_sec = timeout.count() / 1000;
             tv.tv_usec = (timeout.count() % 1000) * 1000;
-            setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            zsock_setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         }
     }
 
@@ -191,7 +208,7 @@ public:
 
         size_t totalSize = DmqHeader::HEADER_SIZE + payloadLen;
 
-        ssize_t sent = sendto(m_socket, m_sendBuffer, totalSize, 0,
+        ssize_t sent = zsock_sendto(m_socket, m_sendBuffer, totalSize, 0,
             (struct sockaddr*)&m_addr, sizeof(m_addr));
         if (sent != (ssize_t)totalSize) return -1;
 
@@ -208,7 +225,7 @@ public:
         sockaddr_in fromAddr;
         socklen_t addrLen = sizeof(fromAddr);
         
-        ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0,
+        ssize_t size = zsock_recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0,
             (struct sockaddr*)&fromAddr, &addrLen);
 
         if (size < 0)
@@ -305,6 +322,14 @@ private:
     char m_sendBuffer[BUFFER_SIZE] = { 0 };
     dmq::RecursiveMutex m_mutex;
 };
+
+/// @brief Backward-compatible name: application code (e.g. the sender.h/
+/// receiver.h pattern shared by every *-udp-serializer sample) references
+/// dmq::transport::UdpTransport generically and stays portable across
+/// whichever DMQ_TRANSPORT_* was selected at compile time, the same way
+/// dmq::os::Thread works across DMQ_THREAD_* -- see LinuxUdpTransport.h/
+/// Win32UdpTransport.h for the other two ports that already do this.
+using UdpTransport = ZephyrUdpTransport;
 
 }
 

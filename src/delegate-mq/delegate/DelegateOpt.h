@@ -51,8 +51,24 @@
     #endif
 #endif
 
-// Default to DataBus ON on Desktop if not explicitly disabled
-#if !defined(DMQ_DATABUS) && !defined(DMQ_DATABUS_OFF)
+// Default to DataBus ON on Desktop if not explicitly disabled.
+//
+// _WIN32/__linux__/__APPLE__/__unix__ reflect the compiler/host doing the
+// building, not the actual target: an RTOS simulator sample (e.g.
+// zephyr-linux/threadx-linux/freertos-linux) compiles with a host GCC on a
+// Unix box despite targeting DMQ_THREAD_ZEPHYR/THREADX/FREERTOS, so this
+// used to auto-enable DataBus for those too even without CMake in the
+// picture. DataBus's NetworkConnect.h reaches for the host's own BSD
+// socket headers unconditionally on Linux/macOS/Windows, which can conflict
+// outright with a target's own native network stack headers (e.g. Zephyr's
+// <zephyr/net/socket.h> redefining sockaddr_in et al.) if the application
+// also pulls those in directly (a UDP transport sample, for instance).
+// Excluding every embedded DMQ_THREAD_* here mirrors Defaults.cmake's
+// equivalent CMake-level default, for projects that set these macros by
+// hand instead of going through DelegateMQ.cmake.
+#if !defined(DMQ_DATABUS) && !defined(DMQ_DATABUS_OFF) && \
+    !defined(DMQ_THREAD_FREERTOS) && !defined(DMQ_THREAD_THREADX) && \
+    !defined(DMQ_THREAD_ZEPHYR) && !defined(DMQ_THREAD_CMSIS_RTOS2)
     #if defined(_WIN32) || defined(__linux__) || defined(__APPLE__) || defined(__unix__)
         #define DMQ_DATABUS
     #endif

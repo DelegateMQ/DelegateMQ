@@ -204,7 +204,7 @@
     #include "port/transport/arm-lwip-netconn-udp/ArmLwipNetconnUdpTransport.h"
 #elif defined(DMQ_TRANSPORT_THREADX_UDP)
     #include "extras/dispatcher/Dispatcher.h"
-    #include "port/transport/threadx-udp/NetXUdpTransport.h"
+    #include "port/transport/netx-udp/NetXUdpTransport.h"
 #elif defined(DMQ_TRANSPORT_STM32_UART)
     #include "extras/dispatcher/Dispatcher.h"
     #include "port/transport/stm32-uart/Stm32UartTransport.h"

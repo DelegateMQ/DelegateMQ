@@ -103,7 +103,7 @@ public:
         bool added = true;
         if (m_monitor)
             added = m_monitor->Add(header.GetSeqNum(), header.GetId());
-        
+
         if (!added) {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
             m_retryStore.erase(key);

@@ -19,7 +19,7 @@ The subdirectories contain ready-to-use transport implementations for specific p
 * **`linux-tcp` / `linux-udp`**: Standard BSD socket implementations for Linux.
 * **`win32-tcp` / `win32-udp`**: Winsock implementations for Windows.
 * **`arm-lwip-udp`**: Lightweight IP (lwIP) implementation for embedded ARM (FreeRTOS/Bare-metal).
-* **`threadx-udp`**: Azure RTOS **NetX / NetX Duo** implementation for ThreadX.
+* **`netx-udp`**: Azure RTOS **NetX / NetX Duo** implementation for ThreadX (selected via `DMQ_TRANSPORT_THREADX_UDP`).
 * **`zephyr-udp`**: Native **Zephyr Networking** (BSD Socket API) implementation for Zephyr RTOS.
 
 ### IPC & Serial

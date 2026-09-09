@@ -36,6 +36,7 @@ The following remote delegate projects have no external library dependencies. Th
 | **[win32-pipe-serializer](./win32-pipe-serializer/)** | Windows Named Pipe remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows Pipe |
 | **[win32-tcp-serializer](./win32-tcp-serializer/)** | Windows TCP Socket remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows TCP Socket |
 | **[win32-udp-serializer](./win32-udp-serializer/)** | Windows UDP Socket remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows UDP Socket |
+| **[zephyr-udp-serializer](./zephyr-udp-serializer/)** | Remote delegate over Zephyr's native UDP sockets (BSD Socket API), on the `native_sim` port, loopback-only (no host network setup). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | `dmq::Serializer` class | Zephyr UDP Socket |
 
 ### External Dependencies
 
