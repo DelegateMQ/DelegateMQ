@@ -15,8 +15,8 @@
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
 #include <windows.h>
 #include <sstream>
 #include <cstdio>

@@ -2,8 +2,8 @@
 #define LINUX_MULTICAST_TRANSPORT_H
 
 #include "delegate/DelegateOpt.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
 
 #include <iostream>
 #include <sstream>

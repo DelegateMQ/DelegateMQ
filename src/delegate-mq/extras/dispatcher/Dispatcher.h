@@ -24,8 +24,8 @@
 /// procedure call before transmission.
 
 #include "delegate/IDispatcher.h"
-#include "port/transport/DmqHeader.h"
-#include "port/transport/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
+#include "port/transport/common/ITransport.h"
 #include <atomic>
 #include <sstream>
 

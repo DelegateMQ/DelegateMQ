@@ -40,7 +40,7 @@
 #include "Dispatcher.h"
 #include "delegate/DelegateRemote.h"
 #include "delegate/Signal.h"
-#include "port/transport/ITransport.h"
+#include "port/transport/common/ITransport.h"
 
 namespace dmq {
 

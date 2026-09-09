@@ -65,7 +65,7 @@
 ///    DelegateMQ retry logic may kick in, potentially leading to duplicates 
 ///    or ordering issues across the connection boundary.*
 
-#include "../../port/transport/ITransport.h"
+#include "../../port/transport/common/ITransport.h"
 #include "RetryMonitor.h"
 
 namespace dmq::util {
