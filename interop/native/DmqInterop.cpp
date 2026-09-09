@@ -22,7 +22,7 @@
 #include "delegate/Signal.h"
 
 // Port and Extra includes
-#include "port/transport/DmqHeader.h"
+#include "port/transport/common/DmqHeader.h"
 #include "extras/util/NetworkConnect.h"
 #include "extras/util/TransportMonitor.h"
 
