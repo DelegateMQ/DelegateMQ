@@ -14,6 +14,7 @@ Identical test suite to `freertos-bare-metal` and `threadx-linux` — showing th
 4.  **Thread-Safe Signals**: Using `MulticastDelegateSafe` to handle connections and emissions across multiple tasks.
 5.  **RAII Connections**: Using `ScopedConnection` to automatically manage the lifetime of signal-slot connections.
 6.  **RTOS Timers**: Integrating DelegateMQ's `Timer` with a FreeRTOS software timer.
+7.  **FullPolicy Stress Tests**: `DelegateThreadsTests()` (Test 9) exercises two concurrently active worker threads, `dmq::FullPolicy` (DROP/TIMEOUT/FAULT/default/unlimited-queue) behavior, and repeated cross-thread `AsyncInvoke()` calls under real FreeRTOS preemption.
 
 ## Prerequisites
 
@@ -52,6 +53,8 @@ cmake --build .
 `main()` initializes the heap, then `main_delegate()` creates a periodic software timer (drives `Timer::ProcessTimers()` every tick), creates a "MainTask" that runs the test suite, and calls `vTaskStartScheduler()`.
 
 One of the tests creates a `dmq::os::Thread` object named "WorkerThread". When an asynchronous delegate is invoked on it, DelegateMQ wraps the call into a message and posts it to a FreeRTOS queue; the WorkerThread's own event loop dequeues and executes it — the same cross-thread dispatch pattern as every other `dmq::os::Thread` port.
+
+Test 9 (`DelegateThreadsTests()`, in `DelegateThreadsTests.cpp`) goes further: two worker threads alive at once, `AsyncInvoke()` blocking-wait calls, and `dmq::FullPolicy`'s DROP/TIMEOUT/FAULT/default/unlimited-queue behavior under load. Its `FullPolicy_Drop_DropsWhenFull()` sub-test gives its consumer thread a lower priority than the caller (`SetThreadPriority()`) — otherwise FreeRTOS's preemptive scheduler stalls the publisher on every post, since a higher-or-equal-priority consumer preempts it immediately.
 
 ### Exercises `dmq::CriticalSection`'s FreeRTOS implementation
 
