@@ -29,11 +29,14 @@ extern "C" {
     typedef void (DMQ_CALL *DmqErrorCallback)(const char* msg);
 
     /// @brief Initialize and start the UDP transport and background threads.
-    /// @param remoteHost IP address of the remote peer.
-    /// @param recvPort Local port to bind for incoming messages.
+    /// @param remoteHost IP address of the remote peer (used for the unicast send/command channel).
+    /// @param recvPort Local port to bind/join for incoming messages.
     /// @param sendPort Remote port to send messages and ACKs.
+    /// @param multicastGroup Multicast group address to join for the incoming (recv) channel, so
+    /// multiple clients can receive the same stream concurrently. Ignored by transports (e.g. ZeroMQ)
+    /// whose PUB/SUB sockets already fan out to multiple subscribers without OS-level port sharing.
     /// @return 0 on success, non-zero on error.
-    DMQ_EXPORT int DMQ_CALL DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort);
+    DMQ_EXPORT int DMQ_CALL DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup);
     
     /// @brief Register a callback for a specific Remote ID.
     /// @param remoteId The DelegateRemoteId to listen for.

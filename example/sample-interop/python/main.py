@@ -19,8 +19,9 @@ from dmq_databus import DmqDataBus
 
 # 1. Configuration: Match these with the C++ Server settings
 SERVER_HOST = "127.0.0.1"
-DATA_RECV_PORT = 8000 # Server's PUB port
-CMD_SEND_PORT = 8001  # Server's SUB port
+DATA_RECV_PORT = 8000 # Server's multicast PUB port
+CMD_SEND_PORT = 8001  # Server's unicast SUB port
+MULTICAST_GROUP = "239.1.1.50"  # Must match C++ server and C# client
 
 # Topic IDs (Must match C++ and C# definitions)
 SENSOR_DATA_ID = 100
@@ -77,7 +78,7 @@ def main():
     
     try:
         # Start the background native receive loop
-        bus.start(SERVER_HOST, DATA_RECV_PORT, CMD_SEND_PORT)
+        bus.start(SERVER_HOST, DATA_RECV_PORT, CMD_SEND_PORT, MULTICAST_GROUP)
     except Exception as e:
         print(f"ERROR: {e}")
         return

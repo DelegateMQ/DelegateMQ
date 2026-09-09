@@ -32,15 +32,25 @@
 // Transport Selection based on DMQ_TRANSPORT_* defines
 // ---------------------------------------------------------------------------
 
+// The recv (incoming/subscribe) and send (outgoing/command) channels use distinct
+// transport types for the UDP ports: recv joins a multicast group so any number of
+// clients can receive the same stream concurrently, while send stays a plain unicast
+// socket back to the single remote peer. ZeroMQ's PUB/SUB sockets already fan out to
+// multiple subscribers without OS-level port sharing, so both channels share one type.
 #if defined(DMQ_TRANSPORT_ZEROMQ)
     #include "port/transport/zeromq/ZeroMqTransport.h"
-    using TransportType = dmq::transport::ZeroMqTransport;
+    using SendTransportType = dmq::transport::ZeroMqTransport;
+    using RecvTransportType = dmq::transport::ZeroMqTransport;
 #elif defined(DMQ_TRANSPORT_WIN32_UDP)
     #include "port/transport/win32-udp/Win32UdpTransport.h"
-    using TransportType = dmq::transport::Win32UdpTransport;
+    #include "port/transport/win32-udp/MulticastTransport.h"
+    using SendTransportType = dmq::transport::Win32UdpTransport;
+    using RecvTransportType = dmq::transport::MulticastTransport;
 #elif defined(DMQ_TRANSPORT_LINUX_UDP)
     #include "port/transport/linux-udp/LinuxUdpTransport.h"
-    using TransportType = dmq::transport::LinuxUdpTransport;
+    #include "port/transport/linux-udp/MulticastTransport.h"
+    using SendTransportType = dmq::transport::LinuxUdpTransport;
+    using RecvTransportType = dmq::transport::MulticastTransport;
 #else
     #error "DmqInterop requires a supported network transport (UDP or ZeroMQ)."
 #endif
@@ -52,8 +62,8 @@ namespace {
     /// @brief RAII container for the native transport state and background threads.
     struct InteropState {
         NetworkContext netContext;
-        std::unique_ptr<TransportType> recvTransport;
-        std::unique_ptr<TransportType> sendTransport;
+        std::unique_ptr<RecvTransportType> recvTransport;
+        std::unique_ptr<SendTransportType> sendTransport;
         std::unique_ptr<TransportMonitor> monitor;
         std::thread recvThread;
         std::atomic<bool> running{false};
@@ -177,13 +187,13 @@ extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName) {
 extern "C" {
     /// @brief Initialize and start the transport system and background threads.
     /// @return 0 on success, -1 on failure (e.g. already started or bind error).
-    int DMQ_CALL DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort) {
+    int DMQ_CALL DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup) {
         std::lock_guard<std::mutex> lifecycleLock(g_lifecycleMutex);
         if (g_state) return -1;
 
         try {
             g_state = std::make_unique<InteropState>();
-            
+
             // Move any pre-registered callbacks into g_state
             {
                 std::lock_guard<std::mutex> lock(g_preRegMutex);
@@ -193,8 +203,8 @@ extern "C" {
 
             g_state->running = true;
 
-            g_state->recvTransport = std::make_unique<TransportType>();
-            g_state->sendTransport = std::make_unique<TransportType>();
+            g_state->recvTransport = std::make_unique<RecvTransportType>();
+            g_state->sendTransport = std::make_unique<SendTransportType>();
 
 #if defined(DMQ_TRANSPORT_ZEROMQ)
             // ZeroMQ expects a full address string.
@@ -205,21 +215,24 @@ extern "C" {
             // Note: ZeroMqTransport uses Type::SUB for connecting to a PUB server
             // and Type::PAIR_CLIENT or Type::PUB for sending.
             // For Databus interop, we use SUB to listen and PUB to send.
-            if (g_state->recvTransport->Create(TransportType::Type::SUB, recvAddr.c_str()) != 0) {
+            if (g_state->recvTransport->Create(RecvTransportType::Type::SUB, recvAddr.c_str()) != 0) {
                 g_state.reset();
                 return -1;
             }
-            if (g_state->sendTransport->Create(TransportType::Type::PUB, sendAddr.c_str()) != 0) {
+            if (g_state->sendTransport->Create(SendTransportType::Type::PUB, sendAddr.c_str()) != 0) {
                 g_state.reset();
                 return -1;
             }
 #else
-            // UDP Transport: host and port are separate
-            if (g_state->recvTransport->Create(TransportType::Type::SUB, "", recvPort) != 0) {
+            // Recv joins the multicast group on recvPort so any number of clients can
+            // receive the same stream concurrently. Send stays a unicast socket back to
+            // the single remote peer (e.g. commands to a server), which needs no fan-out.
+            std::string localIP = NetworkContext::GetLocalAddress();
+            if (g_state->recvTransport->Create(RecvTransportType::Type::SUB, multicastGroup, static_cast<uint16_t>(recvPort), localIP.c_str()) != 0) {
                 g_state.reset();
                 return -1;
             }
-            if (g_state->sendTransport->Create(TransportType::Type::PUB, remoteHost, sendPort) != 0) {
+            if (g_state->sendTransport->Create(SendTransportType::Type::PUB, remoteHost, static_cast<uint16_t>(sendPort)) != 0) {
                 g_state.reset();
                 return -1;
             }
@@ -227,10 +240,8 @@ extern "C" {
 
             g_state->monitor = std::make_unique<TransportMonitor>();
 
-            // Route ACKs from the receive transport back through the send transport
-            g_state->recvTransport->SetSendTransport(g_state->sendTransport.get());
-            g_state->recvTransport->SetTransportMonitor(g_state->monitor.get());
-            
+            // Multicast recv is best-effort (no per-message ACK echo); only the unicast
+            // send channel tracks outstanding sends via the monitor.
             g_state->sendTransport->SetTransportMonitor(g_state->monitor.get());
 
             g_state->recvThread = std::thread(&InteropState::RecvLoop, g_state.get());

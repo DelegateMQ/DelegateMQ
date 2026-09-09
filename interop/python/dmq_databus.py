@@ -38,7 +38,7 @@ class DmqDataBus:
         self._dll = ctypes.CDLL(dll_path)
         
         # Define C-API signatures
-        self._dll.DmqInterop_Start.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+        self._dll.DmqInterop_Start.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
         self._dll.DmqInterop_Start.restype = ctypes.c_int
         
         self._CALLBACK_TYPE = ctypes.WINFUNCTYPE(None, ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32) if sys.platform == "win32" else \
@@ -64,8 +64,15 @@ class DmqDataBus:
         self._native_callbacks = {}
         self._native_error_callback = None
 
-    def start(self, remote_host, recv_port, send_port):
-        res = self._dll.DmqInterop_Start(remote_host.encode('utf-8'), recv_port, send_port)
+    def start(self, remote_host, recv_port, send_port, multicast_group):
+        """
+        remote_host: IP of the remote peer (unicast send/command channel).
+        recv_port: local port to join for incoming messages.
+        send_port: remote port to send messages and ACKs.
+        multicast_group: multicast group address to join for the incoming channel,
+        so multiple clients can receive the same stream concurrently.
+        """
+        res = self._dll.DmqInterop_Start(remote_host.encode('utf-8'), recv_port, send_port, multicast_group.encode('utf-8'))
         if res != 0:
             raise RuntimeError(f"DmqInterop_Start failed with error {res}")
 
