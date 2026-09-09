@@ -30,9 +30,9 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")  // Link with Winsock library
 
-#include "port/transport/ITransport.h"
-#include "port/transport/ITransportMonitor.h"
-#include "port/transport/DmqHeader.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/ITransportMonitor.h"
+#include "port/transport/common/DmqHeader.h"
 #include <windows.h>
 #include <sstream>
 #include <cstdio>

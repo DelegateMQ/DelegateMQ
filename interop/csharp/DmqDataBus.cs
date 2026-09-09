@@ -39,7 +39,7 @@ namespace DelegateMQ.Interop
         private delegate void InternalErrorCallback([MarshalAs(UnmanagedType.LPStr)] string msg);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
-        private static extern int DmqInterop_Start(string remoteHost, int recvPort, int sendPort);
+        private static extern int DmqInterop_Start(string remoteHost, int recvPort, int sendPort, string multicastGroup);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
         private static extern void DmqInterop_RegisterCallback(ushort remoteId, InternalMessageCallback cb);
@@ -60,6 +60,29 @@ namespace DelegateMQ.Interop
         private Action<string>? _onError;
         private bool _disposed;
 
+        // .NET's default P/Invoke resolution on Linux/macOS applies a "lib" prefix
+        // but keeps the literal extension given in [DllImport] -- it does NOT map
+        // ".dll" to ".so"/".dylib". DllName above stays "DmqInterop.dll" (matches
+        // the actual build artifact on Windows), so a custom resolver is needed to
+        // find the real file on other platforms.
+        static DmqDataBus()
+        {
+            NativeLibrary.SetDllImportResolver(typeof(DmqDataBus).Assembly, ResolveNativeLibrary);
+        }
+
+        private static IntPtr ResolveNativeLibrary(string libraryName, System.Reflection.Assembly assembly, DllImportSearchPath? searchPath)
+        {
+            if (libraryName != DllName)
+                return IntPtr.Zero;
+
+            string platformName =
+                RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "libDmqInterop.so" :
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "libDmqInterop.dylib" :
+                libraryName;
+
+            return NativeLibrary.TryLoad(platformName, assembly, searchPath, out IntPtr handle) ? handle : IntPtr.Zero;
+        }
+
         public DmqDataBus()
         {
             _internalCallback = OnMessageReceived;
@@ -69,9 +92,14 @@ namespace DelegateMQ.Interop
         /// <summary>
         /// Start the native transport.
         /// </summary>
-        public void Start(string remoteHost, int recvPort, int sendPort)
+        /// <param name="remoteHost">IP address of the remote peer (used for the unicast send/command channel).</param>
+        /// <param name="recvPort">Local port to join for incoming messages.</param>
+        /// <param name="sendPort">Remote port to send messages and ACKs.</param>
+        /// <param name="multicastGroup">Multicast group address to join for the incoming channel, so
+        /// multiple clients can receive the same stream concurrently.</param>
+        public void Start(string remoteHost, int recvPort, int sendPort, string multicastGroup)
         {
-            int result = DmqInterop_Start(remoteHost, recvPort, sendPort);
+            int result = DmqInterop_Start(remoteHost, recvPort, sendPort, multicastGroup);
             if (result != 0)
                 throw new Exception($"Failed to start DmqInterop DLL (Error: {result})");
         }

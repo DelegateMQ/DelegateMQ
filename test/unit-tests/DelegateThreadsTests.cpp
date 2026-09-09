@@ -79,7 +79,7 @@ static void FreeTests()
     auto delegateAsync1 = MakeDelegate(&FreeThreadSafe, workerThread1);
     auto delegateAsync2 = MakeDelegate(&FreeThreadSafe, workerThread2);
     auto delegateAsyncWait1 = MakeDelegate(&FreeThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(&FreeThreadSafe, workerThread1, TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(&FreeThreadSafe, workerThread2, TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;
@@ -132,7 +132,7 @@ static void MemberTests()
     auto delegateAsync1 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread1);
     auto delegateAsync2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread2);
     auto delegateAsyncWait1 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread1, TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(&testClass, &TestClass::MemberThreadSafe, workerThread2, TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;
@@ -185,7 +185,7 @@ static void MemberSpTests()
     auto delegateAsync1 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread1);
     auto delegateAsync2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread2);
     auto delegateAsyncWait1 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread1, TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(testClass, &TestClass::MemberThreadSafe, workerThread2, TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;
@@ -237,7 +237,7 @@ static void FunctionTests()
     auto delegateAsync1 = MakeDelegate(LambdaThreadSafe, workerThread1);
     auto delegateAsync2 = MakeDelegate(LambdaThreadSafe, workerThread2);
     auto delegateAsyncWait1 = MakeDelegate(LambdaThreadSafe, workerThread1, TEST_TIMEOUT);
-    auto delegateAsyncWait2 = MakeDelegate(LambdaThreadSafe, workerThread1, TEST_TIMEOUT);
+    auto delegateAsyncWait2 = MakeDelegate(LambdaThreadSafe, workerThread2, TEST_TIMEOUT);
 
     MulticastDelegateSafe<void(std::chrono::milliseconds, int)> container;
     container += delegateSync1;

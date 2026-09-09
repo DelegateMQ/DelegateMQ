@@ -13,6 +13,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
 | **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
+| **[zephyr-linux](./zephyr-linux/)** | Zephyr example using the official `native_sim` simulation port (host GCC, no cross-compiler). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | Linux GCC + west |
 
 ## Remote Delegate Examples
 
@@ -27,6 +28,7 @@ The following remote delegate projects have no external library dependencies. Th
 | **[bare-metal-remote](./bare-metal-remote/)** | Simple remote delegate example on Windows and Linux. | `std::thread` | `operator<<` / `operator>>` | `std::stringstream` |
 | **[databus](./databus/)** | Distributed sensor/actuator system using `dmq::databus::DataBus` over UDP. | `std::thread` | `dmq::Serializer` class | UDP Socket |
 | **[databus-freertos](./databus-freertos/)** | FreeRTOS server (Win32 simulator, 32-bit) publishing sensor data to a Linux/Windows client over UDP, with the client sending rate-control commands back. Demonstrates mixed-platform DataBus with the FreeRTOS port. | FreeRTOS | `dmq::Serializer` class | UDP Socket |
+| **[databus-zephyr](./databus-zephyr/)** | Zephyr server (`native_sim`, offloaded sockets over the real host loopback) publishing sensor data to a Linux/Windows client over UDP, with the client sending rate-control commands back — real cross-process traffic, not both endpoints in one process. Manual-only: server needs a `west` workspace, not built by 04_build_samples.py. | Zephyr | `dmq::Serializer` class | UDP Socket |
 | **[databus-multicast](./databus-multicast/)** | One-to-many distribution using `dmq::databus::DataBus` over UDP Multicast. | `std::thread` | `dmq::Serializer` class | UDP Multicast |
 | **[freertos-bare-metal](./freertos-bare-metal/)** | FreeRTOS Windows port example (32-bit build). | FreeRTOS | `operator<<` / `operator>>` | `std::stringstream` |
 | **[linux-tcp-serializer](./linux-tcp-serializer/)** | Simple TCP remote delegate app on Linux. | `std::thread` | `dmq::Serializer` class | Linux TCP Socket |
@@ -35,6 +37,7 @@ The following remote delegate projects have no external library dependencies. Th
 | **[win32-pipe-serializer](./win32-pipe-serializer/)** | Windows Named Pipe remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows Pipe |
 | **[win32-tcp-serializer](./win32-tcp-serializer/)** | Windows TCP Socket remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows TCP Socket |
 | **[win32-udp-serializer](./win32-udp-serializer/)** | Windows UDP Socket remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows UDP Socket |
+| **[zephyr-udp-serializer](./zephyr-udp-serializer/)** | Remote delegate over Zephyr's native UDP sockets (BSD Socket API), on the `native_sim` port, loopback-only (no host network setup). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | `dmq::Serializer` class | Zephyr UDP Socket |
 
 ### External Dependencies
 

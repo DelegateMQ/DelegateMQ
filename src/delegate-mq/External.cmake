@@ -248,6 +248,28 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
 
         add_subdirectory("${THREADX_ROOT_DIR}" "${CMAKE_BINARY_DIR}/threadx_build")
 
+        # ThreadX's own ports/linux/gnu/CMakeLists.txt unconditionally adds
+        # -DTX_LINUX_DEBUG_ENABLE as a PUBLIC compile definition on the
+        # "threadx" target. That macro wraps every TX_DISABLE/TX_RESTORE
+        # kernel-wide (see tx_port.h) in a call to _tx_linux_debug_entry_insert(),
+        # which serializes through one global mutex (_tx_linux_mutex) -- a real
+        # risk under genuine multi-thread contention. Stripped here rather
+        # than patching the vendored ThreadX source, so 01_fetch_repos.py can
+        # still pull a clean, unmodified ThreadX tree.
+        #
+        # Not a fix for the threadx-linux two-worker-thread deadlock (see
+        # example/sample-projects/threadx-linux/DelegateThreadsTests.cpp) --
+        # that hang reproduces identically with this macro stripped, still
+        # blocked on _tx_linux_mutex via plain _tx_thread_interrupt_control().
+        # ThreadX's CMakeLists.txt passes both defines as one combined string
+        # ("-D_GNU_SOURCE -DTX_LINUX_DEBUG_ENABLE"), not as separate list
+        # items, so a targeted list(REMOVE_ITEM) on COMPILE_DEFINITIONS can't
+        # match it. -U processes in command-line order after -D, so append it
+        # as a compile option instead of trying to edit the define out.
+        if(TARGET threadx)
+            target_compile_options(threadx PUBLIC "-UTX_LINUX_DEBUG_ENABLE")
+        endif()
+
         # The Linux/GNU port implements ThreadX scheduling on top of POSIX
         # threads (pthread_create per tx_thread_create, signals for suspend).
         find_package(Threads REQUIRED)
@@ -263,11 +285,19 @@ endif()
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_ZEPHYR")
     # Zephyr is a build system, not just a library.
     # We typically do NOT manually glob source files here.
-    # The application's main CMakeLists.txt must call `find_package(Zephyr)` 
-    # which sets up the include paths and kernel linking automatically.
-    # Optional: Just verify the root directory exists if you want to be safe
-    set_and_check(ZEPHYR_ROOT_DIR "${DMQ_ROOT_DIR}/../../../zephyr")
-    
+    # The application's main CMakeLists.txt must call `find_package(Zephyr)`
+    # (before including DelegateMQ.cmake), which sets up the include paths
+    # and kernel linking automatically -- unlike ThreadX/FreeRTOS, Zephyr
+    # isn't vendored as a plain sibling directory; its location is a west
+    # workspace found via the ZEPHYR_BASE environment variable that
+    # find_package(Zephyr) itself sets. Sanity-check against that instead
+    # of assuming a "../../../zephyr" sibling clone that doesn't apply here.
+    if(NOT DEFINED ENV{ZEPHYR_BASE})
+        message(WARNING "DelegateMQ: DMQ_THREAD_ZEPHYR is set, but ZEPHYR_BASE "
+                         "is not defined -- ensure find_package(Zephyr) ran "
+                         "before including DelegateMQ.cmake.")
+    endif()
+
     # Do NOT glob sources. Zephyr builds itself.
 endif()
 

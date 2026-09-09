@@ -115,8 +115,11 @@
 // 4. Asynchronous "Blocking" Delegates (Wait for Result)
 // -----------------------------------------------------------------------------
 // Depends on Semaphore/Mutex and C++17 (std::any, std::optional).
-// Valid for StdLib/Win32 (Windows/Linux), Qt, ThreadX, and FreeRTOS (if C++17 enabled).
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX)
+// Valid for StdLib/Win32 (Windows/Linux), Qt, ThreadX, FreeRTOS (if C++17
+// enabled), Zephyr, and CMSIS-RTOS2 -- the latter two via their native
+// k_sem/osSemaphore-backed dmq::Semaphore (see DMQ_HAS_SEMAPHORE in
+// DelegateOpt.h), not the generic condvar+mutex implementation.
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
     #include "delegate/DelegateAsyncWait.h"
 #endif
 
@@ -201,7 +204,7 @@
     #include "port/transport/arm-lwip-netconn-udp/ArmLwipNetconnUdpTransport.h"
 #elif defined(DMQ_TRANSPORT_THREADX_UDP)
     #include "extras/dispatcher/Dispatcher.h"
-    #include "port/transport/threadx-udp/NetXUdpTransport.h"
+    #include "port/transport/netx-udp/NetXUdpTransport.h"
 #elif defined(DMQ_TRANSPORT_STM32_UART)
     #include "extras/dispatcher/Dispatcher.h"
     #include "port/transport/stm32-uart/Stm32UartTransport.h"
@@ -212,7 +215,7 @@
     // No built-in transport. Include the interface and dispatcher so application code
     // can implement a custom ITransport and use RemoteChannel with a mock or stub.
     #include "extras/dispatcher/Dispatcher.h"
-    #include "port/transport/ITransport.h"
+    #include "port/transport/common/ITransport.h"
 #else
     #warning "Transport implementation not found."
 #endif

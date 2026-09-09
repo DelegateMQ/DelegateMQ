@@ -163,6 +163,19 @@ void ZephyrThread::ExitThread()
 
             // Wait for thread to actually finish to avoid use-after-free of the stack.
             k_sem_take(&m_exitSem, K_FOREVER);
+
+            // k_sem_give() in Run() fires just before it returns -- taking the
+            // semaphore only proves Run() is about to return, not that the
+            // kernel has finished tearing the thread down (unlinking it from
+            // scheduler structures) after the entry function exits. Freeing
+            // m_thread's memory (this object may be stack-allocated) or
+            // m_stackMemory below before that teardown completes leaves the
+            // kernel with a dangling reference into memory about to be reused
+            // -- observed as a newly created thread at the same address never
+            // getting scheduled. k_thread_join() blocks until the kernel
+            // itself has marked the thread fully dead, which is the
+            // documented, race-free way to wait for this.
+            k_thread_join(&m_thread, K_FOREVER);
         }
 
         m_queue.DrainAndDelete();

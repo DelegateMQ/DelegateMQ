@@ -26,6 +26,12 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
+// Defined in DelegateThreadsTests.cpp
+extern void DelegateThreadsTests();
+
+// Defined in TimerDelegateTests.cpp
+extern void TimerDelegateTests();
+
 // --------------------------------------------------------------------------
 // FREERTOS CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
@@ -158,6 +164,14 @@ void ExecuteAllTests() {
     vTaskDelay(pdMS_TO_TICKS(300));
     myTimer.Stop();
 
+    // --- TEST 9: Cross-Thread Dispatch & FullPolicy Stress Tests ---
+    printf("\n[Test 9] Cross-Thread Dispatch & FullPolicy Tests:\n");
+    DelegateThreadsTests();
+
+    // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
+    printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
+    TimerDelegateTests();
+
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");
     printf("=========================================\n");
@@ -191,7 +205,15 @@ extern "C" void main_delegate(void)
     xSystemTimer = xTimerCreate("SysTimer", mainTIMER_FREQUENCY_MS, pdTRUE, NULL, TimerCallback);
     xTimerStart(xSystemTimer, 0);
 
-    xTaskCreate(RunTestsTask, "MainTask", 2048, NULL, 2, NULL);
+    // Stack size is in words (StackType_t == unsigned long, 8 bytes on this
+    // 64-bit POSIX port), not bytes. 2048 words (16KB) was enough for the
+    // original 8-test demo, but DelegateThreadsTests()'s much deeper call
+    // chain -- plus std::mt19937's ~2.5KB of internal state per instance in
+    // getRandomTime() -- overflows that. Note task stacks come out of
+    // FreeRTOS's own fixed heap_5 pool (configTOTAL_HEAP_SIZE in
+    // FreeRTOSConfig.h), not host RAM, so this can't just be made huge
+    // without also growing that pool.
+    xTaskCreate(RunTestsTask, "MainTask", 8192, NULL, 2, NULL);
 
     printf("--- Starting FreeRTOS Scheduler (POSIX simulation) ---\n");
     vTaskStartScheduler();

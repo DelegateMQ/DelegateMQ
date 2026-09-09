@@ -33,6 +33,13 @@ SERVER_HOST    = "127.0.0.1"
 DATA_RECV_PORT = 8000    # C++ server PUBs DataMsg here  — we bind and receive
 CMD_SEND_PORT  = 8001    # C++ server SUBs CommandMsg here — we send
 
+# DmqDataBus's recv side always binds via MulticastTransport (join is
+# additive: the socket still receives ordinary unicast traffic to
+# DATA_RECV_PORT too), so a group is required even though the C++ server
+# in ../server/ only ever sends plain unicast — matches the group address
+# convention used by the databus-multicast sample.
+MULTICAST_GROUP = "239.1.1.1"
+
 DATA_MSG_ID = 100        # SystemTopic::DataMsgId
 CMD_MSG_ID  = 101        # SystemTopic::CommandMsgId
 
@@ -80,7 +87,7 @@ def on_data_msg(payload: bytes):
 if __name__ == "__main__":
     bus = DmqDataBus()
     bus.register_callback(DATA_MSG_ID, on_data_msg)
-    bus.start(SERVER_HOST, DATA_RECV_PORT, CMD_SEND_PORT)
+    bus.start(SERVER_HOST, DATA_RECV_PORT, CMD_SEND_PORT, MULTICAST_GROUP)
 
     print(f"DataBus Python Client — connected to {SERVER_HOST}")
     print(f"  Receiving DataMsg   on port {DATA_RECV_PORT}")

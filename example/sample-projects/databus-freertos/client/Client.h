@@ -33,13 +33,13 @@ public:
     {
         // Inbound transport (SUB): client receives from server on port 9000.
         // Carries SensorMsg and AlarmMsg — distinguished by DelegateRemoteId.
-        if (m_subTransport.Create(dmq::transport::Win32UdpTransport::Type::SUB, "127.0.0.1", 9000) != 0) {
+        if (m_subTransport.Create(dmq::transport::UdpTransport::Type::SUB, "127.0.0.1", 9000) != 0) {
             std::cerr << "[Client] ERROR: Failed to create inbound transport\n";
             return false;
         }
 
         // Outbound transport (PUB): client publishes to server on port 9001.
-        if (m_pubTransport.Create(dmq::transport::Win32UdpTransport::Type::PUB, "127.0.0.1", 9001) != 0) {
+        if (m_pubTransport.Create(dmq::transport::UdpTransport::Type::PUB, "127.0.0.1", 9001) != 0) {
             std::cerr << "[Client] ERROR: Failed to create outbound transport\n";
             return false;
         }
@@ -108,8 +108,8 @@ private:
             m_subParticipant->ProcessIncoming();
     }
 
-    dmq::transport::Win32UdpTransport m_subTransport;
-    dmq::transport::Win32UdpTransport m_pubTransport;
+    dmq::transport::UdpTransport m_subTransport;
+    dmq::transport::UdpTransport m_pubTransport;
 
     std::shared_ptr<dmq::databus::Participant> m_subParticipant;
     std::shared_ptr<dmq::databus::Participant> m_pubParticipant;

@@ -14,13 +14,21 @@
 #include <thread>
 #include <chrono>
 
+// SensorData is published over multicast so the C# and Python clients can both
+// receive it concurrently; Command stays unicast since the server is its only recipient.
 #ifdef _WIN32
 #include "port/transport/win32-udp/Win32UdpTransport.h"
-using TransportType = dmq::transport::Win32UdpTransport;
+#include "port/transport/win32-udp/MulticastTransport.h"
+using CommandTransportType = dmq::transport::Win32UdpTransport;
 #else
 #include "port/transport/linux-udp/LinuxUdpTransport.h"
-using TransportType = dmq::transport::LinuxUdpTransport;
+#include "port/transport/linux-udp/MulticastTransport.h"
+using CommandTransportType = dmq::transport::LinuxUdpTransport;
 #endif
+using SensorDataTransportType = dmq::transport::MulticastTransport;
+
+// Must match the C# and Python clients.
+static const char* MULTICAST_GROUP = "239.1.1.50";
 
 using namespace dmq::databus;
 using namespace dmq::transport;
@@ -47,12 +55,14 @@ int main() {
     dmq::util::NetworkContext netContext;
     std::cout << "Starting C++ Interop Server..." << std::endl;
 
-    // 3. Setup Transport (PUB on 8000, SUB on 8001)
-    auto pubTransport = std::make_unique<TransportType>();
-    auto subTransport = std::make_unique<TransportType>();
+    std::string localIP = dmq::util::NetworkContext::GetLocalAddress();
 
-    if (pubTransport->Create(TransportType::Type::PUB, "127.0.0.1", 8000) != 0 ||
-        subTransport->Create(TransportType::Type::SUB, "", 8001) != 0) {
+    // 3. Setup Transport (multicast PUB on 8000, unicast SUB on 8001)
+    auto pubTransport = std::make_unique<SensorDataTransportType>();
+    auto subTransport = std::make_unique<CommandTransportType>();
+
+    if (pubTransport->Create(SensorDataTransportType::Type::PUB, MULTICAST_GROUP, 8000, localIP.c_str()) != 0 ||
+        subTransport->Create(CommandTransportType::Type::SUB, "", 8001) != 0) {
         std::cerr << "Failed to create transports" << std::endl;
         return -1;
     }

@@ -17,9 +17,9 @@
 /// - lwIP must be compiled with `LWIP_SO_RCVTIMEO=1` (for non-blocking timeouts)
 
 #include "delegate/DelegateOpt.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
-#include "port/transport/ITransportMonitor.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
+#include "port/transport/common/ITransportMonitor.h"
 
 // lwIP Includes
 #include "lwip/sockets.h"

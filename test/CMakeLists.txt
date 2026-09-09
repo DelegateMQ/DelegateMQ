@@ -68,9 +68,10 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/unit-tests
 )
 
-# Add subdirectories for unit tests and sample code
+# Add subdirectories for unit tests, stress tests, and sample code
 # NOTE: Added before target creation so libraries are defined for linking
 add_subdirectory(unit-tests)
+add_subdirectory(stress-tests)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../example/sample-code ${CMAKE_BINARY_DIR}/sample-code)
 
 # Add an executable target
@@ -88,6 +89,7 @@ target_precompile_headers(${DELEGATE_APP} PRIVATE
 
 target_link_libraries(${DELEGATE_APP} PRIVATE
     unit_tests_lib
+    stress_tests_lib
     sample_code_lib
 )
 

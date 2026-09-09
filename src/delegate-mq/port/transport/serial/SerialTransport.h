@@ -26,9 +26,9 @@
 
 #include "libserialport.h"
 #include "delegate/DelegateOpt.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
-#include "port/transport/ITransportMonitor.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
+#include "port/transport/common/ITransportMonitor.h"
 #include "extras/util/crc16.h"
 
 #include <sstream>
