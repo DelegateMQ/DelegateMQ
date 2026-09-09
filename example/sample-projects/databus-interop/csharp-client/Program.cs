@@ -22,6 +22,13 @@ const string ServerHost   = "127.0.0.1";
 const int    DataRecvPort = 8000;    // C++ server PUBs DataMsg here  — we bind
 const int    CmdSendPort  = 8001;    // C++ server SUBs CommandMsg here — we send
 
+// DmqDataBus's recv side always binds via MulticastTransport (join is
+// additive: the socket still receives ordinary unicast traffic to
+// DataRecvPort too), so a group is required even though the C++ server
+// in ../server/ only ever sends plain unicast — matches the group address
+// convention used by the databus-multicast sample.
+const string MulticastGroup = "239.1.1.1";
+
 const ushort DataMsgId = 100;        // SystemTopic::DataMsgId
 const ushort CmdMsgId  = 101;        // SystemTopic::CommandMsgId
 
@@ -50,7 +57,7 @@ static void OnDataMsg(byte[] payload)
 // ---------------------------------------------------------------------------
 using var bus = new DmqDataBus();
 bus.RegisterCallback(DataMsgId, OnDataMsg);
-bus.Start(ServerHost, DataRecvPort, CmdSendPort);
+bus.Start(ServerHost, DataRecvPort, CmdSendPort, MulticastGroup);
 
 Console.WriteLine($"DataBus C# Client — connected to {ServerHost}");
 Console.WriteLine($"  Receiving DataMsg   on port {DataRecvPort}");
