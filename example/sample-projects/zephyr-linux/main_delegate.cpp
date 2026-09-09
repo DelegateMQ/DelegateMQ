@@ -24,6 +24,9 @@ using namespace dmq::util;
 // Defined in DelegateThreadsTests.cpp
 extern void DelegateThreadsTests();
 
+// Defined in TimerDelegateTests.cpp
+extern void TimerDelegateTests();
+
 // --------------------------------------------------------------------------
 // ZEPHYR CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
@@ -163,6 +166,10 @@ void ExecuteAllTests() {
     // --- TEST 9: Cross-Thread Dispatch & FullPolicy Stress Tests ---
     printf("\n[Test 9] Cross-Thread Dispatch & FullPolicy Tests:\n");
     DelegateThreadsTests();
+
+    // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
+    printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
+    TimerDelegateTests();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

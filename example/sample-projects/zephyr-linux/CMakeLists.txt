@@ -34,5 +34,5 @@ source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
 source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
 source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 
-target_sources(app PRIVATE main_delegate.cpp DelegateThreadsTests.cpp ${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES})
+target_sources(app PRIVATE main_delegate.cpp DelegateThreadsTests.cpp TimerDelegateTests.cpp ${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES})
 target_include_directories(app PRIVATE ${DMQ_INCLUDE_DIR})

@@ -15,6 +15,7 @@ Identical test suite to `freertos-bare-metal`, on a different RTOS port — show
 5.  **RAII Connections**: Using `ScopedConnection` to automatically manage the lifetime of signal-slot connections.
 6.  **RTOS Timers**: Integrating DelegateMQ's `Timer` with a ThreadX software timer.
 7.  **FullPolicy Stress Tests**: `DelegateThreadsTests()` (Test 9) exercises `dmq::FullPolicy` (DROP/TIMEOUT/FAULT/default/unlimited-queue) behavior — see Known Limitation below for what's currently disabled here.
+8.  **PacedDispatch & TimerDelegate**: `TimerDelegateTests()` (Test 10) covers `dmq::util::PacedDispatch`'s at-most-one-in-flight gating logic and `dmq::util::TimerDelegate` dispatching to a real `dmq::os::Thread`, including a `dmq::util::Timer` wired straight to a `TimerDelegate` and driven by this sample's own periodic system timer. Unaffected by the Known Limitation below — it only ever has one worker thread alive.
 
 ## Prerequisites
 
@@ -64,3 +65,5 @@ One of the tests creates a `dmq::os::Thread` object named "WorkerThread". When a
 ### Exiting
 
 ThreadX has no kernel-level "stop scheduler" call, and this is a simulation running as an ordinary Linux process, so after the test suite completes, `MainThreadEntry()` calls `std::exit(0)` — which tears down the whole process (WorkerThread, the ThreadX timer thread, everything) in one step.
+
+Test 10 (`TimerDelegateTests()`, in `TimerDelegateTests.cpp`) ports `test/unit-tests/TimerDelegateTests.cpp`'s `PacedDispatch`/`TimerDelegate` coverage against this same ThreadX `dmq::os::Thread` port. `TimerDelegate_WithTimer_DispatchesToThread()` doesn't spin up its own thread to drive `Timer::ProcessTimers()` the way the desktop version does — it reuses the periodic software timer `main_delegate()` already started before `ExecuteAllTests()` ran, the same one Test 8 relies on.

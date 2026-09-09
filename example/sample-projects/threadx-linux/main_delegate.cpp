@@ -23,6 +23,9 @@ using namespace dmq::util;
 // not currently run.
 extern void DelegateThreadsTests();
 
+// Defined in TimerDelegateTests.cpp
+extern void TimerDelegateTests();
+
 // --------------------------------------------------------------------------
 // THREADX CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
@@ -183,6 +186,10 @@ void ExecuteAllTests() {
     // not a DelegateMQ bug).
     printf("\n[Test 9] FullPolicy Tests:\n");
     DelegateThreadsTests();
+
+    // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
+    printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
+    TimerDelegateTests();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

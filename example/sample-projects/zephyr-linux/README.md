@@ -15,6 +15,7 @@ Identical test suite to `freertos-bare-metal`/`freertos-linux`/`threadx-linux` �
 5.  **RAII Connections**: Using `ScopedConnection` to automatically manage the lifetime of signal-slot connections.
 6.  **RTOS Timers**: Integrating DelegateMQ's `Timer` with a Zephyr `k_timer`.
 7.  **FullPolicy Stress Tests**: `DelegateThreadsTests()` (Test 9) exercises two concurrently active worker threads, `dmq::FullPolicy` (DROP/TIMEOUT/FAULT/default) behavior, and repeated cross-thread `AsyncInvoke()` calls. Unlike `threadx-linux`, every sub-test here runs and passes — Zephyr's port has no equivalent of the ThreadX Linux/GNU kernel deadlock that forces `threadx-linux` to skip its two-worker-thread tests.
+8.  **PacedDispatch & TimerDelegate**: `TimerDelegateTests()` (Test 10) covers `dmq::util::PacedDispatch`'s at-most-one-in-flight gating logic and `dmq::util::TimerDelegate` dispatching to a real `dmq::os::Thread`, including a `dmq::util::Timer` wired straight to a `TimerDelegate` and driven by this sample's own periodic `k_timer`.
 
 ## Prerequisites
 
@@ -74,3 +75,7 @@ Its `FullPolicy_Drop_DropsWhenFull()` sub-test relies on the consumer thread hav
 ### Exiting
 
 Zephyr has no kernel-level "stop scheduler" call, and `native_sim` runs as an ordinary Linux process, so after the test suite completes, `main()` calls `exit(0)` directly — the same approach `threadx-linux`/`freertos-linux` use. Returning normally from `main()` instead hits an edge case in `native_sim`'s own thread-table teardown unrelated to DelegateMQ.
+
+### Test 10: PacedDispatch & TimerDelegate
+
+`TimerDelegateTests()` (in `TimerDelegateTests.cpp`) ports `test/unit-tests/TimerDelegateTests.cpp`'s `PacedDispatch`/`TimerDelegate` coverage against this same Zephyr `dmq::os::Thread` port. `TimerDelegate_WithTimer_DispatchesToThread()` doesn't spin up its own thread to drive `Timer::ProcessTimers()` the way the desktop version does — besides being redundant with `g_systemTimer` (already running throughout the whole test suite), a raw `std::thread` calling into Zephyr kernel APIs from outside native_sim's own cooperative scheduling is the same class of hazard documented in `DelegateThreadsTests.cpp`'s `dmq::Mutex` comment.
