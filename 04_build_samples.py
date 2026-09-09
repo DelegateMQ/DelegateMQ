@@ -24,6 +24,7 @@ Skip List (always excluded):
     - system-architecture-python  Python-only client, no C++ build
     - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
     - zephyr-udp-serializer   Needs `west build` + a west workspace, not `cmake -B build`
+    - databus-zephyr          Server needs `west build` + a west workspace, not `cmake -B build`
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
@@ -53,6 +54,7 @@ SKIP_ALWAYS = {
     "system-architecture-python",
     "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
     "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
+    "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
 }
 
 WINDOWS_ONLY = {

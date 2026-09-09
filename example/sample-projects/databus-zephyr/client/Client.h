@@ -5,7 +5,7 @@
 /// @brief Linux/Windows DataBus client — subscribes to SensorMsg and AlarmMsg, publishes CmdMsg.
 ///
 /// Runs on Linux or Windows using the stdlib port. Receives sensor readings
-/// and alarm state changes from the FreeRTOS server, and periodically sends
+/// and alarm state changes from the Zephyr server, and periodically sends
 /// a command to adjust the server's publish interval.
 ///
 /// @see https://github.com/DelegateMQ/DelegateMQ
@@ -20,7 +20,7 @@
 
 /// @brief Active-object client with a stdlib polling thread.
 ///
-/// - Subscribes to sensor/temp and alarm/status published by the FreeRTOS server.
+/// - Subscribes to sensor/temp and alarm/status published by the Zephyr server.
 /// - A dedicated Thread calls ProcessIncoming() on the inbound transport.
 /// - Publishes CmdMsg via DataBus::Publish — caller drives the timing.
 class Client
