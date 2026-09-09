@@ -23,9 +23,9 @@
 /// 4.  **Robustness**: Validates packet allocation and append results to prevent corruption.
 
 #include "delegate/DelegateOpt.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
-#include "port/transport/ITransportMonitor.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
+#include "port/transport/common/ITransportMonitor.h"
 #include "nx_api.h"
 
 #include <cstdio>

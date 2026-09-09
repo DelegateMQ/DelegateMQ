@@ -3,8 +3,8 @@
 
 #include "delegate/DelegateOpt.h"
 #include "delegate/DelegateRemote.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
 #include "TransportMonitor.h"
 #include <cstdint>
 

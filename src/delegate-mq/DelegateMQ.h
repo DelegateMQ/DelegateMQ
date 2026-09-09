@@ -212,7 +212,7 @@
     // No built-in transport. Include the interface and dispatcher so application code
     // can implement a custom ITransport and use RemoteChannel with a mock or stub.
     #include "extras/dispatcher/Dispatcher.h"
-    #include "port/transport/ITransport.h"
+    #include "port/transport/common/ITransport.h"
 #else
     #warning "Transport implementation not found."
 #endif

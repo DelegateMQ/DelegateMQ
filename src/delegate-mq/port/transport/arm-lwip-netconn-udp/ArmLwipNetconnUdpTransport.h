@@ -17,9 +17,9 @@
 /// - FreeRTOS must be running (Netconn relies on OS primitives)
 
 #include "delegate/DelegateOpt.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
-#include "port/transport/ITransportMonitor.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
+#include "port/transport/common/ITransportMonitor.h"
 
 #include <vector>
 

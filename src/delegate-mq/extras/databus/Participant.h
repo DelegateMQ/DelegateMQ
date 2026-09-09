@@ -4,8 +4,8 @@
 #include "delegate/DelegateRemote.h"
 #include "delegate/DelegateAsync.h"
 #include "delegate/DelegateOpt.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/DmqHeader.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/DmqHeader.h"
 #include "extras/dispatcher/RemoteChannel.h"
 #include "extras/util/Fault.h"
 #include <algorithm>

@@ -34,9 +34,9 @@
 #endif
 
 #include "delegate/DelegateOpt.h"
-#include "port/transport/ITransport.h"
-#include "port/transport/ITransportMonitor.h"
-#include "port/transport/DmqHeader.h"
+#include "port/transport/common/ITransport.h"
+#include "port/transport/common/ITransportMonitor.h"
+#include "port/transport/common/DmqHeader.h"
 #include <nng/nng.h>
 #include <nng/protocol/pair0/pair.h>
 #include <nng/protocol/pubsub0/pub.h>
