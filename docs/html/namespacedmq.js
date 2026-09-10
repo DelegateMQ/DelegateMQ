@@ -38,7 +38,7 @@ var namespacedmq =
     [ "DelegateMemberSp< TClass, RetType(Args...)>", "classdmq_1_1_delegate_member_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_delegate_member_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4" ],
     [ "DelegateMsg", "classdmq_1_1_delegate_msg.html", "classdmq_1_1_delegate_msg" ],
     [ "Dispatcher", "classdmq_1_1_dispatcher.html", "classdmq_1_1_dispatcher" ],
-    [ "heap_arg_deleter", "classdmq_1_1heap__arg__deleter.html", "classdmq_1_1heap__arg__deleter" ],
+    [ "heap_arg_deleter", "classdmq_1_1heap__arg__deleter.html", null ],
     [ "heap_arg_deleter< T * >", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_01_4.html", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_01_4" ],
     [ "heap_arg_deleter< T ** >", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_5_01_4.html", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_5_01_4" ],
     [ "heap_arg_deleter_base", "classdmq_1_1heap__arg__deleter__base.html", "classdmq_1_1heap__arg__deleter__base" ],
@@ -73,6 +73,7 @@ var namespacedmq =
     [ "Signal< RetType(Args...)>", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4" ],
     [ "stl_allocator", "classdmq_1_1stl__allocator.html", "classdmq_1_1stl__allocator" ],
     [ "stl_allocator< void >", "classdmq_1_1stl__allocator_3_01void_01_4.html", "classdmq_1_1stl__allocator_3_01void_01_4" ],
+    [ "ThisThread", "structdmq_1_1_this_thread.html", null ],
     [ "UnicastDelegate", "classdmq_1_1_unicast_delegate.html", null ],
     [ "UnicastDelegate< RetType(Args...)>", "classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4" ],
     [ "UnicastDelegateSafe", "classdmq_1_1_unicast_delegate_safe.html", null ],
@@ -80,6 +81,7 @@ var namespacedmq =
     [ "xlist", "classdmq_1_1xlist.html", null ],
     [ "ArgTypeOf", "namespacedmq.html#aa5033450a33d262cadf38fc666741732", null ],
     [ "Clock", "namespacedmq.html#a597d3665a6aef02a9edba0d42f40b235", null ],
+    [ "CriticalSection", "namespacedmq.html#ae2a202c77c9067dc2577fc191bddc50e", null ],
     [ "DelegateErrorAux", "namespacedmq.html#a4bcc300237d5cb854a800a19ccc0400a", null ],
     [ "DelegateRemoteId", "namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda", null ],
     [ "Duration", "namespacedmq.html#a9b8f2ad24a4b0df29243c60121e10b7f", null ],
@@ -107,6 +109,11 @@ var namespacedmq =
       [ "ERR_NO_DISPATCHER", "namespacedmq.html#a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594", null ],
       [ "ERR_DISPATCH", "namespacedmq.html#a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb", null ],
       [ "ERR_TYPE_MISMATCH", "namespacedmq.html#a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7", null ]
+    ] ],
+    [ "FullPolicy", "namespacedmq.html#a4f437e9e12d6eab6e8ef04eb229b3118", [
+      [ "DROP", "namespacedmq.html#a4f437e9e12d6eab6e8ef04eb229b3118abf8f3be424eb6a72b21549fbb24ffb57", null ],
+      [ "FAULT", "namespacedmq.html#a4f437e9e12d6eab6e8ef04eb229b3118a893b3aaf1661e3717b18e8335ff93a72", null ],
+      [ "TIMEOUT", "namespacedmq.html#a4f437e9e12d6eab6e8ef04eb229b3118a070a0fb40f6c308ab544b227660aadff", null ]
     ] ],
     [ "Priority", "namespacedmq.html#a6364022151f2bf1802343322638e8f25", [
       [ "NORMAL", "namespacedmq.html#a6364022151f2bf1802343322638e8f25a1e23852820b9154316c7c06e2b7ba051", null ],
@@ -157,5 +164,10 @@ var namespacedmq =
     [ "MAX_TIMER_EXPIRED", "namespacedmq.html#acf2ae0d8cf284588d5c27c53ed606bd8", null ],
     [ "MAX_TRANSPORT_MONITOR_PENDING", "namespacedmq.html#a5328cc2a5f84fe0f49a89a571600e8a8", null ],
     [ "MAX_WATCHDOG_THREADS", "namespacedmq.html#a946391767dd0907a9c745fcf7594419a", null ],
-    [ "SIGNAL_SBO_COUNT", "namespacedmq.html#ab63766cc3a5899f6fc9a675eed88dab4", null ]
+    [ "NETWORK_NODE_MAX_PEERS", "namespacedmq.html#a482c52b53da5cdf805baf7cf44685cb6", null ],
+    [ "NETWORK_NODE_MAX_TOPICS", "namespacedmq.html#adfc5538214aaa479ecdf72b898d00567", null ],
+    [ "NETWORK_NODE_MAX_WORK", "namespacedmq.html#a399014395577b4c5519fea1ebda7add6", null ],
+    [ "RETRY_MONITOR_MAX_RETRIES", "namespacedmq.html#a35cd9f84173b6c28d1c01e462967bd29", null ],
+    [ "SIGNAL_SBO_COUNT", "namespacedmq.html#ab63766cc3a5899f6fc9a675eed88dab4", null ],
+    [ "TRANSPORT_MONITOR_TIMEOUT", "namespacedmq.html#ab1bce6c4f8364600776bf83ecd713178", null ]
 ];

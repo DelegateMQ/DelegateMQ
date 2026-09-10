@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.12.0"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Delegates: ThreadMsg.h File Reference</title>
+<title>DelegateMQ: ThreadMsg.h File Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -27,7 +27,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">Delegates
+   <div id="projectname">DelegateMQ
    </div>
   </td>
  </tr>
@@ -97,26 +97,79 @@ $(function(){initNavTree('_thread_msg_8h.html',''); initResizable(true); });
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Classes</a>  </div>
+<a href="#nested-classes">Classes</a> &#124;
+<a href="#namespaces">Namespaces</a> &#124;
+<a href="#define-members">Macros</a>  </div>
   <div class="headertitle"><div class="title">ThreadMsg.h File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 
+<p>A class to hold a platform-specific thread message that will be passed through a <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> port's OS message queue.  
+<a href="#details">More...</a></p>
+<div class="textblock"><code>#include &quot;<a class="el" href="_delegate_opt_8h_source.html">delegate/DelegateOpt.h</a>&quot;</code><br />
+<code>#include &lt;memory&gt;</code><br />
+</div>
 <p><a href="_thread_msg_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Classes</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_thread_msg.html">ThreadMsg</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A class to hold a platform-specific thread messsage that will be passed through the OS message queue. <br  />
-  <a href="class_thread_msg.html#details">More...</a><br /></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1os_1_1_thread_msg.html">dmq::os::ThreadMsg</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="namespaces" name="namespaces"></a>
+Namespaces</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">namespace &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html">dmq</a></td></tr>
+<tr class="memdesc:namespacedmq"><td class="mdescLeft">&#160;</td><td class="mdescRight">The delegate library namespace. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">namespace &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq_1_1os.html">dmq::os</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:af868f196f11ca3d42dfa1414bb3feb2e" id="r_af868f196f11ca3d42dfa1414bb3feb2e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af868f196f11ca3d42dfa1414bb3feb2e">MSG_DISPATCH_DELEGATE</a>&#160;&#160;&#160;1</td></tr>
+<tr class="separator:af868f196f11ca3d42dfa1414bb3feb2e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a46257c5622703f61e502d0d3b2ce0fbd" id="r_a46257c5622703f61e502d0d3b2ce0fbd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a46257c5622703f61e502d0d3b2ce0fbd">MSG_EXIT_THREAD</a>&#160;&#160;&#160;2</td></tr>
+<tr class="separator:a46257c5622703f61e502d0d3b2ce0fbd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>A class to hold a platform-specific thread message that will be passed through a <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> port's OS message queue. </p>
+<dl class="section see"><dt>See also</dt><dd><a href="https://github.com/DelegateMQ/DelegateMQ">https://github.com/DelegateMQ/DelegateMQ</a> David Lafreniere, 2026.</dd></dl>
+<p>Identical across every <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, stdlib, Win32) except Qt, which dispatches via Qt's own signal/slot queued-connection mechanism instead of a ThreadMsg wrapper &ndash; kept as a single shared file here instead of one copy per port directory. </p>
+</div><h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="af868f196f11ca3d42dfa1414bb3feb2e" name="af868f196f11ca3d42dfa1414bb3feb2e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af868f196f11ca3d42dfa1414bb3feb2e">&#9670;&#160;</a></span>MSG_DISPATCH_DELEGATE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define MSG_DISPATCH_DELEGATE&#160;&#160;&#160;1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a46257c5622703f61e502d0d3b2ce0fbd" name="a46257c5622703f61e502d0d3b2ce0fbd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a46257c5622703f61e502d0d3b2ce0fbd">&#9670;&#160;</a></span>MSG_EXIT_THREAD</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define MSG_EXIT_THREAD&#160;&#160;&#160;2</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 </div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_3790bc3cc921abc2d9cac9e1ed9165e7.html">delegate-mq</a></li><li class="navelem"><a class="el" href="dir_18b86b2e3f1aa2f223a127151285ad7d.html">predef</a></li><li class="navelem"><a class="el" href="dir_2f4f6baa1ce37e5ef38eb60e1cf03e53.html">os</a></li><li class="navelem"><a class="el" href="dir_f59f9d896cce544ddbd2239228c94072.html">stdlib</a></li><li class="navelem"><a class="el" href="_thread_msg_8h.html">ThreadMsg.h</a></li>
+    <li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_3790bc3cc921abc2d9cac9e1ed9165e7.html">delegate-mq</a></li><li class="navelem"><a class="el" href="dir_8ef93921927604d57abc90fe2fd5bf9b.html">port</a></li><li class="navelem"><a class="el" href="dir_05432cd26f93961bfd34634f059d4f64.html">os</a></li><li class="navelem"><a class="el" href="dir_9c979e53a32656c4919e3bd2077e516c.html">common</a></li><li class="navelem"><a class="el" href="_thread_msg_8h.html">ThreadMsg.h</a></li>
     <li class="footer">Generated by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.12.0 </li>
   </ul>
 </div>

@@ -147,7 +147,7 @@ Phase 2: The Worker Thread (Asynchronous)</h1>
 <div class="line">    Motor motor;</div>
 <div class="line"> </div>
 <div class="line">    <span class="comment">// 1. Create and start a hardware worker thread</span></div>
-<div class="line">    <a class="code hl_class" href="classdmq_1_1os_1_1_thread.html">dmq::os::Thread</a> motorThread(<span class="stringliteral">&quot;MotorThread&quot;</span>);</div>
+<div class="line">    <a class="code hl_class" href="classdmq_1_1os_1_1_cmsis_rtos2_thread.html">dmq::os::Thread</a> motorThread(<span class="stringliteral">&quot;MotorThread&quot;</span>);</div>
 <div class="line">    motorThread.CreateThread();</div>
 <div class="line"> </div>
 <div class="line">    <span class="comment">// 2. Add the &#39;motorThread&#39; argument to the delegate</span></div>
@@ -159,7 +159,7 @@ Phase 2: The Worker Thread (Asynchronous)</h1>
 <div class="line"> </div>
 <div class="line">    <span class="keywordflow">return</span> 0;</div>
 <div class="line">}</div>
-<div class="ttc" id="aclassdmq_1_1os_1_1_thread_html"><div class="ttname"><a href="classdmq_1_1os_1_1_thread.html">dmq::os::Thread</a></div><div class="ttdoc">Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).</div><div class="ttdef"><b>Definition</b> zephyr/Thread.h:46</div></div>
+<div class="ttc" id="aclassdmq_1_1os_1_1_cmsis_rtos2_thread_html"><div class="ttname"><a href="classdmq_1_1os_1_1_cmsis_rtos2_thread.html">dmq::os::CmsisRtos2Thread</a></div><div class="ttdef"><b>Definition</b> CmsisRtos2Thread.h:55</div></div>
 </div><!-- fragment --><p> <b>Key Concept</b>: DelegateMQ handles the internal message queue, argument copying (marshalling), and thread signaling for you.</p>
 <hr  />
 <h1><a class="anchor" id="autotoc_md244"></a>
@@ -185,7 +185,7 @@ Phase 3: The Observer (Signals)</h1>
 <div class="line"><span class="keywordtype">int</span> main() {</div>
 <div class="line">    Motor motor;</div>
 <div class="line">    Logger logger;</div>
-<div class="line">    <a class="code hl_class" href="classdmq_1_1os_1_1_thread.html">dmq::os::Thread</a> logThread(<span class="stringliteral">&quot;LogThread&quot;</span>);</div>
+<div class="line">    <a class="code hl_class" href="classdmq_1_1os_1_1_cmsis_rtos2_thread.html">dmq::os::Thread</a> logThread(<span class="stringliteral">&quot;LogThread&quot;</span>);</div>
 <div class="line">    logThread.CreateThread();</div>
 <div class="line"> </div>
 <div class="line">    <span class="comment">// Connect the logger to the motor. </span></div>
@@ -218,7 +218,7 @@ Phase 4: Periodic Tasks (Timers)</h1>
 <div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="_timer_8h.html">extras/util/Timer.h</a>&quot;</span></div>
 <div class="line"> </div>
 <div class="line"><span class="keywordtype">int</span> main() {</div>
-<div class="line">    <a class="code hl_class" href="classdmq_1_1os_1_1_thread.html">dmq::os::Thread</a> logThread(<span class="stringliteral">&quot;LogThread&quot;</span>);</div>
+<div class="line">    <a class="code hl_class" href="classdmq_1_1os_1_1_cmsis_rtos2_thread.html">dmq::os::Thread</a> logThread(<span class="stringliteral">&quot;LogThread&quot;</span>);</div>
 <div class="line">    logThread.CreateThread();</div>
 <div class="line"> </div>
 <div class="line">    <a class="code hl_class" href="classdmq_1_1util_1_1_timer.html">dmq::util::Timer</a> heartbeatTimer;</div>
@@ -284,8 +284,8 @@ Phase 6: The Middleware (DataBus)</h1>
 <div class="line"><span class="keyword">auto</span> conn = <a class="code hl_function" href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe&lt;int&gt;</a>(<span class="stringliteral">&quot;motor/set_speed&quot;</span>, [](<span class="keywordtype">int</span> speed) {</div>
 <div class="line">    std::cout &lt;&lt; <span class="stringliteral">&quot;Received speed request: &quot;</span> &lt;&lt; speed &lt;&lt; <span class="stringliteral">&quot;\n&quot;</span>;</div>
 <div class="line">}, &amp;motorThread);</div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:83</div></div>
-<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:114</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a67a8b4bc44e502f9c3dfdd1a7807cb0b"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a67a8b4bc44e502f9c3dfdd1a7807cb0b">dmq::databus::DataBus::Subscribe</a></div><div class="ttdeci">static dmq::ScopedConnection Subscribe(const dmq::xstring &amp;topic, F &amp;&amp;func, dmq::IThread *thread=nullptr, QoS qos={})</div><div class="ttdef"><b>Definition</b> DataBus.h:84</div></div>
+<div class="ttc" id="aclassdmq_1_1databus_1_1_data_bus_html_a88c29621b23a5427751538e2198f24fd"><div class="ttname"><a href="classdmq_1_1databus_1_1_data_bus.html#a88c29621b23a5427751538e2198f24fd">dmq::databus::DataBus::Publish</a></div><div class="ttdeci">static void Publish(const dmq::xstring &amp;topic, const T &amp;data)</div><div class="ttdef"><b>Definition</b> DataBus.h:115</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md252"></a>
 High-Level Features:</h2>
 <ul>

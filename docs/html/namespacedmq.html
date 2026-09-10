@@ -210,7 +210,7 @@ Classes</h2></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="classdmq_1_1_dispatcher.html" title="Dispatcher sends data to the transport for transmission to the endpoint.">Dispatcher</a> sends data to the transport for transmission to the endpoint.  <a href="classdmq_1_1_dispatcher.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1heap__arg__deleter.html">heap_arg_deleter</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Frees heap memory for reference heap argument.  <a href="classdmq_1_1heap__arg__deleter.html#details">More...</a><br /></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Forward declaration for heap argument deleter.  <a href="classdmq_1_1heap__arg__deleter.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1heap__arg__deleter_3_01_t_01_5_01_4.html">heap_arg_deleter&lt; T * &gt;</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Frees heap memory for pointer heap argument.  <a href="classdmq_1_1heap__arg__deleter_3_01_t_01_5_01_4.html#details">More...</a><br /></td></tr>
@@ -258,7 +258,7 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_multicast_delegate.html">MulticastDelegate</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html">MulticastDelegate&lt; RetType(Args...)&gt;</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Not thread-safe multicast delegate container class. The class has a list of <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;&gt;</code> instances. When invoked, each <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a></code> instance within the invocation list is called. A snapshot of the delegates is taken during the broadcast. If a delegate is removed during a broadcast, it will still be invoked in the current broadcast pass if it was in the snapshot.  <a href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#details">More...</a><br /></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Not thread-safe multicast delegate container class. The class has a list of <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;&gt;</code> instances. When invoked, each <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a></code> instance within the invocation list is called. The broadcast iterates over the live list; if a delegate is removed during a broadcast, its current execution finishes safely but it is removed from the list. If a new delegate is added during a broadcast, it may be invoked in the current pass.  <a href="classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_multicast_delegate_safe.html">MulticastDelegateSafe</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -294,6 +294,8 @@ Classes</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1stl__allocator_3_01void_01_4.html">stl_allocator&lt; void &gt;</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdmq_1_1_this_thread.html">ThisThread</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html">UnicastDelegate&lt; RetType(Args...)&gt;</a></td></tr>
@@ -323,6 +325,8 @@ Typedefs</h2></td></tr>
 <tr class="separator:a8698347146f2270db3906748c029c529"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a32a836d0420b059412e11bb2f8dbfe76" id="r_a32a836d0420b059412e11bb2f8dbfe76"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> = <a class="el" href="structdmq_1_1_null_mutex.html">NullMutex</a></td></tr>
 <tr class="separator:a32a836d0420b059412e11bb2f8dbfe76"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae2a202c77c9067dc2577fc191bddc50e" id="r_ae2a202c77c9067dc2577fc191bddc50e"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae2a202c77c9067dc2577fc191bddc50e">CriticalSection</a> = <a class="el" href="classdmq_1_1os_1_1_bare_metal_critical_section.html">dmq::os::BareMetalCriticalSection</a></td></tr>
+<tr class="separator:ae2a202c77c9067dc2577fc191bddc50e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3630077fab3ab296436584a9b6dab522" id="r_a3630077fab3ab296436584a9b6dab522"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:a3630077fab3ab296436584a9b6dab522"><td class="memTemplItemLeft" align="right" valign="top">using&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a3630077fab3ab296436584a9b6dab522">LockGuard</a> = <a class="el" href="classdmq_1_1_portable_lock_guard.html">PortableLockGuard</a>&lt;T&gt;</td></tr>
 <tr class="separator:a3630077fab3ab296436584a9b6dab522"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -367,6 +371,12 @@ Enumerations</h2></td></tr>
 , <a class="el" href="#a6364022151f2bf1802343322638e8f25ab89de3b4b81c4facfac906edf29aec8c">HIGH</a>
  }</td></tr>
 <tr class="separator:a6364022151f2bf1802343322638e8f25"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f437e9e12d6eab6e8ef04eb229b3118" id="r_a4f437e9e12d6eab6e8ef04eb229b3118"><td class="memItemLeft" align="right" valign="top">enum class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a4f437e9e12d6eab6e8ef04eb229b3118">FullPolicy</a> { <a class="el" href="#a4f437e9e12d6eab6e8ef04eb229b3118abf8f3be424eb6a72b21549fbb24ffb57">DROP</a>
+, <a class="el" href="#a4f437e9e12d6eab6e8ef04eb229b3118a893b3aaf1661e3717b18e8335ff93a72">FAULT</a>
+, <a class="el" href="#a4f437e9e12d6eab6e8ef04eb229b3118a070a0fb40f6c308ab544b227660aadff">TIMEOUT</a>
+ }</td></tr>
+<tr class="memdesc:a4f437e9e12d6eab6e8ef04eb229b3118"><td class="mdescLeft">&#160;</td><td class="mdescRight">Policy applied when a <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> port's message queue is full.  <a href="#a4f437e9e12d6eab6e8ef04eb229b3118">More...</a><br /></td></tr>
+<tr class="separator:a4f437e9e12d6eab6e8ef04eb229b3118"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a62ea8a73887af62d409322557b4e757d" id="r_a62ea8a73887af62d409322557b4e757d"><td class="memItemLeft" align="right" valign="top">enum class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a62ea8a73887af62d409322557b4e757d">DelegateError</a> { <br />
 &#160;&#160;<a class="el" href="#a62ea8a73887af62d409322557b4e757dad0749aaba8b833466dfcbb0428e4f89c">SUCCESS</a> = 0
 , <a class="el" href="#a62ea8a73887af62d409322557b4e757da78d23b7ddceca52b8912f668760e1766">ERR_STREAM_NOT_GOOD</a> = 1
@@ -541,7 +551,7 @@ Variables</h2></td></tr>
 <tr class="memdesc:ab63766cc3a5899f6fc9a675eed88dab4"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="classdmq_1_1_signal.html">Signal</a> Small-Buffer Optimization (SBO) count. Signals with &lt;= this many subscribers are invoked heap-free. Override via DMQ_SIGNAL_SBO_COUNT in delegatemqconfig.h.  <br /></td></tr>
 <tr class="separator:ab63766cc3a5899f6fc9a675eed88dab4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a93973750d3ed0b71b524081d9f2e3f35" id="r_a93973750d3ed0b71b524081d9f2e3f35"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a93973750d3ed0b71b524081d9f2e3f35">DEFAULT_QUEUE_SIZE</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#ac0bd0b262dcf873ad32ec34a1addaddc">DMQ_DEFAULT_QUEUE_SIZE</a></td></tr>
-<tr class="memdesc:a93973750d3ed0b71b524081d9f2e3f35"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default internal queue size for all <a class="el" href="classdmq_1_1os_1_1_thread.html" title="Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).">dmq::os::Thread</a> ports. Override via DMQ_DEFAULT_QUEUE_SIZE in delegatemqconfig.h.  <br /></td></tr>
+<tr class="memdesc:a93973750d3ed0b71b524081d9f2e3f35"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default internal queue size for all <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> ports. Override via DMQ_DEFAULT_QUEUE_SIZE in delegatemqconfig.h.  <br /></td></tr>
 <tr class="separator:a93973750d3ed0b71b524081d9f2e3f35"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a946391767dd0907a9c745fcf7594419a" id="r_a946391767dd0907a9c745fcf7594419a"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a946391767dd0907a9c745fcf7594419a">MAX_WATCHDOG_THREADS</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a48ff526be8cc82f0ea7f846f43c2187b">DMQ_MAX_WATCHDOG_THREADS</a></td></tr>
 <tr class="memdesc:a946391767dd0907a9c745fcf7594419a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of threads that can be monitored by the watchdog. Override via DMQ_MAX_WATCHDOG_THREADS in delegatemqconfig.h.  <br /></td></tr>
@@ -549,6 +559,21 @@ Variables</h2></td></tr>
 <tr class="memitem:a5996b329a6a4ad786362e2b64d3a180c" id="r_a5996b329a6a4ad786362e2b64d3a180c"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5996b329a6a4ad786362e2b64d3a180c">MAX_PARTICIPANTS</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a82fd3e9a7368f3ed51bcd74f1e30c8f6">DMQ_MAX_PARTICIPANTS</a></td></tr>
 <tr class="memdesc:a5996b329a6a4ad786362e2b64d3a180c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of remote Participants the DataBus can hold without heap allocation. Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.  <br /></td></tr>
 <tr class="separator:a5996b329a6a4ad786362e2b64d3a180c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a482c52b53da5cdf805baf7cf44685cb6" id="r_a482c52b53da5cdf805baf7cf44685cb6"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a482c52b53da5cdf805baf7cf44685cb6">NETWORK_NODE_MAX_PEERS</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a9c8be825bf0fbb7190c438fa48c2043d">DMQ_NETWORK_NODE_MAX_PEERS</a></td></tr>
+<tr class="memdesc:a482c52b53da5cdf805baf7cf44685cb6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default max remote peers per NetworkNode instance (fixed allocation). Override via DMQ_NETWORK_NODE_MAX_PEERS in delegatemqconfig.h, or per-instantiation via NetworkNode's MaxPeers template parameter.  <br /></td></tr>
+<tr class="separator:a482c52b53da5cdf805baf7cf44685cb6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adfc5538214aaa479ecdf72b898d00567" id="r_adfc5538214aaa479ecdf72b898d00567"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#adfc5538214aaa479ecdf72b898d00567">NETWORK_NODE_MAX_TOPICS</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a46636c15de068dd90e9a8ea2fc887df1">DMQ_NETWORK_NODE_MAX_TOPICS</a></td></tr>
+<tr class="memdesc:adfc5538214aaa479ecdf72b898d00567"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default max in- or out-topics per NetworkNode instance (fixed allocation). Override via DMQ_NETWORK_NODE_MAX_TOPICS in delegatemqconfig.h, or per-instantiation via NetworkNode's MaxTopics template parameter.  <br /></td></tr>
+<tr class="separator:adfc5538214aaa479ecdf72b898d00567"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a399014395577b4c5519fea1ebda7add6" id="r_a399014395577b4c5519fea1ebda7add6"><td class="memItemLeft" align="right" valign="top">constexpr int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a399014395577b4c5519fea1ebda7add6">NETWORK_NODE_MAX_WORK</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#abc97fdf7768b3309d06ebcf0efcb64cf">DMQ_NETWORK_NODE_MAX_WORK</a></td></tr>
+<tr class="memdesc:a399014395577b4c5519fea1ebda7add6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max messages drained per NetworkNode::ReceiverThread() tick. Override via DMQ_NETWORK_NODE_MAX_WORK in delegatemqconfig.h.  <br /></td></tr>
+<tr class="separator:a399014395577b4c5519fea1ebda7add6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a35cd9f84173b6c28d1c01e462967bd29" id="r_a35cd9f84173b6c28d1c01e462967bd29"><td class="memItemLeft" align="right" valign="top">constexpr int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a35cd9f84173b6c28d1c01e462967bd29">RETRY_MONITOR_MAX_RETRIES</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a3f922d01685ce7c3820c120d85ae5c04">DMQ_RETRY_MONITOR_MAX_RETRIES</a></td></tr>
+<tr class="memdesc:a35cd9f84173b6c28d1c01e462967bd29"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default number of retries before RetryMonitor gives up on an unacknowledged message. Override via DMQ_RETRY_MONITOR_MAX_RETRIES in delegatemqconfig.h, or per-call via RetryMonitor's maxRetries constructor/Init() parameter.  <br /></td></tr>
+<tr class="separator:a35cd9f84173b6c28d1c01e462967bd29"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab1bce6c4f8364600776bf83ecd713178" id="r_ab1bce6c4f8364600776bf83ecd713178"><td class="memItemLeft" align="right" valign="top">constexpr <a class="el" href="#a9b8f2ad24a4b0df29243c60121e10b7f">Duration</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ab1bce6c4f8364600776bf83ecd713178">TRANSPORT_MONITOR_TIMEOUT</a> = std::chrono::seconds(<a class="el" href="_delegate_m_q_config___default_8h.html#a374fb87ad8eb9337f0fe7197e115502b">DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC</a>)</td></tr>
+<tr class="memdesc:ab1bce6c4f8364600776bf83ecd713178"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default per-message ACK timeout for TransportMonitor. Override via DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC in delegatemqconfig.h, or per-instance via TransportMonitor's timeout constructor parameter.  <br /></td></tr>
+<tr class="separator:ab1bce6c4f8364600776bf83ecd713178"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5328cc2a5f84fe0f49a89a571600e8a8" id="r_a5328cc2a5f84fe0f49a89a571600e8a8"><td class="memItemLeft" align="right" valign="top">constexpr size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5328cc2a5f84fe0f49a89a571600e8a8">MAX_TRANSPORT_MONITOR_PENDING</a> = <a class="el" href="_delegate_m_q_config___default_8h.html#a28a4c0eeb05b626391e1e7735a179c0b">DMQ_TRANSPORT_MONITOR_MAX_PENDING</a></td></tr>
 <tr class="memdesc:a5328cc2a5f84fe0f49a89a571600e8a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of pending messages the TransportMonitor can track. Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.  <br /></td></tr>
 <tr class="separator:a5328cc2a5f84fe0f49a89a571600e8a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -587,6 +612,20 @@ template&lt;size_t N, class... Args&gt; </div>
       <table class="memname">
         <tr>
           <td class="memname">using <a class="el" href="#a597d3665a6aef02a9edba0d42f40b235">dmq::Clock</a> = <a class="el" href="structdmq_1_1os_1_1_bare_metal_clock.html">dmq::os::BareMetalClock</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ae2a202c77c9067dc2577fc191bddc50e" name="ae2a202c77c9067dc2577fc191bddc50e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae2a202c77c9067dc2577fc191bddc50e">&#9670;&#160;</a></span>CriticalSection</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">using <a class="el" href="#ae2a202c77c9067dc2577fc191bddc50e">dmq::CriticalSection</a> = <a class="el" href="classdmq_1_1os_1_1_bare_metal_critical_section.html">dmq::os::BareMetalCriticalSection</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -877,6 +916,41 @@ template&lt;typename Key , typename Compare  = std::less&lt;Key&gt;, typename Al
 <tr><td class="fieldname"><a id="a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594" name="a62ea8a73887af62d409322557b4e757da9de4b9d71ed3fcd9c33bdd9306574594"></a>ERR_NO_DISPATCHER&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb" name="a62ea8a73887af62d409322557b4e757da9474f3b03888eaf0576eabf7a0f5e1fb"></a>ERR_DISPATCH&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7" name="a62ea8a73887af62d409322557b4e757dae89890c5eba071ea711d4aec0ca802e7"></a>ERR_TYPE_MISMATCH&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+</div>
+</div>
+<a id="a4f437e9e12d6eab6e8ef04eb229b3118" name="a4f437e9e12d6eab6e8ef04eb229b3118"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4f437e9e12d6eab6e8ef04eb229b3118">&#9670;&#160;</a></span>FullPolicy</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum class <a class="el" href="#a4f437e9e12d6eab6e8ef04eb229b3118">dmq::FullPolicy</a></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">strong</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Policy applied when a <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> port's message queue is full. </p>
+<p>Only meaningful when the port's maxQueueSize &gt; 0.</p><ul>
+<li>DROP: DispatchDelegate() silently discards the message and returns immediately.</li>
+<li>FAULT: DispatchDelegate() triggers a system fault if the queue is full.</li>
+<li>TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.</li>
+</ul>
+<p>Use DROP for high-rate best-effort topics (sensor telemetry, display updates) where a stale sample is preferable to stalling the publisher. Use TIMEOUT for critical topics (commands, state transitions) where every message should be delivered if possible. FAULT is the default. Every <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> port aliases this single definition as <a class="el" href="#a4f437e9e12d6eab6e8ef04eb229b3118" title="Policy applied when a dmq::os::Thread port&#39;s message queue is full.">dmq::os::FullPolicy</a> so existing port-qualified references keep working. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a4f437e9e12d6eab6e8ef04eb229b3118abf8f3be424eb6a72b21549fbb24ffb57" name="a4f437e9e12d6eab6e8ef04eb229b3118abf8f3be424eb6a72b21549fbb24ffb57"></a>DROP&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a4f437e9e12d6eab6e8ef04eb229b3118a893b3aaf1661e3717b18e8335ff93a72" name="a4f437e9e12d6eab6e8ef04eb229b3118a893b3aaf1661e3717b18e8335ff93a72"></a>FAULT&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a4f437e9e12d6eab6e8ef04eb229b3118a070a0fb40f6c308ab544b227660aadff" name="a4f437e9e12d6eab6e8ef04eb229b3118a070a0fb40f6c308ab544b227660aadff"></a>TIMEOUT&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
 </div>
@@ -2498,7 +2572,7 @@ template&lt;typename T , typename... Args&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p>Default internal queue size for all <a class="el" href="classdmq_1_1os_1_1_thread.html" title="Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).">dmq::os::Thread</a> ports. Override via DMQ_DEFAULT_QUEUE_SIZE in delegatemqconfig.h. </p>
+<p>Default internal queue size for all <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> ports. Override via DMQ_DEFAULT_QUEUE_SIZE in delegatemqconfig.h. </p>
 
 </div>
 </div>
@@ -2612,6 +2686,102 @@ template&lt;typename T , typename... Args&gt; </div>
 
 </div>
 </div>
+<a id="a482c52b53da5cdf805baf7cf44685cb6" name="a482c52b53da5cdf805baf7cf44685cb6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a482c52b53da5cdf805baf7cf44685cb6">&#9670;&#160;</a></span>NETWORK_NODE_MAX_PEERS</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t dmq::NETWORK_NODE_MAX_PEERS = <a class="el" href="_delegate_m_q_config___default_8h.html#a9c8be825bf0fbb7190c438fa48c2043d">DMQ_NETWORK_NODE_MAX_PEERS</a></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">constexpr</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Default max remote peers per NetworkNode instance (fixed allocation). Override via DMQ_NETWORK_NODE_MAX_PEERS in delegatemqconfig.h, or per-instantiation via NetworkNode's MaxPeers template parameter. </p>
+
+</div>
+</div>
+<a id="adfc5538214aaa479ecdf72b898d00567" name="adfc5538214aaa479ecdf72b898d00567"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adfc5538214aaa479ecdf72b898d00567">&#9670;&#160;</a></span>NETWORK_NODE_MAX_TOPICS</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t dmq::NETWORK_NODE_MAX_TOPICS = <a class="el" href="_delegate_m_q_config___default_8h.html#a46636c15de068dd90e9a8ea2fc887df1">DMQ_NETWORK_NODE_MAX_TOPICS</a></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">constexpr</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Default max in- or out-topics per NetworkNode instance (fixed allocation). Override via DMQ_NETWORK_NODE_MAX_TOPICS in delegatemqconfig.h, or per-instantiation via NetworkNode's MaxTopics template parameter. </p>
+
+</div>
+</div>
+<a id="a399014395577b4c5519fea1ebda7add6" name="a399014395577b4c5519fea1ebda7add6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a399014395577b4c5519fea1ebda7add6">&#9670;&#160;</a></span>NETWORK_NODE_MAX_WORK</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dmq::NETWORK_NODE_MAX_WORK = <a class="el" href="_delegate_m_q_config___default_8h.html#abc97fdf7768b3309d06ebcf0efcb64cf">DMQ_NETWORK_NODE_MAX_WORK</a></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">constexpr</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Max messages drained per NetworkNode::ReceiverThread() tick. Override via DMQ_NETWORK_NODE_MAX_WORK in delegatemqconfig.h. </p>
+
+</div>
+</div>
+<a id="a35cd9f84173b6c28d1c01e462967bd29" name="a35cd9f84173b6c28d1c01e462967bd29"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a35cd9f84173b6c28d1c01e462967bd29">&#9670;&#160;</a></span>RETRY_MONITOR_MAX_RETRIES</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dmq::RETRY_MONITOR_MAX_RETRIES = <a class="el" href="_delegate_m_q_config___default_8h.html#a3f922d01685ce7c3820c120d85ae5c04">DMQ_RETRY_MONITOR_MAX_RETRIES</a></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">constexpr</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Default number of retries before RetryMonitor gives up on an unacknowledged message. Override via DMQ_RETRY_MONITOR_MAX_RETRIES in delegatemqconfig.h, or per-call via RetryMonitor's maxRetries constructor/Init() parameter. </p>
+
+</div>
+</div>
 <a id="ab63766cc3a5899f6fc9a675eed88dab4" name="ab63766cc3a5899f6fc9a675eed88dab4"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab63766cc3a5899f6fc9a675eed88dab4">&#9670;&#160;</a></span>SIGNAL_SBO_COUNT</h2>
 
@@ -2633,6 +2803,30 @@ template&lt;typename T , typename... Args&gt; </div>
 </div><div class="memdoc">
 
 <p><a class="el" href="classdmq_1_1_signal.html">Signal</a> Small-Buffer Optimization (SBO) count. Signals with &lt;= this many subscribers are invoked heap-free. Override via DMQ_SIGNAL_SBO_COUNT in delegatemqconfig.h. </p>
+
+</div>
+</div>
+<a id="ab1bce6c4f8364600776bf83ecd713178" name="ab1bce6c4f8364600776bf83ecd713178"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab1bce6c4f8364600776bf83ecd713178">&#9670;&#160;</a></span>TRANSPORT_MONITOR_TIMEOUT</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="#a9b8f2ad24a4b0df29243c60121e10b7f">Duration</a> dmq::TRANSPORT_MONITOR_TIMEOUT = std::chrono::seconds(<a class="el" href="_delegate_m_q_config___default_8h.html#a374fb87ad8eb9337f0fe7197e115502b">DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC</a>)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">constexpr</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Default per-message ACK timeout for TransportMonitor. Override via DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC in delegatemqconfig.h, or per-instance via TransportMonitor's timeout constructor parameter. </p>
 
 </div>
 </div>

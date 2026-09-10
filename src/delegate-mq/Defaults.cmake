@@ -58,11 +58,18 @@ endif()
 # sockaddr_in et al.) if a sample also pulls those in directly. RTOS/bare-
 # metal targets that genuinely want DataBus (e.g. databus-freertos/server)
 # already opt in explicitly by setting DMQ_DATABUS "ON" themselves.
+#
+# This exclusion list must stay in sync with DelegateOpt.h's
+# DMQ_THREAD_IS_EMBEDDED_RTOS macro (FreeRTOS/ThreadX/Zephyr/CMSIS-RTOS2) --
+# adding a new DMQ_THREAD_* port there means adding it here too. DMQ_THREAD_NONE
+# (bare metal) is excluded as well: there is no host to speak of.
 if(NOT DEFINED DMQ_DATABUS)
-    if(DMQ_THREAD STREQUAL "DMQ_THREAD_STDLIB" OR DMQ_THREAD STREQUAL "DMQ_THREAD_WIN32" OR DMQ_THREAD STREQUAL "DMQ_THREAD_QT")
-        set(DMQ_DATABUS "ON")
-    else()
+    if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS" OR DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX" OR
+       DMQ_THREAD STREQUAL "DMQ_THREAD_ZEPHYR" OR DMQ_THREAD STREQUAL "DMQ_THREAD_CMSIS_RTOS2" OR
+       DMQ_THREAD STREQUAL "DMQ_THREAD_NONE")
         set(DMQ_DATABUS "OFF")
+    else()
+        set(DMQ_DATABUS "ON")
     endif()
 endif()
 

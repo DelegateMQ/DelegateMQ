@@ -167,8 +167,8 @@ Enumerations</h2></td></tr>
 <dl class="tparams"><dt>Template Parameters</dt><dd>
   <table class="tparams">
     <tr><td class="paramname">Transport</td><td>Any ITransport-derived class with a nested Type enum providing Type::PUB (sender) and Type::SUB (receiver). </td></tr>
-    <tr><td class="paramname">MaxPeers</td><td>Maximum remote peers (fixed allocation, default 4). </td></tr>
-    <tr><td class="paramname">MaxTopics</td><td>Maximum in- or out-topics each (fixed, default 16). </td></tr>
+    <tr><td class="paramname">MaxPeers</td><td>Maximum remote peers (fixed allocation). Defaults to <a class="el" href="namespacedmq.html#a482c52b53da5cdf805baf7cf44685cb6" title="Default max remote peers per NetworkNode instance (fixed allocation). Override via DMQ_NETWORK_NODE_M...">dmq::NETWORK_NODE_MAX_PEERS</a> (DMQ_NETWORK_NODE_MAX_PEERS in delegatemqconfig.h). </td></tr>
+    <tr><td class="paramname">MaxTopics</td><td>Maximum in- or out-topics each (fixed allocation). Defaults to <a class="el" href="namespacedmq.html#adfc5538214aaa479ecdf72b898d00567" title="Default max in- or out-topics per NetworkNode instance (fixed allocation). Override via DMQ_NETWORK_N...">dmq::NETWORK_NODE_MAX_TOPICS</a> (DMQ_NETWORK_NODE_MAX_TOPICS in delegatemqconfig.h). </td></tr>
   </table>
   </dd>
 </dl>

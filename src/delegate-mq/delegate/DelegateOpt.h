@@ -39,6 +39,45 @@
     #endif
 #endif
 
+// --- EMBEDDED RTOS THREAD CLASSIFICATION ---
+// Named composite macros for two related but distinct "is this DMQ_THREAD_*
+// an embedded RTOS port" questions, so downstream code (this file's own
+// DataBus default below, extras/util/NetworkConnect.h's host-header default)
+// references a name instead of each re-deriving its own copy of the
+// DMQ_THREAD_* list. Adding a new DMQ_THREAD_* port means updating these two
+// macros -- and Defaults.cmake's DMQ_DATABUS default, which mirrors
+// DMQ_THREAD_IS_EMBEDDED_RTOS's membership and says so in its own comment --
+// not every call site that happens to care about the answer.
+
+// True for every embedded RTOS thread port. Used to decide whether desktop-
+// oriented defaults (DataBus auto-enable, below) should apply.
+#if defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || \
+    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+    #define DMQ_THREAD_IS_EMBEDDED_RTOS
+#endif
+
+// True only for the subset of embedded RTOS thread ports whose simulator/
+// native build bundles its own network stack headers that collide with real
+// host BSD/Winsock headers (e.g. Zephyr's <zephyr/net/socket.h> redefining
+// sockaddr_in et al.). FreeRTOS is deliberately NOT included here: its
+// Win32/POSIX simulator ports (databus-freertos, freertos-linux) have no
+// native network stack of their own to collide with, and use real host
+// sockets on purpose.
+#if defined(DMQ_THREAD_THREADX) || defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+    #define DMQ_THREAD_HAS_NATIVE_NETWORK_STACK
+#endif
+
+// True when a real thread model is configured (desktop or embedded RTOS),
+// as opposed to DMQ_THREAD_NONE or no thread model at all (bare metal,
+// single-threaded). Named once here instead of hand-copying this same
+// 7-macro list at every call site that needs to know whether Mutex/
+// ConditionVariable/std::thread-equivalent support exists.
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || \
+    defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || \
+    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+    #define DMQ_HAS_THREADING
+#endif
+
 // If no serialization model is defined, attempt to auto-select a default
 #if !defined(DMQ_SERIALIZE_SERIALIZE) && !defined(DMQ_SERIALIZE_RAPIDJSON) && \
     !defined(DMQ_SERIALIZE_MSGPACK) && !defined(DMQ_SERIALIZE_CEREAL) && \
@@ -63,12 +102,10 @@
 // outright with a target's own native network stack headers (e.g. Zephyr's
 // <zephyr/net/socket.h> redefining sockaddr_in et al.) if the application
 // also pulls those in directly (a UDP transport sample, for instance).
-// Excluding every embedded DMQ_THREAD_* here mirrors Defaults.cmake's
-// equivalent CMake-level default, for projects that set these macros by
-// hand instead of going through DelegateMQ.cmake.
-#if !defined(DMQ_DATABUS) && !defined(DMQ_DATABUS_OFF) && \
-    !defined(DMQ_THREAD_FREERTOS) && !defined(DMQ_THREAD_THREADX) && \
-    !defined(DMQ_THREAD_ZEPHYR) && !defined(DMQ_THREAD_CMSIS_RTOS2)
+// DMQ_THREAD_IS_EMBEDDED_RTOS mirrors Defaults.cmake's equivalent CMake-
+// level default, for projects that set these macros by hand instead of
+// going through DelegateMQ.cmake.
+#if !defined(DMQ_DATABUS) && !defined(DMQ_DATABUS_OFF) && !defined(DMQ_THREAD_IS_EMBEDDED_RTOS)
     #if defined(_WIN32) || defined(__linux__) || defined(__APPLE__) || defined(__unix__)
         #define DMQ_DATABUS
     #endif
@@ -81,10 +118,39 @@
     #endif
 #endif
 
+// Host BSD/Winsock socket headers for extras/util/NetworkConnect.h's desktop
+// convenience helpers (RAII WSAStartup/WSACleanup, GetLocalAddress()).
+//
+// _WIN32/__linux__/__APPLE__/__unix__ reflect the compiler/host doing the
+// building, not the actual target. A genuine embedded cross-compile (e.g.
+// arm-none-eabi-gcc for stm32-freertos) never defines these host-platform
+// macros in the first place, so this guard is only ever live for a target
+// that is ALSO built with a host compiler -- i.e. a simulator/native sample.
+// DMQ_THREAD_HAS_NATIVE_NETWORK_STACK (above) captures exactly which
+// embedded RTOS ports bundle a colliding native network stack there and
+// must be excluded; see its own comment for why FreeRTOS is deliberately
+// not one of them.
+#if !defined(DMQ_THREAD_HAS_NATIVE_NETWORK_STACK)
+    #define DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS
+    #ifdef _WIN32
+        #include <winsock2.h>
+        #include <ws2tcpip.h>
+        #pragma comment(lib, "ws2_32.lib")
+    #elif defined(__linux__) || defined(__APPLE__) || defined(__unix__)
+        #include <unistd.h>
+        #include <sys/types.h>
+        #include <sys/socket.h>
+        #include <netinet/in.h>
+        #include <arpa/inet.h>
+        #include <netdb.h>
+        #include <ifaddrs.h>
+        #include <cstring>
+        #include <net/if.h>
+    #endif
+#endif
+
 #include <chrono>
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || \
-    defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || \
-    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+#if defined(DMQ_HAS_THREADING)
     #include <mutex>
 #endif
 
@@ -156,9 +222,7 @@ namespace dmq
     // All RTOS mutex types satisfy BasicLockable (lock/unlock), so std::scoped_lock
     // works with them directly. Falls back to a no-op for DMQ_THREAD_NONE and for
     // any unrecognized bare-metal build where no thread model is defined.
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || \
-    defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || \
-    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+#if defined(DMQ_HAS_THREADING)
     template <typename... M>
     using ScopedLock = std::scoped_lock<M...>;
 #else

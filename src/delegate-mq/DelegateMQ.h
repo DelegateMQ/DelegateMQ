@@ -117,9 +117,11 @@
 // Depends on Semaphore/Mutex and C++17 (std::any, std::optional).
 // Valid for StdLib/Win32 (Windows/Linux), Qt, ThreadX, FreeRTOS (if C++17
 // enabled), Zephyr, and CMSIS-RTOS2 -- the latter two via their native
-// k_sem/osSemaphore-backed dmq::Semaphore (see DMQ_HAS_SEMAPHORE in
-// DelegateOpt.h), not the generic condvar+mutex implementation.
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+// k_sem/osSemaphore-backed dmq::Semaphore, not the generic condvar+mutex
+// implementation. DMQ_HAS_SEMAPHORE (DelegateOpt.h) is defined for exactly
+// this set of ports, so it's used directly here instead of hand-copying the
+// port list again.
+#if defined(DMQ_HAS_SEMAPHORE)
     #include "delegate/DelegateAsyncWait.h"
 #endif
 

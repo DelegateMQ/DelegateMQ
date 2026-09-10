@@ -147,9 +147,25 @@ void ZephyrThread::ExitThread()
         // to be queued in that case: Run()'s dispatch loop already checks
         // m_selfExitPtr immediately after the current callback invoke
         // returns, and unwinds without touching 'this' again.
+        //
+        // Crucially, a self-exiting thread must NOT touch m_queue or
+        // m_stackMemory here: it is still physically executing on
+        // m_stackMemory (unwinding back through Invoke()/Run()), and it
+        // cannot k_thread_join() itself. Set the flag and return immediately;
+        // the actual cleanup (queue drain/destroy, k_thread_join, stack free)
+        // is deferred to a later ExitThread() call made from a different
+        // thread context -- typically ~ZephyrThread() -- once m_selfExited
+        // tells that call it's safe to skip the message/semaphore handshake
+        // below (the thread already returned/is returning on its own) and go
+        // straight to the join+free.
         if (k_current_get() == &m_thread) {
+            m_selfExited.store(true);
             if (m_selfExitPtr) *m_selfExitPtr = true;
-        } else {
+            return;
+        }
+
+        if (!m_selfExited.load())
+        {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
             if (msg)
@@ -163,20 +179,24 @@ void ZephyrThread::ExitThread()
 
             // Wait for thread to actually finish to avoid use-after-free of the stack.
             k_sem_take(&m_exitSem, K_FOREVER);
-
-            // k_sem_give() in Run() fires just before it returns -- taking the
-            // semaphore only proves Run() is about to return, not that the
-            // kernel has finished tearing the thread down (unlinking it from
-            // scheduler structures) after the entry function exits. Freeing
-            // m_thread's memory (this object may be stack-allocated) or
-            // m_stackMemory below before that teardown completes leaves the
-            // kernel with a dangling reference into memory about to be reused
-            // -- observed as a newly created thread at the same address never
-            // getting scheduled. k_thread_join() blocks until the kernel
-            // itself has marked the thread fully dead, which is the
-            // documented, race-free way to wait for this.
-            k_thread_join(&m_thread, K_FOREVER);
         }
+
+        // k_sem_give() in Run() fires just before it returns -- taking the
+        // semaphore only proves Run() is about to return, not that the
+        // kernel has finished tearing the thread down (unlinking it from
+        // scheduler structures) after the entry function exits. Freeing
+        // m_thread's memory (this object may be stack-allocated) or
+        // m_stackMemory below before that teardown completes leaves the
+        // kernel with a dangling reference into memory about to be reused
+        // -- observed as a newly created thread at the same address never
+        // getting scheduled. k_thread_join() blocks until the kernel
+        // itself has marked the thread fully dead, which is the
+        // documented, race-free way to wait for this. It is also the right
+        // call in the deferred self-exit case: the thread has already
+        // returned or is in the process of returning on its own, so this
+        // either returns immediately or waits only as long as that natural
+        // teardown takes -- there is no risk of deadlock.
+        k_thread_join(&m_thread, K_FOREVER);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -185,6 +205,9 @@ void ZephyrThread::ExitThread()
         // ~Thread() calls ExitThread() unconditionally, so if ExitThread() was already
         // called explicitly, the second call must be a no-op (m_stackMemory is null).
         m_stackMemory.reset();
+
+        // Allow this object to be reused for a fresh CreateThread()/Run() cycle.
+        m_selfExited.store(false);
 
         // Note: k_thread_abort is not needed because the thread will
         // return from Run() and terminate naturally.

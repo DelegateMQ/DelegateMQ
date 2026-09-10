@@ -136,6 +136,8 @@ Inheritance diagram for dmq::transport::ITransport:</div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
+<tr class="memitem:ac328a646d33e03ecfe079d0f4aecaa1b" id="r_ac328a646d33e03ecfe079d0f4aecaa1b"><td class="memItemLeft" align="right" valign="top">virtual&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ac328a646d33e03ecfe079d0f4aecaa1b">~ITransport</a> ()=default</td></tr>
+<tr class="separator:ac328a646d33e03ecfe079d0f4aecaa1b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a08d4e55b53a82f4482353fc28aaa8477" id="r_a08d4e55b53a82f4482353fc28aaa8477"><td class="memItemLeft" align="right" valign="top">virtual int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a08d4e55b53a82f4482353fc28aaa8477">Send</a> (<a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a> &amp;os, const <a class="el" href="classdmq_1_1transport_1_1_dmq_header.html">DmqHeader</a> &amp;header)=0</td></tr>
 <tr class="separator:a08d4e55b53a82f4482353fc28aaa8477"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af4e2c4b6ebf329affc6297556491c038" id="r_af4e2c4b6ebf329affc6297556491c038"><td class="memItemLeft" align="right" valign="top">virtual int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af4e2c4b6ebf329affc6297556491c038">Receive</a> (<a class="el" href="namespacedmq.html#a96216b70259f3d7e0a6462222e96e3b0">dmq::xstringstream</a> &amp;is, <a class="el" href="classdmq_1_1transport_1_1_dmq_header.html">DmqHeader</a> &amp;header)=0</td></tr>
@@ -145,7 +147,33 @@ Public Member Functions</h2></td></tr>
 <div class="textblock"><p>DelegateMQ transport interface. <br  />
  </p>
 <p>@TODO Implement the <a class="el" href="classdmq_1_1transport_1_1_i_transport.html" title="DelegateMQ transport interface.">ITransport</a> interface if necessary. </p>
-</div><h2 class="groupheader">Member Function Documentation</h2>
+</div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
+<a id="ac328a646d33e03ecfe079d0f4aecaa1b" name="ac328a646d33e03ecfe079d0f4aecaa1b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac328a646d33e03ecfe079d0f4aecaa1b">&#9670;&#160;</a></span>~ITransport()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">virtual dmq::transport::ITransport::~ITransport </td>
+          <td>(</td>
+          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">virtual</span><span class="mlabel">default</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<h2 class="groupheader">Member Function Documentation</h2>
 <a id="af4e2c4b6ebf329affc6297556491c038" name="af4e2c4b6ebf329affc6297556491c038"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#af4e2c4b6ebf329affc6297556491c038">&#9670;&#160;</a></span>Receive()</h2>
 

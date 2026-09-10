@@ -185,25 +185,29 @@ $(function(){initNavTree('_allocator_8h_source.html',''); initResizable(true); }
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno"><a class="line" href="_allocator_8h.html#a3a3c3ee8a1998a8c7f7f647f31b975aa">  112</a></span><span class="preprocessor">#define DECLARE_ALLOCATOR \</span></div>
 <div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="preprocessor">    public: \</span></div>
 <div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="preprocessor">        void* operator new(size_t size) { \</span></div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="preprocessor">            return _allocator.Allocate(size); \</span></div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="preprocessor">        } \</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="preprocessor">        void operator delete(void* pObject) { \</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="preprocessor">            _allocator.Deallocate(pObject); \</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="preprocessor">        } \</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="preprocessor">    private: \</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="preprocessor">        static dmq::Allocator _allocator; </span></div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="preprocessor">            dmq::LockGuard&lt;dmq::Mutex&gt; lock(_allocatorMutex); \</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="preprocessor">            return _allocator.Allocate(size); \</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="preprocessor">        } \</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="preprocessor">        void operator delete(void* pObject) { \</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="preprocessor">            dmq::LockGuard&lt;dmq::Mutex&gt; lock(_allocatorMutex); \</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="preprocessor">            _allocator.Deallocate(pObject); \</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="preprocessor">        } \</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="preprocessor">    private: \</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="preprocessor">        static dmq::Allocator _allocator; \</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="preprocessor">        static dmq::Mutex _allocatorMutex;</span></div>
 </div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span> </div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment">// macro to provide source file interface</span></div>
-<div class="foldopen" id="foldopen00124" data-start="" data-end="">
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno"><a class="line" href="_allocator_8h.html#a637cd63856fc69f84961d2e5d8765e3d">  124</a></span><span class="preprocessor">#define IMPLEMENT_ALLOCATOR(class, objects, memory) \</span></div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="preprocessor">    dmq::Allocator class::_allocator(sizeof(class), objects, memory, #class);</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span> </div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="comment">// macro to provide source file interface</span></div>
+<div class="foldopen" id="foldopen00127" data-start="" data-end="">
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno"><a class="line" href="_allocator_8h.html#a637cd63856fc69f84961d2e5d8765e3d">  127</a></span><span class="preprocessor">#define IMPLEMENT_ALLOCATOR(class, objects, memory) \</span></div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="preprocessor">    dmq::Allocator class::_allocator(sizeof(class), objects, memory, #class); \</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="preprocessor">    dmq::Mutex class::_allocatorMutex;</span></div>
 </div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span> </div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span> </div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span> </div>
 <div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span> </div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span> </div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span> </div>
 <div class="ttc" id="a_delegate_opt_8h_html"><div class="ttname"><a href="_delegate_opt_8h.html">DelegateOpt.h</a></div><div class="ttdoc">Delegate library options header file.</div></div>
 <div class="ttc" id="aclassdmq_1_1_allocator_html"><div class="ttname"><a href="classdmq_1_1_allocator.html">dmq::Allocator</a></div><div class="ttdef"><b>Definition</b> Allocator.h:14</div></div>
 <div class="ttc" id="aclassdmq_1_1_allocator_html_a08e8fd824c36966c8a8b57a22da8c70d"><div class="ttname"><a href="classdmq_1_1_allocator.html#a08e8fd824c36966c8a8b57a22da8c70d">dmq::Allocator::Push</a></div><div class="ttdeci">void Push(void *pMemory)</div><div class="ttdef"><b>Definition</b> Allocator.cpp:151</div></div>

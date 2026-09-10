@@ -118,6 +118,9 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:aa187c0295ae2eac817159c6dd43ef66a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af26cc9f1e28013456363a90a0765c792" id="r_af26cc9f1e28013456363a90a0765c792"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af26cc9f1e28013456363a90a0765c792">ProcessIncoming</a> ()</td></tr>
 <tr class="separator:af26cc9f1e28013456363a90a0765c792"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3a96268a07d2aa054db97192d4c7634a" id="r_a3a96268a07d2aa054db97192d4c7634a"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
+<tr class="memitem:a3a96268a07d2aa054db97192d4c7634a"><td class="memTemplItemLeft" align="right" valign="top">bool&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a3a96268a07d2aa054db97192d4c7634a">DispatchIfInterested</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, const T &amp;data, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; *serializer)</td></tr>
+<tr class="separator:a3a96268a07d2aa054db97192d4c7634a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab28ecf97de7a5e7cc4a959aa79f91c47" id="r_ab28ecf97de7a5e7cc4a959aa79f91c47"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:ab28ecf97de7a5e7cc4a959aa79f91c47"><td class="memTemplItemLeft" align="right" valign="top">void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab28ecf97de7a5e7cc4a959aa79f91c47">Send</a> (const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;topic, const T &amp;data, <a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; &amp;serializer)</td></tr>
 <tr class="separator:ab28ecf97de7a5e7cc4a959aa79f91c47"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -224,6 +227,42 @@ template&lt;typename T &gt; </div>
 
 <p>Internal helper to execute a remote send on a background thread. </p>
 <p>Using a member function prevents potential shared_ptr circular references. </p>
+
+</div>
+</div>
+<a id="a3a96268a07d2aa054db97192d4c7634a" name="a3a96268a07d2aa054db97192d4c7634a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3a96268a07d2aa054db97192d4c7634a">&#9670;&#160;</a></span>DispatchIfInterested()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T &gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dmq::databus::Participant::DispatchIfInterested </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>topic</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const T &amp;</td>          <td class="paramname"><span class="paramname"><em>data</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; void(T)&gt; *</td>          <td class="paramname"><span class="paramname"><em>serializer</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
 
 </div>
 </div>

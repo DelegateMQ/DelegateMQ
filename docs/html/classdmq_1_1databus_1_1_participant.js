@@ -3,6 +3,7 @@ var classdmq_1_1databus_1_1_participant =
     [ "Participant", "classdmq_1_1databus_1_1_participant.html#afed07b7a3e6b3791ba25451ab8deed27", null ],
     [ "AddRemoteTopic", "classdmq_1_1databus_1_1_participant.html#ab15d3d4c9ce6dc5bbd6269d1b18a2610", null ],
     [ "AsyncSend", "classdmq_1_1databus_1_1_participant.html#a161c0ee5db7d39ca07355a4d835a2121", null ],
+    [ "DispatchIfInterested", "classdmq_1_1databus_1_1_participant.html#a3a96268a07d2aa054db97192d4c7634a", null ],
     [ "ProcessIncoming", "classdmq_1_1databus_1_1_participant.html#af26cc9f1e28013456363a90a0765c792", null ],
     [ "RegisterHandler", "classdmq_1_1databus_1_1_participant.html#ab56976f2cce735ecf159260213ac50a5", null ],
     [ "RegisterHandler", "classdmq_1_1databus_1_1_participant.html#a2029a33755db718eafadfeec4d45e10b", null ],

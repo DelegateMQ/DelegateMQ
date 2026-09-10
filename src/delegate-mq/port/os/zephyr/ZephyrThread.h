@@ -154,6 +154,14 @@ private:
     std::atomic<bool> m_exit = false;
     bool* m_selfExitPtr = nullptr;
 
+    // Set when the thread terminates itself (ExitThread() called from within
+    // its own dispatched callback). A self-exiting thread cannot join or free
+    // its own stack, so a later ExitThread() call (typically from ~ZephyrThread(),
+    // made from a different thread context) checks this to skip the
+    // message-send/semaphore handshake and go straight to the k_thread_join()
+    // + stack-free cleanup instead.
+    std::atomic<bool> m_selfExited = false;
+
     // Custom deleter for Zephyr kernel memory (wraps k_free)
     using ZephyrDeleter = void(*)(void*);
 

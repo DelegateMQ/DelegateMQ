@@ -7,45 +7,11 @@
 /// On bare-metal targets (no OS, no socket stack) the class compiles to
 /// empty stubs so that DataBus.h can include this header unconditionally.
 
+// DelegateOpt.h owns the actual platform-header decision and include (see
+// its DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS block) so that no library
+// file other than DelegateOpt.h ever #includes a platform header directly.
+// This header only reads the resulting macro.
 #include "delegate/DelegateOpt.h"
-
-// _WIN32/__linux__/__APPLE__/__unix__ reflect the compiler/host doing the
-// building, not the actual target. A genuine embedded cross-compile (e.g.
-// arm-none-eabi-gcc for stm32-freertos) never defines these host-platform
-// macros in the first place, so this guard is only ever live for a target
-// that is ALSO built with a host compiler -- i.e. a simulator/native sample.
-// Some of those samples (databus-zephyr's native_sim server) bundle their
-// own colliding native network stack (Zephyr's <zephyr/net/socket.h>
-// redefines sockaddr_in et al.) that must not be mixed with real host BSD/
-// Winsock headers in the same translation unit. Others -- FreeRTOS's
-// Win32/POSIX simulator ports in particular (databus-freertos, freertos-
-// linux) -- have no native network stack of their own to collide with, and
-// their samples use real host sockets (Win32UdpTransport/LinuxUdpTransport)
-// on purpose, so DMQ_THREAD_FREERTOS is deliberately NOT excluded here.
-// GetLocalAddress() below is a desktop-only convenience (host IP
-// enumeration for logging/display) with no embedded equivalent, so it's
-// simply unavailable -- and unused -- on the targets that ARE excluded,
-// same as DataBus was already excluded from them by default (see
-// Defaults.cmake/DelegateOpt.h's DMQ_DATABUS default).
-#if !defined(DMQ_THREAD_THREADX) && \
-    !defined(DMQ_THREAD_ZEPHYR) && !defined(DMQ_THREAD_CMSIS_RTOS2)
-    #define DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS
-    #ifdef _WIN32
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #pragma comment(lib, "ws2_32.lib")
-    #elif defined(__linux__) || defined(__APPLE__) || defined(__unix__)
-    #include <unistd.h>
-    #include <sys/types.h>
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <arpa/inet.h>
-    #include <netdb.h>
-    #include <ifaddrs.h>
-    #include <cstring>
-    #include <net/if.h>
-    #endif
-#endif
 
 #include <string>
 
@@ -76,8 +42,9 @@ public:
     /// @brief Helper to find the first non-loopback physical IPv4 address.
     /// @return The IP address as a string (e.g. "192.168.1.5") or "127.0.0.1" if none found.
     /// @note Unavailable on embedded RTOS targets (ThreadX/Zephyr/CMSIS-RTOS2)
-    /// -- a desktop-only convenience with no embedded equivalent, see the
-    /// header include guard above -- and always returns "127.0.0.1" there.
+    /// -- a desktop-only convenience with no embedded equivalent, see
+    /// DelegateOpt.h's DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS block --
+    /// and always returns "127.0.0.1" there.
     /// FreeRTOS is not in that list: its Win32/POSIX simulator samples
     /// (databus-freertos, freertos-linux) use real host sockets on purpose.
     static std::string GetLocalAddress()

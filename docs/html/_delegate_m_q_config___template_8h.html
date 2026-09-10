@@ -118,7 +118,7 @@ Macros</h2></td></tr>
 <tr class="memitem:adef9b996057e209c7c6a4b31a4337694" id="r_adef9b996057e209c7c6a4b31a4337694"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#adef9b996057e209c7c6a4b31a4337694">DMQ_SIGNAL_SBO_COUNT</a>&#160;&#160;&#160;8</td></tr>
 <tr class="separator:adef9b996057e209c7c6a4b31a4337694"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac0bd0b262dcf873ad32ec34a1addaddc" id="r_ac0bd0b262dcf873ad32ec34a1addaddc"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ac0bd0b262dcf873ad32ec34a1addaddc">DMQ_DEFAULT_QUEUE_SIZE</a>&#160;&#160;&#160;20</td></tr>
-<tr class="memdesc:ac0bd0b262dcf873ad32ec34a1addaddc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default internal message queue depth for all <a class="el" href="classdmq_1_1os_1_1_thread.html" title="Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).">dmq::os::Thread</a> ports.  <br /></td></tr>
+<tr class="memdesc:ac0bd0b262dcf873ad32ec34a1addaddc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default internal message queue depth for all <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> ports.  <br /></td></tr>
 <tr class="separator:ac0bd0b262dcf873ad32ec34a1addaddc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a48ff526be8cc82f0ea7f846f43c2187b" id="r_a48ff526be8cc82f0ea7f846f43c2187b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a48ff526be8cc82f0ea7f846f43c2187b">DMQ_MAX_WATCHDOG_THREADS</a>&#160;&#160;&#160;16</td></tr>
 <tr class="memdesc:a48ff526be8cc82f0ea7f846f43c2187b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of threads that can be registered with the watchdog.  <br /></td></tr>
@@ -128,6 +128,18 @@ Macros</h2></td></tr>
 <tr class="memitem:a82fd3e9a7368f3ed51bcd74f1e30c8f6" id="r_a82fd3e9a7368f3ed51bcd74f1e30c8f6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a82fd3e9a7368f3ed51bcd74f1e30c8f6">DMQ_MAX_PARTICIPANTS</a>&#160;&#160;&#160;8</td></tr>
 <tr class="memdesc:a82fd3e9a7368f3ed51bcd74f1e30c8f6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Max number of remote Participants the DataBus can hold without heap allocation.  <br /></td></tr>
 <tr class="separator:a82fd3e9a7368f3ed51bcd74f1e30c8f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9c8be825bf0fbb7190c438fa48c2043d" id="r_a9c8be825bf0fbb7190c438fa48c2043d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9c8be825bf0fbb7190c438fa48c2043d">DMQ_NETWORK_NODE_MAX_PEERS</a>&#160;&#160;&#160;4</td></tr>
+<tr class="separator:a9c8be825bf0fbb7190c438fa48c2043d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a46636c15de068dd90e9a8ea2fc887df1" id="r_a46636c15de068dd90e9a8ea2fc887df1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a46636c15de068dd90e9a8ea2fc887df1">DMQ_NETWORK_NODE_MAX_TOPICS</a>&#160;&#160;&#160;16</td></tr>
+<tr class="separator:a46636c15de068dd90e9a8ea2fc887df1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abc97fdf7768b3309d06ebcf0efcb64cf" id="r_abc97fdf7768b3309d06ebcf0efcb64cf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abc97fdf7768b3309d06ebcf0efcb64cf">DMQ_NETWORK_NODE_MAX_WORK</a>&#160;&#160;&#160;20</td></tr>
+<tr class="separator:abc97fdf7768b3309d06ebcf0efcb64cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3f922d01685ce7c3820c120d85ae5c04" id="r_a3f922d01685ce7c3820c120d85ae5c04"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a3f922d01685ce7c3820c120d85ae5c04">DMQ_RETRY_MONITOR_MAX_RETRIES</a>&#160;&#160;&#160;3</td></tr>
+<tr class="memdesc:a3f922d01685ce7c3820c120d85ae5c04"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default number of retries before RetryMonitor gives up on an unacknowledged message.  <br /></td></tr>
+<tr class="separator:a3f922d01685ce7c3820c120d85ae5c04"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a374fb87ad8eb9337f0fe7197e115502b" id="r_a374fb87ad8eb9337f0fe7197e115502b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a374fb87ad8eb9337f0fe7197e115502b">DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC</a>&#160;&#160;&#160;2</td></tr>
+<tr class="memdesc:a374fb87ad8eb9337f0fe7197e115502b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default per-message ACK timeout (seconds) for TransportMonitor.  <br /></td></tr>
+<tr class="separator:a374fb87ad8eb9337f0fe7197e115502b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>User configuration for the DelegateMQ library. </p>
@@ -162,7 +174,7 @@ Macros</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Default internal message queue depth for all <a class="el" href="classdmq_1_1os_1_1_thread.html" title="Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).">dmq::os::Thread</a> ports. </p>
+<p>Default internal message queue depth for all <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> ports. </p>
 
 </div>
 </div>
@@ -214,6 +226,67 @@ Macros</h2></td></tr>
 
 </div>
 </div>
+<a id="a9c8be825bf0fbb7190c438fa48c2043d" name="a9c8be825bf0fbb7190c438fa48c2043d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9c8be825bf0fbb7190c438fa48c2043d">&#9670;&#160;</a></span>DMQ_NETWORK_NODE_MAX_PEERS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define DMQ_NETWORK_NODE_MAX_PEERS&#160;&#160;&#160;4</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Default max remote peers per NetworkNode instance (fixed allocation). Override per-instantiation via NetworkNode's MaxPeers template parameter. </p>
+
+</div>
+</div>
+<a id="a46636c15de068dd90e9a8ea2fc887df1" name="a46636c15de068dd90e9a8ea2fc887df1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a46636c15de068dd90e9a8ea2fc887df1">&#9670;&#160;</a></span>DMQ_NETWORK_NODE_MAX_TOPICS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define DMQ_NETWORK_NODE_MAX_TOPICS&#160;&#160;&#160;16</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Default max in- or out-topics per NetworkNode instance (fixed allocation). Override per-instantiation via NetworkNode's MaxTopics template parameter. </p>
+
+</div>
+</div>
+<a id="abc97fdf7768b3309d06ebcf0efcb64cf" name="abc97fdf7768b3309d06ebcf0efcb64cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abc97fdf7768b3309d06ebcf0efcb64cf">&#9670;&#160;</a></span>DMQ_NETWORK_NODE_MAX_WORK</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define DMQ_NETWORK_NODE_MAX_WORK&#160;&#160;&#160;20</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Max messages drained per NetworkNode::ReceiverThread() tick (incoming-message drain and per-peer ACK drain). </p>
+
+</div>
+</div>
+<a id="a3f922d01685ce7c3820c120d85ae5c04" name="a3f922d01685ce7c3820c120d85ae5c04"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3f922d01685ce7c3820c120d85ae5c04">&#9670;&#160;</a></span>DMQ_RETRY_MONITOR_MAX_RETRIES</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define DMQ_RETRY_MONITOR_MAX_RETRIES&#160;&#160;&#160;3</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Default number of retries before RetryMonitor gives up on an unacknowledged message. </p>
+
+</div>
+</div>
 <a id="a0499d73ff51679990e0ccd89252e4231" name="a0499d73ff51679990e0ccd89252e4231"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a0499d73ff51679990e0ccd89252e4231">&#9670;&#160;</a></span>DMQ_SEQ_HISTORY_SIZE</h2>
 
@@ -241,6 +314,22 @@ Macros</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <p>Signal Small-Buffer Optimization count. Signals with &lt;= this many subscribers are invoked without heap allocation. </p>
+
+</div>
+</div>
+<a id="a374fb87ad8eb9337f0fe7197e115502b" name="a374fb87ad8eb9337f0fe7197e115502b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a374fb87ad8eb9337f0fe7197e115502b">&#9670;&#160;</a></span>DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC&#160;&#160;&#160;2</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Default per-message ACK timeout (seconds) for TransportMonitor. </p>
 
 </div>
 </div>

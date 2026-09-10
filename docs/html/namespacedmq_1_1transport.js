@@ -20,5 +20,5 @@ var namespacedmq_1_1transport =
     [ "ZephyrUdpTransport", "classdmq_1_1transport_1_1_zephyr_udp_transport.html", "classdmq_1_1transport_1_1_zephyr_udp_transport" ],
     [ "ZeroMqTransport", "classdmq_1_1transport_1_1_zero_mq_transport.html", "classdmq_1_1transport_1_1_zero_mq_transport" ],
     [ "TcpTransport", "namespacedmq_1_1transport.html#a099eb7cd81775f085e954927cdea6c45", null ],
-    [ "UdpTransport", "namespacedmq_1_1transport.html#a63e104a5809b89f7000b570a84655d86", null ]
+    [ "UdpTransport", "namespacedmq_1_1transport.html#ade10c3d307adcce0243a6d2356e089db", null ]
 ];

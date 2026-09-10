@@ -9,7 +9,6 @@ var make__tuple__heap_8h =
     [ "dmq::is_unique_ptr< T >", "structdmq_1_1is__unique__ptr.html", null ],
     [ "dmq::is_unique_ptr< std::unique_ptr< T > >", "structdmq_1_1is__unique__ptr_3_01std_1_1unique__ptr_3_01_t_01_4_01_4.html", null ],
     [ "dmq::heap_arg_deleter_base", "classdmq_1_1heap__arg__deleter__base.html", "classdmq_1_1heap__arg__deleter__base" ],
-    [ "dmq::heap_arg_deleter< T >", "classdmq_1_1heap__arg__deleter.html", "classdmq_1_1heap__arg__deleter" ],
     [ "dmq::heap_arg_deleter< T * >", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_01_4.html", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_01_4" ],
     [ "dmq::heap_arg_deleter< T ** >", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_5_01_4.html", "classdmq_1_1heap__arg__deleter_3_01_t_01_5_5_01_4" ],
     [ "make_tuple_heap", "make__tuple__heap_8h.html#af29d8c3f370422dfe61232f1226c9c09", null ],

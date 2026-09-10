@@ -114,24 +114,38 @@ $(function(){initNavTree('xnew_8h_source.html',''); initResizable(true); });
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    {</div>
 <div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>        <span class="keywordtype">void</span>* mem = <a class="code hl_function" href="xallocator_8cpp.html#af7b6b8fd37a3c4b944c71b783d50fc96">xmalloc</a>(<span class="keyword">sizeof</span>(T));</div>
 <div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>        <span class="keywordflow">if</span> (!mem) <span class="keywordflow">return</span> <span class="keyword">nullptr</span>;</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>        return ::new(mem) T(std::forward&lt;Args&gt;(args)...);</div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    }</div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> </div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    <span class="keyword">template</span>&lt;<span class="keyword">typename</span> T&gt;</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="keyword">inline</span> <span class="keywordtype">void</span> <a class="code hl_function" href="namespacedmq.html#a301d4b5ade45a49f32a348dfb42fb2b2">xdelete</a>(T* p)</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    {</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>        <span class="keywordflow">if</span> (p)</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>        {</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>            p-&gt;~T();</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>            <a class="code hl_function" href="xallocator_8cpp.html#a976e14808b9247ec952c262553f09f8f">xfree</a>(<span class="keyword">const_cast&lt;</span><span class="keywordtype">void</span>*<span class="keyword">&gt;</span>(<span class="keyword">static_cast&lt;</span><span class="keyword">const </span><span class="keywordtype">void</span>*<span class="keyword">&gt;</span>(p)));</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>        }</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    }</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>}</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="preprocessor">#endif </span><span class="comment">// _XNEW_H</span></div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span> </div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>        <span class="comment">// Exceptions unavailable/disabled: T&#39;s constructor is assumed not to throw.</span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>        return ::new(mem) T(std::forward&lt;Args&gt;(args)...);</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        <span class="keywordflow">try</span> {</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>            return ::new(mem) T(std::forward&lt;Args&gt;(args)...);</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>        }</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>        <span class="keywordflow">catch</span> (...) {</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>            <span class="comment">// Return the block to the pool before propagating -- otherwise a</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>            <span class="comment">// throwing T constructor permanently leaks a fixed-block-pool slot.</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>            <a class="code hl_function" href="xallocator_8cpp.html#a976e14808b9247ec952c262553f09f8f">xfree</a>(mem);</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>            <span class="keywordflow">throw</span>;</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        }</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    }</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="keyword">template</span>&lt;<span class="keyword">typename</span> T&gt;</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keyword">inline</span> <span class="keywordtype">void</span> <a class="code hl_function" href="namespacedmq.html#a301d4b5ade45a49f32a348dfb42fb2b2">xdelete</a>(T* p)</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    {</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>        <span class="keywordflow">if</span> (p)</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        {</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>            p-&gt;~T();</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>            <a class="code hl_function" href="xallocator_8cpp.html#a976e14808b9247ec952c262553f09f8f">xfree</a>(<span class="keyword">const_cast&lt;</span><span class="keywordtype">void</span>*<span class="keyword">&gt;</span>(<span class="keyword">static_cast&lt;</span><span class="keyword">const </span><span class="keywordtype">void</span>*<span class="keyword">&gt;</span>(p)));</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        }</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    }</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>}</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="preprocessor">#endif </span><span class="comment">// _XNEW_H</span></div>
 <div class="ttc" id="anamespacedmq_html"><div class="ttname"><a href="namespacedmq.html">dmq</a></div><div class="ttdoc">The delegate library namespace.</div><div class="ttdef"><b>Definition</b> Delegate.h:27</div></div>
-<div class="ttc" id="anamespacedmq_html_a301d4b5ade45a49f32a348dfb42fb2b2"><div class="ttname"><a href="namespacedmq.html#a301d4b5ade45a49f32a348dfb42fb2b2">dmq::xdelete</a></div><div class="ttdeci">void xdelete(T *p)</div><div class="ttdoc">Destroy T and return its memory to the fixed-block pool.</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:337</div></div>
-<div class="ttc" id="anamespacedmq_html_ad568c96484a6b6df174d0d597080c5fd"><div class="ttname"><a href="namespacedmq.html#ad568c96484a6b6df174d0d597080c5fd">dmq::xnew</a></div><div class="ttdeci">T * xnew(Args &amp;&amp;... args)</div><div class="ttdoc">Allocate and construct T in the fixed-block pool.</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:332</div></div>
+<div class="ttc" id="anamespacedmq_html_a301d4b5ade45a49f32a348dfb42fb2b2"><div class="ttname"><a href="namespacedmq.html#a301d4b5ade45a49f32a348dfb42fb2b2">dmq::xdelete</a></div><div class="ttdeci">void xdelete(T *p)</div><div class="ttdoc">Destroy T and return its memory to the fixed-block pool.</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:599</div></div>
+<div class="ttc" id="anamespacedmq_html_ad568c96484a6b6df174d0d597080c5fd"><div class="ttname"><a href="namespacedmq.html#ad568c96484a6b6df174d0d597080c5fd">dmq::xnew</a></div><div class="ttdeci">T * xnew(Args &amp;&amp;... args)</div><div class="ttdoc">Allocate and construct T in the fixed-block pool.</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:594</div></div>
 <div class="ttc" id="axallocator_8cpp_html_a976e14808b9247ec952c262553f09f8f"><div class="ttname"><a href="xallocator_8cpp.html#a976e14808b9247ec952c262553f09f8f">xfree</a></div><div class="ttdeci">void xfree(void *ptr)</div><div class="ttdef"><b>Definition</b> xallocator.cpp:397</div></div>
 <div class="ttc" id="axallocator_8cpp_html_af7b6b8fd37a3c4b944c71b783d50fc96"><div class="ttname"><a href="xallocator_8cpp.html#af7b6b8fd37a3c4b944c71b783d50fc96">xmalloc</a></div><div class="ttdeci">void * xmalloc(size_t size)</div><div class="ttdef"><b>Definition</b> xallocator.cpp:343</div></div>
 <div class="ttc" id="axallocator_8h_html"><div class="ttname"><a href="xallocator_8h.html">xallocator.h</a></div></div>
