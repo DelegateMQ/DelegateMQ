@@ -2,7 +2,7 @@
 #define _UNICAST_DELEGATE_H
 
 /// @file
-/// @brief Delegate container for storing an invoking a single delegate instance. 
+/// @brief Delegate container for storing an invoking a single delegate instance.
 /// Class is not thread-safe.
 
 #include "Delegate.h"
@@ -15,8 +15,26 @@ namespace dmq {
 template <class R>
 class UnicastDelegate; // Not defined
 
-/// @brief A non-thread-safe delegate container storing one delegate. Void and  
-/// non-void return values supported. 
+namespace detail {
+
+/// @brief Clone `delegate` and wrap it in a shared_ptr, fully erased to the
+/// non-templated `DelegateBase` at construction. `delegate.Clone()` is called
+/// through a `const DelegateBase&`, so its return type here is `DelegateBase*`
+/// -- the resulting shared_ptr control block is therefore not templated on
+/// RetType/Args, and is shared by every `UnicastDelegate<Sig>` in the program
+/// instead of duplicated per signature. Non-templated: none of this logic
+/// depends on the owning container's signature.
+inline std::shared_ptr<DelegateBase> UnicastClone(const DelegateBase& delegate) {
+    auto delegateClone = delegate.Clone();
+    if (!delegateClone)
+        BAD_ALLOC();
+    return std::shared_ptr<DelegateBase>(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
+}
+
+} // namespace detail
+
+/// @brief A non-thread-safe delegate container storing one delegate. Void and
+/// non-void return values supported.
 template<class RetType, class... Args>
 class UnicastDelegate<RetType(Args...)>
 {
@@ -27,16 +45,13 @@ public:
     virtual ~UnicastDelegate() { Clear(); }
 
     /// @brief Copy constructor that creates a copy of the given instance.
-    /// @details This constructor initializes a new object as a copy of the 
-    /// provided `rhs` (right-hand side) object. The `rhs` object is used to 
+    /// @details This constructor initializes a new object as a copy of the
+    /// provided `rhs` (right-hand side) object. The `rhs` object is used to
     /// set the state of the new instance.
     /// @param[in] rhs The object to copy from.
     UnicastDelegate(const UnicastDelegate& rhs) {
-        if (rhs.m_delegate) {
-            auto delegateClone = rhs.m_delegate->Clone();
-            if (!delegateClone) BAD_ALLOC();
-            m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
-        }
+        if (rhs.m_delegate)
+            m_delegate = detail::UnicastClone(*rhs.m_delegate);
     }
 
     /// Move constructor that transfers ownership of resources.
@@ -59,7 +74,7 @@ public:
     /// @return The target function return value.
     RetType operator()(Args... args) const {
         if (m_delegate)
-            return (*m_delegate)(args...);	// Invoke delegate callback
+            return (*static_cast<DelegateType*>(m_delegate.get()))(args...);	// Invoke delegate callback
         else
             return RetType();
     }
@@ -73,18 +88,14 @@ public:
     /// Assign a delegate to the container.
     /// @param[in] rhs A delegate target to assign
     void operator=(const DelegateType& rhs) {
-        auto delegateClone = rhs.Clone();
-        if (!delegateClone) BAD_ALLOC();
-        m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
+        m_delegate = detail::UnicastClone(rhs);
     }
 
     /// Assign a delegate to the container.
     /// @param[in] rhs A delegate target to assign
     void operator=(DelegateType&& rhs) {
         // Clone() even on rvalue: no move API exists across the polymorphic delegate hierarchy.
-        auto delegateClone = rhs.Clone();
-        if (!delegateClone) BAD_ALLOC();
-        m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
+        m_delegate = detail::UnicastClone(rhs);
     }
 
     /// @brief Assignment operator that assigns the state of one object to another.
@@ -92,14 +103,7 @@ public:
     /// @return A reference to the current object.
     UnicastDelegate& operator=(const UnicastDelegate& rhs) {
         if (this != &rhs) {
-            if (rhs.m_delegate) {
-                auto delegateClone = rhs.m_delegate->Clone();
-                if (!delegateClone) BAD_ALLOC();
-                m_delegate = std::shared_ptr<DelegateType>(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
-            }
-            else {
-                m_delegate = nullptr;
-            }
+            m_delegate = rhs.m_delegate ? detail::UnicastClone(*rhs.m_delegate) : nullptr;
         }
         return *this;
     }
@@ -134,11 +138,14 @@ public:
 
     /// @brief Get the underlying delegate.
     /// @return The underlying delegate pointer, or nullptr if empty.
-    const DelegateType* GetDelegate() const { return m_delegate.get(); }
+    const DelegateType* GetDelegate() const { return static_cast<const DelegateType*>(m_delegate.get()); }
 
 protected:
-    /// Registered delegate.
-    std::shared_ptr<DelegateType> m_delegate = nullptr;
+    /// Registered delegate. Stored as `DelegateBase` (not `DelegateType`) so the
+    /// shared_ptr control block is shared across every `UnicastDelegate<Sig>`
+    /// signature instead of duplicated per signature. Only `operator()`/
+    /// `GetDelegate()`, which must return the concrete `DelegateType`, cast back.
+    std::shared_ptr<DelegateBase> m_delegate = nullptr;
 };
 
 }

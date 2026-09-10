@@ -14,8 +14,21 @@ namespace dmq {
 template <class R>
 class UnicastDelegateSafe; // Not defined
 
-/// @brief A thread-safe delegate container storing one delegate. Void and  
-/// non-void return values supported. 
+namespace detail {
+
+/// @brief Copy the delegate pointer out under lock, then release. Non-templated:
+/// entirely independent of the owning container's signature. The caller invokes
+/// against the returned copy without holding the lock, avoiding circular lock
+/// dependencies if the target function itself tries to acquire it.
+inline std::shared_ptr<DelegateBase> UnicastSafeGet(const std::shared_ptr<DelegateBase>& delegate, RecursiveMutex& lock) {
+    const dmq::LockGuard<RecursiveMutex> g(lock);
+    return delegate;
+}
+
+} // namespace detail
+
+/// @brief A thread-safe delegate container storing one delegate. Void and
+/// non-void return values supported.
 template<class RetType, class... Args>
 class UnicastDelegateSafe<RetType(Args...)> : public UnicastDelegate<RetType(Args...)>
 {
@@ -52,17 +65,13 @@ public:
     /// @param[in] args The arguments used when invoking the target function
     /// @return The target function return value.
     RetType operator()(Args... args) const {
-        std::shared_ptr<DelegateType> delegate;
-        {
-            // Lock only to fetch the delegate pointer. Release lock before
-            // invoking the delegate to prevent circular lock dependencies
-            // and deadlocks.
-            const dmq::LockGuard<RecursiveMutex> lock(m_lock);
-            delegate = this->m_delegate;
-        }
+        // Lock only to fetch the delegate pointer. Release lock before
+        // invoking the delegate to prevent circular lock dependencies
+        // and deadlocks.
+        auto delegate = detail::UnicastSafeGet(this->m_delegate, m_lock);
 
         if (delegate)
-            return (*delegate)(args...);
+            return (*static_cast<DelegateType*>(delegate.get()))(args...);
         return RetType();
     }
 
