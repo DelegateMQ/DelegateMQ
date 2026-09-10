@@ -165,8 +165,9 @@ Classes</h2></td></tr>
 Typedefs</h2></td></tr>
 <tr class="memitem:a099eb7cd81775f085e954927cdea6c45" id="r_a099eb7cd81775f085e954927cdea6c45"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a099eb7cd81775f085e954927cdea6c45">TcpTransport</a> = <a class="el" href="classdmq_1_1transport_1_1_linux_tcp_transport.html">LinuxTcpTransport</a></td></tr>
 <tr class="separator:a099eb7cd81775f085e954927cdea6c45"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a63e104a5809b89f7000b570a84655d86" id="r_a63e104a5809b89f7000b570a84655d86"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a63e104a5809b89f7000b570a84655d86">UdpTransport</a> = <a class="el" href="classdmq_1_1transport_1_1_linux_udp_transport.html">LinuxUdpTransport</a></td></tr>
-<tr class="separator:a63e104a5809b89f7000b570a84655d86"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ade10c3d307adcce0243a6d2356e089db" id="r_ade10c3d307adcce0243a6d2356e089db"><td class="memItemLeft" align="right" valign="top">using&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ade10c3d307adcce0243a6d2356e089db">UdpTransport</a> = <a class="el" href="classdmq_1_1transport_1_1_linux_udp_transport.html">LinuxUdpTransport</a></td></tr>
+<tr class="memdesc:ade10c3d307adcce0243a6d2356e089db"><td class="mdescLeft">&#160;</td><td class="mdescRight">Backward-compatible name: application code (e.g. the sender.h/ receiver.h pattern shared by every <em>-udp-serializer sample) references <a class="el" href="classdmq_1_1transport_1_1_udp_transport.html">dmq::transport::UdpTransport</a> generically and stays portable across whichever DMQ_TRANSPORT_</em> was selected at compile time, the same way <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> works across DMQ_THREAD_* &ndash; see <a class="el" href="_linux_udp_transport_8h.html" title="Linux UDP transport implementation for DelegateMQ.">LinuxUdpTransport.h</a>/ <a class="el" href="_win32_udp_transport_8h.html">Win32UdpTransport.h</a> for the other two ports that already do this.  <br /></td></tr>
+<tr class="separator:ade10c3d307adcce0243a6d2356e089db"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Linux TCP transport implementation for DelegateMQ. </p>
@@ -204,17 +205,19 @@ Typedefs</h2></td></tr>
 
 </div>
 </div>
-<a id="a63e104a5809b89f7000b570a84655d86" name="a63e104a5809b89f7000b570a84655d86"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a63e104a5809b89f7000b570a84655d86">&#9670;&#160;</a></span>UdpTransport</h2>
+<a id="ade10c3d307adcce0243a6d2356e089db" name="ade10c3d307adcce0243a6d2356e089db"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ade10c3d307adcce0243a6d2356e089db">&#9670;&#160;</a></span>UdpTransport</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef <a class="el" href="classdmq_1_1transport_1_1_win32_udp_transport.html">Win32UdpTransport</a> dmq::transport::UdpTransport = <a class="el" href="classdmq_1_1transport_1_1_linux_udp_transport.html">LinuxUdpTransport</a></td>
+          <td class="memname">typedef <a class="el" href="classdmq_1_1transport_1_1_zephyr_udp_transport.html">ZephyrUdpTransport</a> dmq::transport::UdpTransport = <a class="el" href="classdmq_1_1transport_1_1_linux_udp_transport.html">LinuxUdpTransport</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
+
+<p>Backward-compatible name: application code (e.g. the sender.h/ receiver.h pattern shared by every <em>-udp-serializer sample) references <a class="el" href="classdmq_1_1transport_1_1_udp_transport.html">dmq::transport::UdpTransport</a> generically and stays portable across whichever DMQ_TRANSPORT_</em> was selected at compile time, the same way <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> works across DMQ_THREAD_* &ndash; see <a class="el" href="_linux_udp_transport_8h.html" title="Linux UDP transport implementation for DelegateMQ.">LinuxUdpTransport.h</a>/ <a class="el" href="_win32_udp_transport_8h.html">Win32UdpTransport.h</a> for the other two ports that already do this. </p>
 
 </div>
 </div>

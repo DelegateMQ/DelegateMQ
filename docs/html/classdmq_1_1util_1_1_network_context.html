@@ -196,6 +196,7 @@ Static Public Member Functions</h2></td></tr>
 
 <p>Helper to find the first non-loopback physical IPv4 address. </p>
 <dl class="section return"><dt>Returns</dt><dd>The IP address as a string (e.g. "192.168.1.5") or "127.0.0.1" if none found. </dd></dl>
+<dl class="section note"><dt>Note</dt><dd>Unavailable on embedded RTOS targets (ThreadX/Zephyr/CMSIS-RTOS2) &ndash; a desktop-only convenience with no embedded equivalent, see <a class="el" href="_delegate_opt_8h.html" title="Delegate library options header file.">DelegateOpt.h</a>'s DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS block &ndash; and always returns "127.0.0.1" there. FreeRTOS is not in that list: its Win32/POSIX simulator samples (databus-freertos, freertos-linux) use real host sockets on purpose. </dd></dl>
 
 </div>
 </div>

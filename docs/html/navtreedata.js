@@ -243,7 +243,7 @@ var NAVTREE =
       [ "Thread Implementations", "md_docs_2_p_o_r_t_i_n_g.html#autotoc_md218", [
         [ "Thread Priority and Latency", "md_docs_2_p_o_r_t_i_n_g.html#autotoc_md219", null ],
         [ "Message Queueing", "md_docs_2_p_o_r_t_i_n_g.html#autotoc_md220", [
-          [ "dmq::os::FullPolicy (Back Pressure / Drop)", "md_docs_2_p_o_r_t_i_n_g.html#autotoc_md221", null ]
+          [ "dmq::FullPolicy (Back Pressure / Drop)", "md_docs_2_p_o_r_t_i_n_g.html#autotoc_md221", null ]
         ] ],
         [ "Watchdog Integration", "md_docs_2_p_o_r_t_i_n_g.html#autotoc_md222", [
           [ "Priority Requirement — Critical on Single-Core RTOS", "md_docs_2_p_o_r_t_i_n_g.html#autotoc_md223", null ],
@@ -389,21 +389,20 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "_allocator_8cpp.html",
-"_timer_delegate_8h.html#ada905f47a8832081bb61f4a9cb524e49",
-"classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a5e1bcfc7eae630d87b172503d3c64b91",
-"classdmq_1_1_delegate_member_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a8dfce0c28347959468e6c16aab29ec45",
-"classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ab2ca3ed68915d333ca0689964fcd1d28",
-"classdmq_1_1_remote_arg.html#a8730d0588aeaa4a0da3d2718a42c5275",
-"classdmq_1_1databus_1_1_participant.html",
-"classdmq_1_1os_1_1_thread.html#abfd17da027ea9f5c7ece2579b4a7cca3",
-"classdmq_1_1stl__allocator.html#ae6301cb29e61ae9fea7bccd340b2c8bc",
-"classdmq_1_1transport_1_1_nng_transport.html#aa4299d3eda05bee47a2fb4275e275dd5",
-"classdmq_1_1util_1_1_paced_dispatch.html#a395ecc3db310338b37fc8002968652f4",
-"freertos_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030a070a0fb40f6c308ab544b227660aadff",
-"md_docs_2_i_n_t_e_r_o_p.html#autotoc_md193",
-"namespacedmq_1_1os.html#ab586fc445563046cfef7bfed3d721030a893b3aaf1661e3717b18e8335ff93a72",
-"structdmq_1_1databus_1_1_spy_packet.html#ab055fcc5a64aa0400d950479c2e3c595",
-"win32_2_thread_8h.html#ab586fc445563046cfef7bfed3d721030abf8f3be424eb6a72b21549fbb24ffb57"
+"_network_node_8h_source.html",
+"classdmq_1_1_delegate_free_async_3_01_ret_type_07_args_8_8_8_08_4.html#a0c7629c9e51a011c833d4252efa0622a",
+"classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html#a4c3606cc50df42a8086afe833332c797",
+"classdmq_1_1_delegate_member_async_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ad8fe748b52373de48a14114a36eeb6ac",
+"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a6106b3917b58f9156003d6fd69556f5f",
+"classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a7d937240da661cd560c0a93dc859c543",
+"classdmq_1_1os_1_1_cmsis_rtos2_recursive_mutex.html#ae8b353f10966645c1bb117bef7984045",
+"classdmq_1_1os_1_1_thread_x_delegate_queue.html",
+"classdmq_1_1transport_1_1_dmq_header.html#a0fefb726e68444a8d5f9c6f63e196304",
+"classdmq_1_1transport_1_1_serial_transport.html",
+"classdmq_1_1util_1_1_reliable_transport.html#a1925300b5957a280e278401fcebe0111",
+"functions_rela.html",
+"md_src_2delegate-mq_2extras_2dispatcher_2_r_e_a_d_m_e.html#autotoc_md282",
+"structdmq_1_1is__shared__ptr_3_01std_1_1shared__ptr_3_01_t_01_4_01_4.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

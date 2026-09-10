@@ -2,16 +2,19 @@ var _delegate_opt_8h =
 [
     [ "dmq::PortableLockGuard< T >", "classdmq_1_1_portable_lock_guard.html", "classdmq_1_1_portable_lock_guard" ],
     [ "dmq::ScopedLock< M >", "classdmq_1_1_scoped_lock.html", "classdmq_1_1_scoped_lock" ],
+    [ "dmq::ThisThread", "structdmq_1_1_this_thread.html", null ],
     [ "dmq::NullMutex", "structdmq_1_1_null_mutex.html", "structdmq_1_1_null_mutex" ],
     [ "dmq::xlist< T, Alloc >", "classdmq_1_1xlist.html", null ],
     [ "BAD_ALLOC", "_delegate_opt_8h.html#abe89b46e296c7421855410a08d6d31fe", null ],
     [ "DMQ_ASSERTS", "_delegate_opt_8h.html#a6d017f6688a2ece9c701ea71062fc6b9", null ],
+    [ "DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS", "_delegate_opt_8h.html#a9972cef83d5c8a768e76cc8172b2cd84", null ],
     [ "DMQ_SERIALIZE_NONE", "_delegate_opt_8h.html#a397bf7b998e327455052c135f305e352", null ],
     [ "LOG_DEBUG", "_delegate_opt_8h.html#a754b3d074e0af4ad3c7b918dd77ecb2d", null ],
     [ "LOG_ERROR", "_delegate_opt_8h.html#ad4a9117ce894e3319e903142347a0f63", null ],
     [ "LOG_INFO", "_delegate_opt_8h.html#a378e28bfcb78d17285210d6bbb70a083", null ],
     [ "XALLOCATOR", "_delegate_opt_8h.html#a5e800c556290ed548055177c33a66f5c", null ],
     [ "Clock", "_delegate_opt_8h.html#a597d3665a6aef02a9edba0d42f40b235", null ],
+    [ "CriticalSection", "_delegate_opt_8h.html#ae2a202c77c9067dc2577fc191bddc50e", null ],
     [ "Duration", "_delegate_opt_8h.html#a9b8f2ad24a4b0df29243c60121e10b7f", null ],
     [ "LockGuard", "_delegate_opt_8h.html#a3630077fab3ab296436584a9b6dab522", null ],
     [ "Mutex", "_delegate_opt_8h.html#a8698347146f2270db3906748c029c529", null ],
@@ -26,6 +29,11 @@ var _delegate_opt_8h =
     [ "xset", "_delegate_opt_8h.html#a563dc954d3b33c43a22924e77bb1db3a", null ],
     [ "xstring", "_delegate_opt_8h.html#a11cea01eb8d1af200d992657af94c7fb", null ],
     [ "xstringstream", "_delegate_opt_8h.html#a96216b70259f3d7e0a6462222e96e3b0", null ],
+    [ "FullPolicy", "_delegate_opt_8h.html#a4f437e9e12d6eab6e8ef04eb229b3118", [
+      [ "DROP", "_delegate_opt_8h.html#a4f437e9e12d6eab6e8ef04eb229b3118abf8f3be424eb6a72b21549fbb24ffb57", null ],
+      [ "FAULT", "_delegate_opt_8h.html#a4f437e9e12d6eab6e8ef04eb229b3118a893b3aaf1661e3717b18e8335ff93a72", null ],
+      [ "TIMEOUT", "_delegate_opt_8h.html#a4f437e9e12d6eab6e8ef04eb229b3118a070a0fb40f6c308ab544b227660aadff", null ]
+    ] ],
     [ "xdelete", "_delegate_opt_8h.html#a301d4b5ade45a49f32a348dfb42fb2b2", null ],
     [ "xmake_shared", "_delegate_opt_8h.html#a9ee8623ed66c2814916b42dcf49418f1", null ],
     [ "xnew", "_delegate_opt_8h.html#ad568c96484a6b6df174d0d597080c5fd", null ],
@@ -35,5 +43,10 @@ var _delegate_opt_8h =
     [ "MAX_TIMER_EXPIRED", "_delegate_opt_8h.html#acf2ae0d8cf284588d5c27c53ed606bd8", null ],
     [ "MAX_TRANSPORT_MONITOR_PENDING", "_delegate_opt_8h.html#a5328cc2a5f84fe0f49a89a571600e8a8", null ],
     [ "MAX_WATCHDOG_THREADS", "_delegate_opt_8h.html#a946391767dd0907a9c745fcf7594419a", null ],
-    [ "SIGNAL_SBO_COUNT", "_delegate_opt_8h.html#ab63766cc3a5899f6fc9a675eed88dab4", null ]
+    [ "NETWORK_NODE_MAX_PEERS", "_delegate_opt_8h.html#a482c52b53da5cdf805baf7cf44685cb6", null ],
+    [ "NETWORK_NODE_MAX_TOPICS", "_delegate_opt_8h.html#adfc5538214aaa479ecdf72b898d00567", null ],
+    [ "NETWORK_NODE_MAX_WORK", "_delegate_opt_8h.html#a399014395577b4c5519fea1ebda7add6", null ],
+    [ "RETRY_MONITOR_MAX_RETRIES", "_delegate_opt_8h.html#a35cd9f84173b6c28d1c01e462967bd29", null ],
+    [ "SIGNAL_SBO_COUNT", "_delegate_opt_8h.html#ab63766cc3a5899f6fc9a675eed88dab4", null ],
+    [ "TRANSPORT_MONITOR_TIMEOUT", "_delegate_opt_8h.html#ab1bce6c4f8364600776bf83ecd713178", null ]
 ];

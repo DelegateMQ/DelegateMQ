@@ -169,154 +169,160 @@ $(function(){initNavTree('_delegate_m_q_8h_source.html',''); initResizable(true)
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment">// 4. Asynchronous &quot;Blocking&quot; Delegates (Wait for Result)</span></div>
 <div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment">// -----------------------------------------------------------------------------</span></div>
 <div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment">// Depends on Semaphore/Mutex and C++17 (std::any, std::optional).</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment">// Valid for StdLib/Win32 (Windows/Linux), Qt, ThreadX, and FreeRTOS (if C++17 enabled).</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="preprocessor">#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX)</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="preprocessor">    #include &quot;<a class="code" href="_delegate_async_wait_8h.html">delegate/DelegateAsyncWait.h</a>&quot;</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span> </div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="preprocessor">#if defined(DMQ_THREAD_STDLIB)</span></div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="preprocessor">    #include &quot;<a class="code" href="stdlib_2_thread_8h.html">port/os/stdlib/Thread.h</a>&quot;</span></div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="preprocessor">    #include &quot;<a class="code" href="stdlib_2_thread_msg_8h.html">port/os/stdlib/ThreadMsg.h</a>&quot;</span></div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="preprocessor">#elif defined(DMQ_THREAD_WIN32)</span></div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="preprocessor">    #include &quot;<a class="code" href="win32_2_thread_8h.html">port/os/win32/Thread.h</a>&quot;</span></div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="preprocessor">    #include &quot;<a class="code" href="win32_2_thread_msg_8h.html">port/os/win32/ThreadMsg.h</a>&quot;</span></div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="preprocessor">#elif defined(DMQ_THREAD_FREERTOS)</span></div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="preprocessor">    #include &quot;<a class="code" href="freertos_2_thread_8h.html">port/os/freertos/Thread.h</a>&quot;</span></div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="preprocessor">    #include &quot;<a class="code" href="freertos_2_thread_msg_8h.html">port/os/freertos/ThreadMsg.h</a>&quot;</span></div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="preprocessor">#elif defined(DMQ_THREAD_THREADX)</span></div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="preprocessor">    #include &quot;<a class="code" href="threadx_2_thread_8h.html">port/os/threadx/Thread.h</a>&quot;</span></div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="preprocessor">    #include &quot;<a class="code" href="threadx_2_thread_msg_8h.html">port/os/threadx/ThreadMsg.h</a>&quot;</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="preprocessor">#elif defined(DMQ_THREAD_ZEPHYR)</span></div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="preprocessor">    #include &quot;<a class="code" href="zephyr_2_thread_8h.html">port/os/zephyr/Thread.h</a>&quot;</span></div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="preprocessor">    #include &quot;<a class="code" href="zephyr_2_thread_msg_8h.html">port/os/zephyr/ThreadMsg.h</a>&quot;</span></div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="preprocessor">#elif defined(DMQ_THREAD_CMSIS_RTOS2)</span></div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="preprocessor">    #include &quot;<a class="code" href="cmsis-rtos2_2_thread_8h.html">port/os/cmsis-rtos2/Thread.h</a>&quot;</span></div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="preprocessor">    #include &quot;<a class="code" href="cmsis-rtos2_2_thread_msg_8h.html">port/os/cmsis-rtos2/ThreadMsg.h</a>&quot;</span></div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="preprocessor">#elif defined(DMQ_THREAD_QT)</span></div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="preprocessor">    #include &quot;<a class="code" href="qt_2_thread_8h.html">port/os/qt/Thread.h</a>&quot;</span></div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="preprocessor">    #include &quot;<a class="code" href="qt_2_thread_msg_8h.html">port/os/qt/ThreadMsg.h</a>&quot;</span></div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="preprocessor">#elif defined(DMQ_THREAD_NONE)</span></div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="comment">// Bare metal: User must implement their own polling/interrupt logic</span></div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="preprocessor">#else</span></div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="preprocessor">    #warning &quot;Thread implementation not found.&quot;</span></div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno"><a class="line" href="_delegate_m_q_8h.html#ad607bc5ecece34546e87d2e26508f65a">  148</a></span><span class="preprocessor">    #define DMQ_THREAD_NONE</span></div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span> </div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="preprocessor">#if defined(DMQ_SERIALIZE_MSGPACK)</span></div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="preprocessor">    #include &quot;<a class="code" href="msgpack_2_serializer_8h.html">port/serialize/msgpack/Serializer.h</a>&quot;</span></div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_CEREAL)</span></div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="preprocessor">    #include &quot;<a class="code" href="cereal_2_serializer_8h.html">port/serialize/cereal/Serializer.h</a>&quot;</span></div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_BITSERY)</span></div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="preprocessor">    #include &quot;<a class="code" href="bitsery_2_serializer_8h.html">port/serialize/bitsery/Serializer.h</a>&quot;</span></div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_RAPIDJSON)</span></div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="preprocessor">    #include &quot;<a class="code" href="rapidjson_2_serializer_8h.html">port/serialize/rapidjson/Serializer.h</a>&quot;</span></div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_SERIALIZE)</span></div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="preprocessor">    #include &quot;<a class="code" href="serialize_2_serializer_8h.html">port/serialize/serialize/Serializer.h</a>&quot;</span></div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_NONE)</span></div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <span class="comment">// Create a custom application-specific serializer</span></div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="preprocessor">#else</span></div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="preprocessor">    #warning &quot;Serialize implementation not found.&quot;</span></div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span> </div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="preprocessor">#if defined(DMQ_TRANSPORT_ZEROMQ)</span></div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="preprocessor">    #include &quot;<a class="code" href="_zero_mq_transport_8h.html">port/transport/zeromq/ZeroMqTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_NNG)</span></div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="preprocessor">    #include &quot;<a class="code" href="_nng_transport_8h.html">port/transport/nng/NngTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_WIN32_PIPE)</span></div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="preprocessor">    #include &quot;<a class="code" href="_win32_pipe_transport_8h.html">port/transport/win32-pipe/Win32PipeTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_WIN32_UDP)</span></div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="preprocessor">    #include &quot;<a class="code" href="_win32_udp_transport_8h.html">port/transport/win32-udp/Win32UdpTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span><span class="preprocessor">    #include &quot;<a class="code" href="win32-udp_2_multicast_transport_8h.html">port/transport/win32-udp/MulticastTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_WIN32_TCP)</span></div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="preprocessor">    #include &quot;<a class="code" href="_win32_tcp_transport_8h.html">port/transport/win32-tcp/Win32TcpTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_LINUX_UDP)</span></div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="preprocessor">    #include &quot;<a class="code" href="_linux_udp_transport_8h.html">port/transport/linux-udp/LinuxUdpTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="preprocessor">    #include &quot;<a class="code" href="linux-udp_2_multicast_transport_8h.html">port/transport/linux-udp/MulticastTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_LINUX_TCP)</span></div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="preprocessor">    #include &quot;<a class="code" href="_linux_tcp_transport_8h.html">port/transport/linux-tcp/LinuxTcpTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_MQTT)</span></div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span><span class="preprocessor">    #include &quot;<a class="code" href="_mqtt_transport_8h.html">port/transport/mqtt/MqttTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_SERIAL_PORT)</span></div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="preprocessor">    #include &quot;<a class="code" href="_serial_transport_8h.html">port/transport/serial/SerialTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_ARM_LWIP_UDP)</span></div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="preprocessor">    #include &quot;<a class="code" href="_arm_lwip_udp_transport_8h.html">port/transport/arm-lwip-udp/ArmLwipUdpTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP)</span></div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="preprocessor">    #include &quot;<a class="code" href="_arm_lwip_netconn_udp_transport_8h.html">port/transport/arm-lwip-netconn-udp/ArmLwipNetconnUdpTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_THREADX_UDP)</span></div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><span class="preprocessor">    #include &quot;port/transport/threadx-udp/NetXUdpTransport.h&quot;</span></div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_STM32_UART)</span></div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="preprocessor">    #include &quot;<a class="code" href="_stm32_uart_transport_8h.html">port/transport/stm32-uart/Stm32UartTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_ZEPHYR_UDP)</span></div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span><span class="preprocessor">    #include &quot;<a class="code" href="_zephyr_udp_transport_8h.html">port/transport/zephyr-udp/ZephyrUdpTransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_NONE)</span></div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="comment">// No built-in transport. Include the interface and dispatcher so application code</span></div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    <span class="comment">// can implement a custom ITransport and use RemoteChannel with a mock or stub.</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment">// Valid for StdLib/Win32 (Windows/Linux), Qt, ThreadX, FreeRTOS (if C++17</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment">// enabled), Zephyr, and CMSIS-RTOS2 -- the latter two via their native</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment">// k_sem/osSemaphore-backed dmq::Semaphore, not the generic condvar+mutex</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment">// implementation. DMQ_HAS_SEMAPHORE (DelegateOpt.h) is defined for exactly</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment">// this set of ports, so it&#39;s used directly here instead of hand-copying the</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment">// port list again.</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="preprocessor">#if defined(DMQ_HAS_SEMAPHORE)</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="preprocessor">    #include &quot;<a class="code" href="_delegate_async_wait_8h.html">delegate/DelegateAsyncWait.h</a>&quot;</span></div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span> </div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="preprocessor">#if defined(DMQ_THREAD_STDLIB)</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="preprocessor">    #include &quot;<a class="code" href="_stdlib_thread_8h.html">port/os/stdlib/StdlibThread.h</a>&quot;</span></div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_msg_8h.html">port/os/common/ThreadMsg.h</a>&quot;</span></div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="preprocessor">#elif defined(DMQ_THREAD_WIN32)</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="preprocessor">    #include &quot;<a class="code" href="_win32_thread_8h.html">port/os/win32/Win32Thread.h</a>&quot;</span></div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_msg_8h.html">port/os/common/ThreadMsg.h</a>&quot;</span></div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="preprocessor">#elif defined(DMQ_THREAD_FREERTOS)</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="preprocessor">    #include &quot;<a class="code" href="_free_r_t_o_s_thread_8h.html">port/os/freertos/FreeRTOSThread.h</a>&quot;</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_msg_8h.html">port/os/common/ThreadMsg.h</a>&quot;</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="preprocessor">#elif defined(DMQ_THREAD_THREADX)</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_x_thread_8h.html">port/os/threadx/ThreadXThread.h</a>&quot;</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_msg_8h.html">port/os/common/ThreadMsg.h</a>&quot;</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="preprocessor">#elif defined(DMQ_THREAD_ZEPHYR)</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="preprocessor">    #include &quot;<a class="code" href="_zephyr_thread_8h.html">port/os/zephyr/ZephyrThread.h</a>&quot;</span></div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_msg_8h.html">port/os/common/ThreadMsg.h</a>&quot;</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="preprocessor">#elif defined(DMQ_THREAD_CMSIS_RTOS2)</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="preprocessor">    #include &quot;<a class="code" href="_cmsis_rtos2_thread_8h.html">port/os/cmsis-rtos2/CmsisRtos2Thread.h</a>&quot;</span></div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_msg_8h.html">port/os/common/ThreadMsg.h</a>&quot;</span></div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="preprocessor">#elif defined(DMQ_THREAD_QT)</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="preprocessor">    #include &quot;<a class="code" href="_qt_thread_8h.html">port/os/qt/QtThread.h</a>&quot;</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_msg_8h.html">port/os/common/ThreadMsg.h</a>&quot;</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="preprocessor">#elif defined(DMQ_THREAD_NONE)</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    <span class="comment">// Bare metal: User must implement their own polling/interrupt logic</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="preprocessor">    #warning &quot;Thread implementation not found.&quot;</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno"><a class="line" href="_delegate_m_q_8h.html#ad607bc5ecece34546e87d2e26508f65a">  153</a></span><span class="preprocessor">    #define DMQ_THREAD_NONE</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span> </div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="preprocessor">#if defined(DMQ_SERIALIZE_MSGPACK)</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="preprocessor">    #include &quot;<a class="code" href="msgpack_2_serializer_8h.html">port/serialize/msgpack/Serializer.h</a>&quot;</span></div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_CEREAL)</span></div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="preprocessor">    #include &quot;<a class="code" href="cereal_2_serializer_8h.html">port/serialize/cereal/Serializer.h</a>&quot;</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_BITSERY)</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="preprocessor">    #include &quot;<a class="code" href="bitsery_2_serializer_8h.html">port/serialize/bitsery/Serializer.h</a>&quot;</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_RAPIDJSON)</span></div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="preprocessor">    #include &quot;<a class="code" href="rapidjson_2_serializer_8h.html">port/serialize/rapidjson/Serializer.h</a>&quot;</span></div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_SERIALIZE)</span></div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="preprocessor">    #include &quot;<a class="code" href="serialize_2_serializer_8h.html">port/serialize/serialize/Serializer.h</a>&quot;</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="preprocessor">#elif defined(DMQ_SERIALIZE_NONE)</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="comment">// Create a custom application-specific serializer</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="preprocessor">    #warning &quot;Serialize implementation not found.&quot;</span></div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span> </div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="preprocessor">#if defined(DMQ_TRANSPORT_ZEROMQ)</span></div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="preprocessor">    #include &quot;<a class="code" href="_zero_mq_transport_8h.html">port/transport/zeromq/ZeroMqTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_NNG)</span></div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span><span class="preprocessor">    #include &quot;<a class="code" href="_nng_transport_8h.html">port/transport/nng/NngTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_WIN32_PIPE)</span></div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><span class="preprocessor">    #include &quot;<a class="code" href="_win32_pipe_transport_8h.html">port/transport/win32-pipe/Win32PipeTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_WIN32_UDP)</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="preprocessor">    #include &quot;<a class="code" href="_win32_udp_transport_8h.html">port/transport/win32-udp/Win32UdpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="preprocessor">    #include &quot;<a class="code" href="win32-udp_2_multicast_transport_8h.html">port/transport/win32-udp/MulticastTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_WIN32_TCP)</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span><span class="preprocessor">    #include &quot;<a class="code" href="_win32_tcp_transport_8h.html">port/transport/win32-tcp/Win32TcpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_LINUX_UDP)</span></div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="preprocessor">    #include &quot;<a class="code" href="_linux_udp_transport_8h.html">port/transport/linux-udp/LinuxUdpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span><span class="preprocessor">    #include &quot;<a class="code" href="linux-udp_2_multicast_transport_8h.html">port/transport/linux-udp/MulticastTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_LINUX_TCP)</span></div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span><span class="preprocessor">    #include &quot;<a class="code" href="_linux_tcp_transport_8h.html">port/transport/linux-tcp/LinuxTcpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_MQTT)</span></div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="preprocessor">    #include &quot;<a class="code" href="_mqtt_transport_8h.html">port/transport/mqtt/MqttTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_SERIAL_PORT)</span></div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="preprocessor">    #include &quot;<a class="code" href="_serial_transport_8h.html">port/transport/serial/SerialTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_ARM_LWIP_UDP)</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="preprocessor">    #include &quot;<a class="code" href="_arm_lwip_udp_transport_8h.html">port/transport/arm-lwip-udp/ArmLwipUdpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP)</span></div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span><span class="preprocessor">    #include &quot;<a class="code" href="_arm_lwip_netconn_udp_transport_8h.html">port/transport/arm-lwip-netconn-udp/ArmLwipNetconnUdpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_THREADX_UDP)</span></div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span><span class="preprocessor">    #include &quot;<a class="code" href="_net_x_udp_transport_8h.html">port/transport/netx-udp/NetXUdpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_STM32_UART)</span></div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span><span class="preprocessor">    #include &quot;<a class="code" href="_stm32_uart_transport_8h.html">port/transport/stm32-uart/Stm32UartTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_ZEPHYR_UDP)</span></div>
 <div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="preprocessor">    #include &quot;<a class="code" href="_i_transport_8h.html">port/transport/ITransport.h</a>&quot;</span></div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="preprocessor">#else</span></div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span><span class="preprocessor">    #warning &quot;Transport implementation not found.&quot;</span></div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span> </div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment">// Include RemoteChannel whenever Dispatcher.h has been included (all transport</span></div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment">// configurations including NONE, where a mock ITransport can be supplied).</span></div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="comment">// RemoteChannel aggregates dispatcher, serializer, and stream into one object,</span></div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span><span class="comment">// mirroring how Thread aggregates async delegate wiring behind a single IThread.</span></div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span><span class="preprocessor">#if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_NNG) || \</span></div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="preprocessor">    defined(DMQ_TRANSPORT_WIN32_PIPE) || defined(DMQ_TRANSPORT_WIN32_UDP) || \</span></div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="preprocessor">    defined(DMQ_TRANSPORT_WIN32_TCP) || defined(DMQ_TRANSPORT_LINUX_UDP) || \</span></div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span><span class="preprocessor">    defined(DMQ_TRANSPORT_LINUX_TCP) || defined(DMQ_TRANSPORT_MQTT) || \</span></div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="preprocessor">    defined(DMQ_TRANSPORT_SERIAL_PORT) || defined(DMQ_TRANSPORT_ARM_LWIP_UDP) || \</span></div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="preprocessor">    defined(DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP) || defined(DMQ_TRANSPORT_THREADX_UDP) || \</span></div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span><span class="preprocessor">    defined(DMQ_TRANSPORT_STM32_UART) || defined(DMQ_TRANSPORT_ZEPHYR_UDP) || \</span></div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="preprocessor">    defined(DMQ_TRANSPORT_NONE)</span></div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span><span class="preprocessor">    #include &quot;<a class="code" href="_remote_channel_8h.html">extras/dispatcher/RemoteChannel.h</a>&quot;</span></div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span> </div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span><span class="preprocessor">#include &quot;<a class="code" href="_fault_8h.html">extras/util/Fault.h</a>&quot;</span></div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span><span class="preprocessor">#include &quot;<a class="code" href="_clock_helper_8h.html">extras/util/ClockHelper.h</a>&quot;</span></div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span> </div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span><span class="comment">// Only include Timer and AsyncInvoke if threads exist</span></div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span><span class="preprocessor">#if !defined(DMQ_THREAD_NONE)</span></div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span><span class="preprocessor">    #include &quot;<a class="code" href="_timer_8h.html">extras/util/Timer.h</a>&quot;</span></div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span><span class="preprocessor">    #include &quot;<a class="code" href="_timer_delegate_8h.html">extras/util/TimerDelegate.h</a>&quot;</span></div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span><span class="preprocessor">    #include &quot;<a class="code" href="_async_invoke_8h.html">extras/util/AsyncInvoke.h</a>&quot;</span></div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span><span class="preprocessor">    #include &quot;<a class="code" href="_transport_monitor_8h.html">extras/util/TransportMonitor.h</a>&quot;</span></div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_monitor_8h.html">extras/util/ThreadMonitor.h</a>&quot;</span></div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span> </div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span><span class="comment">// Only include NetworkEngine if a transport that uses it is active</span></div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span><span class="preprocessor">#if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_WIN32_UDP) || \</span></div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span><span class="preprocessor">    defined(DMQ_TRANSPORT_LINUX_UDP) || defined(DMQ_TRANSPORT_STM32_UART) || \</span></div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span><span class="preprocessor">    defined(DMQ_TRANSPORT_SERIAL_PORT)</span></div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span><span class="preprocessor">    #include &quot;<a class="code" href="_network_engine_8h.html">extras/util/NetworkEngine.h</a>&quot;</span></div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span> </div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span><span class="preprocessor">#if defined(DMQ_DATABUS)</span></div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span><span class="preprocessor">    #include &quot;<a class="code" href="_data_bus_8h.html">extras/databus/DataBus.h</a>&quot;</span></div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span><span class="preprocessor">    #include &quot;<a class="code" href="_participant_8h.html">extras/databus/Participant.h</a>&quot;</span></div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span><span class="preprocessor">    #include &quot;<a class="code" href="_deadline_subscription_8h.html">extras/databus/DeadlineSubscription.h</a>&quot;</span></div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span> </div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span> </div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="preprocessor">    #include &quot;<a class="code" href="_zephyr_udp_transport_8h.html">port/transport/zephyr-udp/ZephyrUdpTransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="preprocessor">#elif defined(DMQ_TRANSPORT_NONE)</span></div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    <span class="comment">// No built-in transport. Include the interface and dispatcher so application code</span></div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    <span class="comment">// can implement a custom ITransport and use RemoteChannel with a mock or stub.</span></div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="preprocessor">    #include &quot;<a class="code" href="_dispatcher_8h.html">extras/dispatcher/Dispatcher.h</a>&quot;</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="preprocessor">    #include &quot;<a class="code" href="_i_transport_8h.html">port/transport/common/ITransport.h</a>&quot;</span></div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="preprocessor">    #warning &quot;Transport implementation not found.&quot;</span></div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span> </div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment">// Include RemoteChannel whenever Dispatcher.h has been included (all transport</span></div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment">// configurations including NONE, where a mock ITransport can be supplied).</span></div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span><span class="comment">// RemoteChannel aggregates dispatcher, serializer, and stream into one object,</span></div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="comment">// mirroring how Thread aggregates async delegate wiring behind a single IThread.</span></div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="preprocessor">#if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_NNG) || \</span></div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span><span class="preprocessor">    defined(DMQ_TRANSPORT_WIN32_PIPE) || defined(DMQ_TRANSPORT_WIN32_UDP) || \</span></div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="preprocessor">    defined(DMQ_TRANSPORT_WIN32_TCP) || defined(DMQ_TRANSPORT_LINUX_UDP) || \</span></div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span><span class="preprocessor">    defined(DMQ_TRANSPORT_LINUX_TCP) || defined(DMQ_TRANSPORT_MQTT) || \</span></div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span><span class="preprocessor">    defined(DMQ_TRANSPORT_SERIAL_PORT) || defined(DMQ_TRANSPORT_ARM_LWIP_UDP) || \</span></div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span><span class="preprocessor">    defined(DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP) || defined(DMQ_TRANSPORT_THREADX_UDP) || \</span></div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span><span class="preprocessor">    defined(DMQ_TRANSPORT_STM32_UART) || defined(DMQ_TRANSPORT_ZEPHYR_UDP) || \</span></div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span><span class="preprocessor">    defined(DMQ_TRANSPORT_NONE)</span></div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span><span class="preprocessor">    #include &quot;<a class="code" href="_remote_channel_8h.html">extras/dispatcher/RemoteChannel.h</a>&quot;</span></div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span> </div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span><span class="preprocessor">#include &quot;<a class="code" href="_fault_8h.html">extras/util/Fault.h</a>&quot;</span></div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span><span class="preprocessor">#include &quot;<a class="code" href="_clock_helper_8h.html">extras/util/ClockHelper.h</a>&quot;</span></div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span> </div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span><span class="comment">// Only include Timer and AsyncInvoke if threads exist</span></div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span><span class="preprocessor">#if !defined(DMQ_THREAD_NONE)</span></div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span><span class="preprocessor">    #include &quot;<a class="code" href="_timer_8h.html">extras/util/Timer.h</a>&quot;</span></div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span><span class="preprocessor">    #include &quot;<a class="code" href="_timer_delegate_8h.html">extras/util/TimerDelegate.h</a>&quot;</span></div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span><span class="preprocessor">    #include &quot;<a class="code" href="_async_invoke_8h.html">extras/util/AsyncInvoke.h</a>&quot;</span></div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span><span class="preprocessor">    #include &quot;<a class="code" href="_transport_monitor_8h.html">extras/util/TransportMonitor.h</a>&quot;</span></div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span><span class="preprocessor">    #include &quot;<a class="code" href="_thread_monitor_8h.html">extras/util/ThreadMonitor.h</a>&quot;</span></div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span> </div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span><span class="comment">// Only include NetworkEngine if a transport that uses it is active</span></div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span><span class="preprocessor">#if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_WIN32_UDP) || \</span></div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span><span class="preprocessor">    defined(DMQ_TRANSPORT_LINUX_UDP) || defined(DMQ_TRANSPORT_STM32_UART) || \</span></div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span><span class="preprocessor">    defined(DMQ_TRANSPORT_SERIAL_PORT)</span></div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span><span class="preprocessor">    #include &quot;<a class="code" href="_network_engine_8h.html">extras/util/NetworkEngine.h</a>&quot;</span></div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span> </div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span><span class="preprocessor">#if defined(DMQ_DATABUS)</span></div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span><span class="preprocessor">    #include &quot;<a class="code" href="_data_bus_8h.html">extras/databus/DataBus.h</a>&quot;</span></div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span><span class="preprocessor">    #include &quot;<a class="code" href="_participant_8h.html">extras/databus/Participant.h</a>&quot;</span></div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span><span class="preprocessor">    #include &quot;<a class="code" href="_deadline_subscription_8h.html">extras/databus/DeadlineSubscription.h</a>&quot;</span></div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span> </div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span> </div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="a_arm_lwip_netconn_udp_transport_8h_html"><div class="ttname"><a href="_arm_lwip_netconn_udp_transport_8h.html">ArmLwipNetconnUdpTransport.h</a></div><div class="ttdoc">ARM lwIP Netconn UDP transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="a_arm_lwip_udp_transport_8h_html"><div class="ttname"><a href="_arm_lwip_udp_transport_8h.html">ArmLwipUdpTransport.h</a></div><div class="ttdoc">ARM lwIP UDP transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="a_async_invoke_8h_html"><div class="ttname"><a href="_async_invoke_8h.html">AsyncInvoke.h</a></div><div class="ttdoc">Helper functions for simplified, one-line asynchronous function invocation.</div></div>
 <div class="ttc" id="a_clock_helper_8h_html"><div class="ttname"><a href="_clock_helper_8h.html">ClockHelper.h</a></div></div>
+<div class="ttc" id="a_cmsis_rtos2_thread_8h_html"><div class="ttname"><a href="_cmsis_rtos2_thread_8h.html">CmsisRtos2Thread.h</a></div><div class="ttdoc">CMSIS-RTOS2 implementation of the DelegateMQ IThread interface.</div></div>
 <div class="ttc" id="a_data_bus_8h_html"><div class="ttname"><a href="_data_bus_8h.html">DataBus.h</a></div></div>
 <div class="ttc" id="a_deadline_subscription_8h_html"><div class="ttname"><a href="_deadline_subscription_8h.html">DeadlineSubscription.h</a></div><div class="ttdoc">RAII helper that combines a DataBus subscription with a deadline timer.</div></div>
 <div class="ttc" id="a_delegate_8h_html"><div class="ttname"><a href="_delegate_8h.html">Delegate.h</a></div><div class="ttdoc">Delegate series of classes are used to invoke a function synchronously.</div></div>
@@ -325,20 +331,26 @@ $(function(){initNavTree('_delegate_m_q_8h_source.html',''); initResizable(true)
 <div class="ttc" id="a_delegate_remote_8h_html"><div class="ttname"><a href="_delegate_remote_8h.html">DelegateRemote.h</a></div><div class="ttdoc">Delegate &quot;`Remote`&quot; series of classes used to invoke a function remotely (i.e. different CPU,...</div></div>
 <div class="ttc" id="a_dispatcher_8h_html"><div class="ttname"><a href="_dispatcher_8h.html">Dispatcher.h</a></div><div class="ttdoc">The bridge between the serialization layer and the physical transport layer.</div></div>
 <div class="ttc" id="a_fault_8h_html"><div class="ttname"><a href="_fault_8h.html">Fault.h</a></div></div>
+<div class="ttc" id="a_free_r_t_o_s_thread_8h_html"><div class="ttname"><a href="_free_r_t_o_s_thread_8h.html">FreeRTOSThread.h</a></div><div class="ttdoc">FreeRTOS implementation of the DelegateMQ IThread interface.</div></div>
 <div class="ttc" id="a_i_transport_8h_html"><div class="ttname"><a href="_i_transport_8h.html">ITransport.h</a></div></div>
 <div class="ttc" id="a_linux_tcp_transport_8h_html"><div class="ttname"><a href="_linux_tcp_transport_8h.html">LinuxTcpTransport.h</a></div></div>
 <div class="ttc" id="a_linux_udp_transport_8h_html"><div class="ttname"><a href="_linux_udp_transport_8h.html">LinuxUdpTransport.h</a></div><div class="ttdoc">Linux UDP transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="a_mqtt_transport_8h_html"><div class="ttname"><a href="_mqtt_transport_8h.html">MqttTransport.h</a></div></div>
 <div class="ttc" id="a_multicast_delegate_8h_html"><div class="ttname"><a href="_multicast_delegate_8h.html">MulticastDelegate.h</a></div><div class="ttdoc">Delegate container for storing and iterating over a collection of delegate instances....</div></div>
 <div class="ttc" id="a_multicast_delegate_safe_8h_html"><div class="ttname"><a href="_multicast_delegate_safe_8h.html">MulticastDelegateSafe.h</a></div><div class="ttdoc">Delegate container for storing and iterating over a collection of delegate instances....</div></div>
+<div class="ttc" id="a_net_x_udp_transport_8h_html"><div class="ttname"><a href="_net_x_udp_transport_8h.html">NetXUdpTransport.h</a></div><div class="ttdoc">NetX (ThreadX) UDP transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="a_network_engine_8h_html"><div class="ttname"><a href="_network_engine_8h.html">NetworkEngine.h</a></div><div class="ttdoc">Base class for handling network transport, threading, and synchronization.</div></div>
 <div class="ttc" id="a_nng_transport_8h_html"><div class="ttname"><a href="_nng_transport_8h.html">NngTransport.h</a></div><div class="ttdoc">NNG transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="a_participant_8h_html"><div class="ttname"><a href="_participant_8h.html">Participant.h</a></div></div>
+<div class="ttc" id="a_qt_thread_8h_html"><div class="ttname"><a href="_qt_thread_8h.html">QtThread.h</a></div><div class="ttdoc">Qt implementation of the DelegateMQ IThread interface.</div></div>
 <div class="ttc" id="a_remote_channel_8h_html"><div class="ttname"><a href="_remote_channel_8h.html">RemoteChannel.h</a></div><div class="ttdoc">Aggregates transport, serializer, dispatcher, and stream into a single object, mirroring how IThread/...</div></div>
 <div class="ttc" id="a_serial_transport_8h_html"><div class="ttname"><a href="_serial_transport_8h.html">SerialTransport.h</a></div><div class="ttdoc">Libserialport-based transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="a_signal_8h_html"><div class="ttname"><a href="_signal_8h.html">Signal.h</a></div><div class="ttdoc">Thread-safe Signal/slot with RAII connection handles; no allocation requirement.</div></div>
+<div class="ttc" id="a_stdlib_thread_8h_html"><div class="ttname"><a href="_stdlib_thread_8h.html">StdlibThread.h</a></div><div class="ttdoc">Standard C++ implementation of the DelegateMQ IThread interface.</div></div>
 <div class="ttc" id="a_stm32_uart_transport_8h_html"><div class="ttname"><a href="_stm32_uart_transport_8h.html">Stm32UartTransport.h</a></div><div class="ttdoc">STM32 HAL UART transport implementation for DelegateMQ (FreeRTOS).</div></div>
 <div class="ttc" id="a_thread_monitor_8h_html"><div class="ttname"><a href="_thread_monitor_8h.html">ThreadMonitor.h</a></div></div>
+<div class="ttc" id="a_thread_msg_8h_html"><div class="ttname"><a href="_thread_msg_8h.html">ThreadMsg.h</a></div><div class="ttdoc">A class to hold a platform-specific thread message that will be passed through a dmq::os::Thread port...</div></div>
+<div class="ttc" id="a_thread_x_thread_8h_html"><div class="ttname"><a href="_thread_x_thread_8h.html">ThreadXThread.h</a></div><div class="ttdoc">ThreadX implementation of the DelegateMQ IThread interface.</div></div>
 <div class="ttc" id="a_timer_8h_html"><div class="ttname"><a href="_timer_8h.html">Timer.h</a></div></div>
 <div class="ttc" id="a_timer_delegate_8h_html"><div class="ttname"><a href="_timer_delegate_8h.html">TimerDelegate.h</a></div></div>
 <div class="ttc" id="a_transport_monitor_8h_html"><div class="ttname"><a href="_transport_monitor_8h.html">TransportMonitor.h</a></div></div>
@@ -346,30 +358,18 @@ $(function(){initNavTree('_delegate_m_q_8h_source.html',''); initResizable(true)
 <div class="ttc" id="a_unicast_delegate_safe_8h_html"><div class="ttname"><a href="_unicast_delegate_safe_8h.html">UnicastDelegateSafe.h</a></div><div class="ttdoc">Delegate container for storing an invoking a single delegate instance. Class is thread-safe.</div></div>
 <div class="ttc" id="a_win32_pipe_transport_8h_html"><div class="ttname"><a href="_win32_pipe_transport_8h.html">Win32PipeTransport.h</a></div></div>
 <div class="ttc" id="a_win32_tcp_transport_8h_html"><div class="ttname"><a href="_win32_tcp_transport_8h.html">Win32TcpTransport.h</a></div><div class="ttdoc">Win32 TCP transport implementation for DelegateMQ.</div></div>
+<div class="ttc" id="a_win32_thread_8h_html"><div class="ttname"><a href="_win32_thread_8h.html">Win32Thread.h</a></div><div class="ttdoc">Win32 API implementation of the DelegateMQ IThread interface.</div></div>
 <div class="ttc" id="a_win32_udp_transport_8h_html"><div class="ttname"><a href="_win32_udp_transport_8h.html">Win32UdpTransport.h</a></div></div>
+<div class="ttc" id="a_zephyr_thread_8h_html"><div class="ttname"><a href="_zephyr_thread_8h.html">ZephyrThread.h</a></div><div class="ttdoc">Zephyr RTOS implementation of the DelegateMQ IThread interface.</div></div>
 <div class="ttc" id="a_zephyr_udp_transport_8h_html"><div class="ttname"><a href="_zephyr_udp_transport_8h.html">ZephyrUdpTransport.h</a></div><div class="ttdoc">Zephyr RTOS UDP transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="a_zero_mq_transport_8h_html"><div class="ttname"><a href="_zero_mq_transport_8h.html">ZeroMqTransport.h</a></div><div class="ttdoc">ZeroMQ transport implementation for DelegateMQ.</div></div>
 <div class="ttc" id="abitsery_2_serializer_8h_html"><div class="ttname"><a href="bitsery_2_serializer_8h.html">Serializer.h</a></div></div>
 <div class="ttc" id="acereal_2_serializer_8h_html"><div class="ttname"><a href="cereal_2_serializer_8h.html">Serializer.h</a></div></div>
-<div class="ttc" id="acmsis-rtos2_2_thread_8h_html"><div class="ttname"><a href="cmsis-rtos2_2_thread_8h.html">Thread.h</a></div><div class="ttdoc">CMSIS-RTOS2 implementation of the DelegateMQ IThread interface.</div></div>
-<div class="ttc" id="acmsis-rtos2_2_thread_msg_8h_html"><div class="ttname"><a href="cmsis-rtos2_2_thread_msg_8h.html">ThreadMsg.h</a></div></div>
-<div class="ttc" id="afreertos_2_thread_8h_html"><div class="ttname"><a href="freertos_2_thread_8h.html">Thread.h</a></div><div class="ttdoc">FreeRTOS implementation of the DelegateMQ IThread interface.</div></div>
-<div class="ttc" id="afreertos_2_thread_msg_8h_html"><div class="ttname"><a href="freertos_2_thread_msg_8h.html">ThreadMsg.h</a></div></div>
 <div class="ttc" id="alinux-udp_2_multicast_transport_8h_html"><div class="ttname"><a href="linux-udp_2_multicast_transport_8h.html">MulticastTransport.h</a></div></div>
 <div class="ttc" id="amsgpack_2_serializer_8h_html"><div class="ttname"><a href="msgpack_2_serializer_8h.html">Serializer.h</a></div></div>
-<div class="ttc" id="aqt_2_thread_8h_html"><div class="ttname"><a href="qt_2_thread_8h.html">Thread.h</a></div></div>
-<div class="ttc" id="aqt_2_thread_msg_8h_html"><div class="ttname"><a href="qt_2_thread_msg_8h.html">ThreadMsg.h</a></div></div>
 <div class="ttc" id="arapidjson_2_serializer_8h_html"><div class="ttname"><a href="rapidjson_2_serializer_8h.html">Serializer.h</a></div></div>
 <div class="ttc" id="aserialize_2_serializer_8h_html"><div class="ttname"><a href="serialize_2_serializer_8h.html">Serializer.h</a></div></div>
-<div class="ttc" id="astdlib_2_thread_8h_html"><div class="ttname"><a href="stdlib_2_thread_8h.html">Thread.h</a></div><div class="ttdoc">Standard C++ implementation of the DelegateMQ IThread interface.</div></div>
-<div class="ttc" id="astdlib_2_thread_msg_8h_html"><div class="ttname"><a href="stdlib_2_thread_msg_8h.html">ThreadMsg.h</a></div></div>
-<div class="ttc" id="athreadx_2_thread_8h_html"><div class="ttname"><a href="threadx_2_thread_8h.html">Thread.h</a></div><div class="ttdoc">ThreadX implementation of the DelegateMQ IThread interface.</div></div>
-<div class="ttc" id="athreadx_2_thread_msg_8h_html"><div class="ttname"><a href="threadx_2_thread_msg_8h.html">ThreadMsg.h</a></div></div>
 <div class="ttc" id="awin32-udp_2_multicast_transport_8h_html"><div class="ttname"><a href="win32-udp_2_multicast_transport_8h.html">MulticastTransport.h</a></div></div>
-<div class="ttc" id="awin32_2_thread_8h_html"><div class="ttname"><a href="win32_2_thread_8h.html">Thread.h</a></div><div class="ttdoc">Win32 API implementation of the DelegateMQ IThread interface.</div></div>
-<div class="ttc" id="awin32_2_thread_msg_8h_html"><div class="ttname"><a href="win32_2_thread_msg_8h.html">ThreadMsg.h</a></div></div>
-<div class="ttc" id="azephyr_2_thread_8h_html"><div class="ttname"><a href="zephyr_2_thread_8h.html">Thread.h</a></div><div class="ttdoc">Zephyr RTOS implementation of the DelegateMQ IThread interface.</div></div>
-<div class="ttc" id="azephyr_2_thread_msg_8h_html"><div class="ttname"><a href="zephyr_2_thread_msg_8h.html">ThreadMsg.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

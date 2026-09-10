@@ -137,7 +137,7 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a32711091484d327cf7b035e20e71c554"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><div class="compoundTemplParams">template&lt;typename Transport, size_t MaxPeers = 4, size_t MaxTopics = 16&gt;<br />
+<div class="textblock"><div class="compoundTemplParams">template&lt;typename Transport, size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt;<br />
 class dmq::databus::NetworkNode&lt; Transport, MaxPeers, MaxTopics &gt;</div><p>Generic multi-peer <a class="el" href="classdmq_1_1databus_1_1_data_bus.html">DataBus</a> network node. </p>
 <p>All member functions are safe to call before <a class="el" href="#a6e413404d70fd19ede7a0053994ddd7a" title="Open the inbound transport and start the receive thread.">Start()</a> or <a class="el" href="#aa176218cd35ca580e9760e0d877a4fe0" title="Add a remote peer.">AddPeer()</a>; registrations are stored and applied when the relevant participant is created. </p>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
@@ -147,7 +147,7 @@ class dmq::databus::NetworkNode&lt; Transport, MaxPeers, MaxTopics &gt;</div><p>
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -174,7 +174,7 @@ template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -201,7 +201,7 @@ template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -229,7 +229,7 @@ template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -276,7 +276,7 @@ template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -303,7 +303,7 @@ template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <div class="memtemplate">
 template&lt;typename T &gt; </div>
 <table class="mlabels">
@@ -352,7 +352,7 @@ template&lt;typename T &gt; </div>
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <div class="memtemplate">
 template&lt;typename T &gt; </div>
 <table class="mlabels">
@@ -407,7 +407,7 @@ template&lt;typename T &gt; </div>
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">
@@ -460,7 +460,7 @@ template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; 
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Transport , size_t MaxPeers = 4, size_t MaxTopics = 16&gt; </div>
+template&lt;typename Transport , size_t MaxPeers = dmq::NETWORK_NODE_MAX_PEERS, size_t MaxTopics = dmq::NETWORK_NODE_MAX_TOPICS&gt; </div>
 <table class="mlabels">
   <tr>
   <td class="mlabels-left">

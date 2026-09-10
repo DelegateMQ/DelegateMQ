@@ -98,6 +98,7 @@ $(function(){initNavTree('classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_
 <div class="header">
   <div class="summary">
 <a href="#pub-methods">Public Member Functions</a> &#124;
+<a href="#friends">Friends</a> &#124;
 <a href="classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4-members.html">List of all members</a>  </div>
   <div class="headertitle"><div class="title">dmq::RemoteChannel&lt; RetType(Args...)&gt; Class Template Reference</div></div>
 </div><!--header-->
@@ -156,12 +157,33 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a9e3ed9f9d154122dbef3b82fafcbdec1" id="r_a9e3ed9f9d154122dbef3b82fafcbdec1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1_i_remote_invoker.html">IRemoteInvoker</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9e3ed9f9d154122dbef3b82fafcbdec1">GetEndpoint</a> () noexcept</td></tr>
 <tr class="memdesc:a9e3ed9f9d154122dbef3b82fafcbdec1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the internal delegate as an IRemoteInvoker* for RegisterEndpoint().  <br /></td></tr>
 <tr class="separator:a9e3ed9f9d154122dbef3b82fafcbdec1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1eaa7382eb689868b165809ced2a9220" id="r_a1eaa7382eb689868b165809ced2a9220"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1_i_dispatcher.html">dmq::IDispatcher</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1eaa7382eb689868b165809ced2a9220">GetDispatcher</a> () noexcept</td></tr>
-<tr class="separator:a1eaa7382eb689868b165809ced2a9220"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a17ab113d13d429b4d48e2a89d5b4209a" id="r_a17ab113d13d429b4d48e2a89d5b4209a"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a17ab113d13d429b4d48e2a89d5b4209a">GetSerializer</a> () noexcept</td></tr>
-<tr class="separator:a17ab113d13d429b4d48e2a89d5b4209a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afd9f8fbe0496844aaaa4b1380732257c" id="r_afd9f8fbe0496844aaaa4b1380732257c"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd9f8fbe0496844aaaa4b1380732257c">GetStream</a> () noexcept</td></tr>
-<tr class="separator:afd9f8fbe0496844aaaa4b1380732257c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="friends" name="friends"></a>
+Friends</h2></td></tr>
+<tr class="memitem:a93e14ff07a69f175e51e7bf24d01ca3e" id="r_a93e14ff07a69f175e51e7bf24d01ca3e"><td class="memTemplParams" colspan="2">template&lt;class R , class... A&gt; </td></tr>
+<tr class="memitem:a93e14ff07a69f175e51e7bf24d01ca3e"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a93e14ff07a69f175e51e7bf24d01ca3e">MakeDelegate</a> (R(*)(A...), <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;)</td></tr>
+<tr class="separator:a93e14ff07a69f175e51e7bf24d01ca3e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adb684973533730f6da0e2b21247521ab" id="r_adb684973533730f6da0e2b21247521ab"><td class="memTemplParams" colspan="2">template&lt;class C , class R , class... A&gt; </td></tr>
+<tr class="memitem:adb684973533730f6da0e2b21247521ab"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#adb684973533730f6da0e2b21247521ab">MakeDelegate</a> (C *, R(C::*)(A...), <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;)</td></tr>
+<tr class="separator:adb684973533730f6da0e2b21247521ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6eff0aa013720cad36cb1b8dee70496c" id="r_a6eff0aa013720cad36cb1b8dee70496c"><td class="memTemplParams" colspan="2">template&lt;class C , class R , class... A&gt; </td></tr>
+<tr class="memitem:a6eff0aa013720cad36cb1b8dee70496c"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a6eff0aa013720cad36cb1b8dee70496c">MakeDelegate</a> (C *, R(C::*)(A...) const, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;)</td></tr>
+<tr class="separator:a6eff0aa013720cad36cb1b8dee70496c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab04e1edbb1ca17d079192f8e12ad5306" id="r_ab04e1edbb1ca17d079192f8e12ad5306"><td class="memTemplParams" colspan="2">template&lt;class C , class R , class... A&gt; </td></tr>
+<tr class="memitem:ab04e1edbb1ca17d079192f8e12ad5306"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab04e1edbb1ca17d079192f8e12ad5306">MakeDelegate</a> (const C *, R(C::*)(A...) const, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;)</td></tr>
+<tr class="separator:ab04e1edbb1ca17d079192f8e12ad5306"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a004b3642c938ed8c82ec4f51f218e806" id="r_a004b3642c938ed8c82ec4f51f218e806"><td class="memTemplParams" colspan="2">template&lt;class C , class R , class... A&gt; </td></tr>
+<tr class="memitem:a004b3642c938ed8c82ec4f51f218e806"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#a004b3642c938ed8c82ec4f51f218e806">MakeDelegate</a> (std::shared_ptr&lt; C &gt;, R(C::*)(A...), <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;)</td></tr>
+<tr class="separator:a004b3642c938ed8c82ec4f51f218e806"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aad027d1c204bd2057e9ed6a38d44b624" id="r_aad027d1c204bd2057e9ed6a38d44b624"><td class="memTemplParams" colspan="2">template&lt;class C , class R , class... A&gt; </td></tr>
+<tr class="memitem:aad027d1c204bd2057e9ed6a38d44b624"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aad027d1c204bd2057e9ed6a38d44b624">MakeDelegate</a> (std::shared_ptr&lt; C &gt;, R(C::*)(A...) const, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;)</td></tr>
+<tr class="separator:aad027d1c204bd2057e9ed6a38d44b624"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab026cfc536634050b8d42a30e8110d59" id="r_ab026cfc536634050b8d42a30e8110d59"><td class="memTemplParams" colspan="2">template&lt;class R , class... A&gt; </td></tr>
+<tr class="memitem:ab026cfc536634050b8d42a30e8110d59"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#ab026cfc536634050b8d42a30e8110d59">MakeDelegate</a> (std::function&lt; R(A...)&gt;, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;)</td></tr>
+<tr class="separator:ab026cfc536634050b8d42a30e8110d59"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa1c74aeee16b76906b8f4e645c725bfb" id="r_aa1c74aeee16b76906b8f4e645c725bfb"><td class="memTemplParams" colspan="2">template&lt;typename F_ , typename Sig_ , typename &gt; </td></tr>
+<tr class="memitem:aa1c74aeee16b76906b8f4e645c725bfb"><td class="memTemplItemLeft" align="right" valign="top">auto&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#aa1c74aeee16b76906b8f4e645c725bfb">MakeDelegate</a> (F_ &amp;&amp;, <a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a>, <a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; Sig_ &gt; &amp;)</td></tr>
+<tr class="separator:aa1c74aeee16b76906b8f4e645c725bfb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><div class="compoundTemplParams">template&lt;class RetType, class... Args&gt;<br />
@@ -173,10 +195,10 @@ class dmq::RemoteChannel&lt; RetType(Args...)&gt;</div><p>Aggregates dispatcher,
 <div class="line"><span class="comment">// In Create():</span></div>
 <div class="line">m_alarmChannel.emplace(GetRecvTransport(), m_alarmSer);</div>
 <div class="line">m_alarmChannel-&gt;Bind(<span class="keyword">this</span>, &amp;MyClass::OnAlarm, ALARM_ID);</div>
-<div class="line">m_alarmChannel-&gt;SetErrorHandler(<a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">MakeDelegate</a>(<span class="keyword">this</span>, &amp;MyClass::OnError));</div>
+<div class="line">m_alarmChannel-&gt;SetErrorHandler(<a class="code hl_friend" href="#a93e14ff07a69f175e51e7bf24d01ca3e">MakeDelegate</a>(<span class="keyword">this</span>, &amp;MyClass::OnError));</div>
 <div class="line">RegisterEndpoint(ALARM_ID, m_alarmChannel-&gt;GetEndpoint());</div>
+<div class="ttc" id="aclassdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4_html_a93e14ff07a69f175e51e7bf24d01ca3e"><div class="ttname"><a href="#a93e14ff07a69f175e51e7bf24d01ca3e">dmq::RemoteChannel&lt; RetType(Args...)&gt;::MakeDelegate</a></div><div class="ttdeci">friend auto MakeDelegate(R(*)(A...), DelegateRemoteId, RemoteChannel&lt; R(A...)&gt; &amp;)</div></div>
 <div class="ttc" id="aclassdmq_1_1_remote_channel_html"><div class="ttname"><a href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a></div><div class="ttdef"><b>Definition</b> RemoteChannel.h:48</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
 </div><!-- fragment --><p><b>Send-side usage — no <a class="el" href="#accc5b32807f245e737a4097535927cef" title="Bind a non-const member function as the receive-side handler.">Bind()</a> required:</b> </p><div class="fragment"><div class="line">m_alarmChannel.emplace(GetSendTransport(), m_alarmSer, ALARM_ID);</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// Send (fire-and-forget):</span></div>
@@ -184,7 +206,7 @@ class dmq::RemoteChannel&lt; RetType(Args...)&gt;</div><p>Aggregates dispatcher,
 <div class="line"> </div>
 <div class="line"><span class="comment">// Send (blocking wait):</span></div>
 <div class="line">RemoteInvokeWait(*m_alarmChannel, msg);</div>
-</div><!-- fragment --><p><b>Legacy MakeDelegate pattern (still supported):</b> </p><div class="fragment"><div class="line"><span class="keyword">auto</span> d = <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">MakeDelegate</a>(&amp;MyFunc, REMOTE_ID, channel);</div>
+</div><!-- fragment --><p><b>Legacy MakeDelegate pattern (still supported):</b> </p><div class="fragment"><div class="line"><span class="keyword">auto</span> d = <a class="code hl_friend" href="#a93e14ff07a69f175e51e7bf24d01ca3e">MakeDelegate</a>(&amp;MyFunc, REMOTE_ID, channel);</div>
 </div><!-- fragment --><p><code><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a></code> is non-copyable because it owns mutable stream state and the internal delegate holds raw pointers into the channel.</p>
 <dl class="tparams"><dt>Template Parameters</dt><dd>
   <table class="tparams">
@@ -451,33 +473,6 @@ template&lt;class TClass &gt; </div>
 
 </div>
 </div>
-<a id="a1eaa7382eb689868b165809ced2a9220" name="a1eaa7382eb689868b165809ced2a9220"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1eaa7382eb689868b165809ced2a9220">&#9670;&#160;</a></span>GetDispatcher()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<div class="memtemplate">
-template&lt;class RetType , class... Args&gt; </div>
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="classdmq_1_1_i_dispatcher.html">dmq::IDispatcher</a> * <a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt; RetType(Args...)&gt;::GetDispatcher </td>
-          <td>(</td>
-          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">noexcept</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-</div>
-</div>
 <a id="a9e3ed9f9d154122dbef3b82fafcbdec1" name="a9e3ed9f9d154122dbef3b82fafcbdec1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9e3ed9f9d154122dbef3b82fafcbdec1">&#9670;&#160;</a></span>GetEndpoint()</h2>
 
@@ -591,60 +586,6 @@ template&lt;class RetType , class... Args&gt; </div>
 </div><div class="memdoc">
 
 <p>The remote ID set by the most recent <a class="el" href="#accc5b32807f245e737a4097535927cef" title="Bind a non-const member function as the receive-side handler.">Bind()</a> or <a class="el" href="#abe82ad0f01e86f110ec05f14153abe50" title="Set the remote ID for outbound messages.">SetRemoteId()</a> call. </p>
-
-</div>
-</div>
-<a id="a17ab113d13d429b4d48e2a89d5b4209a" name="a17ab113d13d429b4d48e2a89d5b4209a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a17ab113d13d429b4d48e2a89d5b4209a">&#9670;&#160;</a></span>GetSerializer()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<div class="memtemplate">
-template&lt;class RetType , class... Args&gt; </div>
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="classdmq_1_1_i_serializer.html">dmq::ISerializer</a>&lt; RetType(Args...)&gt; * <a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt; RetType(Args...)&gt;::GetSerializer </td>
-          <td>(</td>
-          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">noexcept</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="afd9f8fbe0496844aaaa4b1380732257c" name="afd9f8fbe0496844aaaa4b1380732257c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afd9f8fbe0496844aaaa4b1380732257c">&#9670;&#160;</a></span>GetStream()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<div class="memtemplate">
-template&lt;class RetType , class... Args&gt; </div>
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="namespacedmq.html#aa67d7309f9b005cc369e448ec28f8129">dmq::xostringstream</a> &amp; <a class="el" href="classdmq_1_1_remote_channel.html">dmq::RemoteChannel</a>&lt; RetType(Args...)&gt;::GetStream </td>
-          <td>(</td>
-          <td class="paramname"><span class="paramname"><em></em></span></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">noexcept</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
 
 </div>
 </div>
@@ -768,6 +709,336 @@ template&lt;class RetType , class... Args&gt; </div>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<h2 class="groupheader">Friends And Related Symbol Documentation</h2>
+<a id="a6eff0aa013720cad36cb1b8dee70496c" name="a6eff0aa013720cad36cb1b8dee70496c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6eff0aa013720cad36cb1b8dee70496c">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[1/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;class C , class R , class... A&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">C *</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">R(C::*</td>          <td class="paramname"><span class="paramname"><em>&#160;</em></span>)(A...) const, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="adb684973533730f6da0e2b21247521ab" name="adb684973533730f6da0e2b21247521ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adb684973533730f6da0e2b21247521ab">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[2/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;class C , class R , class... A&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">C *</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">R(C::*</td>          <td class="paramname"><span class="paramname"><em>&#160;</em></span>)(A...), </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ab04e1edbb1ca17d079192f8e12ad5306" name="ab04e1edbb1ca17d079192f8e12ad5306"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab04e1edbb1ca17d079192f8e12ad5306">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[3/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;class C , class R , class... A&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">const C *</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">R(C::*</td>          <td class="paramname"><span class="paramname"><em>&#160;</em></span>)(A...) const, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="aa1c74aeee16b76906b8f4e645c725bfb" name="aa1c74aeee16b76906b8f4e645c725bfb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa1c74aeee16b76906b8f4e645c725bfb">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[4/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;typename F_ , typename Sig_ , typename &gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">F_ &amp;&amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; Sig_ &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a93e14ff07a69f175e51e7bf24d01ca3e" name="a93e14ff07a69f175e51e7bf24d01ca3e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a93e14ff07a69f175e51e7bf24d01ca3e">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[5/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;class R , class... A&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">R(*</td>          <td class="paramname"><span class="paramname"><em>&#160;</em></span>)(A...), </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ab026cfc536634050b8d42a30e8110d59" name="ab026cfc536634050b8d42a30e8110d59"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab026cfc536634050b8d42a30e8110d59">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[6/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;class R , class... A&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">std::function&lt; R(A...)&gt;</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="aad027d1c204bd2057e9ed6a38d44b624" name="aad027d1c204bd2057e9ed6a38d44b624"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad027d1c204bd2057e9ed6a38d44b624">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[7/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;class C , class R , class... A&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; C &gt;</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">R(C::*</td>          <td class="paramname"><span class="paramname"><em>&#160;</em></span>)(A...) const, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a004b3642c938ed8c82ec4f51f218e806" name="a004b3642c938ed8c82ec4f51f218e806"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a004b3642c938ed8c82ec4f51f218e806">&#9670;&#160;</a></span>MakeDelegate <span class="overload">[8/8]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class RetType , class... Args&gt; </div>
+<div class="memtemplate">
+template&lt;class C , class R , class... A&gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">auto MakeDelegate </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; C &gt;</td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">R(C::*</td>          <td class="paramname"><span class="paramname"><em>&#160;</em></span>)(A...), </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a5c5e55328ae2cd1d800dfb6c83a21bda">DelegateRemoteId</a></td>          <td class="paramname"><span class="paramname"><em></em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_remote_channel.html">RemoteChannel</a>&lt; R(A...)&gt; &amp;</td>          <td class="paramname"><span class="paramname"><em></em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">friend</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
 
 </div>
 </div>

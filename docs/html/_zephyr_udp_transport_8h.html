@@ -106,9 +106,9 @@ $(function(){initNavTree('_zephyr_udp_transport_8h.html',''); initResizable(true
 <p>Zephyr RTOS UDP transport implementation for DelegateMQ.  
 <a href="#details">More...</a></p>
 <div class="textblock"><code>#include &quot;<a class="el" href="_delegate_opt_8h_source.html">delegate/DelegateOpt.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="_i_transport_8h_source.html">port/transport/ITransport.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="_dmq_header_8h_source.html">port/transport/DmqHeader.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="_i_transport_monitor_8h_source.html">port/transport/ITransportMonitor.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="_i_transport_8h_source.html">port/transport/common/ITransport.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="_dmq_header_8h_source.html">port/transport/common/DmqHeader.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="_i_transport_monitor_8h_source.html">port/transport/common/ITransportMonitor.h</a>&quot;</code><br />
 <code>#include &lt;zephyr/kernel.h&gt;</code><br />
 <code>#include &lt;zephyr/net/socket.h&gt;</code><br />
 <code>#include &lt;iostream&gt;</code><br />
@@ -140,9 +140,10 @@ Namespaces</h2></td></tr>
 <p>This class implements the ITransport interface using the Zephyr Networking Subsystem (BSD Socket API). It is designed for embedded targets running Zephyr RTOS.</p>
 <p><b>Prerequisites:</b></p><ul>
 <li>Enable BSD Sockets: <code>CONFIG_NET_SOCKETS=y</code></li>
-<li>Enable POSIX Names: <code>CONFIG_NET_SOCKETS_POSIX_NAMES=y</code> (Default)</li>
 <li>Enable IPv4: <code>CONFIG_NET_IPV4=y</code></li>
+<li>A network interface: on <code>native_sim</code> the loopback interface (<code>CONFIG_NET_LOOPBACK=y</code>, needs <code>CONFIG_NET_DRIVERS=y</code>) is enough for same-process testing with no host-side setup &ndash; see <code>example/sample-projects/zephyr-udp-serializer/prj.conf</code>. A real target instead needs its actual link-layer driver (Ethernet, Wi-Fi, etc.).</li>
 </ul>
+<p>This file calls the <code>zsock_*</code>-prefixed socket functions (<code>zsock_socket()</code>, <code>zsock_bind()</code>, <code>zsock_sendto()</code>, etc.) rather than the unprefixed BSD names. Getting the unprefixed names requires <code>CONFIG_POSIX_API=y</code>, which replaces large parts of the standard header set (<code>&lt;sys/socket.h&gt;</code>, pthread types, ...) with Zephyr's own POSIX compatibility layer &ndash; something that collides with the <em>host's</em> C++ standard library headers when building for <code>native_sim</code> (which links against the host's real libstdc++), and is unnecessary weight on a real target that has no such conflict. <code>CONFIG_NET_SOCKETS_POSIX_NAMES</code>, an older, narrower way to get just the unprefixed socket names without the rest of <code>CONFIG_POSIX_API</code>, was deprecated in Zephyr 3.7 and removed &ndash; <code>zsock_*</code> is the current, portable choice regardless of target.</p>
 <p><b>Key Features:</b></p><ol type="1">
 <li><b>Direct Execution</b>: Executes network operations directly on the calling thread, avoiding context switch overhead and preventing deadlocks.</li>
 <li><b>Zero-Copy Friendly</b>: Uses the standard BSD API which Zephyr optimizes internally.</li>

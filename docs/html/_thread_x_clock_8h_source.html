@@ -144,14 +144,21 @@ $(function(){initNavTree('_thread_x_clock_8h_source.html',''); initResizable(tru
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>            <span class="comment">// Exit Critical Section</span></div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>            TX_RESTORE</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>            <span class="keywordflow">return</span> <a class="code hl_typedef" href="structdmq_1_1os_1_1_thread_x_clock.html#ad4edcb8c1d381133c9b32c1000c88ec9">time_point</a>(<a class="code hl_typedef" href="structdmq_1_1os_1_1_thread_x_clock.html#a0dea52faa58b85a3c9b6a0c0e1d2ff66">duration</a>(<span class="keyword">static_cast&lt;</span><a class="code hl_typedef" href="structdmq_1_1os_1_1_thread_x_clock.html#a7b662f537c262abd95a2737d16fe133a">rep</a><span class="keyword">&gt;</span>(ticks)));</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>        }</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>            <span class="comment">// tx_time_get() counts ThreadX ticks (TX_TIMER_TICKS_PER_SECOND</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>            <span class="comment">// per second), not milliseconds -- scale before returning, or</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>            <span class="comment">// every duration/deadline computed against this clock (e.g.</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>            <span class="comment">// dmq::util::Timer expirations) would run TX_TIMER_TICKS_PER_SECOND/1000x</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>            <span class="comment">// slower than requested.</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>            uint64_t ms = (ticks * 1000ULL) / TX_TIMER_TICKS_PER_SECOND;</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>            <span class="keywordflow">return</span> <a class="code hl_typedef" href="structdmq_1_1os_1_1_thread_x_clock.html#ad4edcb8c1d381133c9b32c1000c88ec9">time_point</a>(<a class="code hl_typedef" href="structdmq_1_1os_1_1_thread_x_clock.html#a0dea52faa58b85a3c9b6a0c0e1d2ff66">duration</a>(<span class="keyword">static_cast&lt;</span><a class="code hl_typedef" href="structdmq_1_1os_1_1_thread_x_clock.html#a7b662f537c262abd95a2737d16fe133a">rep</a><span class="keyword">&gt;</span>(ms)));</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>        }</div>
 </div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    };</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    };</div>
 </div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>} <span class="comment">// namespace dmq::os</span></div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="preprocessor">#endif </span><span class="comment">// THREADX_CLOCK_H</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>} <span class="comment">// namespace dmq::os</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span> </div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="preprocessor">#endif </span><span class="comment">// THREADX_CLOCK_H</span></div>
 <div class="ttc" id="anamespacedmq_1_1os_html"><div class="ttname"><a href="namespacedmq_1_1os.html">dmq::os</a></div><div class="ttdef"><b>Definition</b> BareMetalClock.h:12</div></div>
 <div class="ttc" id="astructdmq_1_1os_1_1_thread_x_clock_html"><div class="ttname"><a href="structdmq_1_1os_1_1_thread_x_clock.html">dmq::os::ThreadXClock</a></div><div class="ttdef"><b>Definition</b> ThreadXClock.h:9</div></div>
 <div class="ttc" id="astructdmq_1_1os_1_1_thread_x_clock_html_a0dea52faa58b85a3c9b6a0c0e1d2ff66"><div class="ttname"><a href="structdmq_1_1os_1_1_thread_x_clock.html#a0dea52faa58b85a3c9b6a0c0e1d2ff66">dmq::os::ThreadXClock::duration</a></div><div class="ttdeci">std::chrono::duration&lt; rep, period &gt; duration</div><div class="ttdef"><b>Definition</b> ThreadXClock.h:13</div></div>

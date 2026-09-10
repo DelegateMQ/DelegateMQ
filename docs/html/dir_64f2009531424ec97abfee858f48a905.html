@@ -102,16 +102,26 @@ $(function(){initNavTree('dir_64f2009531424ec97abfee858f48a905.html',''); initRe
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="files" name="files"></a>
 Files</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><span class="icondoc"></span>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zephyr_2_thread_8cpp.html">Thread.cpp</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="zephyr_2_thread_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zephyr_2_thread_8h.html">Thread.h</a></td></tr>
-<tr class="memdesc:zephyr_2_thread_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Zephyr RTOS implementation of the DelegateMQ IThread interface. <br /></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="zephyr_2_thread_msg_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="zephyr_2_thread_msg_8h.html">ThreadMsg.h</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="_zephyr_clock_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_clock_8h.html">ZephyrClock.h</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="_zephyr_critical_section_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_critical_section_8h.html">ZephyrCriticalSection.h</a></td></tr>
+<tr class="memdesc:_zephyr_critical_section_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">ISR-safe critical section for Zephyr. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="_zephyr_delegate_queue_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_delegate_queue_8h.html">ZephyrDelegateQueue.h</a></td></tr>
+<tr class="memdesc:_zephyr_delegate_queue_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Thin RAII wrapper around a pair of Zephyr k_msgq primitives used by <a class="el" href="namespacedmq_1_1os.html#ae761dd65a9000e594c7fed310f5ba55e" title="Backward-compatible name: existing code referencing dmq::os::Thread keeps compiling unchanged against...">dmq::os::Thread</a> to carry pending ThreadMsg pointers, with priority support. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="_zephyr_mutex_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_mutex_8h.html">ZephyrMutex.h</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="_zephyr_semaphore_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_semaphore_8h.html">ZephyrSemaphore.h</a></td></tr>
+<tr class="memdesc:_zephyr_semaphore_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">dmq::Semaphore backing for Zephyr, using Zephyr's native k_sem directly instead of the generic dmq::ConditionVariable + <a class="el" href="namespacedmq.html#a8698347146f2270db3906748c029c529">dmq::Mutex</a> implementation in <a class="el" href="_semaphore_8h.html" title="Delegate library semaphore wrapper class.">delegate/Semaphore.h</a>. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="_zephyr_this_thread_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_this_thread_8h.html">ZephyrThisThread.h</a></td></tr>
+<tr class="memdesc:_zephyr_this_thread_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Portable sleep_for()/yield() for the calling thread, Zephyr backend. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><span class="icondoc"></span>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_thread_8cpp.html">ZephyrThread.cpp</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top"><a href="_zephyr_thread_8h_source.html"><span class="icondoc"></span></a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="_zephyr_thread_8h.html">ZephyrThread.h</a></td></tr>
+<tr class="memdesc:_zephyr_thread_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Zephyr RTOS implementation of the DelegateMQ IThread interface. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 </div><!-- contents -->

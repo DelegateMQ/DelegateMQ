@@ -40,7 +40,7 @@ var searchData=
   ['porting_2emd_37',['PORTING.md',['../_p_o_r_t_i_n_g_8md.html',1,'']]],
   ['posix_38',['OS Message Queues (FreeRTOS, Win32, POSIX)',['../md_docs_2_c_o_m_p_a_r_i_s_o_n.html#autotoc_md63',1,'']]],
   ['prerequisites_39',['Prerequisites',['../md_docs_2_b_u_i_l_d.html#autotoc_md21',1,'']]],
-  ['pressure_20drop_40',['dmq::os::FullPolicy (Back Pressure / Drop)',['../md_docs_2_p_o_r_t_i_n_g.html#autotoc_md221',1,'']]],
+  ['pressure_20drop_40',['dmq::FullPolicy (Back Pressure / Drop)',['../md_docs_2_p_o_r_t_i_n_g.html#autotoc_md221',1,'']]],
   ['primitives_41',['Serializing Primitives',['../md_src_2delegate-mq_2port_2serialize_2serialize_2_r_e_a_d_m_e.html#autotoc_md310',1,'']]],
   ['priority_42',['Priority',['../md_docs_2_d_e_t_a_i_l_s.html#autotoc_md132',1,'Message Priority'],['../namespacedmq.html#a6364022151f2bf1802343322638e8f25',1,'dmq::Priority']]],
   ['priority_20and_20latency_43',['Thread Priority and Latency',['../md_docs_2_p_o_r_t_i_n_g.html#autotoc_md219',1,'']]],

@@ -142,7 +142,35 @@ $(function(){initNavTree('_delegate_m_q_config___default_8h_source.html',''); in
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#a2de2610bfe9b73ab7f6fea52c3ddc05c">   48</a></span><span class="preprocessor">    #define DMQ_XALLOCATOR_MAX_ALLOCATORS   15</span></div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="preprocessor">#endif</span></div>
 <div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="preprocessor">#endif </span><span class="comment">// _DELEGATEMQ_CONFIG_DEFAULT_H</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment">// Default max remote peers per NetworkNode instance (fixed allocation).</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment">// Override per-instantiation via NetworkNode&#39;s MaxPeers template parameter.</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="preprocessor">#ifndef DMQ_NETWORK_NODE_MAX_PEERS</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#a9c8be825bf0fbb7190c438fa48c2043d">   54</a></span><span class="preprocessor">    #define DMQ_NETWORK_NODE_MAX_PEERS      4</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment">// Default max in- or out-topics per NetworkNode instance (fixed allocation).</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment">// Override per-instantiation via NetworkNode&#39;s MaxTopics template parameter.</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="preprocessor">#ifndef DMQ_NETWORK_NODE_MAX_TOPICS</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#a46636c15de068dd90e9a8ea2fc887df1">   60</a></span><span class="preprocessor">    #define DMQ_NETWORK_NODE_MAX_TOPICS     16</span></div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment">// Max messages drained per NetworkNode::ReceiverThread() tick (applies to both</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="comment">// the incoming-message drain and the per-peer ACK drain).</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="preprocessor">#ifndef DMQ_NETWORK_NODE_MAX_WORK</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#abc97fdf7768b3309d06ebcf0efcb64cf">   66</a></span><span class="preprocessor">    #define DMQ_NETWORK_NODE_MAX_WORK       20</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span> </div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment">// Default number of retries before RetryMonitor gives up on an unacknowledged message.</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="preprocessor">#ifndef DMQ_RETRY_MONITOR_MAX_RETRIES</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#a3f922d01685ce7c3820c120d85ae5c04">   71</a></span><span class="preprocessor">    #define DMQ_RETRY_MONITOR_MAX_RETRIES   3</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span> </div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment">// Default per-message ACK timeout (seconds) for TransportMonitor.</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="preprocessor">#ifndef DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno"><a class="line" href="_delegate_m_q_config___default_8h.html#a374fb87ad8eb9337f0fe7197e115502b">   76</a></span><span class="preprocessor">    #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="preprocessor">#endif </span><span class="comment">// _DELEGATEMQ_CONFIG_DEFAULT_H</span></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
