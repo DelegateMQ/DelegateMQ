@@ -1,5 +1,6 @@
 var NAVTREEINDEX4 =
 {
+"classdmq_1_1_delegate_member_async_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ad59bbd63bf198e82185273b7b6e6d72d":[29,0,0,31,2],
 "classdmq_1_1_delegate_member_async_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ad8fe748b52373de48a14114a36eeb6ac":[28,0,0,31,0],
 "classdmq_1_1_delegate_member_async_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ad8fe748b52373de48a14114a36eeb6ac":[29,0,0,31,0],
 "classdmq_1_1_delegate_member_async_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#add626c1315482716c55b82e09f249e9f":[28,0,0,31,3],
@@ -228,6 +229,8 @@ var NAVTREEINDEX4 =
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html":[29,0,0,57],
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a06f1e92313771fc8543973fa10f0ebb2":[28,0,0,57,4],
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a06f1e92313771fc8543973fa10f0ebb2":[29,0,0,57,4],
+"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a0bbd4c812c12e35c1441fdd3b424fb27":[28,0,0,57,24],
+"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a0bbd4c812c12e35c1441fdd3b424fb27":[29,0,0,57,24],
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a10c5c582f71e6e57446f274bcf25b718":[28,0,0,57,10],
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a10c5c582f71e6e57446f274bcf25b718":[29,0,0,57,10],
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a11b46f90298a9de4e71566b37f92b287":[28,0,0,57,14],
@@ -246,8 +249,5 @@ var NAVTREEINDEX4 =
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a476eb0f65321ec37aaa78598b64839ab":[29,0,0,57,9],
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a4de82217a1a0e82bbc096efbef6bad35":[28,0,0,57,16],
 "classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a4de82217a1a0e82bbc096efbef6bad35":[29,0,0,57,16],
-"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a4ec193a4b5bae1ce099b1742fe2bc9c2":[28,0,0,57,24],
-"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a4ec193a4b5bae1ce099b1742fe2bc9c2":[29,0,0,57,24],
-"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a5e86333078978fc7d08006a1ae3a620d":[28,0,0,57,19],
-"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a5e86333078978fc7d08006a1ae3a620d":[29,0,0,57,19]
+"classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a5e86333078978fc7d08006a1ae3a620d":[28,0,0,57,19]
 };

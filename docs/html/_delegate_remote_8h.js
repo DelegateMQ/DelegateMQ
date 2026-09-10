@@ -3,6 +3,7 @@ var _delegate_remote_8h =
     [ "dmq::RemoteArg< Arg >", "classdmq_1_1_remote_arg.html", "classdmq_1_1_remote_arg" ],
     [ "dmq::RemoteArg< Arg * >", "classdmq_1_1_remote_arg_3_01_arg_01_5_01_4.html", "classdmq_1_1_remote_arg_3_01_arg_01_5_01_4" ],
     [ "dmq::RemoteArg< Arg & >", "classdmq_1_1_remote_arg_3_01_arg_01_6_01_4.html", "classdmq_1_1_remote_arg_3_01_arg_01_6_01_4" ],
+    [ "dmq::detail::RemoteDispatchState", "classdmq_1_1detail_1_1_remote_dispatch_state.html", "classdmq_1_1detail_1_1_remote_dispatch_state" ],
     [ "dmq::DelegateFreeRemote< RetType(Args...)>", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_delegate_free_remote_3_01_ret_type_07_args_8_8_8_08_4" ],
     [ "dmq::DelegateMemberRemote< TClass, RetType(Args...)>", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4" ],
     [ "dmq::DelegateFunctionRemote< RetType(Args...)>", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4.html", "classdmq_1_1_delegate_function_remote_3_01_ret_type_07_args_8_8_8_08_4" ],

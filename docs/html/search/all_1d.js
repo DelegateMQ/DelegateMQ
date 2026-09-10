@@ -14,7 +14,7 @@ var searchData=
   ['xfree_11',['xfree',['../xallocator_8cpp.html#a976e14808b9247ec952c262553f09f8f',1,'xfree(void *ptr):&#160;xallocator.cpp'],['../xallocator_8h.html#a976e14808b9247ec952c262553f09f8f',1,'xfree(void *ptr):&#160;xallocator.cpp']]],
   ['xlist_12',['xlist',['../classdmq_1_1xlist.html',1,'dmq::xlist&lt; T, Alloc &gt;'],['../namespacedmq.html#aae84dcbaa4b069e6462569ba395e2b80',1,'dmq::xlist']]],
   ['xlist_2eh_13',['xlist.h',['../xlist_8h.html',1,'']]],
-  ['xlist_3c_20std_3a_3ashared_5fptr_3c_20dmq_3a_3adelegate_3c_20rettype_28args_2e_2e_2e_29_3e_20_3e_20_3e_14',['xlist&lt; std::shared_ptr&lt; dmq::Delegate&lt; RetType(Args...)&gt; &gt; &gt;',['../classdmq_1_1xlist.html',1,'dmq']]],
+  ['xlist_3c_20std_3a_3ashared_5fptr_3c_20dmq_3a_3adelegatebase_20_3e_20_3e_14',['xlist&lt; std::shared_ptr&lt; dmq::DelegateBase &gt; &gt;',['../classdmq_1_1xlist.html',1,'dmq']]],
   ['xlist_3c_20std_3a_3ashared_5fptr_3c_20dmq_3a_3aheap_5farg_5fdeleter_5fbase_20_3e_20_3e_15',['xlist&lt; std::shared_ptr&lt; dmq::heap_arg_deleter_base &gt; &gt;',['../classdmq_1_1xlist.html',1,'dmq']]],
   ['xmake_5fshared_16',['xmake_shared',['../md_src_2delegate-mq_2extras_2allocator_2_r_e_a_d_m_e.html#autotoc_md262',1,'Using xmake_shared'],['../namespacedmq.html#a9ee8623ed66c2814916b42dcf49418f1',1,'dmq::xmake_shared()']]],
   ['xmake_5fshared_2eh_17',['xmake_shared.h',['../xmake__shared_8h.html',1,'']]],

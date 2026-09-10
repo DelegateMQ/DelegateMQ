@@ -3,7 +3,7 @@ var searchData=
   ['m_5fbroadcastcount_0',['m_broadcastCount',['../classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#aa83540d05cc1c53b15db0fbb0a923ed5',1,'dmq::MulticastDelegate&lt; RetType(Args...)&gt;']]],
   ['m_5fcleanup_1',['m_cleanup',['../classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#ab34bf6a4dfa52bcff403200972478bc0',1,'dmq::MulticastDelegate&lt; RetType(Args...)&gt;']]],
   ['m_5fdelegate_2',['m_delegate',['../classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#ad7c64729d80d189abede059e7b4c2218',1,'dmq::UnicastDelegate&lt; RetType(Args...)&gt;']]],
-  ['m_5fdelegates_3',['m_delegates',['../classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a4ec193a4b5bae1ce099b1742fe2bc9c2',1,'dmq::MulticastDelegate&lt; RetType(Args...)&gt;']]],
+  ['m_5fdelegates_3',['m_delegates',['../classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a0bbd4c812c12e35c1441fdd3b424fb27',1,'dmq::MulticastDelegate&lt; RetType(Args...)&gt;']]],
   ['main_20application_20build_4',['Main Application Build',['../md_docs_2_b_u_i_l_d.html#autotoc_md23',1,'']]],
   ['make_5fserialized_5',['make_serialized',['../namespacedmq_1_1serialization_1_1msgpack.html#a014bda498ee6bb5753660dedd095f514',1,'dmq::serialization::msgpack']]],
   ['make_5ftuple_5fheap_6',['make_tuple_heap',['../namespacedmq.html#af29d8c3f370422dfe61232f1226c9c09',1,'dmq::make_tuple_heap(xlist&lt; std::shared_ptr&lt; heap_arg_deleter_base &gt; &gt; &amp;heapArgs, std::tuple&lt; Ts... &gt; tup)'],['../namespacedmq.html#a98d422bc615570f6e05bcf1d92317309',1,'dmq::make_tuple_heap(xlist&lt; std::shared_ptr&lt; heap_arg_deleter_base &gt; &gt; &amp;heapArgs, std::tuple&lt; Ts... &gt; tup, Arg1 arg1, Args... args)']]],

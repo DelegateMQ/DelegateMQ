@@ -97,17 +97,76 @@ $(function(){initNavTree('namespacedmq_1_1detail.html',''); initResizable(true);
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Classes</a>  </div>
+<a href="#nested-classes">Classes</a> &#124;
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">dmq::detail Namespace Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Classes</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1detail_1_1_async_dispatch_state.html">AsyncDispatchState</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-template holder for a <code>DelegateXAsync&lt;...&gt;</code> instance's dispatch state (destination thread, message priority). None of this depends on the bound function's signature or target class, so every <code><a class="el" href="classdmq_1_1_delegate_free_async.html">DelegateFreeAsync</a></code>/<code><a class="el" href="classdmq_1_1_delegate_member_async.html">DelegateMemberAsync</a></code>/ <code><a class="el" href="classdmq_1_1_delegate_member_async_sp.html">DelegateMemberAsyncSp</a></code>/<code><a class="el" href="classdmq_1_1_delegate_function_async.html">DelegateFunctionAsync</a></code> instantiation composes this one definition instead of each generating its own copy of the same two fields plus their Assign()/Equal()/move-ctor plumbing.  <a href="classdmq_1_1detail_1_1_async_dispatch_state.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1detail_1_1_connection.html">Connection</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Move-only subscription token. Internal implementation detail of <a class="el" href="classdmq_1_1_signal.html">Signal</a>. Users should store <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">ScopedConnection</a></code>, not <code><a class="el" href="classdmq_1_1detail_1_1_connection.html" title="Move-only subscription token. Internal implementation detail of Signal. Users should store ScopedConn...">Connection</a></code> directly.  <a href="classdmq_1_1detail_1_1_connection.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1detail_1_1_remote_dispatch_state.html">RemoteDispatchState</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fully non-template holder for a <code>DelegateXRemote&lt;...&gt;</code> instance's dispatch state — remote id, dispatcher, output stream, last error, last dispatched sequence number, and error-handler delegate. None of this depends on the bound function's signature or target class (the error handler's own signature is fixed, independent of the owning delegate's), so every <code><a class="el" href="classdmq_1_1_delegate_free_remote.html">DelegateFreeRemote</a></code>/<code><a class="el" href="classdmq_1_1_delegate_member_remote.html">DelegateMemberRemote</a></code>/ <code><a class="el" href="classdmq_1_1_delegate_function_remote.html">DelegateFunctionRemote</a></code> instantiation — for every signature and target class in the program — composes this one definition instead of each generating its own copy.  <a href="classdmq_1_1detail_1_1_remote_dispatch_state.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
+Functions</h2></td></tr>
+<tr class="memitem:af0a1914d4946d05de899a9fbecacb98d" id="r_af0a1914d4946d05de899a9fbecacb98d"><td class="memTemplParams" colspan="2">template&lt;class... Args&gt; </td></tr>
+<tr class="memitem:af0a1914d4946d05de899a9fbecacb98d"><td class="memTemplItemLeft" align="right" valign="top">void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#af0a1914d4946d05de899a9fbecacb98d">DispatchAsync</a> (std::shared_ptr&lt; <a class="el" href="classdmq_1_1_i_thread_invoker.html">IThreadInvoker</a> &gt; invoker, <a class="el" href="classdmq_1_1_i_thread.html">IThread</a> *thread, <a class="el" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> priority, Args &amp;&amp;... args)</td></tr>
+<tr class="memdesc:af0a1914d4946d05de899a9fbecacb98d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Builds the heap-copied argument message and dispatches it to <code>thread</code>.  <br /></td></tr>
+<tr class="separator:af0a1914d4946d05de899a9fbecacb98d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Function Documentation</h2>
+<a id="af0a1914d4946d05de899a9fbecacb98d" name="af0a1914d4946d05de899a9fbecacb98d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af0a1914d4946d05de899a9fbecacb98d">&#9670;&#160;</a></span>DispatchAsync()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;class... Args&gt; </div>
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::DispatchAsync </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_i_thread_invoker.html">IThreadInvoker</a> &gt;</td>          <td class="paramname"><span class="paramname"><em>invoker</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1_i_thread.html">IThread</a> *</td>          <td class="paramname"><span class="paramname"><em>thread</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a></td>          <td class="paramname"><span class="paramname"><em>priority</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">Args &amp;&amp;...</td>          <td class="paramname"><span class="paramname"><em>args</em></span>&#160;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Builds the heap-copied argument message and dispatches it to <code>thread</code>. </p>
+<p>Templated only on <code>Args...</code>, not on the owning delegate's target-object or return type, so this single instantiation is shared by every <code>DelegateXAsync&lt;...&gt;</code> signature that takes the same arguments, instead of each owning class generating its own copy of this logic. </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">invoker</td><td>The already-cloned delegate to invoke on the destination thread, type-erased through <code><a class="el" href="classdmq_1_1_i_thread_invoker.html" title="Abstract base class to support asynchronous delegate function invoke on destination thread of control...">IThreadInvoker</a></code>. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">thread</td><td>The destination thread, or <code>nullptr</code> if unbound. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">priority</td><td>The message priority. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">args</td><td>The function arguments, if any. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 </div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

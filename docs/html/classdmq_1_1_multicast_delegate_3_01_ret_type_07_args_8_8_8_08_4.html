@@ -180,9 +180,8 @@ Public Member Functions</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pro-attribs" name="pro-attribs"></a>
 Protected Attributes</h2></td></tr>
-<tr class="memitem:a4ec193a4b5bae1ce099b1742fe2bc9c2" id="r_a4ec193a4b5bae1ce099b1742fe2bc9c2"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="#afc2d436e07c0e49c030f486ce29ec40c">DelegateType</a> &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a4ec193a4b5bae1ce099b1742fe2bc9c2">m_delegates</a></td></tr>
-<tr class="memdesc:a4ec193a4b5bae1ce099b1742fe2bc9c2"><td class="mdescLeft">&#160;</td><td class="mdescRight">List of registered delegates.  <br /></td></tr>
-<tr class="separator:a4ec193a4b5bae1ce099b1742fe2bc9c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0bbd4c812c12e35c1441fdd3b424fb27" id="r_a0bbd4c812c12e35c1441fdd3b424fb27"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a0bbd4c812c12e35c1441fdd3b424fb27">m_delegates</a></td></tr>
+<tr class="separator:a0bbd4c812c12e35c1441fdd3b424fb27"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa83540d05cc1c53b15db0fbb0a923ed5" id="r_aa83540d05cc1c53b15db0fbb0a923ed5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa83540d05cc1c53b15db0fbb0a923ed5">m_broadcastCount</a> = 0</td></tr>
 <tr class="memdesc:aa83540d05cc1c53b15db0fbb0a923ed5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Count of active nested broadcasts.  <br /></td></tr>
 <tr class="separator:aa83540d05cc1c53b15db0fbb0a923ed5"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -193,6 +192,7 @@ Protected Attributes</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><div class="compoundTemplParams">template&lt;class RetType, class... Args&gt;<br />
 class dmq::MulticastDelegate&lt; RetType(Args...)&gt;</div><p>Not thread-safe multicast delegate container class. The class has a list of <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;&gt;</code> instances. When invoked, each <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a></code> instance within the invocation list is called. The broadcast iterates over the live list; if a delegate is removed during a broadcast, its current execution finishes safely but it is removed from the list. If a new delegate is added during a broadcast, it may be invoked in the current pass. </p>
+<dl class="section note"><dt>Note</dt><dd>The subscriber list is stored as <code>shared_ptr&lt;<a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&gt;</code> rather than <code>shared_ptr&lt;<a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;RetType(Args...)&gt;&gt;</code> so that <code>xlist</code>'s instantiation (and all its member functions) is shared across every <code><a class="el" href="classdmq_1_1_multicast_delegate.html">MulticastDelegate</a>&lt;Sig&gt;</code> in the program instead of being duplicated once per signature. Only <code>operator()</code>, which must actually invoke the bound function, needs the concrete <code>DelegateType</code> back. </dd></dl>
 </div><h2 class="groupheader">Member Typedef Documentation</h2>
 <a id="afc2d436e07c0e49c030f486ce29ec40c" name="afc2d436e07c0e49c030f486ce29ec40c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#afc2d436e07c0e49c030f486ce29ec40c">&#9670;&#160;</a></span>DelegateType</h2>
@@ -929,8 +929,8 @@ template&lt;class RetType , class... Args&gt; </div>
 
 </div>
 </div>
-<a id="a4ec193a4b5bae1ce099b1742fe2bc9c2" name="a4ec193a4b5bae1ce099b1742fe2bc9c2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4ec193a4b5bae1ce099b1742fe2bc9c2">&#9670;&#160;</a></span>m_delegates</h2>
+<a id="a0bbd4c812c12e35c1441fdd3b424fb27" name="a0bbd4c812c12e35c1441fdd3b424fb27"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0bbd4c812c12e35c1441fdd3b424fb27">&#9670;&#160;</a></span>m_delegates</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -941,7 +941,7 @@ template&lt;class RetType , class... Args&gt; </div>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt;std::shared_ptr&lt;<a class="el" href="#afc2d436e07c0e49c030f486ce29ec40c">DelegateType</a>&gt; &gt; <a class="el" href="classdmq_1_1_multicast_delegate.html">dmq::MulticastDelegate</a>&lt; RetType(Args...)&gt;::m_delegates</td>
+          <td class="memname"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt;std::shared_ptr&lt;<a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a>&gt; &gt; <a class="el" href="classdmq_1_1_multicast_delegate.html">dmq::MulticastDelegate</a>&lt; RetType(Args...)&gt;::m_delegates</td>
         </tr>
       </table>
   </td>
@@ -950,8 +950,7 @@ template&lt;class RetType , class... Args&gt; </div>
   </tr>
 </table>
 </div><div class="memdoc">
-
-<p>List of registered delegates. </p>
+<p>List of registered delegates. Stored as <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code> (not <code>DelegateType</code>) so this <code>xlist</code> instantiation, and every member function on it, is shared across all <code><a class="el" href="classdmq_1_1_multicast_delegate.html">MulticastDelegate</a>&lt;Sig&gt;</code> signatures instead of being duplicated per signature. </p>
 
 </div>
 </div>
