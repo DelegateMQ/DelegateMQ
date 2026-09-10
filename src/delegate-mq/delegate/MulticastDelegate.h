@@ -2,8 +2,8 @@
 #define _MULTICAST_DELEGATE_H
 
 /// @file
-/// @brief Delegate container for storing and iterating over a collection of 
-/// delegate instances. Supports reentrant removal during invocation. 
+/// @brief Delegate container for storing and iterating over a collection of
+/// delegate instances. Supports reentrant removal during invocation.
 /// Class is not thread-safe.
 
 #include "Delegate.h"
@@ -17,6 +17,148 @@ namespace dmq {
 template <class R>
 class MulticastDelegate; // Not defined
 
+namespace detail {
+
+/// @brief Clone `delegate` and append it to `delegates`, fully erased to the
+/// non-templated `DelegateBase` at construction. `delegate.Clone()` is called
+/// through a `const DelegateBase&`, so its return type here is `DelegateBase*`
+/// (not the more-derived leaf type) -- the resulting shared_ptr control block
+/// is therefore not templated on RetType/Args, and is shared by every
+/// `MulticastDelegate<Sig>` in the program instead of duplicated per signature.
+/// Templated only on nothing at all (a plain function): none of this logic
+/// depends on the owning container's signature.
+/// @param[in,out] delegates The list to append to.
+/// @param[in] delegate The delegate to clone and store.
+inline void MulticastPushBack(xlist<std::shared_ptr<DelegateBase>>& delegates, const DelegateBase& delegate) {
+    auto delegateClone = delegate.Clone();
+    if (!delegateClone)
+        BAD_ALLOC();
+
+#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+    // No exceptions: Direct execution.
+    // If shared_ptr or vector allocation fails here on embedded,
+    // standard behavior is usually an abort() or system reset.
+    std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
+    delegates.push_back(std::forward<std::shared_ptr<DelegateBase>>(sharedDelegate));
+#else
+    // Exceptions enabled: Safe to try-catch.
+    try {
+        std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
+        delegates.push_back(std::forward<std::shared_ptr<DelegateBase>>(sharedDelegate));
+    }
+    catch (const std::bad_alloc&) {
+        BAD_ALLOC();
+    }
+#endif
+}
+
+/// @brief Remove `delegate` from `delegates`, respecting reentrant removal
+/// during an active broadcast.
+/// @param[in,out] delegates The list to remove from.
+/// @param[in] broadcastCount The owning container's current broadcast nesting depth.
+/// @param[out] cleanup Set to `true` if a lazy null-removal is needed later.
+/// @param[in] delegate The delegate to remove.
+inline void MulticastRemove(xlist<std::shared_ptr<DelegateBase>>& delegates, int broadcastCount, bool& cleanup, const DelegateBase& delegate) {
+    auto it = std::find_if(delegates.begin(), delegates.end(),
+        [&delegate](const std::shared_ptr<DelegateBase>& item) {
+            // Must check if item is valid before comparing!
+            return item && (*item == delegate);
+        });
+
+    if (it != delegates.end()) {
+        if (broadcastCount > 0) {
+            // REENTRANCY DETECTED:
+            // Do not erase(). Just null out the pointer.
+            // The iterator in operator() stays valid, but next access sees null.
+            it->reset();
+            cleanup = true;
+        }
+        else {
+            // Safe to erase immediately
+            delegates.erase(it);
+        }
+    }
+}
+
+/// @brief Remove all delegates from `delegates`, respecting reentrant removal.
+inline void MulticastClear(xlist<std::shared_ptr<DelegateBase>>& delegates, int broadcastCount, bool& cleanup) {
+    if (broadcastCount > 0) {
+        for (auto& delegate : delegates) {
+            delegate.reset();
+        }
+        cleanup = true;
+    }
+    else {
+        delegates.clear();
+    }
+}
+
+/// @brief Deep-copy every delegate in `src` (cloned, fully erased to
+/// `DelegateBase`) into `dest`.
+inline void MulticastCopyFrom(xlist<std::shared_ptr<DelegateBase>>& dest, const xlist<std::shared_ptr<DelegateBase>>& src) {
+    for (auto& delegate : src) {
+        if (!delegate) continue;
+        auto delegateClone = delegate->Clone();
+        if (!delegateClone)
+            BAD_ALLOC();
+
+#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
+        // No exceptions: Direct execution.
+        std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
+        dest.push_back(sharedDelegate);
+#else
+        // Exceptions enabled: Safe to try-catch.
+        try {
+            std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
+            dest.push_back(sharedDelegate);
+        }
+        catch (const std::bad_alloc&) {
+            BAD_ALLOC();
+        }
+#endif
+    }
+}
+
+/// @brief Move every element of `src` onto the end of `dest`, then clear `src`.
+/// Used by the reentrant branch of move-assignment, which must keep `dest`'s
+/// own list object identity stable (an active broadcast's iterator into it may
+/// be live) rather than replacing it outright.
+inline void MulticastAppendAndClear(xlist<std::shared_ptr<DelegateBase>>& dest, xlist<std::shared_ptr<DelegateBase>>& src) {
+    for (auto& delegate : src) {
+        dest.push_back(std::move(delegate));
+    }
+    src.clear();
+}
+
+/// @brief RAII guard marking an active broadcast. Increments `cnt` on
+/// construction, decrements on destruction, and purges lazily-nulled entries
+/// from `delegates` once the outermost nested broadcast finishes. Takes plain
+/// references to the exact fields it needs rather than a container pointer,
+/// so it carries no dependency on RetType/Args at all.
+class BroadcastGuard {
+public:
+    BroadcastGuard(int& cnt, xlist<std::shared_ptr<DelegateBase>>& delegates, bool& cleanup)
+        : m_cnt(cnt), m_delegates(delegates), m_cleanup(cleanup) {
+        m_cnt++; // Lock
+    }
+    ~BroadcastGuard() {
+        m_cnt--; // Unlock
+        if (m_cnt == 0 && m_cleanup) {
+            // Efficiently remove all null pointers from the list
+            m_delegates.remove_if([](const std::shared_ptr<DelegateBase>& item) {
+                return item == nullptr;
+                });
+            m_cleanup = false;
+        }
+    }
+private:
+    int& m_cnt;
+    xlist<std::shared_ptr<DelegateBase>>& m_delegates;
+    bool& m_cleanup;
+};
+
+} // namespace detail
+
 /// @brief Not thread-safe multicast delegate container class. The class has a list of
 /// `Delegate<>` instances. When invoked, each `Delegate` instance within the invocation
 /// list is called. The broadcast iterates over the live list; if a delegate is removed
@@ -25,8 +167,11 @@ class MulticastDelegate; // Not defined
 /// @note The subscriber list is stored as `shared_ptr<DelegateBase>` rather than
 /// `shared_ptr<Delegate<RetType(Args...)>>` so that `xlist`'s instantiation (and all its
 /// member functions) is shared across every `MulticastDelegate<Sig>` in the program instead
-/// of being duplicated once per signature. Only `operator()`, which must actually invoke the
-/// bound function, needs the concrete `DelegateType` back.
+/// of being duplicated once per signature. The bookkeeping operations on that list
+/// (`PushBack`/`Remove`/`Clear`/copy/the broadcast-nesting guard) are likewise implemented as
+/// plain, non-templated `detail::Multicast*` functions/`detail::BroadcastGuard` above, for the
+/// same reason -- their bodies never touch `RetType`/`Args` either. Only `operator()`, which
+/// must actually invoke the bound function, needs the concrete `DelegateType` back.
 template<class RetType, class... Args>
 class MulticastDelegate<RetType(Args...)>
 {
@@ -37,11 +182,11 @@ public:
     virtual ~MulticastDelegate() { Clear(); }
 
     /// @brief Copy constructor that creates a copy of the given instance.
-    /// @details This constructor initializes a new object as a copy of the 
-    /// provided `rhs` (right-hand side) object. The `rhs` object is used to 
+    /// @details This constructor initializes a new object as a copy of the
+    /// provided `rhs` (right-hand side) object. The `rhs` object is used to
     /// set the state of the new instance.
     /// @param[in] rhs The object to copy from.
-    MulticastDelegate(const MulticastDelegate& rhs) { CopyFrom(rhs); }
+    MulticastDelegate(const MulticastDelegate& rhs) { detail::MulticastCopyFrom(m_delegates, rhs.m_delegates); }
 
     /// @brief Move constructor that transfers ownership of resources.
     /// @param[in] rhs The object to move from.
@@ -62,7 +207,7 @@ public:
     /// @param[in] args The arguments used when invoking the target functions
     void operator()(Args... args) {
         // RAII Guard: Increments now, Decrements + Cleans up on return/throw
-        BroadcastGuard guard(m_broadcastCount, this);
+        detail::BroadcastGuard guard(m_broadcastCount, m_delegates, m_cleanup);
 
         // Iterate safely
         for (auto it = m_delegates.begin(); it != m_delegates.end(); ++it) {
@@ -73,7 +218,7 @@ public:
         }
     }
 
-    /// Invoke all bound target functions. A void return value is used 
+    /// Invoke all bound target functions. A void return value is used
     /// since multiple targets invoked.
     /// @param[in] args The arguments used when invoking the target functions
     void Broadcast(Args... args) {
@@ -102,7 +247,7 @@ public:
     MulticastDelegate& operator=(const MulticastDelegate& rhs) {
         if (&rhs != this) {
             Clear();
-            CopyFrom(rhs);
+            detail::MulticastCopyFrom(m_delegates, rhs.m_delegates);
         }
         return *this;
     }
@@ -119,10 +264,7 @@ public:
                 // stays valid. Append rhs's delegates rather than replacing the
                 // container outright; stale nulls are purged after the broadcast ends.
                 Clear();
-                for (auto& delegate : rhs.m_delegates) {
-                    m_delegates.push_back(std::move(delegate));
-                }
-                rhs.m_delegates.clear();
+                detail::MulticastAppendAndClear(m_delegates, rhs.m_delegates);
             }
             else {
                 Clear();
@@ -138,50 +280,13 @@ public:
     /// Insert a delegate into the container.
     /// @param[in] delegate A delegate target to insert
     void PushBack(const DelegateType& delegate) {
-        auto delegateClone = delegate.Clone();
-        if (!delegateClone)
-            BAD_ALLOC();
-
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // No exceptions: Direct execution.
-        // If shared_ptr or vector allocation fails here on embedded,
-        // standard behavior is usually an abort() or system reset.
-        std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<DelegateBase>());
-        m_delegates.push_back(std::forward<std::shared_ptr<DelegateBase>>(sharedDelegate));
-#else
-        // Exceptions enabled: Safe to try-catch.
-        try {
-            std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<DelegateBase>());
-            m_delegates.push_back(std::forward<std::shared_ptr<DelegateBase>>(sharedDelegate));
-        }
-        catch (const std::bad_alloc&) {
-            BAD_ALLOC();
-        }
-#endif
+        detail::MulticastPushBack(m_delegates, delegate);
     }
 
     /// Remove a delegate into the container.
     /// @param[in] delegate The delegate target to remove.
     void Remove(const DelegateType& delegate) {
-        auto it = std::find_if(m_delegates.begin(), m_delegates.end(),
-            [&delegate](const std::shared_ptr<DelegateBase>& item) {
-                // Must check if item is valid before comparing!
-                return item && (*item == delegate);
-            });
-
-        if (it != m_delegates.end()) {
-            if (m_broadcastCount > 0) {
-                // REENTRANCY DETECTED: 
-                // Do not erase(). Just null out the pointer.
-                // The iterator in operator() stays valid, but next access sees null.
-                it->reset();
-                m_cleanup = true;
-            }
-            else {
-                // Safe to erase immediately
-                m_delegates.erase(it);
-            }
-        }
+        detail::MulticastRemove(m_delegates, m_broadcastCount, m_cleanup, delegate);
     }
 
     /// Any registered delegates?
@@ -190,15 +295,7 @@ public:
 
     /// Removal all registered delegates.
     void Clear() {
-        if (m_broadcastCount > 0) {
-            for (auto& delegate : m_delegates) {
-                delegate.reset();
-            }
-            m_cleanup = true;
-        }
-        else {
-            m_delegates.clear();
-        }
+        detail::MulticastClear(m_delegates, m_broadcastCount, m_cleanup);
     }
 
     /// Get the number of delegates stored.
@@ -209,62 +306,6 @@ public:
     /// @return `true` if the container is not empty, `false` if the container is empty.
     explicit operator bool() const { return !Empty(); }
 
-private:
-    /// Copy all delegate container objects.
-    /// @param[in] other The container to copy from
-    void CopyFrom(const MulticastDelegate& other) {
-        for (auto& delegate : other.m_delegates) {
-            if (!delegate) continue;
-            auto delegateClone = delegate->Clone();
-            if (!delegateClone)
-                BAD_ALLOC();
-
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-            // No exceptions: Direct execution.
-            std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
-            m_delegates.push_back(sharedDelegate);
-#else
-            // Exceptions enabled: Safe to try-catch.
-            try {
-                std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
-                m_delegates.push_back(sharedDelegate);
-            }
-            catch (const std::bad_alloc&) {
-                BAD_ALLOC();
-            }
-#endif
-        }
-    }
-
-    void Cleanup() {
-        // Skip cleanup if nothing removed
-        if (!m_cleanup)
-            return;
-
-        // Efficiently remove all null pointers from the list
-        m_delegates.remove_if([](const std::shared_ptr<DelegateBase>& item) {
-            return item == nullptr;
-            });
-
-        m_cleanup = false;
-    }
-
-    class BroadcastGuard {
-    public:
-        BroadcastGuard(int& cnt, MulticastDelegate* container)
-            : m_cnt(cnt), m_container(container) {
-            m_cnt++; // Lock
-        }
-        ~BroadcastGuard() {
-            m_cnt--; // Unlock
-            if (m_cnt == 0 && m_container) {
-                m_container->Cleanup();
-            }
-        }
-    private:
-        int& m_cnt;
-        MulticastDelegate* m_container;
-    };
 protected:
     /// List of registered delegates. Stored as `DelegateBase` (not `DelegateType`) so this
     /// `xlist` instantiation, and every member function on it, is shared across all
