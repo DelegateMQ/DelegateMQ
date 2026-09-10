@@ -15,11 +15,16 @@ namespace dmq {
 template <class R>
 class MulticastDelegate; // Not defined
 
-/// @brief Not thread-safe multicast delegate container class. The class has a list of 
-/// `Delegate<>` instances. When invoked, each `Delegate` instance within the invocation 
-/// list is called. The broadcast iterates over the live list; if a delegate is removed 
+/// @brief Not thread-safe multicast delegate container class. The class has a list of
+/// `Delegate<>` instances. When invoked, each `Delegate` instance within the invocation
+/// list is called. The broadcast iterates over the live list; if a delegate is removed
 /// during a broadcast, its current execution finishes safely but it is removed from the list.
 /// If a new delegate is added during a broadcast, it may be invoked in the current pass.
+/// @note The subscriber list is stored as `shared_ptr<DelegateBase>` rather than
+/// `shared_ptr<Delegate<RetType(Args...)>>` so that `xlist`'s instantiation (and all its
+/// member functions) is shared across every `MulticastDelegate<Sig>` in the program instead
+/// of being duplicated once per signature. Only `operator()`, which must actually invoke the
+/// bound function, needs the concrete `DelegateType` back.
 template<class RetType, class... Args>
 class MulticastDelegate<RetType(Args...)>
 {
@@ -59,9 +64,9 @@ public:
 
         // Iterate safely
         for (auto it = m_delegates.begin(); it != m_delegates.end(); ++it) {
-            std::shared_ptr<DelegateType> delegate = *it; // Copy to prevent UAF if removed mid-invocation
+            std::shared_ptr<DelegateBase> delegate = *it; // Copy to prevent UAF if removed mid-invocation
             if (delegate) {
-                (*delegate)(args...);
+                (*static_cast<DelegateType*>(delegate.get()))(args...);
             }
         }
     }
@@ -136,16 +141,16 @@ public:
             BAD_ALLOC();
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // No exceptions: Direct execution. 
-        // If shared_ptr or vector allocation fails here on embedded, 
+        // No exceptions: Direct execution.
+        // If shared_ptr or vector allocation fails here on embedded,
         // standard behavior is usually an abort() or system reset.
-        std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
-        m_delegates.push_back(std::forward<std::shared_ptr<DelegateType>>(sharedDelegate));
+        std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<DelegateBase>());
+        m_delegates.push_back(std::forward<std::shared_ptr<DelegateBase>>(sharedDelegate));
 #else
         // Exceptions enabled: Safe to try-catch.
         try {
-            std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
-            m_delegates.push_back(std::forward<std::shared_ptr<DelegateType>>(sharedDelegate));
+            std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<DelegateBase>());
+            m_delegates.push_back(std::forward<std::shared_ptr<DelegateBase>>(sharedDelegate));
         }
         catch (const std::bad_alloc&) {
             BAD_ALLOC();
@@ -157,7 +162,7 @@ public:
     /// @param[in] delegate The delegate target to remove.
     void Remove(const DelegateType& delegate) {
         auto it = std::find_if(m_delegates.begin(), m_delegates.end(),
-            [&delegate](const std::shared_ptr<DelegateType>& item) {
+            [&delegate](const std::shared_ptr<DelegateBase>& item) {
                 // Must check if item is valid before comparing!
                 return item && (*item == delegate);
             });
@@ -214,12 +219,12 @@ private:
 
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
             // No exceptions: Direct execution.
-            std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
+            std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
             m_delegates.push_back(sharedDelegate);
 #else
             // Exceptions enabled: Safe to try-catch.
             try {
-                std::shared_ptr<DelegateType> sharedDelegate(delegateClone, std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
+                std::shared_ptr<DelegateBase> sharedDelegate(delegateClone, std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
                 m_delegates.push_back(sharedDelegate);
             }
             catch (const std::bad_alloc&) {
@@ -235,7 +240,7 @@ private:
             return;
 
         // Efficiently remove all null pointers from the list
-        m_delegates.remove_if([](const std::shared_ptr<DelegateType>& item) {
+        m_delegates.remove_if([](const std::shared_ptr<DelegateBase>& item) {
             return item == nullptr;
             });
 
@@ -259,8 +264,10 @@ private:
         MulticastDelegate* m_container;
     };
 protected:
-    /// List of registered delegates
-    xlist<std::shared_ptr<DelegateType>> m_delegates;
+    /// List of registered delegates. Stored as `DelegateBase` (not `DelegateType`) so this
+    /// `xlist` instantiation, and every member function on it, is shared across all
+    /// `MulticastDelegate<Sig>` signatures instead of being duplicated per signature.
+    xlist<std::shared_ptr<DelegateBase>> m_delegates;
 
     /// Count of active nested broadcasts
     int m_broadcastCount = 0;
