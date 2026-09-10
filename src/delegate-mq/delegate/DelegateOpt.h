@@ -633,4 +633,31 @@ namespace dmq
     #define LOG_ERROR(...)   do {} while(0)
 #endif
 
+// @TODO: Select the desired template optimization level.
+// Enable DMQ_FORCE_OPTIMIZE_DEBUG in your build system (e.g. CMake) to force
+// the compiler to aggressively inline and optimize DelegateMQ templates even
+// during unoptimized Debug builds. This significantly reduces code bloat and
+// call stack depth for variadic template unpacking without losing the ability
+// to step-debug your application code.
+//
+// NOTE: This feature relies on GCC/Clang-specific pragmas. MSVC's #pragma optimize
+// cannot elevate optimizations above the command-line (/Od) baseline and is mostly
+// deprecated for x64 targets. Thus, this macro is a silent no-op on MSVC Windows builds.
+// For GCC/Clang, this uses -Os (optimize for size) to maximize flash savings.
+#ifdef DMQ_FORCE_OPTIMIZE_DEBUG
+    #if defined(__GNUC__) || defined(__clang__)
+        #define DMQ_OPTIMIZE_ON \
+            _Pragma("GCC push_options") \
+            _Pragma("GCC optimize (\"Os\")")
+        #define DMQ_OPTIMIZE_OFF \
+            _Pragma("GCC pop_options")
+    #else
+        #define DMQ_OPTIMIZE_ON
+        #define DMQ_OPTIMIZE_OFF
+    #endif
+#else
+    #define DMQ_OPTIMIZE_ON
+    #define DMQ_OPTIMIZE_OFF
+#endif
+
 #endif // _DELEGATE_OPT_H

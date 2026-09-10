@@ -24,6 +24,8 @@
 #include "DelegateOpt.h"
 
 /// The delegate library namespace
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 namespace trait
@@ -989,5 +991,7 @@ auto MakeDelegate(F&& func) {
 }
 
 }
+
+DMQ_OPTIMIZE_OFF
 
 #endif

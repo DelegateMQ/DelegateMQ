@@ -23,6 +23,8 @@
 #include "Delegate.h"
 #include <memory>
 
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 template <class R>
@@ -314,5 +316,7 @@ private:
 };
 
 } // namespace dmq
+
+DMQ_OPTIMIZE_OFF
 
 #endif // SIGNAL_H

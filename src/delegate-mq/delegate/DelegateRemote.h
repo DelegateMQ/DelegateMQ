@@ -56,6 +56,8 @@
 #include <iostream>
 #include <stdexcept>
 
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 enum class DelegateError {
@@ -1580,5 +1582,7 @@ auto MakeDelegate(F&& func, DelegateRemoteId id) {
 }
 
 }
+
+DMQ_OPTIMIZE_OFF
 
 #endif

@@ -54,6 +54,8 @@
 #include <atomic>
 #include <tuple>
 
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 /// @brief Stores all function arguments suitable for non-blocking asynchronous calls.
@@ -1238,5 +1240,7 @@ auto MakeDelegate(F&& func, IThread& thread) {
 }
 
 }
+
+DMQ_OPTIMIZE_OFF
 
 #endif

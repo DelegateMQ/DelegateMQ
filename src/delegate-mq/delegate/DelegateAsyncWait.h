@@ -66,6 +66,8 @@
 #include <any>
 #include <chrono>
 
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 // 1000 Hours (approx 41 days).
@@ -1748,6 +1750,8 @@ auto MakeDelegate(F&& func, IThread& thread, Duration timeout) {
 }
 
 }
+
+DMQ_OPTIMIZE_OFF
 
 #endif // DMQ_HAS_SEMAPHORE
 

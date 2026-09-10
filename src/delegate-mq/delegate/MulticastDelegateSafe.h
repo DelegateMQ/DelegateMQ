@@ -7,6 +7,8 @@
 
 #include "MulticastDelegate.h"
 
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 template <class R>
@@ -197,5 +199,7 @@ private:
 };
 
 }
+
+DMQ_OPTIMIZE_OFF
 
 #endif

@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <memory>
 
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 template <class R>
@@ -277,5 +279,7 @@ protected:
 };
 
 }
+
+DMQ_OPTIMIZE_OFF
 
 #endif
