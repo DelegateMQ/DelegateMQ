@@ -6,6 +6,7 @@ var hierarchy =
     [ "std::allocator", null, [
       [ "dmq::stl_allocator< T >", "classdmq_1_1stl__allocator.html", null ]
     ] ],
+    [ "dmq::detail::AsyncDispatchState", "classdmq_1_1detail_1_1_async_dispatch_state.html", null ],
     [ "dmq::os::BareMetalClock", "structdmq_1_1os_1_1_bare_metal_clock.html", null ],
     [ "dmq::os::BareMetalCriticalSection", "classdmq_1_1os_1_1_bare_metal_critical_section.html", null ],
     [ "dmq::os::BareMetalThisThread", "structdmq_1_1os_1_1_bare_metal_this_thread.html", null ],
@@ -151,8 +152,8 @@ var hierarchy =
     [ "std::list", null, [
       [ "dmq::xlist< T, Alloc >", "classdmq_1_1xlist.html", null ]
     ] ],
-    [ "std::list< std::shared_ptr< dmq::Delegate< RetType(Args...)> >, stl_allocator< std::shared_ptr< dmq::Delegate< RetType(Args...)> > > >", null, [
-      [ "dmq::xlist< std::shared_ptr< dmq::Delegate< RetType(Args...)> > >", "classdmq_1_1xlist.html", null ]
+    [ "std::list< std::shared_ptr< dmq::DelegateBase >, stl_allocator< std::shared_ptr< dmq::DelegateBase > > >", null, [
+      [ "dmq::xlist< std::shared_ptr< dmq::DelegateBase > >", "classdmq_1_1xlist.html", null ]
     ] ],
     [ "std::list< std::shared_ptr< dmq::heap_arg_deleter_base >, stl_allocator< std::shared_ptr< dmq::heap_arg_deleter_base > > >", null, [
       [ "dmq::xlist< std::shared_ptr< dmq::heap_arg_deleter_base > >", "classdmq_1_1xlist.html", null ]
@@ -182,6 +183,7 @@ var hierarchy =
     [ "dmq::RemoteArg< Arg * >", "classdmq_1_1_remote_arg_3_01_arg_01_5_01_4.html", null ],
     [ "dmq::RemoteChannel< Sig >", "classdmq_1_1_remote_channel.html", null ],
     [ "dmq::RemoteChannel< RetType(Args...)>", "classdmq_1_1_remote_channel_3_01_ret_type_07_args_8_8_8_08_4.html", null ],
+    [ "dmq::detail::RemoteDispatchState", "classdmq_1_1detail_1_1_remote_dispatch_state.html", null ],
     [ "dmq::util::RemoteEndpoint< C, R >", "structdmq_1_1util_1_1_remote_endpoint.html", null ],
     [ "dmq::util::RemoteEndpoint< TClass, RetType(Args...)>", "structdmq_1_1util_1_1_remote_endpoint_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html", null ],
     [ "dmq::util::RemoteEndpoint< void, RetType(Args...)>", "structdmq_1_1util_1_1_remote_endpoint_3_01void_00_01_ret_type_07_args_8_8_8_08_4.html", null ],

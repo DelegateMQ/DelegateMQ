@@ -177,7 +177,10 @@ public:
     /// @return A `ScopedConnection`. Let it go out of scope to auto-disconnect,
     ///         or call `Disconnect()` manually.
     [[nodiscard]] ScopedConnection Connect(const DelegateType& delegate) {
-        auto copy = std::shared_ptr<DelegateType>(delegate.Clone(), std::default_delete<DelegateType>(), ::dmq::stl_allocator<std::remove_const_t<DelegateType>>());
+        // Stored as `DelegateBase` (not `DelegateType`) so `State::delegates` and this
+        // `Snapshot`'s buffers are the same type, and thus the same shared instantiation,
+        // across every `Signal<Sig>` signature. Only invocation needs `DelegateType` back.
+        auto copy = std::shared_ptr<DelegateBase>(delegate.Clone(), std::default_delete<DelegateType>(), ::dmq::stl_allocator<DelegateBase>());
         if (!copy)
             BAD_ALLOC();
 
@@ -209,8 +212,8 @@ public:
     /// @details The snapshot holds shared_ptrs to the delegates, ensuring they
     /// stay alive even if the Signal is destroyed.
     struct Snapshot {
-        std::shared_ptr<DelegateType> small_buf[SIGNAL_SBO_COUNT];
-        xlist<std::shared_ptr<DelegateType>> large_buf;
+        std::shared_ptr<DelegateBase> small_buf[SIGNAL_SBO_COUNT];
+        xlist<std::shared_ptr<DelegateBase>> large_buf;
         size_t count = 0;
     };
 
@@ -247,7 +250,7 @@ public:
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #endif
                 if (s.small_buf[i])
-                    (*s.small_buf[i])(args...);
+                    (*static_cast<DelegateType*>(s.small_buf[i].get()))(args...);
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -255,7 +258,7 @@ public:
         } else {
             for (auto& d : s.large_buf) {
                 if (d)
-                    (*d)(args...);
+                    (*static_cast<DelegateType*>(d.get()))(args...);
             }
         }
     }
@@ -287,9 +290,14 @@ public:
     XALLOCATOR
 
 private:
+    // Disconnect is identity-based (same shared_ptr instance stored at Connect() time),
+    // so it never needs the concrete `DelegateType` — this makes `DisconnectImpl` itself
+    // signature-independent, but as a member of `Signal<Sig>` it's still emitted once per
+    // signature. The dominant per-signature cost was `State::delegates`'s `xlist`
+    // instantiation, which the `DelegateBase` retype below eliminates.
     static void DisconnectImpl(const std::shared_ptr<void>& stateVoid, const std::shared_ptr<void>& copyVoid) {
         auto* state = static_cast<State*>(stateVoid.get());
-        auto copy = std::static_pointer_cast<DelegateType>(copyVoid);
+        auto copy = std::static_pointer_cast<DelegateBase>(copyVoid);
         dmq::LockGuard<RecursiveMutex> lock(state->mtx);
         if (state->alive)
             state->delegates.remove(copy);
@@ -298,7 +306,7 @@ private:
     struct State {
         mutable RecursiveMutex mtx;
         bool alive = true;
-        xlist<std::shared_ptr<DelegateType>> delegates;
+        xlist<std::shared_ptr<DelegateBase>> delegates;
         XALLOCATOR
     };
     mutable RecursiveMutex m_mutex;

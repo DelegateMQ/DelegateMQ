@@ -52,8 +52,11 @@ public:
         // function itself attempts to acquire a lock that is held by the 
         // thread invoking the delegate. 
         // Use a small-buffer optimization to avoid heap allocation in the common case.
-        std::shared_ptr<DelegateType> small_buf[SIGNAL_SBO_COUNT];
-        xlist<std::shared_ptr<DelegateType>> large_buf;
+        // Buffers hold `DelegateBase` (not `DelegateType`) so this `xlist` instantiation
+        // is shared across every `MulticastDelegateSafe<Sig>` signature; only the final
+        // invoke below needs the concrete `DelegateType` back.
+        std::shared_ptr<DelegateBase> small_buf[SIGNAL_SBO_COUNT];
+        xlist<std::shared_ptr<DelegateBase>> large_buf;
         size_t count = 0;
 
         {
@@ -72,13 +75,13 @@ public:
         if (count <= SIGNAL_SBO_COUNT) {
             for (size_t i = 0; i < count; ++i) {
                 if (small_buf[i])
-                    (*small_buf[i])(args...);
+                    (*static_cast<DelegateType*>(small_buf[i].get()))(args...);
                 small_buf[i].reset(); // Clear to release shared_ptr immediately
             }
         } else {
             for (auto& d : large_buf) {
                 if (d)
-                    (*d)(args...);
+                    (*static_cast<DelegateType*>(d.get()))(args...);
             }
         }
     }

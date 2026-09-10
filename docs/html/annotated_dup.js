@@ -14,7 +14,9 @@ var annotated_dup =
         [ "SpyPacket", "structdmq_1_1databus_1_1_spy_packet.html", "structdmq_1_1databus_1_1_spy_packet" ]
       ] ],
       [ "detail", "namespacedmq_1_1detail.html", [
-        [ "Connection", "classdmq_1_1detail_1_1_connection.html", "classdmq_1_1detail_1_1_connection" ]
+        [ "AsyncDispatchState", "classdmq_1_1detail_1_1_async_dispatch_state.html", "classdmq_1_1detail_1_1_async_dispatch_state" ],
+        [ "Connection", "classdmq_1_1detail_1_1_connection.html", "classdmq_1_1detail_1_1_connection" ],
+        [ "RemoteDispatchState", "classdmq_1_1detail_1_1_remote_dispatch_state.html", "classdmq_1_1detail_1_1_remote_dispatch_state" ]
       ] ],
       [ "os", "namespacedmq_1_1os.html", [
         [ "BareMetalClock", "structdmq_1_1os_1_1_bare_metal_clock.html", "structdmq_1_1os_1_1_bare_metal_clock" ],
