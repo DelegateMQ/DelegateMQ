@@ -78,6 +78,7 @@ Passed via `-D` flags during configuration. These are the most common overrides:
 | `DMQ_ASSERTS` | `OFF` | Enable internal library assertions. |
 | `DMQ_ALLOCATOR` | `OFF` | Use fixed-block memory allocator (deterministic) instead of heap. |
 | `DMQ_DEBUG_LOG` | `OFF` | Enable verbose internal debug logging (requires spdlog). |
+| `DMQ_FORCE_OPTIMIZE_DEBUG` | `OFF` | Force `-Os` template optimization in unoptimized GCC/Clang Debug builds to reduce embedded flash bloat (silent no-op on MSVC). |
 
 ### 2. User Config File (`DelegateMQConfig.h`)
 For fine-tuning numeric constants without editing library files:
@@ -90,7 +91,7 @@ For fine-tuning numeric constants without editing library files:
 ## Platform Specifics
 
 ### Embedded (ARM/Bare-Metal)
-- **Stack Usage**: In Debug mode (`-O0`), templates may generate deep call stacks. Use Release mode (`-O2`) or increase your task stack sizes (min 4-8KB recommended).
+- **Stack Usage & Code Bloat**: In unoptimized Debug mode (`-O0`), variadic templates generate deep call stacks and heavy flash usage. Either use Release mode (`-O2`/`-Os`), increase your RTOS task stack sizes (min 4-8KB recommended), or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON` to eliminate template bloat while keeping your application debuggable.
 - **Static Memory**: Use `-DDMQ_ALLOCATOR=ON` to ensure all internal library allocations use fixed-sized pools, avoiding heap fragmentation.
 
 ### Windows / Linux

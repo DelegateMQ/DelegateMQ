@@ -35,6 +35,7 @@ Numerous predefined platforms are already supported — Windows, Linux, FreeRTOS
 6. **Configure Build Options** — set CMake DMQ library build options within `CMakeLists.txt`.
    - Example: `DMQ_ASSERTS` for debug assertions.
    - Example: `DMQ_ALLOCATOR` to switch between standard heap (`new`/`delete`) and the deterministic Fixed Block Allocator.
+   - Example: `DMQ_FORCE_OPTIMIZE_DEBUG` to eliminate template bloat in unoptimized builds.
    - Example: copy `DelegateMQConfig_Template.h` to your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"` to tune numeric library constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_MAX_WATCHDOG_THREADS`, `DMQ_DEFAULT_QUEUE_SIZE`, etc.) without editing library files. See `delegate/DelegateMQConfig_Default.h` for all available constants and their default values.
 7. **Implement Fault Handling** — customize `port/fault/Fault.cpp` to route errors to your system's logger or crash handler. This file is intentionally in the `port/` directory so it can be freely edited without touching the library source.
 
@@ -45,9 +46,8 @@ Numerous predefined platforms are already supported — Windows, Linux, FreeRTOS
 Running C++ messaging on embedded targets (like STM32) requires specific attention to resources.
 
 1. **Stack Usage & Debug Mode**
-
    **Issue:** In Debug mode (`-O0`), C++ templates generate deep call stacks, possibly causing stack overflows.  
-   **Fix:** Increase task stack (e.g. 8 KB) or use Release mode (`-O2`), where stacks shrink significantly.
+   **Fix:** Increase task stack (e.g. 8 KB), use Release mode (`-O2`), or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON` to eliminate template bloat in Debug mode.
 
 2. **Transport Implementation (if using remote delegates)**
 

@@ -21,6 +21,7 @@ Do not `#include` allocator or platform headers directly in library files. `Dele
 - `DMQ_THREAD_*` — OS/mutex/clock selection
 - `DMQ_ASSERTS` — assert vs. exception error handling
 - `DMQ_STRICT` — enable strict compiler warnings and errors
+- `DMQ_FORCE_OPTIMIZE_DEBUG` — force `-Os` on templates in unoptimized debug builds
 
 To add a new allocator-gated type (e.g., `xunordered_map`):
 1. Add the header under `extras/allocator/`.
