@@ -146,10 +146,16 @@ private:
 /// @param[in] args The function arguments, if any.
 template <class... Args>
 void DispatchAsync(std::shared_ptr<IThreadInvoker> invoker, IThread* thread, Priority priority, Args&&... args) {
-    // Create a new message instance for sending to the destination thread
-    auto msg = xmake_shared<DelegateAsyncMsg<Args...>>(std::move(invoker), priority, std::forward<Args>(args)...);
-    if (!msg)
+    // Create a new message instance for sending to the destination thread. Erase to
+    // the non-templated DelegateMsg base BEFORE constructing the shared_ptr (rather
+    // than xmake_shared<DelegateAsyncMsg<Args...>>) so the shared_ptr control block
+    // is not templated on Args... -- one control-block type is then shared across
+    // every DelegateAsync signature instead of duplicated per signature.
+    auto* rawMsg = new(std::nothrow) DelegateAsyncMsg<Args...>(std::move(invoker), priority, std::forward<Args>(args)...);
+    if (!rawMsg)
         BAD_ALLOC();
+    DelegateMsg* msgBase = rawMsg;
+    std::shared_ptr<DelegateMsg> msg(msgBase, std::default_delete<DelegateMsg>(), dmq::stl_allocator<DelegateMsg>());
 
     if (thread) {
         // Dispatch message onto the callback destination thread. Invoke()
@@ -328,10 +334,16 @@ public:
             return BaseType::operator()(std::forward<Args>(args)...);
         }
         else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsync kind and signature instead of duplicated per signature.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 
@@ -621,10 +633,16 @@ public:
             return BaseType::operator()(std::forward<Args>(args)...);
         }
         else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsync kind and signature instead of duplicated per signature.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 
@@ -843,10 +861,16 @@ public:
             return BaseType::operator()(std::forward<Args>(args)...);
         }
         else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsync kind and signature instead of duplicated per signature.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 
@@ -1077,10 +1101,16 @@ public:
             return BaseType::operator()(std::forward<Args>(args)...);
         }
         else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsync kind and signature instead of duplicated per signature.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 

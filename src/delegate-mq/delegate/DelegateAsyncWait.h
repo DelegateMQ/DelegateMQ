@@ -226,11 +226,20 @@ private:
 template <class... Args>
 bool DispatchAsyncWait(std::shared_ptr<IThreadInvoker> invoker, IThread* thread, Priority priority,
     Duration timeout, Args&&... args) {
-    // Create a new message instance for sending to the destination thread.
-    auto msg = xmake_shared<DelegateAsyncWaitMsg<Args...>>(std::move(invoker), priority, std::forward<Args>(args)...);
-    if (!msg)
+    // Create a new message instance for sending to the destination thread. Erase to
+    // the non-templated DelegateMsg base BEFORE constructing the shared_ptr (rather
+    // than xmake_shared<DelegateAsyncWaitMsg<Args...>>) so the shared_ptr control
+    // block is not templated on Args... -- one control-block type is then shared
+    // across every DelegateAsyncWait signature instead of duplicated per signature.
+    // `rawMsg` stays valid for the whole function (kept alive by `msg`) and is used
+    // for every access specific to the concrete DelegateAsyncWaitMsg<Args...> type;
+    // `msg` itself is only needed, as the erased base, for DispatchDelegate().
+    auto* rawMsg = new(std::nothrow) DelegateAsyncWaitMsg<Args...>(std::move(invoker), priority, std::forward<Args>(args)...);
+    if (!rawMsg)
         BAD_ALLOC();
-    msg->SetInvokerWaiting(true);
+    DelegateMsg* msgBase = rawMsg;
+    std::shared_ptr<DelegateMsg> msg(msgBase, std::default_delete<DelegateMsg>(), dmq::stl_allocator<DelegateMsg>());
+    rawMsg->SetInvokerWaiting(true);
 
     bool waited = false;
     if (thread) {
@@ -238,18 +247,18 @@ bool DispatchAsyncWait(std::shared_ptr<IThreadInvoker> invoker, IThread* thread,
         // will be called by the destination thread.
         if (thread->DispatchDelegate(msg)) {
             // Wait for destination thread to execute the delegate function and get return value
-            waited = msg->GetSema().Wait(timeout);
+            waited = rawMsg->GetSema().Wait(timeout);
         }
     }
 
     // Single lock: read return value and clear InvokerWaiting atomically
-    const dmq::LockGuard<Mutex> lock(msg->GetLock());
+    const dmq::LockGuard<Mutex> lock(rawMsg->GetLock());
     // Only report success if the target function invoke actually completed;
     // the semaphore is signaled even when the target function threw, so
     // `waited` alone is not sufficient to know the call succeeded.
-    bool success = waited && msg->GetInvokeSucceeded();
+    bool success = waited && rawMsg->GetInvokeSucceeded();
     // Set flag that source is not waiting anymore
-    msg->SetInvokerWaiting(false);
+    rawMsg->SetInvokerWaiting(false);
     return success;
 }
 
@@ -432,10 +441,18 @@ public:
             // Invoke the target function directly
             return BaseType::operator()(std::forward<Args>(args)...);
         } else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsyncWait kind and signature instead of duplicated per signature.
+            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+            // and is used below to read back the clone's own result state.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             // Dispatch to the destination thread and wait (up to the timeout) for
             // Invoke() to run there and signal completion.
@@ -444,7 +461,7 @@ public:
             if (success) {
                 // Invoke() (running as the clone, on the destination thread) wrote the
                 // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, delegate->m_state.RetVal());
+                m_state.SetResult(true, rawClone->m_state.RetVal());
             }
 
             // Does the target function have a return value?
@@ -841,10 +858,18 @@ public:
             // Invoke the target function directly
             return BaseType::operator()(std::forward<Args>(args)...);
         } else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsyncWait kind and signature instead of duplicated per signature.
+            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+            // and is used below to read back the clone's own result state.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             // Dispatch to the destination thread and wait (up to the timeout) for
             // Invoke() to run there and signal completion.
@@ -853,7 +878,7 @@ public:
             if (success) {
                 // Invoke() (running as the clone, on the destination thread) wrote the
                 // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, delegate->m_state.RetVal());
+                m_state.SetResult(true, rawClone->m_state.RetVal());
             }
 
             // Does the target function have a return value?
@@ -1167,10 +1192,18 @@ public:
             // Invoke the target function directly
             return BaseType::operator()(std::forward<Args>(args)...);
         } else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsyncWait kind and signature instead of duplicated per signature.
+            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+            // and is used below to read back the clone's own result state.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             // Dispatch to the destination thread and wait (up to the timeout) for
             // Invoke() to run there and signal completion.
@@ -1179,7 +1212,7 @@ public:
             if (success) {
                 // Invoke() (running as the clone, on the destination thread) wrote the
                 // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, delegate->m_state.RetVal());
+                m_state.SetResult(true, rawClone->m_state.RetVal());
             }
 
             // Does the target function have a return value?
@@ -1495,10 +1528,18 @@ public:
             // Invoke the target function directly
             return BaseType::operator()(std::forward<Args>(args)...);
         } else {
-            // Create a clone instance of this delegate
-            auto delegate = xmake_shared<ClassType>(*this);
-            if (!delegate)
+            // Create a clone instance of this delegate. Erase to the non-templated
+            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+            // on RetType/Args... -- one control-block type is then shared across every
+            // DelegateAsyncWait kind and signature instead of duplicated per signature.
+            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+            // and is used below to read back the clone's own result state.
+            ClassType* rawClone = this->Clone();
+            if (!rawClone)
                 BAD_ALLOC();
+            IThreadInvoker* invokerBase = rawClone;
+            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
             // Dispatch to the destination thread and wait (up to the timeout) for
             // Invoke() to run there and signal completion.
@@ -1507,7 +1548,7 @@ public:
             if (success) {
                 // Invoke() (running as the clone, on the destination thread) wrote the
                 // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, delegate->m_state.RetVal());
+                m_state.SetResult(true, rawClone->m_state.RetVal());
             }
 
             // Does the target function have a return value?
