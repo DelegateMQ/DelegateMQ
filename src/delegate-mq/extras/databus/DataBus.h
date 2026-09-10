@@ -406,7 +406,7 @@ private:
         auto now = dmq::Clock::now();
         uint64_t timestamp = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
 
-        SignalPtr<T> signal;
+        std::shared_ptr<void> signalVoid;
         std::shared_ptr<void> serializerPtr;
         dmq::ISerializer<void(T)>* serializer = nullptr;
         std::array<std::shared_ptr<Participant>, dmq::MAX_PARTICIPANTS> participantsSnapshot;
@@ -414,34 +414,25 @@ private:
         dmq::xstring strVal = "?";
         bool hasMonitor = false;
 
-        bool typeMismatch = false;
+        bool typeMismatch;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
 
             // 1. Type safety: verify T matches the registered type for this topic.
             // Must be first — before any writes — so a mismatch never corrupts LVC.
-            auto itType = m_typeIndices.find(topic);
-            if (itType != m_typeIndices.end()) {
-                if (itType->second != std::type_index(typeid(T))) {
-                    typeMismatch = true;
-                }
-            } else {
-                // Establish the topic's type on first use (mirrors GetOrCreateSignal and
-                // the serializer registration paths below). Without this, a topic that's
-                // never been subscribed to or serializer-registered would let a later
-                // Publish<U> with a different U reach the LVC reuse block below and
-                // reinterpret a live T object as U.
-                m_typeIndices.emplace(topic, std::type_index(typeid(T)));
-            }
+            // Also establishes the topic's type on first use (mirrors GetOrCreateSignal
+            // and the serializer registration paths). Without this, a topic that's
+            // never been subscribed to or serializer-registered would let a later
+            // Publish<U> with a different U reach the LVC reuse block below and
+            // reinterpret a live T object as U.
+            typeMismatch = CheckOrEstablishType(topic, std::type_index(typeid(T)));
 
             if (!typeMismatch) {
                 // 2. Update LVC ONLY if enabled for this topic to save memory.
                 // NOTE: QoS lastValueCache is currently "sticky" per topic. Once enabled
                 // by any subscriber, it remains active for that topic until ResetForTesting().
-                auto itQos = m_topicQos.find(topic);
-                if (itQos != m_topicQos.end() && itQos->second.lastValueCache) {
-                    auto itLvc = m_lastValues.find(topic);
-                    if (itLvc != m_lastValues.end()) {
+                if (IsLvcEnabledLocked(topic)) {
+                    if (LvcEntry* entry = FindLvcEntryLocked(topic)) {
                         // Avoid hot-path allocation: reuse the existing memory block by
                         // destroying and copy-constructing in place, rather than
                         // copy-assigning. This only requires T to be copy-constructible
@@ -450,7 +441,7 @@ private:
                         // The copy is built on the stack first so that if T's copy
                         // constructor throws, the cached slot is untouched rather than
                         // left destroyed with nothing reconstructed in its place.
-                        T* cachedObj = static_cast<T*>(itLvc->second.value.get());
+                        T* cachedObj = static_cast<T*>(entry->value.get());
                         T replacement(data);
                         cachedObj->~T();
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
@@ -481,40 +472,33 @@ private:
                             throw;
                         }
 #endif
-                        itLvc->second.timestamp = now;
+                        entry->timestamp = now;
                     } else {
                         // First publish for this topic: perform the initial allocation
-                        m_lastValues[topic] = LvcEntry{ dmq::xmake_shared<T>(data), now };
+                        StoreLvcEntryLocked(topic, dmq::xmake_shared<T>(data), now);
                     }
                 }
 
                 // 3. Prepare monitor data
-                if (!m_monitorSignal.Empty()) {
-                    hasMonitor = true;
-                    auto itStr = m_stringifiers.find(topic);
-                    if (itStr != m_stringifiers.end()) {
-                        auto func = static_cast<dmq::UnicastDelegate<dmq::xstring(const T&)>*>(itStr->second.get());
+                hasMonitor = HasMonitorLocked();
+                if (hasMonitor) {
+                    if (auto strf = FindStringifierLocked(topic)) {
+                        auto func = static_cast<dmq::UnicastDelegate<dmq::xstring(const T&)>*>(strf.get());
                         strVal = (*func)(data);
                     }
                 }
 
                 // 4. Get signal and remote info. Only create Signal if there is local interest.
-                auto itSig = m_signals.find(topic);
-                if (itSig != m_signals.end()) {
-                    signal = std::static_pointer_cast<dmq::Signal<void(const T&)>>(itSig->second);
-                }
+                signalVoid = FindSignalLocked(topic);
 
-                auto itSer = m_serializers.find(topic);
-                if (itSer != m_serializers.end()) {
-                    serializerPtr = itSer->second;
+                serializerPtr = FindSerializerLocked(topic);
+                if (serializerPtr) {
                     serializer = static_cast<dmq::ISerializer<void(T)>*>(serializerPtr.get());
                 }
 
                 // 5. Snapshot participants while locked to ensure atomicity between
                 // local and remote dispatch sets.
-                for (size_t i = 0; i < m_participantCount; ++i)
-                    participantsSnapshot[i] = m_participants[i];
-                participantSnapshotCount = m_participantCount;
+                participantSnapshotCount = SnapshotParticipantsLocked(participantsSnapshot);
             }
         }
 
@@ -526,13 +510,13 @@ private:
 
         // 6. Dispatch Monitor outside lock to allow re-entry/prevent deadlocks
         if (hasMonitor) {
-            SpyPacket packet{ topic, strVal, timestamp };
-            m_monitorSignal(packet);
+            DispatchMonitor(topic, strVal, timestamp);
         }
 
         // 7. Local distribution
         bool handled = false;
-        if (signal) {
+        if (signalVoid) {
+            auto signal = std::static_pointer_cast<dmq::Signal<void(const T&)>>(signalVoid);
             (*signal)(data);
             handled = true;
         }
@@ -592,17 +576,10 @@ private:
 
     template <typename T>
     void InternalRegisterSerializer(const dmq::xstring& topic, std::shared_ptr<void> serializer) {
-        bool typeMismatch = false;
+        bool typeMismatch;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-
-            auto itType = m_typeIndices.find(topic);
-            if (itType != m_typeIndices.end()) {
-                if (itType->second != std::type_index(typeid(T))) typeMismatch = true;
-            } else {
-                m_typeIndices.emplace(topic, std::type_index(typeid(T)));
-            }
-
+            typeMismatch = CheckOrEstablishType(topic, std::type_index(typeid(T)));
             if (!typeMismatch) {
                 m_serializers[topic] = std::move(serializer);
             }
@@ -615,18 +592,10 @@ private:
 
     template <typename T>
     void InternalRegisterStringifier(const dmq::xstring& topic, dmq::UnicastDelegate<dmq::xstring(const T&)> func) {
-        bool typeMismatch = false;
+        bool typeMismatch;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-
-            // Runtime Type Safety: Ensure topic is not registered with multiple types
-            auto itType = m_typeIndices.find(topic);
-            if (itType != m_typeIndices.end()) {
-                if (itType->second != std::type_index(typeid(T))) typeMismatch = true;
-            } else {
-                m_typeIndices.emplace(topic, std::type_index(typeid(T)));
-            }
-
+            typeMismatch = CheckOrEstablishType(topic, std::type_index(typeid(T)));
             if (!typeMismatch) {
                 // Use shared_ptr with custom deleter and stl_allocator.
                 // Allocate function object from fixed-block pool using xnew.
@@ -667,17 +636,11 @@ private:
     template <typename T>
     SignalPtr<T> GetOrCreateSignal(const dmq::xstring& topic) {
         // Assume lock is held by caller
-        auto itType = m_typeIndices.find(topic);
-        if (itType != m_typeIndices.end()) {
-            // Runtime Type Safety: Catch same topic string used with different types
-            if (itType->second != std::type_index(typeid(T))) return nullptr;
-        } else {
-            m_typeIndices.emplace(topic, std::type_index(typeid(T)));
-        }
+        if (CheckOrEstablishType(topic, std::type_index(typeid(T))))
+            return nullptr;
 
-        auto it = m_signals.find(topic);
-        if (it != m_signals.end()) {
-            return std::static_pointer_cast<dmq::Signal<void(const T&)>>(it->second);
+        if (auto sig = FindSignalLocked(topic)) {
+            return std::static_pointer_cast<dmq::Signal<void(const T&)>>(sig);
         }
 
         auto signal = dmq::xmake_shared<dmq::Signal<void(const T&)>>();
@@ -689,6 +652,73 @@ private:
         std::shared_ptr<void> value;
         dmq::TimePoint timestamp;
     };
+
+    // --- Non-templated helpers shared by every InternalPublish<T>/InternalRegister*<T>/
+    // GetOrCreateSignal<T> instantiation. None of this logic depends on the message
+    // type -- it operates purely on the already type-erased xmap storage below -- so
+    // living here as ordinary member functions means it's compiled once for the whole
+    // program instead of once per distinct topic type. "*Locked" methods assume
+    // m_mutex is already held by the caller.
+
+    // Look up topic's registered type; if none yet, establish it as `expected`.
+    // Returns true if topic was already registered with a DIFFERENT type -- a
+    // programming-error type mismatch the caller must report/ASSERT on.
+    bool CheckOrEstablishType(const dmq::xstring& topic, std::type_index expected) {
+        auto it = m_typeIndices.find(topic);
+        if (it != m_typeIndices.end())
+            return it->second != expected;
+        m_typeIndices.emplace(topic, expected);
+        return false;
+    }
+
+    bool IsLvcEnabledLocked(const dmq::xstring& topic) const {
+        auto it = m_topicQos.find(topic);
+        return it != m_topicQos.end() && it->second.lastValueCache;
+    }
+
+    // Returns a pointer to topic's existing LVC entry, or nullptr if none exists yet.
+    // The returned pointer is only valid until the next m_lastValues mutation --
+    // callers must use it within the same locked scope it was obtained in.
+    LvcEntry* FindLvcEntryLocked(const dmq::xstring& topic) {
+        auto it = m_lastValues.find(topic);
+        return it != m_lastValues.end() ? &it->second : nullptr;
+    }
+
+    void StoreLvcEntryLocked(const dmq::xstring& topic, std::shared_ptr<void> value, dmq::TimePoint ts) {
+        m_lastValues[topic] = LvcEntry{ std::move(value), ts };
+    }
+
+    bool HasMonitorLocked() const { return !m_monitorSignal.Empty(); }
+
+    std::shared_ptr<void> FindStringifierLocked(const dmq::xstring& topic) const {
+        auto it = m_stringifiers.find(topic);
+        return it != m_stringifiers.end() ? it->second : nullptr;
+    }
+
+    std::shared_ptr<void> FindSignalLocked(const dmq::xstring& topic) const {
+        auto it = m_signals.find(topic);
+        return it != m_signals.end() ? it->second : nullptr;
+    }
+
+    std::shared_ptr<void> FindSerializerLocked(const dmq::xstring& topic) const {
+        auto it = m_serializers.find(topic);
+        return it != m_serializers.end() ? it->second : nullptr;
+    }
+
+    // Copies the live participant list into `out`, up to m_participantCount entries.
+    // Called while locked to keep the snapshot atomic with the rest of a publish.
+    size_t SnapshotParticipantsLocked(std::array<std::shared_ptr<Participant>, dmq::MAX_PARTICIPANTS>& out) const {
+        for (size_t i = 0; i < m_participantCount; ++i)
+            out[i] = m_participants[i];
+        return m_participantCount;
+    }
+
+    // Fires the monitor signal with a freshly-built SpyPacket. Called outside the
+    // lock, same as the code it replaces.
+    void DispatchMonitor(const dmq::xstring& topic, const dmq::xstring& strVal, uint64_t timestamp) {
+        SpyPacket packet{ topic, strVal, timestamp };
+        m_monitorSignal(packet);
+    }
 
     bool m_continuousErrors = false;
     dmq::RecursiveMutex m_mutex;
