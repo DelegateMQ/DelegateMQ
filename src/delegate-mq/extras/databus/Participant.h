@@ -218,8 +218,16 @@ private:
     }
 
     template <typename T>
-    void AttachErrorHandler(std::shared_ptr<dmq::RemoteChannel<void(T)>>& channel) {
+    void AttachErrorHandler(dmq::RemoteChannel<void(T)>* channel) {
         channel->SetErrorHandler(dmq::MakeDelegate(this, &Participant::OnChannelError));
+    }
+
+    // Type-instantiated but non-templated-TYPE deleter: &DeleteRemoteChannel<T> decays
+    // to the same void(*)(void*) regardless of T, so the shared_ptr<void> control block
+    // built from it in GetOrCreateChannelLocked below is not templated on T either.
+    template <typename T>
+    static void DeleteRemoteChannel(void* p) {
+        delete static_cast<dmq::RemoteChannel<void(T)>*>(p);
     }
 
     void OnChannelError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux) {
@@ -279,16 +287,23 @@ private:
             }
             channel = std::static_pointer_cast<dmq::RemoteChannel<void(T)>>(it->second.channel);
         } else {
-            channel = dmq::xmake_shared<dmq::RemoteChannel<void(T)>>(*m_transport, serializer);
+            auto* raw = new dmq::RemoteChannel<void(T)>(*m_transport, serializer);
 
             // Establish the remote ID for sending via operator().
-            channel->SetRemoteId(remoteId);
-
-            m_channels[remoteId] = { channel, channel->GetEndpoint() };
-            m_channelTypes.emplace(remoteId, std::type_index(typeid(T)));
+            raw->SetRemoteId(remoteId);
 
             // Ensure error handler is attached to the new channel
-            AttachErrorHandler(channel);
+            AttachErrorHandler(raw);
+
+            // Erase to void* BEFORE constructing the shared_ptr, so the control block's
+            // deduced pointer type is void (non-templated) rather than
+            // RemoteChannel<void(T)>* -- this is what lets the control block be shared
+            // across every distinct T instead of duplicated per signature.
+            std::shared_ptr<void> channelVoid(static_cast<void*>(raw), &DeleteRemoteChannel<T>, ::dmq::stl_allocator<void>());
+            channel = std::static_pointer_cast<dmq::RemoteChannel<void(T)>>(channelVoid);
+
+            m_channels[remoteId] = { channelVoid, raw->GetEndpoint() };
+            m_channelTypes.emplace(remoteId, std::type_index(typeid(T)));
         }
 
         return channel;
