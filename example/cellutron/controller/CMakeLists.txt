@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
 project(CellutronController VERSION 1.0 LANGUAGES CXX C)
 
+# Force compiler optimizations on DelegateMQ templates even in Debug builds
+# (GCC/Clang only, no-op on MSVC). See DMQ_FORCE_OPTIMIZE_DEBUG in
+# DelegateOpt.h. Enable with: cmake -DDMQ_FORCE_OPTIMIZE_DEBUG=ON ...
+option(DMQ_FORCE_OPTIMIZE_DEBUG "Force compiler optimizations on DelegateMQ templates even in Debug builds" OFF)
+if(DMQ_FORCE_OPTIMIZE_DEBUG)
+    add_compile_definitions(DMQ_FORCE_OPTIMIZE_DEBUG)
+endif()
+
 # If not building from the top-level Cellutron project, define variables
 if (NOT CELLUTRON_COMMON_DIR)
     set(CELLUTRON_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../common)

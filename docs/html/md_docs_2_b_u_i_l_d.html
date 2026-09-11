@@ -177,7 +177,9 @@ Configuration and Overrides</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyLeft"><code>DMQ_ALLOCATOR</code>   </td><td class="markdownTableBodyLeft"><code>OFF</code>   </td><td class="markdownTableBodyLeft">Use fixed-block memory allocator (deterministic) instead of heap.    </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyLeft"><code>DMQ_DEBUG_LOG</code>   </td><td class="markdownTableBodyLeft"><code>OFF</code>   </td><td class="markdownTableBodyLeft">Enable verbose internal debug logging (requires spdlog).   </td></tr>
+<td class="markdownTableBodyLeft"><code>DMQ_DEBUG_LOG</code>   </td><td class="markdownTableBodyLeft"><code>OFF</code>   </td><td class="markdownTableBodyLeft">Enable verbose internal debug logging (requires spdlog).    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyLeft"><code>DMQ_FORCE_OPTIMIZE_DEBUG</code>   </td><td class="markdownTableBodyLeft"><code>OFF</code>   </td><td class="markdownTableBodyLeft">Force <code>-Os</code> template optimization in unoptimized GCC/Clang Debug builds to reduce embedded flash bloat (silent no-op on MSVC).   </td></tr>
 </table>
 <h2><a class="anchor" id="autotoc_md31"></a>
 2. User Config File (<code>DelegateMQConfig.h</code>)</h2>
@@ -192,7 +194,7 @@ Platform Specifics</h1>
 <h2><a class="anchor" id="autotoc_md34"></a>
 Embedded (ARM/Bare-Metal)</h2>
 <ul>
-<li><b>Stack Usage</b>: In Debug mode (<code>-O0</code>), templates may generate deep call stacks. Use Release mode (<code>-O2</code>) or increase your task stack sizes (min 4-8KB recommended).</li>
+<li><b>Stack Usage &amp; Code Bloat</b>: In unoptimized Debug mode (<code>-O0</code>), variadic templates generate deep call stacks and heavy flash usage. Either use Release mode (<code>-O2</code>/<code>-Os</code>), increase your RTOS task stack sizes (min 4-8KB recommended), or enable <code>-DDMQ_FORCE_OPTIMIZE_DEBUG=ON</code> to eliminate template bloat while keeping your application debuggable.</li>
 <li><b>Static Memory</b>: Use <code>-DDMQ_ALLOCATOR=ON</code> to ensure all internal library allocations use fixed-sized pools, avoiding heap fragmentation.</li>
 </ul>
 <h2><a class="anchor" id="autotoc_md35"></a>

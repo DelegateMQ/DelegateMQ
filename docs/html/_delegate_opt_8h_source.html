@@ -710,7 +710,34 @@ $(function(){initNavTree('_delegate_opt_8h_source.html',''); initResizable(true)
 <div class="line"><a id="l00633" name="l00633"></a><span class="lineno"><a class="line" href="_delegate_opt_8h.html#ad4a9117ce894e3319e903142347a0f63">  633</a></span><span class="preprocessor">    #define LOG_ERROR(...)   do {} while(0)</span></div>
 <div class="line"><a id="l00634" name="l00634"></a><span class="lineno">  634</span><span class="preprocessor">#endif</span></div>
 <div class="line"><a id="l00635" name="l00635"></a><span class="lineno">  635</span> </div>
-<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span><span class="preprocessor">#endif </span><span class="comment">// _DELEGATE_OPT_H</span></div>
+<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span><span class="comment">// @TODO: Select the desired template optimization level.</span></div>
+<div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span><span class="comment">// Enable DMQ_FORCE_OPTIMIZE_DEBUG in your build system (e.g. CMake) to force</span></div>
+<div class="line"><a id="l00638" name="l00638"></a><span class="lineno">  638</span><span class="comment">// the compiler to aggressively inline and optimize DelegateMQ templates even</span></div>
+<div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span><span class="comment">// during unoptimized Debug builds. This significantly reduces code bloat and</span></div>
+<div class="line"><a id="l00640" name="l00640"></a><span class="lineno">  640</span><span class="comment">// call stack depth for variadic template unpacking without losing the ability</span></div>
+<div class="line"><a id="l00641" name="l00641"></a><span class="lineno">  641</span><span class="comment">// to step-debug your application code.</span></div>
+<div class="line"><a id="l00642" name="l00642"></a><span class="lineno">  642</span><span class="comment">//</span></div>
+<div class="line"><a id="l00643" name="l00643"></a><span class="lineno">  643</span><span class="comment">// NOTE: This feature relies on GCC/Clang-specific pragmas. MSVC&#39;s #pragma optimize</span></div>
+<div class="line"><a id="l00644" name="l00644"></a><span class="lineno">  644</span><span class="comment">// cannot elevate optimizations above the command-line (/Od) baseline and is mostly</span></div>
+<div class="line"><a id="l00645" name="l00645"></a><span class="lineno">  645</span><span class="comment">// deprecated for x64 targets. Thus, this macro is a silent no-op on MSVC Windows builds.</span></div>
+<div class="line"><a id="l00646" name="l00646"></a><span class="lineno">  646</span><span class="comment">// For GCC/Clang, this uses -Os (optimize for size) to maximize flash savings.</span></div>
+<div class="line"><a id="l00647" name="l00647"></a><span class="lineno">  647</span><span class="preprocessor">#ifdef DMQ_FORCE_OPTIMIZE_DEBUG</span></div>
+<div class="line"><a id="l00648" name="l00648"></a><span class="lineno">  648</span><span class="preprocessor">    #if defined(__GNUC__) || defined(__clang__)</span></div>
+<div class="line"><a id="l00649" name="l00649"></a><span class="lineno">  649</span><span class="preprocessor">        #define DMQ_OPTIMIZE_ON \</span></div>
+<div class="line"><a id="l00650" name="l00650"></a><span class="lineno">  650</span><span class="preprocessor">            _Pragma(&quot;GCC push_options&quot;) \</span></div>
+<div class="line"><a id="l00651" name="l00651"></a><span class="lineno">  651</span><span class="preprocessor">            _Pragma(&quot;GCC optimize (\&quot;Os\&quot;)&quot;)</span></div>
+<div class="line"><a id="l00652" name="l00652"></a><span class="lineno">  652</span><span class="preprocessor">        #define DMQ_OPTIMIZE_OFF \</span></div>
+<div class="line"><a id="l00653" name="l00653"></a><span class="lineno">  653</span><span class="preprocessor">            _Pragma(&quot;GCC pop_options&quot;)</span></div>
+<div class="line"><a id="l00654" name="l00654"></a><span class="lineno">  654</span><span class="preprocessor">    #else</span></div>
+<div class="line"><a id="l00655" name="l00655"></a><span class="lineno">  655</span><span class="preprocessor">        #define DMQ_OPTIMIZE_ON</span></div>
+<div class="line"><a id="l00656" name="l00656"></a><span class="lineno">  656</span><span class="preprocessor">        #define DMQ_OPTIMIZE_OFF</span></div>
+<div class="line"><a id="l00657" name="l00657"></a><span class="lineno">  657</span><span class="preprocessor">    #endif</span></div>
+<div class="line"><a id="l00658" name="l00658"></a><span class="lineno">  658</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00659" name="l00659"></a><span class="lineno"><a class="line" href="_delegate_opt_8h.html#afbde37d3ada2999011f6d55179ca12e5">  659</a></span><span class="preprocessor">    #define DMQ_OPTIMIZE_ON</span></div>
+<div class="line"><a id="l00660" name="l00660"></a><span class="lineno"><a class="line" href="_delegate_opt_8h.html#a2595030048e1e2f66a3c4ea47b95bd0b">  660</a></span><span class="preprocessor">    #define DMQ_OPTIMIZE_OFF</span></div>
+<div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span> </div>
+<div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span><span class="preprocessor">#endif </span><span class="comment">// _DELEGATE_OPT_H</span></div>
 <div class="ttc" id="a_bare_metal_clock_8h_html"><div class="ttname"><a href="_bare_metal_clock_8h.html">BareMetalClock.h</a></div></div>
 <div class="ttc" id="a_bare_metal_critical_section_8h_html"><div class="ttname"><a href="_bare_metal_critical_section_8h.html">BareMetalCriticalSection.h</a></div><div class="ttdoc">ISR-safe critical section for bare metal (no RTOS).</div></div>
 <div class="ttc" id="a_bare_metal_this_thread_8h_html"><div class="ttname"><a href="_bare_metal_this_thread_8h.html">BareMetalThisThread.h</a></div><div class="ttdoc">Portable sleep_for()/yield() for the calling thread, bare-metal backend.</div></div>
@@ -775,7 +802,7 @@ $(function(){initNavTree('_delegate_opt_8h_source.html',''); initResizable(true)
 <div class="ttc" id="aclassdmq_1_1xlist_html"><div class="ttname"><a href="classdmq_1_1xlist.html">dmq::xlist</a></div><div class="ttdef"><b>Definition</b> DelegateOpt.h:574</div></div>
 <div class="ttc" id="anamespacedmq_1_1os_html_ab971206487f2e53432e7c2ad6a6e6df6"><div class="ttname"><a href="namespacedmq_1_1os.html#ab971206487f2e53432e7c2ad6a6e6df6">dmq::os::ThreadXRecursiveMutex</a></div><div class="ttdeci">ThreadXMutex ThreadXRecursiveMutex</div><div class="ttdef"><b>Definition</b> ThreadXMutex.h:45</div></div>
 <div class="ttc" id="anamespacedmq_1_1os_html_ac1c71ebbb72b7e1716ebd4757ef6a61b"><div class="ttname"><a href="namespacedmq_1_1os.html#ac1c71ebbb72b7e1716ebd4757ef6a61b">dmq::os::ZephyrRecursiveMutex</a></div><div class="ttdeci">ZephyrMutex ZephyrRecursiveMutex</div><div class="ttdef"><b>Definition</b> ZephyrMutex.h:40</div></div>
-<div class="ttc" id="anamespacedmq_html"><div class="ttname"><a href="namespacedmq.html">dmq</a></div><div class="ttdoc">The delegate library namespace.</div><div class="ttdef"><b>Definition</b> Delegate.h:27</div></div>
+<div class="ttc" id="anamespacedmq_html"><div class="ttname"><a href="namespacedmq.html">dmq</a></div><div class="ttdoc">The delegate library namespace.</div><div class="ttdef"><b>Definition</b> Delegate.h:29</div></div>
 <div class="ttc" id="anamespacedmq_html_a03e75ec116b1db4a951cab0aea154a36"><div class="ttname"><a href="namespacedmq.html#a03e75ec116b1db4a951cab0aea154a36">dmq::DEFAULT_DISPATCH_TIMEOUT</a></div><div class="ttdeci">constexpr std::chrono::seconds DEFAULT_DISPATCH_TIMEOUT</div><div class="ttdoc">Default timeout for the TIMEOUT queue-full policy across all Thread ports. Override via DMQ_DEFAULT_D...</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:357</div></div>
 <div class="ttc" id="anamespacedmq_html_a11cea01eb8d1af200d992657af94c7fb"><div class="ttname"><a href="namespacedmq.html#a11cea01eb8d1af200d992657af94c7fb">dmq::xstring</a></div><div class="ttdeci">std::basic_string&lt; char, std::char_traits&lt; char &gt;, stl_allocator&lt; char &gt; &gt; xstring</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:583</div></div>
 <div class="ttc" id="anamespacedmq_html_a1ca6fd2638dd10cb9e042e693fb9ed17"><div class="ttname"><a href="namespacedmq.html#a1ca6fd2638dd10cb9e042e693fb9ed17">dmq::xmap</a></div><div class="ttdeci">std::map&lt; Key, Value, std::less&lt; Key &gt;, Alloc &gt; xmap</div><div class="ttdef"><b>Definition</b> DelegateOpt.h:605</div></div>

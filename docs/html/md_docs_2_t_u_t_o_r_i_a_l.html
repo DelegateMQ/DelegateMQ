@@ -136,7 +136,7 @@ Phase 1: The Direct Call (Synchronous)</h1>
 <div class="line">    <span class="keywordflow">return</span> 0;</div>
 <div class="line">}</div>
 <div class="ttc" id="a_delegate_m_q_8h_html"><div class="ttname"><a href="_delegate_m_q_8h.html">DelegateMQ.h</a></div><div class="ttdoc">A single-include header for the complete DelegateMQ library functionality.</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:908</div></div>
 </div><!-- fragment --><p> <b>Why do this?</b> You've just created a type-safe "command" object. You can pass this <code>setSpeed</code> object to other components without them needing to know anything about the <code>Motor</code> class.</p>
 <hr  />
 <h1><a class="anchor" id="autotoc_md242"></a>
@@ -197,8 +197,8 @@ Phase 3: The Observer (Signals)</h1>
 <div class="line">    motor.SetSpeed(2499);</div>
 <div class="line">    <span class="keywordflow">return</span> 0;</div>
 <div class="line">} <span class="comment">// &#39;conn&#39; goes out of scope -&gt; logger is automatically disconnected.</span></div>
-<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:116</div></div>
-<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:32</div></div>
+<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:118</div></div>
+<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:34</div></div>
 </div><!-- fragment --><p> <b>Key Concept</b>: <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">dmq::ScopedConnection</a></code> provides RAII safety. If the listener is destroyed, the connection is severed automatically, preventing "dead object" crashes.</p>
 <h2><a class="anchor" id="autotoc_md245"></a>
 Alternative: Manual Management</h2>
@@ -210,7 +210,7 @@ Alternative: Manual Management</h2>
 <div class="line"> </div>
 <div class="line"><span class="comment">// 2. You MUST manually unsubscribe using -= before &#39;logger&#39; is destroyed</span></div>
 <div class="line">OnData -= <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;logger, &amp;Logger::Log, logThread);</div>
-<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:13</div></div>
+<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:15</div></div>
 </div><!-- fragment --><hr  />
 <h1><a class="anchor" id="autotoc_md247"></a>
 Phase 4: Periodic Tasks (Timers)</h1>

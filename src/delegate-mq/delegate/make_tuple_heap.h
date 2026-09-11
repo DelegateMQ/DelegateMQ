@@ -21,6 +21,7 @@
 #include <memory>
 #include <type_traits>
 #include "DelegateOpt.h"
+DMQ_OPTIMIZE_ON
 
 namespace dmq 
 {
@@ -278,5 +279,7 @@ auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, st
 }
 
 }
+
+DMQ_OPTIMIZE_OFF
 
 #endif

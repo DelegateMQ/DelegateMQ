@@ -24,3 +24,8 @@ option(DMQ_TOOLS "Build DelegateMQ diagnostic tools (dmq-spy, dmq-monitor)" OFF)
 if(DMQ_TOOLS)
     add_subdirectory(tools ${CMAKE_BINARY_DIR}/dmq-tools)
 endif()
+
+option(DMQ_FORCE_OPTIMIZE_DEBUG "Force compiler optimizations on DelegateMQ templates even in Debug builds" OFF)
+if(DMQ_FORCE_OPTIMIZE_DEBUG)
+    add_compile_definitions(DMQ_FORCE_OPTIMIZE_DEBUG)
+endif()

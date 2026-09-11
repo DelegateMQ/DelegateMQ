@@ -97,6 +97,7 @@ You can customize the DLL behavior using the following CMake variables:
 | `DMQ_TRANSPORT` | `DMQ_TRANSPORT_WIN32_UDP`, `DMQ_TRANSPORT_LINUX_UDP`, `DMQ_TRANSPORT_ZEROMQ` | Selects the physical network layer. |
 | `DMQ_ASSERTS` | `ON`, `OFF` | Enables/Disables internal library assertions. |
 | `DMQ_LOG` | `ON`, `OFF` | Enables/Disables internal library logging. |
+| `DMQ_FORCE_OPTIMIZE_DEBUG` | `ON`, `OFF` | Forces `-Os` template optimization in GCC/Clang unoptimized Debug builds. |
 | `CMAKE_BUILD_TYPE` | `Debug`, `Release` | Standard CMake build configuration. |
 
 ---

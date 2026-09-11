@@ -121,7 +121,7 @@ Basic Usage</h1>
 <div class="line"> </div>
 <div class="line">    <span class="keywordtype">void</span> Press(<span class="keywordtype">int</span> <span class="keywordtype">id</span>) { OnPressed(<span class="keywordtype">id</span>); }       <span class="comment">// emit to all connected slots</span></div>
 <div class="line">};</div>
-<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:32</div></div>
+<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:34</div></div>
 </div><!-- fragment --><p><b>Subscriber</b> — connect with <code><a class="el" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2" title="Creates a delegate that binds to a free function.">dmq::MakeDelegate</a></code>, store the <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">dmq::ScopedConnection</a></code>:</p>
 <div class="fragment"><div class="line"><span class="keyword">class </span>UI</div>
 <div class="line">{</div>
@@ -154,9 +154,9 @@ Basic Usage</h1>
 <div class="line">    btn.Press(1);   <span class="comment">// UI::HandlePress called on UIThread</span></div>
 <div class="line">}                   <span class="comment">// ui destroyed -&gt; m_conn disconnects -&gt; no more callbacks</span></div>
 <div class="line">btn.Press(2);       <span class="comment">// safe: no subscribers, nothing happens</span></div>
-<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:116</div></div>
+<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:118</div></div>
 <div class="ttc" id="aclassdmq_1_1os_1_1_cmsis_rtos2_thread_html"><div class="ttname"><a href="classdmq_1_1os_1_1_cmsis_rtos2_thread.html">dmq::os::CmsisRtos2Thread</a></div><div class="ttdef"><b>Definition</b> CmsisRtos2Thread.h:55</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:908</div></div>
 </div><!-- fragment --><hr  />
 <h1><a class="anchor" id="autotoc_md232"></a>
 Lambda Slots</h1>
@@ -216,7 +216,7 @@ When to use <code>dmq::MulticastDelegateSafe</code> instead</h1>
 <div class="line">OnData += <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;obj, &amp;MyClass::Handle, workerThread);</div>
 <div class="line">OnData(42);</div>
 <div class="line">OnData -= <a class="code hl_function" href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a>(&amp;obj, &amp;MyClass::Handle, workerThread);  <span class="comment">// must not forget this</span></div>
-<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:13</div></div>
+<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:15</div></div>
 </div><!-- fragment --> </div></div><!-- contents -->
 </div><!-- PageDoc -->
 </div><!-- doc-content -->

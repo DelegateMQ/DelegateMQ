@@ -15,10 +15,11 @@ var searchData=
   ['signal_3c_20void_28dmq_3a_3adelegateremoteid_2c_20uint16_5ft_2c_20status_29_3e_12',['Signal&lt; void(dmq::DelegateRemoteId, uint16_t, Status)&gt;',['../classdmq_1_1_signal.html',1,'dmq']]],
   ['signal_3c_20void_28size_5ft_29_3e_13',['Signal&lt; void(size_t)&gt;',['../classdmq_1_1_signal.html',1,'dmq']]],
   ['signal_3c_20void_28void_29_3e_14',['Signal&lt; void(void)&gt;',['../classdmq_1_1_signal.html',1,'dmq']]],
-  ['snapshot_15',['Snapshot',['../structdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4_1_1_snapshot.html',1,'dmq::Signal&lt; RetType(Args...)&gt;']]],
-  ['spypacket_16',['SpyPacket',['../structdmq_1_1databus_1_1_spy_packet.html',1,'dmq::databus']]],
-  ['stdlibthread_17',['StdlibThread',['../classdmq_1_1os_1_1_stdlib_thread.html',1,'dmq::os']]],
-  ['stl_5fallocator_18',['stl_allocator',['../classdmq_1_1stl__allocator.html',1,'dmq']]],
-  ['stl_5fallocator_3c_20void_20_3e_19',['stl_allocator&lt; void &gt;',['../classdmq_1_1stl__allocator_3_01void_01_4.html',1,'dmq']]],
-  ['stm32uarttransport_20',['Stm32UartTransport',['../classdmq_1_1transport_1_1_stm32_uart_transport.html',1,'dmq::transport']]]
+  ['signalsnapshot_15',['SignalSnapshot',['../structdmq_1_1detail_1_1_signal_snapshot.html',1,'dmq::detail']]],
+  ['signalstate_16',['SignalState',['../structdmq_1_1detail_1_1_signal_state.html',1,'dmq::detail']]],
+  ['spypacket_17',['SpyPacket',['../structdmq_1_1databus_1_1_spy_packet.html',1,'dmq::databus']]],
+  ['stdlibthread_18',['StdlibThread',['../classdmq_1_1os_1_1_stdlib_thread.html',1,'dmq::os']]],
+  ['stl_5fallocator_19',['stl_allocator',['../classdmq_1_1stl__allocator.html',1,'dmq']]],
+  ['stl_5fallocator_3c_20void_20_3e_20',['stl_allocator&lt; void &gt;',['../classdmq_1_1stl__allocator_3_01void_01_4.html',1,'dmq']]],
+  ['stm32uarttransport_21',['Stm32UartTransport',['../classdmq_1_1transport_1_1_stm32_uart_transport.html',1,'dmq::transport']]]
 ];

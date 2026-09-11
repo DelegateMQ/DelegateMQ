@@ -24,11 +24,12 @@ var searchData=
   ['boost_20asio_20executors_21',['Boost.Asio / Executors',['../md_docs_2_c_o_m_p_a_r_i_s_o_n.html#autotoc_md65',1,'']]],
   ['boost_20signals2_22',['Boost.Signals2',['../md_docs_2_c_o_m_p_a_r_i_s_o_n.html#autotoc_md43',1,'']]],
   ['broadcast_23',['Broadcast',['../classdmq_1_1_multicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a6106b3917b58f9156003d6fd69556f5f',1,'dmq::MulticastDelegate&lt; RetType(Args...)&gt;::Broadcast()'],['../classdmq_1_1_multicast_delegate_safe_3_01_ret_type_07_args_8_8_8_08_4.html#ad6df0cc5ca432a325373e11e442ac06b',1,'dmq::MulticastDelegateSafe&lt; RetType(Args...)&gt;::Broadcast()'],['../classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#a78a88756f6a88cf47170d834e7df520b',1,'dmq::UnicastDelegate&lt; RetType(Args...)&gt;::Broadcast()'],['../classdmq_1_1_unicast_delegate_safe_3_01_ret_type_07_args_8_8_8_08_4.html#aa68da4ed48da02f6add9b51388207a86',1,'dmq::UnicastDelegateSafe&lt; RetType(Args...)&gt;::Broadcast()']]],
-  ['build_24',['Build',['../md_docs_2_b_u_i_l_d.html#autotoc_md23',1,'Main Application Build'],['../md_docs_2_b_u_i_l_d.html#autotoc_md27',1,'Manual Sample Build']]],
-  ['build_20and_20configuration_20guide_25',['Build and Configuration Guide',['../md_docs_2_b_u_i_l_d.html',1,'']]],
-  ['build_20configuration_26',['Build Configuration',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md181',1,'']]],
-  ['build_2emd_27',['BUILD.md',['../_b_u_i_l_d_8md.html',1,'']]],
-  ['building_20the_20dll_28',['Building the DLL',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md175',1,'']]],
-  ['bypassing_20argument_20heap_20copy_29',['Bypassing Argument Heap Copy',['../md_docs_2_d_e_t_a_i_l_s.html#autotoc_md155',1,'']]],
-  ['byte_20binary_20header_30',['8-Byte Binary Header',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md197',1,'']]]
+  ['broadcastguard_24',['BroadcastGuard',['../classdmq_1_1detail_1_1_broadcast_guard.html',1,'dmq::detail::BroadcastGuard'],['../classdmq_1_1detail_1_1_broadcast_guard.html#a85799af0ee0d457314572bc37b682658',1,'dmq::detail::BroadcastGuard::BroadcastGuard()']]],
+  ['build_25',['Build',['../md_docs_2_b_u_i_l_d.html#autotoc_md23',1,'Main Application Build'],['../md_docs_2_b_u_i_l_d.html#autotoc_md27',1,'Manual Sample Build']]],
+  ['build_20and_20configuration_20guide_26',['Build and Configuration Guide',['../md_docs_2_b_u_i_l_d.html',1,'']]],
+  ['build_20configuration_27',['Build Configuration',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md181',1,'']]],
+  ['build_2emd_28',['BUILD.md',['../_b_u_i_l_d_8md.html',1,'']]],
+  ['building_20the_20dll_29',['Building the DLL',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md175',1,'']]],
+  ['bypassing_20argument_20heap_20copy_30',['Bypassing Argument Heap Copy',['../md_docs_2_d_e_t_a_i_l_s.html#autotoc_md155',1,'']]],
+  ['byte_20binary_20header_31',['8-Byte Binary Header',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md197',1,'']]]
 ];

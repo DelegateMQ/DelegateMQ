@@ -21,6 +21,7 @@ Do not `#include` allocator or platform headers directly in library files. `Dele
 - `DMQ_THREAD_*` — OS/mutex/clock selection
 - `DMQ_ASSERTS` — assert vs. exception error handling
 - `DMQ_STRICT` — enable strict compiler warnings and errors
+- `DMQ_FORCE_OPTIMIZE_DEBUG` — force `-Os` on templates in unoptimized debug builds
 
 To add a new allocator-gated type (e.g., `xunordered_map`):
 1. Add the header under `extras/allocator/`.
@@ -118,6 +119,8 @@ Under `DMQ_ALLOCATOR` these use the fixed-block allocator for internal buffers. 
 ## Template Instantiation Cost
 
 `AttachErrorHandler<T>`, `GetOrCreateChannel<T>`, and similar templated helpers instantiate once per message type `T`. On flash-constrained targets this matters. Do not introduce new template helpers on the send path unless necessary.
+
+**Established mitigation pattern**: when a templated container's data is already erased to `DelegateBase` (or another non-templated type) but the methods that operate on it are still class-template members, the compiler still regenerates that code per signature even though none of it touches the template parameters. Extract it into non-templated `detail::` free functions/structs instead — see `detail::DispatchAsync`/`AsyncDispatchState` (`DelegateAsync.h`), `detail::Multicast*`/`BroadcastGuard` (`MulticastDelegate.h`), `detail::Signal*`/`SignalState`/`SignalSnapshot` (`Signal.h`), and `detail::UnicastClone` (`UnicastDelegate.h`) for worked examples — measured per-signature code-size reductions from ~24% to ~70%. Prefer free functions over inserting a new non-templated base class into an existing hierarchy, particularly when another type already publicly derives from the one you'd be changing — external code may rely on that "is-a" relationship, and there's often no clean way to insert a new class between an existing base and its derived class without re-templating it (this is why `MulticastDelegate.h`/`Signal.h`/`UnicastDelegate.h` all use free functions rather than a `*Base` class, even though `MulticastDelegate` itself had no pre-existing base to worry about).
 
 ## Port Exception — Desktop-Only Transport and OS Files
 

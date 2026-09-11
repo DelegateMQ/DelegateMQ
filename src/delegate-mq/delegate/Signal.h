@@ -23,6 +23,8 @@
 #include "Delegate.h"
 #include <memory>
 
+DMQ_OPTIMIZE_ON
+
 namespace dmq {
 
 template <class R>
@@ -142,6 +144,129 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// detail::Signal* helpers  (implementation detail of Signal, defined here so
+// they can construct/return ScopedConnection)
+// ---------------------------------------------------------------------------
+namespace detail {
+
+/// @brief Non-templated: the mutex + alive-flag + delegate list shared by every
+/// `Signal<Sig>` in the program. Hoisted out of `Signal<Sig>` (where it lived as
+/// a nested `State` struct) because nesting inside the class template caused a
+/// separate (byte-identical) type -- and critically a separate `xmake_shared`
+/// allocation control block -- to be generated per signature, even though none
+/// of its members depend on RetType/Args.
+struct SignalState {
+    mutable RecursiveMutex mtx;
+    bool alive = true;
+    xlist<std::shared_ptr<DelegateBase>> delegates;
+    XALLOCATOR
+};
+
+/// @brief Non-templated: a snapshot of a signal's subscriber list at a point in
+/// time, captured under lock so `operator()` can invoke without holding it.
+struct SignalSnapshot {
+    std::shared_ptr<DelegateBase> small_buf[SIGNAL_SBO_COUNT];
+    xlist<std::shared_ptr<DelegateBase>> large_buf;
+    size_t count = 0;
+};
+
+/// @brief Identity-based disconnect: removes `copyVoid` (the exact shared_ptr
+/// instance stored at Connect() time) from `stateVoid`'s delegate list, if the
+/// state is still alive. Non-templated: this never needed the concrete
+/// `DelegateType` to begin with, but as a member of `Signal<Sig>` it used to be
+/// emitted once per signature anyway.
+inline void SignalDisconnectImpl(const std::shared_ptr<void>& stateVoid, const std::shared_ptr<void>& copyVoid) {
+    auto* state = static_cast<SignalState*>(stateVoid.get());
+    auto copy = std::static_pointer_cast<DelegateBase>(copyVoid);
+    dmq::LockGuard<RecursiveMutex> lock(state->mtx);
+    if (state->alive)
+        state->delegates.remove(copy);
+}
+
+/// @brief Clone `delegate` and append it to `state`'s list under lock, returning
+/// a connection handle wired to `SignalDisconnectImpl`. `delegate` is taken as
+/// `const DelegateBase&` (rather than the more-derived `Delegate<Sig>&`) so
+/// `delegate.Clone()`'s return type here is `DelegateBase*` -- the resulting
+/// shared_ptr control block is therefore not templated on RetType/Args, and is
+/// shared by every `Signal<Sig>` in the program instead of duplicated per
+/// signature (mirrors the fix already applied to `MulticastDelegate::PushBack`).
+inline ScopedConnection SignalConnect(std::shared_ptr<SignalState>& state, RecursiveMutex& mutex, const DelegateBase& delegate) {
+    auto copy = std::shared_ptr<DelegateBase>(delegate.Clone(), std::default_delete<DelegateBase>(), ::dmq::stl_allocator<DelegateBase>());
+    if (!copy)
+        BAD_ALLOC();
+
+    dmq::LockGuard<RecursiveMutex> lock(mutex);
+    dmq::LockGuard<RecursiveMutex> stateLock(state->mtx);
+    state->delegates.push_back(copy);
+
+    return ScopedConnection(Connection(
+        std::static_pointer_cast<void>(state),
+        std::static_pointer_cast<void>(copy),
+        &SignalDisconnectImpl
+    ));
+}
+
+/// @brief Capture a snapshot of `state`'s current delegate list under lock.
+inline SignalSnapshot SignalGetSnapshot(const std::shared_ptr<SignalState>& state, RecursiveMutex& mutex) {
+    dmq::LockGuard<RecursiveMutex> lock(mutex);
+    dmq::LockGuard<RecursiveMutex> stateLock(state->mtx);
+
+    SignalSnapshot s;
+    s.count = state->delegates.size();
+    if (s.count <= SIGNAL_SBO_COUNT) {
+        size_t i = 0;
+        for (auto& d : state->delegates) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#endif
+            s.small_buf[i++] = d;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+        }
+    } else {
+        s.large_buf = state->delegates;
+    }
+    return s;
+}
+
+/// @brief Disconnect all subscribers: swap in a fresh `SignalState`, mark the
+/// old one dead+cleared under its own lock. Used by `Signal::Clear()`.
+inline void SignalClear(std::shared_ptr<SignalState>& state, RecursiveMutex& mutex) {
+    std::shared_ptr<SignalState> oldState;
+    {
+        dmq::LockGuard<RecursiveMutex> lock(mutex);
+        oldState = state;
+        state = xmake_shared<SignalState>();
+    }
+    {
+        dmq::LockGuard<RecursiveMutex> lock(oldState->mtx);
+        oldState->alive = false;
+        oldState->delegates.clear();
+    }
+}
+
+/// @brief Mark `state` dead and clear its list under lock. Used by `~Signal()`
+/// -- unlike `SignalClear`, does not swap in a replacement state, since the
+/// owning Signal is being destroyed rather than reset for reuse.
+inline void SignalMarkDead(std::shared_ptr<SignalState>& state, RecursiveMutex& mutex) {
+    dmq::LockGuard<RecursiveMutex> lock(mutex);
+    dmq::LockGuard<RecursiveMutex> stateLock(state->mtx);
+    state->alive = false;
+    state->delegates.clear();
+}
+
+/// @brief Lock-protected subscriber count.
+inline size_t SignalSize(const std::shared_ptr<SignalState>& state, RecursiveMutex& mutex) {
+    dmq::LockGuard<RecursiveMutex> lock(mutex);
+    dmq::LockGuard<RecursiveMutex> stateLock(state->mtx);
+    return state->delegates.size();
+}
+
+} // namespace detail
+
+// ---------------------------------------------------------------------------
 // Signal
 // ---------------------------------------------------------------------------
 
@@ -154,16 +279,18 @@ class Signal<RetType(Args...)>
 public:
     using DelegateType = Delegate<RetType(Args...)>;
 
+    /// @brief Snapshot of the subscriber list at a point in time. Alias for the
+    /// non-templated `detail::SignalSnapshot` -- kept as a nested name here since
+    /// external code (e.g. `extras/util/Timer.cpp`) names it as `Signal<Sig>::Snapshot`.
+    using Snapshot = detail::SignalSnapshot;
+
     Signal() = default;
 
     ~Signal() {
         // Mark the shared state dead under the lock. Any concurrent Disconnect()
         // that races with this will either complete its removal first (holding the
         // lock) or see alive=false and skip removal. Either way, no UAF.
-        dmq::LockGuard<RecursiveMutex> lock(m_mutex);
-        dmq::LockGuard<RecursiveMutex> stateLock(m_state->mtx);
-        m_state->alive = false;
-        m_state->delegates.clear();
+        detail::SignalMarkDead(m_state, m_mutex);
     }
 
     Signal(const Signal&) = delete;
@@ -177,22 +304,7 @@ public:
     /// @return A `ScopedConnection`. Let it go out of scope to auto-disconnect,
     ///         or call `Disconnect()` manually.
     [[nodiscard]] ScopedConnection Connect(const DelegateType& delegate) {
-        // Stored as `DelegateBase` (not `DelegateType`) so `State::delegates` and this
-        // `Snapshot`'s buffers are the same type, and thus the same shared instantiation,
-        // across every `Signal<Sig>` signature. Only invocation needs `DelegateType` back.
-        auto copy = std::shared_ptr<DelegateBase>(delegate.Clone(), std::default_delete<DelegateType>(), ::dmq::stl_allocator<DelegateBase>());
-        if (!copy)
-            BAD_ALLOC();
-
-        dmq::LockGuard<RecursiveMutex> lock(m_mutex);
-        dmq::LockGuard<RecursiveMutex> stateLock(m_state->mtx);
-        m_state->delegates.push_back(copy);
-
-        return ScopedConnection(detail::Connection(
-            std::static_pointer_cast<void>(m_state),
-            std::static_pointer_cast<void>(copy),
-            &Signal::DisconnectImpl
-        ));
+        return detail::SignalConnect(m_state, m_mutex, delegate);
     }
 
     /// @brief Subscribe a UnicastDelegate and return a RAII connection handle.
@@ -211,34 +323,8 @@ public:
     /// @brief Capture a snapshot of all current subscribers.
     /// @details The snapshot holds shared_ptrs to the delegates, ensuring they
     /// stay alive even if the Signal is destroyed.
-    struct Snapshot {
-        std::shared_ptr<DelegateBase> small_buf[SIGNAL_SBO_COUNT];
-        xlist<std::shared_ptr<DelegateBase>> large_buf;
-        size_t count = 0;
-    };
-
     Snapshot GetSnapshot() const {
-        dmq::LockGuard<RecursiveMutex> lock(m_mutex);
-        dmq::LockGuard<RecursiveMutex> stateLock(m_state->mtx);
-
-        Snapshot s;
-        s.count = m_state->delegates.size();
-        if (s.count <= SIGNAL_SBO_COUNT) {
-            size_t i = 0;
-            for (auto& d : m_state->delegates) {
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
-#endif
-                s.small_buf[i++] = d;
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-            }
-        } else {
-            s.large_buf = m_state->delegates;
-        }
-        return s;
+        return detail::SignalGetSnapshot(m_state, m_mutex);
     }
 
     /// @brief Invoke a previously captured snapshot of delegates.
@@ -265,54 +351,25 @@ public:
 
     /// @brief Number of currently connected subscribers.
     std::size_t Size() const {
-        dmq::LockGuard<RecursiveMutex> lock(m_mutex);
-        dmq::LockGuard<RecursiveMutex> stateLock(m_state->mtx);
-        return m_state->delegates.size();
+        return detail::SignalSize(m_state, m_mutex);
     }
 
     bool Empty() const { return Size() == 0; }
 
     /// @brief Disconnect all subscribers.
     void Clear() {
-        std::shared_ptr<State> oldState;
-        {
-            dmq::LockGuard<RecursiveMutex> lock(m_mutex);
-            oldState = m_state;
-            m_state = xmake_shared<State>();
-        }
-        {
-            dmq::LockGuard<RecursiveMutex> lock(oldState->mtx);
-            oldState->alive = false;
-            oldState->delegates.clear();
-        }
+        detail::SignalClear(m_state, m_mutex);
     }
 
     XALLOCATOR
 
 private:
-    // Disconnect is identity-based (same shared_ptr instance stored at Connect() time),
-    // so it never needs the concrete `DelegateType` — this makes `DisconnectImpl` itself
-    // signature-independent, but as a member of `Signal<Sig>` it's still emitted once per
-    // signature. The dominant per-signature cost was `State::delegates`'s `xlist`
-    // instantiation, which the `DelegateBase` retype below eliminates.
-    static void DisconnectImpl(const std::shared_ptr<void>& stateVoid, const std::shared_ptr<void>& copyVoid) {
-        auto* state = static_cast<State*>(stateVoid.get());
-        auto copy = std::static_pointer_cast<DelegateBase>(copyVoid);
-        dmq::LockGuard<RecursiveMutex> lock(state->mtx);
-        if (state->alive)
-            state->delegates.remove(copy);
-    }
-
-    struct State {
-        mutable RecursiveMutex mtx;
-        bool alive = true;
-        xlist<std::shared_ptr<DelegateBase>> delegates;
-        XALLOCATOR
-    };
     mutable RecursiveMutex m_mutex;
-    std::shared_ptr<State> m_state = xmake_shared<State>();
+    std::shared_ptr<detail::SignalState> m_state = xmake_shared<detail::SignalState>();
 };
 
 } // namespace dmq
+
+DMQ_OPTIMIZE_OFF
 
 #endif // SIGNAL_H

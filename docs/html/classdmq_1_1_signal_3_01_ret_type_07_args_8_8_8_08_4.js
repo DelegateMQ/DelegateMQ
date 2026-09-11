@@ -1,7 +1,7 @@
 var classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4 =
 [
-    [ "Snapshot", "structdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4_1_1_snapshot.html", "structdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4_1_1_snapshot" ],
     [ "DelegateType", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html#afa7af218c5d2c5e24833abedcd50af13", null ],
+    [ "Snapshot", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html#a8689f63e02e3526dafdf319706f19bab", null ],
     [ "Signal", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html#a52e31f4e2d9287d93d5cc5a6e6dc0bea", null ],
     [ "~Signal", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html#ad1d699f472bc2e0ee8a799826de2ccca", null ],
     [ "Signal", "classdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4.html#aa86c6f04ae108810f4c6f11df5a09902", null ],
