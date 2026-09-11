@@ -8,6 +8,8 @@ var _delegate_opt_8h =
     [ "BAD_ALLOC", "_delegate_opt_8h.html#abe89b46e296c7421855410a08d6d31fe", null ],
     [ "DMQ_ASSERTS", "_delegate_opt_8h.html#a6d017f6688a2ece9c701ea71062fc6b9", null ],
     [ "DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS", "_delegate_opt_8h.html#a9972cef83d5c8a768e76cc8172b2cd84", null ],
+    [ "DMQ_OPTIMIZE_OFF", "_delegate_opt_8h.html#a2595030048e1e2f66a3c4ea47b95bd0b", null ],
+    [ "DMQ_OPTIMIZE_ON", "_delegate_opt_8h.html#afbde37d3ada2999011f6d55179ca12e5", null ],
     [ "DMQ_SERIALIZE_NONE", "_delegate_opt_8h.html#a397bf7b998e327455052c135f305e352", null ],
     [ "LOG_DEBUG", "_delegate_opt_8h.html#a754b3d074e0af4ad3c7b918dd77ecb2d", null ],
     [ "LOG_ERROR", "_delegate_opt_8h.html#ad4a9117ce894e3319e903142347a0f63", null ],

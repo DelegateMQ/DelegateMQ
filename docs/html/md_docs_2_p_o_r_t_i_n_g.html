@@ -142,6 +142,7 @@ Porting Checklist</h1>
 <li><b>Configure Build Options</b> — set CMake DMQ library build options within <code>CMakeLists.txt</code>.<ul>
 <li>Example: <code>DMQ_ASSERTS</code> for debug assertions.</li>
 <li>Example: <code>DMQ_ALLOCATOR</code> to switch between standard heap (<code>new</code>/<code>delete</code>) and the deterministic Fixed Block Allocator.</li>
+<li>Example: <code>DMQ_FORCE_OPTIMIZE_DEBUG</code> to eliminate template bloat in unoptimized builds.</li>
 <li>Example: copy <code><a class="el" href="_delegate_m_q_config___template_8h.html" title="User configuration for the DelegateMQ library.">DelegateMQConfig_Template.h</a></code> to your project and set <code>-DDMQ_USER_CONFIG="DelegateMQConfig.h"</code> to tune numeric library constants (<code>DMQ_MAX_TIMER_EXPIRED</code>, <code>DMQ_MAX_WATCHDOG_THREADS</code>, <code>DMQ_DEFAULT_QUEUE_SIZE</code>, etc.) without editing library files. See <code><a class="el" href="_delegate_m_q_config___default_8h.html" title="Default DelegateMQ library configuration.">delegate/DelegateMQConfig_Default.h</a></code> for all available constants and their default values.</li>
 </ul>
 </li>
@@ -152,10 +153,8 @@ Porting Checklist</h1>
 Embedded Systems</h1>
 <p>Running C++ messaging on embedded targets (like STM32) requires specific attention to resources.</p>
 <ol type="1">
-<li><p class="startli"><b>Stack Usage &amp; Debug Mode</b></p>
-<p class="startli"><b>Issue:</b> In Debug mode (<code>-O0</code>), C++ templates generate deep call stacks, possibly causing stack overflows. <br  />
- <b>Fix:</b> Increase task stack (e.g. 8 KB) or use Release mode (<code>-O2</code>), where stacks shrink significantly.</p>
-</li>
+<li><b>Stack Usage &amp; Debug Mode</b> <b>Issue:</b> In Debug mode (<code>-O0</code>), C++ templates generate deep call stacks, possibly causing stack overflows. <br  />
+ <b>Fix:</b> Increase task stack (e.g. 8 KB), use Release mode (<code>-O2</code>), or enable <code>-DDMQ_FORCE_OPTIMIZE_DEBUG=ON</code> to eliminate template bloat in Debug mode.</li>
 <li><p class="startli"><b>Transport Implementation (if using remote delegates)</b></p>
 <p class="startli"><b>Issue:</b> Blocking UART calls (e.g., <code>HAL_UART_Receive</code>) starve high-priority tasks. <br  />
  <b>Fix:</b> Use an interrupt-driven ring buffer. The ISR captures data immediately, and the receive task sleeps on a semaphore until data is available.</p>

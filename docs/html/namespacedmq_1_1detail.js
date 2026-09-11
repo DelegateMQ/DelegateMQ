@@ -1,7 +1,29 @@
 var namespacedmq_1_1detail =
 [
     [ "AsyncDispatchState", "classdmq_1_1detail_1_1_async_dispatch_state.html", "classdmq_1_1detail_1_1_async_dispatch_state" ],
+    [ "BroadcastGuard", "classdmq_1_1detail_1_1_broadcast_guard.html", "classdmq_1_1detail_1_1_broadcast_guard" ],
     [ "Connection", "classdmq_1_1detail_1_1_connection.html", "classdmq_1_1detail_1_1_connection" ],
     [ "RemoteDispatchState", "classdmq_1_1detail_1_1_remote_dispatch_state.html", "classdmq_1_1detail_1_1_remote_dispatch_state" ],
-    [ "DispatchAsync", "namespacedmq_1_1detail.html#af0a1914d4946d05de899a9fbecacb98d", null ]
+    [ "SignalSnapshot", "structdmq_1_1detail_1_1_signal_snapshot.html", "structdmq_1_1detail_1_1_signal_snapshot" ],
+    [ "SignalState", "structdmq_1_1detail_1_1_signal_state.html", "structdmq_1_1detail_1_1_signal_state" ],
+    [ "DispatchAsync", "namespacedmq_1_1detail.html#af0a1914d4946d05de899a9fbecacb98d", null ],
+    [ "MulticastAppendAndClear", "namespacedmq_1_1detail.html#a1212e5e28c28da21010d9d7d3bf5a35f", null ],
+    [ "MulticastClear", "namespacedmq_1_1detail.html#aaefb072eea5e2802c7a388cb580b805b", null ],
+    [ "MulticastCopyFrom", "namespacedmq_1_1detail.html#a1868e1aa00712ea60b0328c2f2bf7305", null ],
+    [ "MulticastPushBack", "namespacedmq_1_1detail.html#a1b1bd48f933a5f395bf93b1c8dc1b2aa", null ],
+    [ "MulticastRemove", "namespacedmq_1_1detail.html#a2815ccccb4c02ff0599ce54306df242b", null ],
+    [ "MulticastSafeClear", "namespacedmq_1_1detail.html#a7ba58d89760dd3691b343701f54aabba", null ],
+    [ "MulticastSafeEmpty", "namespacedmq_1_1detail.html#a700728a2b87955d370bcd949e622281a", null ],
+    [ "MulticastSafePushBack", "namespacedmq_1_1detail.html#a4deead8e720651e7ce5372b940749a6e", null ],
+    [ "MulticastSafeRemove", "namespacedmq_1_1detail.html#a9bb4169e2dde862b62c3f6ab53aea8e0", null ],
+    [ "MulticastSafeSize", "namespacedmq_1_1detail.html#afe5a4dda59a5bfcdd8153fad12c29236", null ],
+    [ "MulticastSafeSnapshot", "namespacedmq_1_1detail.html#a71909e07021dc1e4cea60540011fc2db", null ],
+    [ "SignalClear", "namespacedmq_1_1detail.html#a98200b2e7f6464e64c8e5a79175ec686", null ],
+    [ "SignalConnect", "namespacedmq_1_1detail.html#a5a591441a9ca6b33388366ff7eb87753", null ],
+    [ "SignalDisconnectImpl", "namespacedmq_1_1detail.html#a77a9fa65e4d85d12bd9874ebf995d313", null ],
+    [ "SignalGetSnapshot", "namespacedmq_1_1detail.html#ad654f92e0820670116f955165619d53d", null ],
+    [ "SignalMarkDead", "namespacedmq_1_1detail.html#a7e510bd8ab13940b3e5fca4b1ca2ebe9", null ],
+    [ "SignalSize", "namespacedmq_1_1detail.html#a834c92bf106e888a3606ed3f3068113b", null ],
+    [ "UnicastClone", "namespacedmq_1_1detail.html#abad4a86371f1ad855d35f4f362162d4d", null ],
+    [ "UnicastSafeGet", "namespacedmq_1_1detail.html#a60d22c907747f7f5f75bcb380938daff", null ]
 ];

@@ -196,7 +196,7 @@ Synchronous Delegates</h2>
 <div class="line">    <span class="keywordflow">return</span> 0;</div>
 <div class="line">}</div>
 <div class="ttc" id="a_delegate_m_q_8h_html"><div class="ttname"><a href="_delegate_m_q_8h.html">DelegateMQ.h</a></div><div class="ttdoc">A single-include header for the complete DelegateMQ library functionality.</div></div>
-<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:906</div></div>
+<div class="ttc" id="anamespacedmq_html_a65e308cc5f3e37d2f7f89c72b9744ae2"><div class="ttname"><a href="namespacedmq.html#a65e308cc5f3e37d2f7f89c72b9744ae2">dmq::MakeDelegate</a></div><div class="ttdeci">auto MakeDelegate(RetType(*func)(Args... args))</div><div class="ttdoc">Creates a delegate that binds to a free function.</div><div class="ttdef"><b>Definition</b> Delegate.h:908</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md10"></a>
 Asynchronous Delegates</h2>
 <p>Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely and effortlessly. The library automatically marshals all arguments—whether passed by value, pointer, or reference—ensuring thread safety without manual locking or complex queue management.</p>
@@ -224,7 +224,7 @@ Asynchronous Delegates</h2>
 <div class="line">    <span class="comment">// Callback executed on &#39;thread&#39;</span></div>
 <div class="line">}, thread);</div>
 <div class="line">onComplete(123);</div>
-<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:13</div></div>
+<div class="ttc" id="aclassdmq_1_1_multicast_delegate_safe_html"><div class="ttname"><a href="classdmq_1_1_multicast_delegate_safe.html">dmq::MulticastDelegateSafe</a></div><div class="ttdef"><b>Definition</b> MulticastDelegateSafe.h:15</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md11"></a>
 Signal / Slot</h2>
 <p><code><a class="el" href="classdmq_1_1_signal.html">dmq::Signal</a>&lt;Sig&gt;</code> is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently. DelegateMQ signals support both synchronous and asynchronous dispatch, meaning slots can be executed in the caller's context or automatically queued onto a target worker thread chosen at connect time. <code>Connect()</code> returns a <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">dmq::ScopedConnection</a></code> that auto-disconnects when it goes out of scope — no manual unsubscribe needed.</p>
@@ -236,7 +236,7 @@ Signal / Slot</h2>
 <div class="line"> </div>
 <div class="line">    <span class="keywordtype">void</span> Press(<span class="keywordtype">int</span> <span class="keywordtype">id</span>) { OnPressed(<span class="keywordtype">id</span>); }       <span class="comment">// emit to all connected slots</span></div>
 <div class="line">};</div>
-<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:32</div></div>
+<div class="ttc" id="aclassdmq_1_1_signal_html"><div class="ttname"><a href="classdmq_1_1_signal.html">dmq::Signal</a></div><div class="ttdef"><b>Definition</b> Signal.h:34</div></div>
 </div><!-- fragment --><p>Connect a slot and store the <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">dmq::ScopedConnection</a></code> for automatic lifetime management:</p>
 <div class="fragment"><div class="line"><span class="keyword">class </span>UI</div>
 <div class="line">{</div>
@@ -265,7 +265,7 @@ Signal / Slot</h2>
 <div class="line">    btn.Press(1);   <span class="comment">// UI::HandlePress queued on UIThread</span></div>
 <div class="line">}                   <span class="comment">// ui destroyed -&gt; m_conn disconnects</span></div>
 <div class="line">btn.Press(2);       <span class="comment">// safe: no subscribers, nothing happens</span></div>
-<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:116</div></div>
+<div class="ttc" id="aclassdmq_1_1_scoped_connection_html"><div class="ttname"><a href="classdmq_1_1_scoped_connection.html">dmq::ScopedConnection</a></div><div class="ttdoc">RAII handle to a single Signal subscription. Disconnects automatically on destruction....</div><div class="ttdef"><b>Definition</b> Signal.h:118</div></div>
 </div><!-- fragment --><h1><a class="anchor" id="autotoc_md12"></a>
 DataBus (DDS Lite)</h1>
 <p><code><a class="el" href="classdmq_1_1databus_1_1_data_bus.html">dmq::databus::DataBus</a></code> is a type-safe, topic-based publish/subscribe system (similar to a lightweight DDS or MQTT) built on DelegateMQ delegates. It works across local threads and remote network nodes alike. Each subscriber specifies the thread that receives its data, so delivery always lands in the correct thread context with no manual queuing or synchronization.</p>

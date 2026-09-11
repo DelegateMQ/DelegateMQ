@@ -108,11 +108,20 @@ Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1detail_1_1_async_dispatch_state.html">AsyncDispatchState</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-template holder for a <code>DelegateXAsync&lt;...&gt;</code> instance's dispatch state (destination thread, message priority). None of this depends on the bound function's signature or target class, so every <code><a class="el" href="classdmq_1_1_delegate_free_async.html">DelegateFreeAsync</a></code>/<code><a class="el" href="classdmq_1_1_delegate_member_async.html">DelegateMemberAsync</a></code>/ <code><a class="el" href="classdmq_1_1_delegate_member_async_sp.html">DelegateMemberAsyncSp</a></code>/<code><a class="el" href="classdmq_1_1_delegate_function_async.html">DelegateFunctionAsync</a></code> instantiation composes this one definition instead of each generating its own copy of the same two fields plus their Assign()/Equal()/move-ctor plumbing.  <a href="classdmq_1_1detail_1_1_async_dispatch_state.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1detail_1_1_broadcast_guard.html">BroadcastGuard</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">RAII guard marking an active broadcast. Increments <code>cnt</code> on construction, decrements on destruction, and purges lazily-nulled entries from <code>delegates</code> once the outermost nested broadcast finishes. Takes plain references to the exact fields it needs rather than a container pointer, so it carries no dependency on RetType/Args at all.  <a href="classdmq_1_1detail_1_1_broadcast_guard.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1detail_1_1_connection.html">Connection</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Move-only subscription token. Internal implementation detail of <a class="el" href="classdmq_1_1_signal.html">Signal</a>. Users should store <code><a class="el" href="classdmq_1_1_scoped_connection.html" title="RAII handle to a single Signal subscription. Disconnects automatically on destruction....">ScopedConnection</a></code>, not <code><a class="el" href="classdmq_1_1detail_1_1_connection.html" title="Move-only subscription token. Internal implementation detail of Signal. Users should store ScopedConn...">Connection</a></code> directly.  <a href="classdmq_1_1detail_1_1_connection.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1detail_1_1_remote_dispatch_state.html">RemoteDispatchState</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fully non-template holder for a <code>DelegateXRemote&lt;...&gt;</code> instance's dispatch state — remote id, dispatcher, output stream, last error, last dispatched sequence number, and error-handler delegate. None of this depends on the bound function's signature or target class (the error handler's own signature is fixed, independent of the owning delegate's), so every <code><a class="el" href="classdmq_1_1_delegate_free_remote.html">DelegateFreeRemote</a></code>/<code><a class="el" href="classdmq_1_1_delegate_member_remote.html">DelegateMemberRemote</a></code>/ <code><a class="el" href="classdmq_1_1_delegate_function_remote.html">DelegateFunctionRemote</a></code> instantiation — for every signature and target class in the program — composes this one definition instead of each generating its own copy.  <a href="classdmq_1_1detail_1_1_remote_dispatch_state.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdmq_1_1detail_1_1_signal_snapshot.html">SignalSnapshot</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-templated: a snapshot of a signal's subscriber list at a point in time, captured under lock so <code>operator()</code> can invoke without holding it.  <a href="structdmq_1_1detail_1_1_signal_snapshot.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-templated: the mutex + alive-flag + delegate list shared by every <code><a class="el" href="classdmq_1_1_signal.html">Signal</a>&lt;Sig&gt;</code> in the program. Hoisted out of <code><a class="el" href="classdmq_1_1_signal.html">Signal</a>&lt;Sig&gt;</code> (where it lived as a nested <code>State</code> struct) because nesting inside the class template caused a separate (byte-identical) type &ndash; and critically a separate <code>xmake_shared</code> allocation control block &ndash; to be generated per signature, even though none of its members depend on RetType/Args.  <a href="structdmq_1_1detail_1_1_signal_state.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
@@ -121,6 +130,63 @@ Functions</h2></td></tr>
 <tr class="memitem:af0a1914d4946d05de899a9fbecacb98d"><td class="memTemplItemLeft" align="right" valign="top">void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="#af0a1914d4946d05de899a9fbecacb98d">DispatchAsync</a> (std::shared_ptr&lt; <a class="el" href="classdmq_1_1_i_thread_invoker.html">IThreadInvoker</a> &gt; invoker, <a class="el" href="classdmq_1_1_i_thread.html">IThread</a> *thread, <a class="el" href="namespacedmq.html#a6364022151f2bf1802343322638e8f25">Priority</a> priority, Args &amp;&amp;... args)</td></tr>
 <tr class="memdesc:af0a1914d4946d05de899a9fbecacb98d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Builds the heap-copied argument message and dispatches it to <code>thread</code>.  <br /></td></tr>
 <tr class="separator:af0a1914d4946d05de899a9fbecacb98d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1b1bd48f933a5f395bf93b1c8dc1b2aa" id="r_a1b1bd48f933a5f395bf93b1c8dc1b2aa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1b1bd48f933a5f395bf93b1c8dc1b2aa">MulticastPushBack</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;delegate)</td></tr>
+<tr class="memdesc:a1b1bd48f933a5f395bf93b1c8dc1b2aa"><td class="mdescLeft">&#160;</td><td class="mdescRight">Clone <code>delegate</code> and append it to <code>delegates</code>, fully erased to the non-templated <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code> at construction. <code>delegate.Clone()</code> is called through a <code>const <a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&amp;</code>, so its return type here is <code>DelegateBase*</code> (not the more-derived leaf type) &ndash; the resulting shared_ptr control block is therefore not templated on RetType/Args, and is shared by every <code><a class="el" href="classdmq_1_1_multicast_delegate.html">MulticastDelegate</a>&lt;Sig&gt;</code> in the program instead of duplicated per signature. Templated only on nothing at all (a plain function): none of this logic depends on the owning container's signature.  <br /></td></tr>
+<tr class="separator:a1b1bd48f933a5f395bf93b1c8dc1b2aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2815ccccb4c02ff0599ce54306df242b" id="r_a2815ccccb4c02ff0599ce54306df242b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2815ccccb4c02ff0599ce54306df242b">MulticastRemove</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, int broadcastCount, bool &amp;cleanup, const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;delegate)</td></tr>
+<tr class="memdesc:a2815ccccb4c02ff0599ce54306df242b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Remove <code>delegate</code> from <code>delegates</code>, respecting reentrant removal during an active broadcast.  <br /></td></tr>
+<tr class="separator:a2815ccccb4c02ff0599ce54306df242b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaefb072eea5e2802c7a388cb580b805b" id="r_aaefb072eea5e2802c7a388cb580b805b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aaefb072eea5e2802c7a388cb580b805b">MulticastClear</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, int broadcastCount, bool &amp;cleanup)</td></tr>
+<tr class="memdesc:aaefb072eea5e2802c7a388cb580b805b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Remove all delegates from <code>delegates</code>, respecting reentrant removal.  <br /></td></tr>
+<tr class="separator:aaefb072eea5e2802c7a388cb580b805b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1868e1aa00712ea60b0328c2f2bf7305" id="r_a1868e1aa00712ea60b0328c2f2bf7305"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1868e1aa00712ea60b0328c2f2bf7305">MulticastCopyFrom</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;dest, const <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;src)</td></tr>
+<tr class="memdesc:a1868e1aa00712ea60b0328c2f2bf7305"><td class="mdescLeft">&#160;</td><td class="mdescRight">Deep-copy every delegate in <code>src</code> (cloned, fully erased to <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code>) into <code>dest</code>.  <br /></td></tr>
+<tr class="separator:a1868e1aa00712ea60b0328c2f2bf7305"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1212e5e28c28da21010d9d7d3bf5a35f" id="r_a1212e5e28c28da21010d9d7d3bf5a35f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1212e5e28c28da21010d9d7d3bf5a35f">MulticastAppendAndClear</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;dest, <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;src)</td></tr>
+<tr class="memdesc:a1212e5e28c28da21010d9d7d3bf5a35f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Move every element of <code>src</code> onto the end of <code>dest</code>, then clear <code>src</code>. Used by the reentrant branch of move-assignment, which must keep <code>dest</code>'s own list object identity stable (an active broadcast's iterator into it may be live) rather than replacing it outright.  <br /></td></tr>
+<tr class="separator:a1212e5e28c28da21010d9d7d3bf5a35f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4deead8e720651e7ce5372b940749a6e" id="r_a4deead8e720651e7ce5372b940749a6e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a4deead8e720651e7ce5372b940749a6e">MulticastSafePushBack</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;lock, const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;delegate)</td></tr>
+<tr class="memdesc:a4deead8e720651e7ce5372b940749a6e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock-protected wrapper around <code>MulticastPushBack</code> (<a class="el" href="_multicast_delegate_8h.html" title="Delegate container for storing and iterating over a collection of delegate instances....">MulticastDelegate.h</a>). Non-templated: none of this depends on the owning container's signature.  <br /></td></tr>
+<tr class="separator:a4deead8e720651e7ce5372b940749a6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9bb4169e2dde862b62c3f6ab53aea8e0" id="r_a9bb4169e2dde862b62c3f6ab53aea8e0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9bb4169e2dde862b62c3f6ab53aea8e0">MulticastSafeRemove</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, int broadcastCount, bool &amp;cleanup, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;lock, const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;delegate)</td></tr>
+<tr class="memdesc:a9bb4169e2dde862b62c3f6ab53aea8e0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock-protected wrapper around <code>MulticastRemove</code>.  <br /></td></tr>
+<tr class="separator:a9bb4169e2dde862b62c3f6ab53aea8e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7ba58d89760dd3691b343701f54aabba" id="r_a7ba58d89760dd3691b343701f54aabba"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a7ba58d89760dd3691b343701f54aabba">MulticastSafeClear</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, int broadcastCount, bool &amp;cleanup, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;lock)</td></tr>
+<tr class="memdesc:a7ba58d89760dd3691b343701f54aabba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock-protected wrapper around <code>MulticastClear</code>.  <br /></td></tr>
+<tr class="separator:a7ba58d89760dd3691b343701f54aabba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a700728a2b87955d370bcd949e622281a" id="r_a700728a2b87955d370bcd949e622281a"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a700728a2b87955d370bcd949e622281a">MulticastSafeEmpty</a> (const <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;lock)</td></tr>
+<tr class="memdesc:a700728a2b87955d370bcd949e622281a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock-protected emptiness check.  <br /></td></tr>
+<tr class="separator:a700728a2b87955d370bcd949e622281a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afe5a4dda59a5bfcdd8153fad12c29236" id="r_afe5a4dda59a5bfcdd8153fad12c29236"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afe5a4dda59a5bfcdd8153fad12c29236">MulticastSafeSize</a> (const <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;lock)</td></tr>
+<tr class="memdesc:afe5a4dda59a5bfcdd8153fad12c29236"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock-protected size check.  <br /></td></tr>
+<tr class="separator:afe5a4dda59a5bfcdd8153fad12c29236"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a71909e07021dc1e4cea60540011fc2db" id="r_a71909e07021dc1e4cea60540011fc2db"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a71909e07021dc1e4cea60540011fc2db">MulticastSafeSnapshot</a> (<a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;delegates, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;lock, std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; *smallBuf, size_t smallCap, <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;largeBuf)</td></tr>
+<tr class="memdesc:a71909e07021dc1e4cea60540011fc2db"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snapshot the current delegate list under lock, into <code>smallBuf</code> (up to <code>smallCap</code> entries) or <code>largeBuf</code> if there are more than <code>smallCap</code>. Returns the number of delegates snapshotted. The lock is released before returning, so the caller can invoke each delegate without holding it (see the comment on <code>MulticastDelegateSafe::operator()</code> for why). Non-templated: entirely independent of the owning container's signature.  <br /></td></tr>
+<tr class="separator:a71909e07021dc1e4cea60540011fc2db"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a77a9fa65e4d85d12bd9874ebf995d313" id="r_a77a9fa65e4d85d12bd9874ebf995d313"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a77a9fa65e4d85d12bd9874ebf995d313">SignalDisconnectImpl</a> (const std::shared_ptr&lt; void &gt; &amp;stateVoid, const std::shared_ptr&lt; void &gt; &amp;copyVoid)</td></tr>
+<tr class="memdesc:a77a9fa65e4d85d12bd9874ebf995d313"><td class="mdescLeft">&#160;</td><td class="mdescRight">Identity-based disconnect: removes <code>copyVoid</code> (the exact shared_ptr instance stored at Connect() time) from <code>stateVoid</code>'s delegate list, if the state is still alive. Non-templated: this never needed the concrete <code>DelegateType</code> to begin with, but as a member of <code><a class="el" href="classdmq_1_1_signal.html">Signal</a>&lt;Sig&gt;</code> it used to be emitted once per signature anyway.  <br /></td></tr>
+<tr class="separator:a77a9fa65e4d85d12bd9874ebf995d313"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5a591441a9ca6b33388366ff7eb87753" id="r_a5a591441a9ca6b33388366ff7eb87753"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classdmq_1_1_scoped_connection.html">ScopedConnection</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5a591441a9ca6b33388366ff7eb87753">SignalConnect</a> (std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;state, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;mutex, const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;delegate)</td></tr>
+<tr class="memdesc:a5a591441a9ca6b33388366ff7eb87753"><td class="mdescLeft">&#160;</td><td class="mdescRight">Clone <code>delegate</code> and append it to <code>state</code>'s list under lock, returning a connection handle wired to <code>SignalDisconnectImpl</code>. <code>delegate</code> is taken as <code>const <a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&amp;</code> (rather than the more-derived <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;Sig&gt;&amp;</code>) so <code>delegate.Clone()</code>'s return type here is <code>DelegateBase*</code> &ndash; the resulting shared_ptr control block is therefore not templated on RetType/Args, and is shared by every <code><a class="el" href="classdmq_1_1_signal.html">Signal</a>&lt;Sig&gt;</code> in the program instead of duplicated per signature (mirrors the fix already applied to <code>MulticastDelegate::PushBack</code>).  <br /></td></tr>
+<tr class="separator:a5a591441a9ca6b33388366ff7eb87753"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad654f92e0820670116f955165619d53d" id="r_ad654f92e0820670116f955165619d53d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structdmq_1_1detail_1_1_signal_snapshot.html">SignalSnapshot</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad654f92e0820670116f955165619d53d">SignalGetSnapshot</a> (const std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;state, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;mutex)</td></tr>
+<tr class="memdesc:ad654f92e0820670116f955165619d53d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Capture a snapshot of <code>state</code>'s current delegate list under lock.  <br /></td></tr>
+<tr class="separator:ad654f92e0820670116f955165619d53d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a98200b2e7f6464e64c8e5a79175ec686" id="r_a98200b2e7f6464e64c8e5a79175ec686"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a98200b2e7f6464e64c8e5a79175ec686">SignalClear</a> (std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;state, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;mutex)</td></tr>
+<tr class="memdesc:a98200b2e7f6464e64c8e5a79175ec686"><td class="mdescLeft">&#160;</td><td class="mdescRight">Disconnect all subscribers: swap in a fresh <code><a class="el" href="structdmq_1_1detail_1_1_signal_state.html" title="Non-templated: the mutex + alive-flag + delegate list shared by every Signal&lt;Sig&gt; in the program....">SignalState</a></code>, mark the old one dead+cleared under its own lock. Used by <code>Signal::Clear()</code>.  <br /></td></tr>
+<tr class="separator:a98200b2e7f6464e64c8e5a79175ec686"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7e510bd8ab13940b3e5fca4b1ca2ebe9" id="r_a7e510bd8ab13940b3e5fca4b1ca2ebe9"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a7e510bd8ab13940b3e5fca4b1ca2ebe9">SignalMarkDead</a> (std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;state, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;mutex)</td></tr>
+<tr class="memdesc:a7e510bd8ab13940b3e5fca4b1ca2ebe9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mark <code>state</code> dead and clear its list under lock. Used by <code>~Signal()</code> &ndash; unlike <code>SignalClear</code>, does not swap in a replacement state, since the owning <a class="el" href="classdmq_1_1_signal.html">Signal</a> is being destroyed rather than reset for reuse.  <br /></td></tr>
+<tr class="separator:a7e510bd8ab13940b3e5fca4b1ca2ebe9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a834c92bf106e888a3606ed3f3068113b" id="r_a834c92bf106e888a3606ed3f3068113b"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a834c92bf106e888a3606ed3f3068113b">SignalSize</a> (const std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;state, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;mutex)</td></tr>
+<tr class="memdesc:a834c92bf106e888a3606ed3f3068113b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock-protected subscriber count.  <br /></td></tr>
+<tr class="separator:a834c92bf106e888a3606ed3f3068113b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abad4a86371f1ad855d35f4f362162d4d" id="r_abad4a86371f1ad855d35f4f362162d4d"><td class="memItemLeft" align="right" valign="top">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#abad4a86371f1ad855d35f4f362162d4d">UnicastClone</a> (const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;delegate)</td></tr>
+<tr class="memdesc:abad4a86371f1ad855d35f4f362162d4d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Clone <code>delegate</code> and wrap it in a shared_ptr, fully erased to the non-templated <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code> at construction. <code>delegate.Clone()</code> is called through a <code>const <a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&amp;</code>, so its return type here is <code>DelegateBase*</code> &ndash; the resulting shared_ptr control block is therefore not templated on RetType/Args, and is shared by every <code><a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a>&lt;Sig&gt;</code> in the program instead of duplicated per signature. Non-templated: none of this logic depends on the owning container's signature.  <br /></td></tr>
+<tr class="separator:abad4a86371f1ad855d35f4f362162d4d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a60d22c907747f7f5f75bcb380938daff" id="r_a60d22c907747f7f5f75bcb380938daff"><td class="memItemLeft" align="right" valign="top">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a60d22c907747f7f5f75bcb380938daff">UnicastSafeGet</a> (const std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &amp;delegate, <a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;lock)</td></tr>
+<tr class="memdesc:a60d22c907747f7f5f75bcb380938daff"><td class="mdescLeft">&#160;</td><td class="mdescRight">Copy the delegate pointer out under lock, then release. Non-templated: entirely independent of the owning container's signature. The caller invokes against the returned copy without holding the lock, avoiding circular lock dependencies if the target function itself tries to acquire it.  <br /></td></tr>
+<tr class="separator:a60d22c907747f7f5f75bcb380938daff"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="af0a1914d4946d05de899a9fbecacb98d" name="af0a1914d4946d05de899a9fbecacb98d"></a>
@@ -164,6 +230,672 @@ template&lt;class... Args&gt; </div>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="a1212e5e28c28da21010d9d7d3bf5a35f" name="a1212e5e28c28da21010d9d7d3bf5a35f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1212e5e28c28da21010d9d7d3bf5a35f">&#9670;&#160;</a></span>MulticastAppendAndClear()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastAppendAndClear </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>dest</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>src</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Move every element of <code>src</code> onto the end of <code>dest</code>, then clear <code>src</code>. Used by the reentrant branch of move-assignment, which must keep <code>dest</code>'s own list object identity stable (an active broadcast's iterator into it may be live) rather than replacing it outright. </p>
+
+</div>
+</div>
+<a id="aaefb072eea5e2802c7a388cb580b805b" name="aaefb072eea5e2802c7a388cb580b805b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaefb072eea5e2802c7a388cb580b805b">&#9670;&#160;</a></span>MulticastClear()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastClear </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>broadcastCount</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool &amp;</td>          <td class="paramname"><span class="paramname"><em>cleanup</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Remove all delegates from <code>delegates</code>, respecting reentrant removal. </p>
+
+</div>
+</div>
+<a id="a1868e1aa00712ea60b0328c2f2bf7305" name="a1868e1aa00712ea60b0328c2f2bf7305"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1868e1aa00712ea60b0328c2f2bf7305">&#9670;&#160;</a></span>MulticastCopyFrom()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastCopyFrom </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>dest</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>src</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Deep-copy every delegate in <code>src</code> (cloned, fully erased to <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code>) into <code>dest</code>. </p>
+
+</div>
+</div>
+<a id="a1b1bd48f933a5f395bf93b1c8dc1b2aa" name="a1b1bd48f933a5f395bf93b1c8dc1b2aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1b1bd48f933a5f395bf93b1c8dc1b2aa">&#9670;&#160;</a></span>MulticastPushBack()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastPushBack </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Clone <code>delegate</code> and append it to <code>delegates</code>, fully erased to the non-templated <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code> at construction. <code>delegate.Clone()</code> is called through a <code>const <a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&amp;</code>, so its return type here is <code>DelegateBase*</code> (not the more-derived leaf type) &ndash; the resulting shared_ptr control block is therefore not templated on RetType/Args, and is shared by every <code><a class="el" href="classdmq_1_1_multicast_delegate.html">MulticastDelegate</a>&lt;Sig&gt;</code> in the program instead of duplicated per signature. Templated only on nothing at all (a plain function): none of this logic depends on the owning container's signature. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">delegates</td><td>The list to append to. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">delegate</td><td>The delegate to clone and store. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a2815ccccb4c02ff0599ce54306df242b" name="a2815ccccb4c02ff0599ce54306df242b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2815ccccb4c02ff0599ce54306df242b">&#9670;&#160;</a></span>MulticastRemove()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastRemove </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>broadcastCount</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool &amp;</td>          <td class="paramname"><span class="paramname"><em>cleanup</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Remove <code>delegate</code> from <code>delegates</code>, respecting reentrant removal during an active broadcast. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">delegates</td><td>The list to remove from. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">broadcastCount</td><td>The owning container's current broadcast nesting depth. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">cleanup</td><td>Set to <code>true</code> if a lazy null-removal is needed later. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">delegate</td><td>The delegate to remove. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a7ba58d89760dd3691b343701f54aabba" name="a7ba58d89760dd3691b343701f54aabba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7ba58d89760dd3691b343701f54aabba">&#9670;&#160;</a></span>MulticastSafeClear()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastSafeClear </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>broadcastCount</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool &amp;</td>          <td class="paramname"><span class="paramname"><em>cleanup</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>lock</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Lock-protected wrapper around <code>MulticastClear</code>. </p>
+
+</div>
+</div>
+<a id="a700728a2b87955d370bcd949e622281a" name="a700728a2b87955d370bcd949e622281a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a700728a2b87955d370bcd949e622281a">&#9670;&#160;</a></span>MulticastSafeEmpty()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool dmq::detail::MulticastSafeEmpty </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>lock</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Lock-protected emptiness check. </p>
+
+</div>
+</div>
+<a id="a4deead8e720651e7ce5372b940749a6e" name="a4deead8e720651e7ce5372b940749a6e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4deead8e720651e7ce5372b940749a6e">&#9670;&#160;</a></span>MulticastSafePushBack()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastSafePushBack </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>lock</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Lock-protected wrapper around <code>MulticastPushBack</code> (<a class="el" href="_multicast_delegate_8h.html" title="Delegate container for storing and iterating over a collection of delegate instances....">MulticastDelegate.h</a>). Non-templated: none of this depends on the owning container's signature. </p>
+
+</div>
+</div>
+<a id="a9bb4169e2dde862b62c3f6ab53aea8e0" name="a9bb4169e2dde862b62c3f6ab53aea8e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9bb4169e2dde862b62c3f6ab53aea8e0">&#9670;&#160;</a></span>MulticastSafeRemove()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::MulticastSafeRemove </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>broadcastCount</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool &amp;</td>          <td class="paramname"><span class="paramname"><em>cleanup</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>lock</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Lock-protected wrapper around <code>MulticastRemove</code>. </p>
+
+</div>
+</div>
+<a id="afe5a4dda59a5bfcdd8153fad12c29236" name="afe5a4dda59a5bfcdd8153fad12c29236"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afe5a4dda59a5bfcdd8153fad12c29236">&#9670;&#160;</a></span>MulticastSafeSize()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t dmq::detail::MulticastSafeSize </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>lock</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Lock-protected size check. </p>
+
+</div>
+</div>
+<a id="a71909e07021dc1e4cea60540011fc2db" name="a71909e07021dc1e4cea60540011fc2db"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a71909e07021dc1e4cea60540011fc2db">&#9670;&#160;</a></span>MulticastSafeSnapshot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t dmq::detail::MulticastSafeSnapshot </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegates</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>lock</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; *</td>          <td class="paramname"><span class="paramname"><em>smallBuf</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>smallCap</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="classdmq_1_1xlist.html">xlist</a>&lt; std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>largeBuf</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Snapshot the current delegate list under lock, into <code>smallBuf</code> (up to <code>smallCap</code> entries) or <code>largeBuf</code> if there are more than <code>smallCap</code>. Returns the number of delegates snapshotted. The lock is released before returning, so the caller can invoke each delegate without holding it (see the comment on <code>MulticastDelegateSafe::operator()</code> for why). Non-templated: entirely independent of the owning container's signature. </p>
+
+</div>
+</div>
+<a id="a98200b2e7f6464e64c8e5a79175ec686" name="a98200b2e7f6464e64c8e5a79175ec686"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a98200b2e7f6464e64c8e5a79175ec686">&#9670;&#160;</a></span>SignalClear()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::SignalClear </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>state</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>mutex</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Disconnect all subscribers: swap in a fresh <code><a class="el" href="structdmq_1_1detail_1_1_signal_state.html" title="Non-templated: the mutex + alive-flag + delegate list shared by every Signal&lt;Sig&gt; in the program....">SignalState</a></code>, mark the old one dead+cleared under its own lock. Used by <code>Signal::Clear()</code>. </p>
+
+</div>
+</div>
+<a id="a5a591441a9ca6b33388366ff7eb87753" name="a5a591441a9ca6b33388366ff7eb87753"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5a591441a9ca6b33388366ff7eb87753">&#9670;&#160;</a></span>SignalConnect()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classdmq_1_1_scoped_connection.html">ScopedConnection</a> dmq::detail::SignalConnect </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>state</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>mutex</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Clone <code>delegate</code> and append it to <code>state</code>'s list under lock, returning a connection handle wired to <code>SignalDisconnectImpl</code>. <code>delegate</code> is taken as <code>const <a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&amp;</code> (rather than the more-derived <code><a class="el" href="classdmq_1_1_delegate.html">Delegate</a>&lt;Sig&gt;&amp;</code>) so <code>delegate.Clone()</code>'s return type here is <code>DelegateBase*</code> &ndash; the resulting shared_ptr control block is therefore not templated on RetType/Args, and is shared by every <code><a class="el" href="classdmq_1_1_signal.html">Signal</a>&lt;Sig&gt;</code> in the program instead of duplicated per signature (mirrors the fix already applied to <code>MulticastDelegate::PushBack</code>). </p>
+
+</div>
+</div>
+<a id="a77a9fa65e4d85d12bd9874ebf995d313" name="a77a9fa65e4d85d12bd9874ebf995d313"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a77a9fa65e4d85d12bd9874ebf995d313">&#9670;&#160;</a></span>SignalDisconnectImpl()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::SignalDisconnectImpl </td>
+          <td>(</td>
+          <td class="paramtype">const std::shared_ptr&lt; void &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>stateVoid</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::shared_ptr&lt; void &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>copyVoid</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Identity-based disconnect: removes <code>copyVoid</code> (the exact shared_ptr instance stored at Connect() time) from <code>stateVoid</code>'s delegate list, if the state is still alive. Non-templated: this never needed the concrete <code>DelegateType</code> to begin with, but as a member of <code><a class="el" href="classdmq_1_1_signal.html">Signal</a>&lt;Sig&gt;</code> it used to be emitted once per signature anyway. </p>
+
+</div>
+</div>
+<a id="ad654f92e0820670116f955165619d53d" name="ad654f92e0820670116f955165619d53d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad654f92e0820670116f955165619d53d">&#9670;&#160;</a></span>SignalGetSnapshot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structdmq_1_1detail_1_1_signal_snapshot.html">SignalSnapshot</a> dmq::detail::SignalGetSnapshot </td>
+          <td>(</td>
+          <td class="paramtype">const std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>state</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>mutex</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Capture a snapshot of <code>state</code>'s current delegate list under lock. </p>
+
+</div>
+</div>
+<a id="a7e510bd8ab13940b3e5fca4b1ca2ebe9" name="a7e510bd8ab13940b3e5fca4b1ca2ebe9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7e510bd8ab13940b3e5fca4b1ca2ebe9">&#9670;&#160;</a></span>SignalMarkDead()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dmq::detail::SignalMarkDead </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>state</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>mutex</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Mark <code>state</code> dead and clear its list under lock. Used by <code>~Signal()</code> &ndash; unlike <code>SignalClear</code>, does not swap in a replacement state, since the owning <a class="el" href="classdmq_1_1_signal.html">Signal</a> is being destroyed rather than reset for reuse. </p>
+
+</div>
+</div>
+<a id="a834c92bf106e888a3606ed3f3068113b" name="a834c92bf106e888a3606ed3f3068113b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a834c92bf106e888a3606ed3f3068113b">&#9670;&#160;</a></span>SignalSize()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t dmq::detail::SignalSize </td>
+          <td>(</td>
+          <td class="paramtype">const std::shared_ptr&lt; <a class="el" href="structdmq_1_1detail_1_1_signal_state.html">SignalState</a> &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>state</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>mutex</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Lock-protected subscriber count. </p>
+
+</div>
+</div>
+<a id="abad4a86371f1ad855d35f4f362162d4d" name="abad4a86371f1ad855d35f4f362162d4d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abad4a86371f1ad855d35f4f362162d4d">&#9670;&#160;</a></span>UnicastClone()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; dmq::detail::UnicastClone </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Clone <code>delegate</code> and wrap it in a shared_ptr, fully erased to the non-templated <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code> at construction. <code>delegate.Clone()</code> is called through a <code>const <a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&amp;</code>, so its return type here is <code>DelegateBase*</code> &ndash; the resulting shared_ptr control block is therefore not templated on RetType/Args, and is shared by every <code><a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a>&lt;Sig&gt;</code> in the program instead of duplicated per signature. Non-templated: none of this logic depends on the owning container's signature. </p>
+
+</div>
+</div>
+<a id="a60d22c907747f7f5f75bcb380938daff" name="a60d22c907747f7f5f75bcb380938daff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a60d22c907747f7f5f75bcb380938daff">&#9670;&#160;</a></span>UnicastSafeGet()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; dmq::detail::UnicastSafeGet </td>
+          <td>(</td>
+          <td class="paramtype">const std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt; &amp;</td>          <td class="paramname"><span class="paramname"><em>delegate</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="namespacedmq.html#a32a836d0420b059412e11bb2f8dbfe76">RecursiveMutex</a> &amp;</td>          <td class="paramname"><span class="paramname"><em>lock</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Copy the delegate pointer out under lock, then release. Non-templated: entirely independent of the owning container's signature. The caller invokes against the returned copy without holding the lock, avoiding circular lock dependencies if the target function itself tries to acquire it. </p>
 
 </div>
 </div>

@@ -75,7 +75,7 @@ var searchData=
   ['core_20interfaces_72',['Core Interfaces',['../md_src_2delegate-mq_2port_2transport_2_r_e_a_d_m_e.html#autotoc_md317',1,'']]],
   ['core_20responsibilities_73',['Core Responsibilities',['../_retry_monitor_8h.html#autotoc_md295',1,'']]],
   ['core_20rtos_74',['Priority Requirement — Critical on Single-Core RTOS',['../md_docs_2_p_o_r_t_i_n_g.html#autotoc_md223',1,'']]],
-  ['count_75',['count',['../structdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4_1_1_snapshot.html#a2e7fca9290c9e4a5ae497a93c19e5ddb',1,'dmq::Signal&lt; RetType(Args...)&gt;::Snapshot']]],
+  ['count_75',['count',['../structdmq_1_1detail_1_1_signal_snapshot.html#abbd425db2fb940826c1b146430b660ec',1,'dmq::detail::SignalSnapshot']]],
   ['crc16_2eh_76',['crc16.h',['../crc16_8h.html',1,'']]],
   ['crc16calcblock_77',['Crc16CalcBlock',['../namespacedmq_1_1util.html#a18244b3b336cb2da93590de81317b04d',1,'dmq::util']]],
   ['crcccitt_5ftable_78',['crcccitt_table',['../namespacedmq_1_1util.html#a48aa32e574ff292809bb118cddf32193',1,'dmq::util']]],

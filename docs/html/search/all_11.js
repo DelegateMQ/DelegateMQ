@@ -5,7 +5,7 @@ var searchData=
   ['language_20interop_2',['DelegateMQ Cross-Language Interop',['../md_docs_2_i_n_t_e_r_o_p.html',1,'']]],
   ['language_20interoperability_3',['Cross-Language Interoperability',['../md_docs_2_d_e_t_a_i_l_s.html#autotoc_md158',1,'']]],
   ['language_20support_4',['Language Support',['../md_docs_2_i_n_t_e_r_o_p.html#autotoc_md192',1,'']]],
-  ['large_5fbuf_5',['large_buf',['../structdmq_1_1_signal_3_01_ret_type_07_args_8_8_8_08_4_1_1_snapshot.html#a169cbf83f1efd52e5d52d56669690ebb',1,'dmq::Signal&lt; RetType(Args...)&gt;::Snapshot']]],
+  ['large_5fbuf_5',['large_buf',['../structdmq_1_1detail_1_1_signal_snapshot.html#ab877662c6d88c1dc7677cfdeadb5f267',1,'dmq::detail::SignalSnapshot']]],
   ['lastvaluecache_6',['LastValueCache',['../classdmq_1_1databus_1_1_data_bus.html#a3023f2fa040216a4be513d9e851fcf5d',1,'dmq::databus::DataBus']]],
   ['lastvaluecache_7',['lastValueCache',['../structdmq_1_1databus_1_1_qo_s.html#a947158f15627b2803d3f202e5bc8d813',1,'dmq::databus::QoS']]],
   ['latency_8',['Thread Priority and Latency',['../md_docs_2_p_o_r_t_i_n_g.html#autotoc_md219',1,'']]],

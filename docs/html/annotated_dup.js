@@ -15,8 +15,11 @@ var annotated_dup =
       ] ],
       [ "detail", "namespacedmq_1_1detail.html", [
         [ "AsyncDispatchState", "classdmq_1_1detail_1_1_async_dispatch_state.html", "classdmq_1_1detail_1_1_async_dispatch_state" ],
+        [ "BroadcastGuard", "classdmq_1_1detail_1_1_broadcast_guard.html", "classdmq_1_1detail_1_1_broadcast_guard" ],
         [ "Connection", "classdmq_1_1detail_1_1_connection.html", "classdmq_1_1detail_1_1_connection" ],
-        [ "RemoteDispatchState", "classdmq_1_1detail_1_1_remote_dispatch_state.html", "classdmq_1_1detail_1_1_remote_dispatch_state" ]
+        [ "RemoteDispatchState", "classdmq_1_1detail_1_1_remote_dispatch_state.html", "classdmq_1_1detail_1_1_remote_dispatch_state" ],
+        [ "SignalSnapshot", "structdmq_1_1detail_1_1_signal_snapshot.html", "structdmq_1_1detail_1_1_signal_snapshot" ],
+        [ "SignalState", "structdmq_1_1detail_1_1_signal_state.html", "structdmq_1_1detail_1_1_signal_state" ]
       ] ],
       [ "os", "namespacedmq_1_1os.html", [
         [ "BareMetalClock", "structdmq_1_1os_1_1_bare_metal_clock.html", "structdmq_1_1os_1_1_bare_metal_clock" ],

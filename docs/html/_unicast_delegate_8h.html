@@ -98,7 +98,8 @@ $(function(){initNavTree('_unicast_delegate_8h.html',''); initResizable(true); }
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Classes</a> &#124;
-<a href="#namespaces">Namespaces</a>  </div>
+<a href="#namespaces">Namespaces</a> &#124;
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">UnicastDelegate.h File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -113,9 +114,7 @@ $(function(){initNavTree('_unicast_delegate_8h.html',''); initResizable(true); }
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Classes</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html">dmq::UnicastDelegate&lt; RetType(Args...)&gt;</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A non-thread-safe delegate container storing one delegate. Void and <br  />
- non-void return values supported. <br  />
-  <a href="classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#details">More...</a><br /></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A non-thread-safe delegate container storing one delegate. Void and non-void return values supported.  <a href="classdmq_1_1_unicast_delegate_3_01_ret_type_07_args_8_8_8_08_4.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="namespaces" name="namespaces"></a>
@@ -123,6 +122,14 @@ Namespaces</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">namespace &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq.html">dmq</a></td></tr>
 <tr class="memdesc:namespacedmq"><td class="mdescLeft">&#160;</td><td class="mdescRight">The delegate library namespace. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">namespace &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq_1_1detail.html">dmq::detail</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
+Functions</h2></td></tr>
+<tr class="memitem:abad4a86371f1ad855d35f4f362162d4d" id="r_abad4a86371f1ad855d35f4f362162d4d"><td class="memItemLeft" align="right" valign="top">std::shared_ptr&lt; <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacedmq_1_1detail.html#abad4a86371f1ad855d35f4f362162d4d">dmq::detail::UnicastClone</a> (const <a class="el" href="classdmq_1_1_delegate_base.html">DelegateBase</a> &amp;delegate)</td></tr>
+<tr class="memdesc:abad4a86371f1ad855d35f4f362162d4d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Clone <code>delegate</code> and wrap it in a shared_ptr, fully erased to the non-templated <code><a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a></code> at construction. <code>delegate.Clone()</code> is called through a <code>const <a class="el" href="classdmq_1_1_delegate_base.html" title="Non-template base class for all delegates.">DelegateBase</a>&amp;</code>, so its return type here is <code>DelegateBase*</code> &ndash; the resulting shared_ptr control block is therefore not templated on RetType/Args, and is shared by every <code><a class="el" href="classdmq_1_1_unicast_delegate.html">UnicastDelegate</a>&lt;Sig&gt;</code> in the program instead of duplicated per signature. Non-templated: none of this logic depends on the owning container's signature.  <br /></td></tr>
+<tr class="separator:abad4a86371f1ad855d35f4f362162d4d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Delegate container for storing an invoking a single delegate instance. Class is not thread-safe. </p>
