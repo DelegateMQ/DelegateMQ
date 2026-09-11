@@ -633,6 +633,15 @@ private:
         m_reportedErrors.clear();
     }
 
+    // Type-instantiated but non-templated-TYPE deleter: &DeleteSignal<T> decays to the
+    // same void(*)(void*) regardless of T, so the shared_ptr<void> control block built
+    // from it in GetOrCreateSignal below is not templated on T either. Same trick as
+    // Participant::DeleteRemoteChannel<T>.
+    template <typename T>
+    static void DeleteSignal(void* p) {
+        delete static_cast<dmq::Signal<void(const T&)>*>(p);
+    }
+
     template <typename T>
     SignalPtr<T> GetOrCreateSignal(const dmq::xstring& topic) {
         // Assume lock is held by caller
@@ -643,9 +652,17 @@ private:
             return std::static_pointer_cast<dmq::Signal<void(const T&)>>(sig);
         }
 
-        auto signal = dmq::xmake_shared<dmq::Signal<void(const T&)>>();
-        m_signals[topic] = std::static_pointer_cast<void>(signal);
-        return signal;
+        // Erase to void* BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<dmq::Signal<void(const T&)>>) so the control block's deduced
+        // pointer/deleter types are non-templated -- one control-block type is then
+        // shared across every distinct topic message type instead of duplicated per
+        // signature. Signal's own XALLOCATOR-overridden operator new already checks
+        // for allocation failure and calls BAD_ALLOC() internally (see xallocator.h),
+        // same as Participant::GetOrCreateChannelLocked's plain `new` for RemoteChannel.
+        auto* raw = new dmq::Signal<void(const T&)>();
+        std::shared_ptr<void> signalVoid(static_cast<void*>(raw), &DeleteSignal<T>, ::dmq::stl_allocator<void>());
+        m_signals[topic] = signalVoid;
+        return std::static_pointer_cast<dmq::Signal<void(const T&)>>(signalVoid);
     }
 
     struct LvcEntry {
