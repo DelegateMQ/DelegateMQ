@@ -32,6 +32,7 @@
 #if !defined(DMQ_THREAD_STDLIB) && !defined(DMQ_THREAD_WIN32) && \
     !defined(DMQ_THREAD_FREERTOS) && !defined(DMQ_THREAD_THREADX) && \
     !defined(DMQ_THREAD_ZEPHYR) && !defined(DMQ_THREAD_CMSIS_RTOS2) && \
+    !defined(DMQ_THREAD_NUTTX) && \
     !defined(DMQ_THREAD_QT) && !defined(DMQ_THREAD_NONE)
 
     #if defined(_WIN32) || defined(__linux__) || defined(__APPLE__) || defined(__unix__)
@@ -52,7 +53,8 @@
 // True for every embedded RTOS thread port. Used to decide whether desktop-
 // oriented defaults (DataBus auto-enable, below) should apply.
 #if defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || \
-    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2) || \
+    defined(DMQ_THREAD_NUTTX)
     #define DMQ_THREAD_IS_EMBEDDED_RTOS
 #endif
 
@@ -74,7 +76,8 @@
 // ConditionVariable/std::thread-equivalent support exists.
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || \
     defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || \
-    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
+    defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2) || \
+    defined(DMQ_THREAD_NUTTX)
     #define DMQ_HAS_THREADING
 #endif
 
@@ -193,6 +196,12 @@
     #include "port/os/cmsis-rtos2/CmsisRtos2CriticalSection.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2Semaphore.h"
     #include "port/os/cmsis-rtos2/CmsisRtos2ThisThread.h"
+#elif defined(DMQ_THREAD_NUTTX)
+    #include "port/os/nuttx/NuttXClock.h"
+    #include "port/os/nuttx/NuttXMutex.h"
+    #include "port/os/nuttx/NuttXCriticalSection.h"
+    #include "port/os/nuttx/NuttXSemaphore.h"
+    #include "port/os/nuttx/NuttXThisThread.h"
 #elif defined(DMQ_THREAD_NONE)
     #include "port/os/bare-metal/BareMetalClock.h"
     #include "port/os/bare-metal/BareMetalCriticalSection.h"
@@ -258,6 +267,10 @@ namespace dmq
 
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
     using Clock = dmq::os::CmsisRtos2Clock;
+
+#elif defined(DMQ_THREAD_NUTTX)
+    // Use the custom NuttX wrapper
+    using Clock = dmq::os::NuttXClock;
 
 #else
     // Assuming implemented the 'g_ticks' variable
@@ -325,6 +338,15 @@ namespace dmq
             dmq::os::CmsisRtos2ThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
         }
         static void yield() noexcept { dmq::os::CmsisRtos2ThisThread::yield(); }
+    };
+
+#elif defined(DMQ_THREAD_NUTTX)
+    struct ThisThread {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) {
+            dmq::os::NuttXThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
+        }
+        static void yield() noexcept { dmq::os::NuttXThisThread::yield(); }
     };
 
 #else
@@ -489,6 +511,29 @@ namespace dmq
     // DelegateAsyncWait available here. UNVERIFIED, same caveat as
     // CriticalSection above.
     using Semaphore = dmq::os::CmsisRtos2Semaphore;
+    #define DMQ_HAS_SEMAPHORE
+    template<typename T> using LockGuard = PortableLockGuard<T>;
+
+#elif defined(DMQ_THREAD_NUTTX)
+    // Use the custom NuttX wrapper (NuttX implements real POSIX
+    // pthread_mutex_t, unlike the bespoke kernel-object wrappers the other
+    // RTOS ports need).
+    using Mutex = dmq::os::NuttXMutex;
+    using RecursiveMutex = dmq::os::NuttXRecursiveMutex;
+    // ISR-safe (up_irq_save()/up_irq_restore(), NuttX's own architecture-
+    // portable interrupt-masking primitive, not a pthread_mutex_t) -- see
+    // NuttXCriticalSection.h, including its FLAT-vs-PROTECTED/KERNEL-build
+    // caveat. UNVERIFIED: no NuttX toolchain/simulator is available in this
+    // development environment to build and run it; review before relying
+    // on it in production.
+    using CriticalSection = dmq::os::NuttXCriticalSection;
+    // No dmq::ConditionVariable port for NuttX (no DMQ_HAS_CV) -- not
+    // because NuttX lacks pthread_cond_t (it has a real one), but because
+    // dmq::Semaphore is available via NuttX's own native sem_t instead of
+    // the generic condvar+mutex implementation -- see NuttXSemaphore.h and
+    // delegate/Semaphore.h. This is what makes DelegateAsyncWait available
+    // here. UNVERIFIED, same caveat as CriticalSection above.
+    using Semaphore = dmq::os::NuttXSemaphore;
     #define DMQ_HAS_SEMAPHORE
     template<typename T> using LockGuard = PortableLockGuard<T>;
 

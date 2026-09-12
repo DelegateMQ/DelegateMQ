@@ -36,6 +36,12 @@ elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_CMSIS_RTOS2")
         "${DMQ_ROOT_DIR}/port/os/cmsis-rtos2/*.c*"
         "${DMQ_ROOT_DIR}/port/os/cmsis-rtos2/*.h"
     )
+elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_NUTTX")
+    add_compile_definitions(DMQ_THREAD_NUTTX)
+    file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
+        "${DMQ_ROOT_DIR}/port/os/nuttx/*.c*"
+        "${DMQ_ROOT_DIR}/port/os/nuttx/*.h"
+    )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_QT")
     add_compile_definitions(DMQ_THREAD_QT)
     file(GLOB THREAD_SOURCES

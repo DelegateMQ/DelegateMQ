@@ -88,6 +88,7 @@
     defined(DMQ_THREAD_THREADX) || \
     defined(DMQ_THREAD_ZEPHYR) || \
     defined(DMQ_THREAD_CMSIS_RTOS2) || \
+    defined(DMQ_THREAD_NUTTX) || \
     defined(DMQ_THREAD_QT) || \
     defined(DMQ_THREAD_NONE)
     #include "delegate/MulticastDelegateSafe.h"
@@ -107,6 +108,7 @@
     defined(DMQ_THREAD_THREADX) || \
     defined(DMQ_THREAD_ZEPHYR) || \
     defined(DMQ_THREAD_CMSIS_RTOS2) || \
+    defined(DMQ_THREAD_NUTTX) || \
     defined(DMQ_THREAD_QT)
     #include "delegate/DelegateAsync.h"
 #endif
@@ -142,6 +144,9 @@
     #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
     #include "port/os/cmsis-rtos2/CmsisRtos2Thread.h"
+    #include "port/os/common/ThreadMsg.h"
+#elif defined(DMQ_THREAD_NUTTX)
+    #include "port/os/nuttx/NuttXThread.h"
     #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_QT)
     #include "port/os/qt/QtThread.h"
