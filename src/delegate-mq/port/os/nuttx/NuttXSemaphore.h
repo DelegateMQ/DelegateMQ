@@ -83,7 +83,15 @@ namespace dmq::os {
 
         /// Called to signal a semaphore.
         void Signal() {
-            sem_post(&m_sem);
+            int val = 0;
+            if (sem_getvalue(&m_sem, &val) == 0) {
+                if (val <= 0) {
+                    sem_post(&m_sem);
+                }
+            } else {
+                // Fallback if sem_getvalue fails
+                sem_post(&m_sem);
+            }
         }
 
         NuttXSemaphore(const NuttXSemaphore&) = delete;

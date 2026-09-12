@@ -75,6 +75,9 @@ public:
         attr.mq_msgsize = static_cast<long>(sizeof(ThreadMsg*));
 
         m_mqd = mq_open(m_name, O_CREAT | O_RDWR, 0600, &attr);
+        if (m_mqd != INVALID_MQD) {
+            mq_unlink(m_name);
+        }
         return m_mqd != INVALID_MQD;
     }
 

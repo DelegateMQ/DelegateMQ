@@ -83,6 +83,7 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         struct sched_param sp;
         sp.sched_priority = m_priority;
+        pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
         pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
         pthread_attr_setschedparam(&attr, &sp);
 
