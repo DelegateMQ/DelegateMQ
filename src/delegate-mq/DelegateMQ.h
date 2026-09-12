@@ -240,9 +240,17 @@
 #include "extras/util/Fault.h"
 #include "extras/util/ClockHelper.h"
 
-// Only include Timer and AsyncInvoke if threads exist
+// Timer only needs dmq::Clock/dmq::CriticalSection (both of which the
+// bare-metal port -- BareMetalClock.h/BareMetalCriticalSection.h -- provides
+// specifically so Timer::ProcessTimers() can be driven from a hardware ISR
+// with no RTOS at all, e.g. a SysTick_Handler; see BareMetalCriticalSection.h's
+// own doc comment). It has no dependency on dmq::os::Thread, so it's
+// available even under DMQ_THREAD_NONE.
+#include "extras/util/Timer.h"
+
+// TimerDelegate/AsyncInvoke/TransportMonitor/ThreadMonitor all take or
+// operate on a dmq::IThread&, which doesn't exist under DMQ_THREAD_NONE.
 #if !defined(DMQ_THREAD_NONE)
-    #include "extras/util/Timer.h"
     #include "extras/util/TimerDelegate.h"
     #include "extras/util/AsyncInvoke.h"
     #include "extras/util/TransportMonitor.h"

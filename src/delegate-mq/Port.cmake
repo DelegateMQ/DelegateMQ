@@ -150,11 +150,19 @@ endif()
 
 if (DMQ_UTIL STREQUAL "ON")
     if (DMQ_THREAD STREQUAL "DMQ_THREAD_NONE")
-        # Bare metal: Only include utilities that DON'T need mutexes
-        # Fault.cpp lives in port/fault/ and is always included separately
+        # Bare metal: only include utilities with no dmq::os::Thread/IThread
+        # dependency. Fault.cpp lives in port/fault/ and is always included
+        # separately. Timer.cpp is included -- it only needs dmq::Clock/
+        # dmq::CriticalSection (BareMetalClock.h/BareMetalCriticalSection.h
+        # exist specifically so Timer::ProcessTimers() can be driven from a
+        # hardware ISR, e.g. SysTick_Handler, with no RTOS at all -- see
+        # BareMetalCriticalSection.h's own doc comment). AsyncInvoke.h/
+        # TimerDelegate.h/NetworkEngine.cpp/ThreadMonitor.cpp all genuinely
+        # need a real dmq::IThread and stay excluded.
         file(GLOB UTIL_SOURCES CONFIGURE_DEPENDS
             "${DMQ_ROOT_DIR}/extras/util/Fault.h"
-            # Explicitly exclude Timer.cpp and AsyncInvoke.cpp
+            "${DMQ_ROOT_DIR}/extras/util/Timer.h"
+            "${DMQ_ROOT_DIR}/extras/util/Timer.cpp"
         )
     else()
         # OS/RTOS present: Include everything 
