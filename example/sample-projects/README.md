@@ -14,6 +14,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
 | **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
 | **[zephyr-linux](./zephyr-linux/)** | Zephyr example using the official `native_sim` simulation port (host GCC, no cross-compiler). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | Linux GCC + west |
+| **[cmsis-rtos2-linux](./cmsis-rtos2-linux/)** | CMSIS-RTOS2 example built on Zephyr's own CMSIS-RTOS v2 compatibility layer (`native_sim`) — verifies `DMQ_THREAD_CMSIS_RTOS2` against a real CMSIS-RTOS2 implementation without any ARM toolchain/QEMU/hardware. Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | CMSIS-RTOS2 | Linux GCC + west |
 
 ## Remote Delegate Examples
 
