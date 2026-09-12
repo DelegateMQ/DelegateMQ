@@ -81,7 +81,7 @@ def build_samples(use_clang=False, clean=False):
                 parent_name  = os.path.basename(os.path.dirname(dirpath))
 
                 # --- SKIP COMMON/SHARED FOLDERS ---
-                if project_name in ["common", "include", "src", "bare-metal-arm", "atfe-armv7m-bare-metal"]:
+                if project_name in ["common", "include", "src", "bare-metal-arm", "atfe-armv7m-bare-metal", "bare-metal-riscv"]:
                     # These are sub-libraries or skipped platforms, not standalone apps
                     continue
 

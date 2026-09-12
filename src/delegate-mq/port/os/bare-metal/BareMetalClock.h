@@ -24,10 +24,18 @@ namespace dmq::os {
 
         // 3. The critical "now()" function
         static time_point now() noexcept {
-            // On 32-bit ARM, reading a 64-bit value requires two 32-bit loads.
-            // A SysTick ISR firing between them would produce a torn read.
-            // Disable interrupts for the duration of the read to ensure atomicity.
-#if defined(__GNUC__) || defined(__clang__)
+            // On a 32-bit target, reading a 64-bit value requires two 32-bit
+            // loads. A timer ISR firing between them would produce a torn
+            // read. Disable interrupts for the duration of the read to
+            // ensure atomicity -- this is an unconditional disable/re-enable
+            // pair (not save/restore): this function's whole contract is "a
+            // quick read from ordinary code," so it's always safe to leave
+            // interrupts enabled on return.
+#if defined(__riscv)
+            __asm__ volatile("csrci mstatus, 0x8" ::: "memory"); // clear MIE
+            uint64_t t = g_ticks;
+            __asm__ volatile("csrsi mstatus, 0x8" ::: "memory"); // set MIE
+#elif defined(__arm__) && (defined(__GNUC__) || defined(__clang__))
             __asm__ volatile("cpsid i" ::: "memory");
             uint64_t t = g_ticks;
             __asm__ volatile("cpsie i" ::: "memory");

@@ -9,6 +9,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[clang-native](./clang-native/)** | All-features demo: sync, async, asyncwait, multicast, signal. Windows or Linux. | `std::thread` | Any C++17 compiler (Clang, GCC, MSVC) |
 | **[atfe-armv7m-bare-metal](./atfe-armv7m-bare-metal/)** | ATfE (Clang/picolibc) bare-metal example for Armv7-M, runs on QEMU. | None | ATfE Clang, picolibc |
 | **[bare-metal-arm](./bare-metal-arm/)** | ARM GCC bare-metal example for Cortex-M4, runs on QEMU. | None | ARM GCC |
+| **[bare-metal-riscv](./bare-metal-riscv/)** | Bare-metal RISC-V (RV32IMC) example, runs on QEMU's `virt` machine (direct machine-mode boot, no SBI). Needs the xPack RISC-V Embedded GCC toolchain (see its README) -- Ubuntu's `gcc-riscv64-unknown-elf` apt package has no libstdc++ for this target. | None | xPack RISC-V GCC |
 | **[keil-bare-metal](./keil-bare-metal/)** | Bare-metal example for ARM Cortex-M4. | None | Keil MDK (ARMCLANG) |
 | **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
