@@ -1,6 +1,11 @@
 #ifndef DMQ_DATABUS_H
 #define DMQ_DATABUS_H
 
+/// @file
+/// @brief Publish/subscribe message bus built on top of DelegateMQ's Signal
+/// and remote delegate infrastructure. Routes typed topics to local
+/// subscribers and, via Participant, to remote nodes.
+
 #include "delegate/Signal.h"
 #include "delegate/DelegateRemote.h"
 #include "delegate/DelegateAsync.h"
