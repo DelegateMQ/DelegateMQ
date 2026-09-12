@@ -17,6 +17,7 @@ Key Features:
 
 Skip List (always excluded):
     - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
+    - bare-metal-riscv        Embedded RISC-V target, requires xPack RISC-V GCC toolchain + QEMU (non-default -DRISCV_TOOLCHAIN_PATH)
     - bare-metal-arm          Embedded ARM target, requires cross-compiler
     - mqtt-rapidjson          Requires external MQTT broker (excluded from run)
     - serialport-serializer   Requires physical serial port hardware
@@ -25,6 +26,7 @@ Skip List (always excluded):
     - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
     - zephyr-udp-serializer   Needs `west build` + a west workspace, not `cmake -B build`
     - databus-zephyr          Server needs `west build` + a west workspace, not `cmake -B build`
+    - cmsis-rtos2-linux       Needs `west build` + a west workspace, not `cmake -B build`
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
@@ -47,6 +49,7 @@ import subprocess
 
 SKIP_ALWAYS = {
     "atfe-armv7m-bare-metal",
+    "bare-metal-riscv",        # requires xPack RISC-V GCC toolchain, non-default -DRISCV_TOOLCHAIN_PATH; see its README.md
     "bare-metal-arm",
     "mqtt-rapidjson",
     "serialport-serializer",
@@ -54,6 +57,7 @@ SKIP_ALWAYS = {
     "system-architecture-python",
     "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
     "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
+    "cmsis-rtos2-linux",       # needs `west build`, not a plain `cmake -B build`; see its README.md
     "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
 }
 

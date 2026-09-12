@@ -25,7 +25,6 @@ set(DMQ_SERIALIZE "DMQ_SERIALIZE_NONE")
 set(DMQ_TRANSPORT "DMQ_TRANSPORT_NONE")
 
 include("${CMAKE_SOURCE_DIR}/../../../src/delegate-mq/DelegateMQ.cmake")
-list(APPEND SOURCES ${DMQ_PORT_SOURCES})
 
 # Organize delegate source files within IDE (Visual Studio)
 source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
@@ -35,7 +34,10 @@ source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 include_directories(${DMQ_INCLUDE_DIR})
 
 # Create executable
-add_executable(${DELEGATE_APP} main.cpp retarget.c startup.c ${DMQ_LIB_SOURCES})
+# NOTE: DMQ_EXTRAS_SOURCES (not the full DMQ_PORT_SOURCES) -- DMQ_PORT_SOURCES
+# also includes port/fault/Fault.cpp, which would collide at link time with
+# this file's own FaultHandler()/WatchdogHandler() definitions above.
+add_executable(${DELEGATE_APP} main.cpp retarget.c startup.c ${DMQ_LIB_SOURCES} ${DMQ_EXTRAS_SOURCES})
 
 target_compile_features(${DELEGATE_APP} PRIVATE cxx_std_20)
 

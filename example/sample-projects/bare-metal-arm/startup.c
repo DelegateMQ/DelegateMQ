@@ -12,6 +12,7 @@ extern void __libc_init_array(void);
 
 void Reset_Handler(void);
 void Default_Handler(void);
+void SysTick_Handler(void); // defined in main.cpp: increments g_ticks, drives Timer::ProcessTimers()
 
 // --------------------------------------------------------------------------
 // DEBUG PRINT HELPER
@@ -80,5 +81,5 @@ uint32_t *const vector_table[] = {
     (uint32_t *)&Default_Handler, // Debug Monitor
     0,
     (uint32_t *)&Default_Handler, // PendSV
-    (uint32_t *)&Default_Handler  // SysTick
+    (uint32_t *)&SysTick_Handler  // SysTick
 };

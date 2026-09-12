@@ -9,11 +9,14 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[clang-native](./clang-native/)** | All-features demo: sync, async, asyncwait, multicast, signal. Windows or Linux. | `std::thread` | Any C++17 compiler (Clang, GCC, MSVC) |
 | **[atfe-armv7m-bare-metal](./atfe-armv7m-bare-metal/)** | ATfE (Clang/picolibc) bare-metal example for Armv7-M, runs on QEMU. | None | ATfE Clang, picolibc |
 | **[bare-metal-arm](./bare-metal-arm/)** | ARM GCC bare-metal example for Cortex-M4, runs on QEMU. | None | ARM GCC |
+| **[bare-metal-riscv](./bare-metal-riscv/)** | Bare-metal RISC-V (RV32IMC) example, runs on QEMU's `virt` machine (direct machine-mode boot, no SBI). Needs the xPack RISC-V Embedded GCC toolchain (see its README) -- Ubuntu's `gcc-riscv64-unknown-elf` apt package has no libstdc++ for this target. | None | xPack RISC-V GCC |
 | **[keil-bare-metal](./keil-bare-metal/)** | Bare-metal example for ARM Cortex-M4. | None | Keil MDK (ARMCLANG) |
 | **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
 | **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
 | **[zephyr-linux](./zephyr-linux/)** | Zephyr example using the official `native_sim` simulation port (host GCC, no cross-compiler). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | Linux GCC + west |
+| **[cmsis-rtos2-linux](./cmsis-rtos2-linux/)** | CMSIS-RTOS2 example built on Zephyr's own CMSIS-RTOS v2 compatibility layer (`native_sim`) — verifies `DMQ_THREAD_CMSIS_RTOS2` against a real CMSIS-RTOS2 implementation without any ARM toolchain/QEMU/hardware. Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | CMSIS-RTOS2 | Linux GCC + west |
+| **[nuttx-sim](./nuttx-sim/)** | NuttX example using NuttX's own `sim` board (a native host process) — verifies `DMQ_THREAD_NUTTX` without any cross-compiler/QEMU/hardware. Manual-only: needs a NuttX + NuttX-apps checkout and its own Kconfig/Make build, not built by 04_build_samples.py. Linux only. | NuttX | Linux GCC + NuttX build tools |
 
 ## Remote Delegate Examples
 

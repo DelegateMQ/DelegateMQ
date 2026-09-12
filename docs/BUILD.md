@@ -5,6 +5,7 @@ DelegateMQ is a header-only C++ library. The core functionality requires no pre-
 ## Table of Contents
 - [Prerequisites](#prerequisites)
 - [Main Application Build](#main-application-build)
+- [Consuming as a Dependency (FetchContent)](#consuming-as-a-dependency-fetchcontent)
 - [Example Ecosystem (Sandbox)](#example-ecosystem-sandbox)
   - [Automated Workspace Setup](#automated-workspace-sandbox-setup)
   - [Manual Sample Build](#manual-sample-build)
@@ -35,6 +36,30 @@ cmake --build build
 ```
 
 The output executable will be located in `build/delegate_app/`.
+
+---
+
+## Consuming as a Dependency (FetchContent)
+DelegateMQ isn't in vcpkg or Conan — its behavior is selected via compile-time options (`DMQ_THREAD_*`, `DMQ_SERIALIZE_*`, `DMQ_ALLOCATOR`, etc.), so there's no single prebuilt library target to hand a binary package manager. Instead, pull the source in with CMake's built-in `FetchContent` and build it as part of your own project, the same way `test/CMakeLists.txt` does internally:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  delegatemq
+  GIT_REPOSITORY https://github.com/DelegateMQ/DelegateMQ.git
+  GIT_TAG v2.0.3
+)
+FetchContent_MakeAvailable(delegatemq)
+
+# Set any DMQ_* options (DMQ_THREAD, DMQ_ALLOCATOR, etc.) before this include --
+# see "Configuration and Overrides" below.
+include("${delegatemq_SOURCE_DIR}/src/delegate-mq/DelegateMQ.cmake")
+
+add_executable(my_app main.cpp ${DMQ_PORT_SOURCES})
+target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
+```
+
+`DelegateMQ.cmake` resolves its own paths from `CMAKE_CURRENT_LIST_DIR`, so it works identically whether it's reached via `FetchContent`, a git submodule, or a plain manual clone.
 
 ---
 

@@ -4,6 +4,15 @@ This project demonstrates how to build and run the **DelegateMQ** C++ delegate l
 
 It serves as a proof-of-concept for using modern C++ features (Delegates, Signals, Lambdas, RAII) in a constrained embedded environment with **no operating system (RTOS)** and **no threading support**.
 
+## `Timer` on a real hardware interrupt (SysTick)
+
+Test 6 wires up a genuine Cortex-M4 SysTick interrupt (1ms period, configured directly via the SCS registers -- `SYST_CSR`/`SYST_RVR`/`SYST_CVR`, no CMSIS-Core) that both increments `g_ticks` (driving `dmq::os::BareMetalClock`) and calls `dmq::util::Timer::ProcessTimers()` directly from ISR context. This is the first time `dmq::os::BareMetalCriticalSection` (the ISR-safe lock `Timer::GetLock()` uses) has actually been exercised from a real interrupt on this port rather than just reasoned through -- see `CLAUDE.md`'s "ISR-Safe Locking" section.
+
+Getting this working surfaced two real, previously-undetected issues, both now fixed:
+
+* **`Timer.h`/`Timer.cpp` were unreachable under `DMQ_THREAD_NONE`** -- `DelegateMQ.h` excluded the `#include "extras/util/Timer.h"` for any bare-metal build, and `Port.cmake`'s bare-metal `UTIL_SOURCES` glob explicitly excluded `Timer.cpp`, both under the stale assumption that `Timer` needs real OS mutexes. It doesn't: `Timer::GetLock()` uses `dmq::CriticalSection`, and `BareMetalCriticalSection.h`/`BareMetalClock.h` exist specifically to make `Timer` usable with no RTOS at all (their own doc comments say so). Both are fixed to include `Timer` for `DMQ_THREAD_NONE`, while `AsyncInvoke.h`/`TimerDelegate.h`/`ThreadMonitor.cpp` — which do need a real `dmq::IThread` — stay excluded.
+* **This sample's own `CMakeLists.txt` never linked any `extras/`/`port/` `.cpp` file at all** — it globbed `DMQ_PORT_SOURCES` into an unused `SOURCES` variable and never passed it (or `DMQ_EXTRAS_SOURCES`) to `add_executable()`. Fixed by adding `${DMQ_EXTRAS_SOURCES}` specifically (not the full `${DMQ_PORT_SOURCES}`, which also includes `port/fault/Fault.cpp` — that would collide at link time with this file's own `FaultHandler()`/`WatchdogHandler()` definitions).
+
 ## Prerequisites
 
 To build and run this project, you need the following tools installed on your path:
@@ -65,6 +74,10 @@ You should see the bare-metal system boot and run a series of delegate tests:
   -> Firing Signal (Expect Callback):
   [Callback] FreeFunction called! Value: 500
 ...
+[Test 6] Timer Delegate (One-Shot):
+  -> Starting Timer (200ms delay)...
+  [Callback] Timer Expired!
+
 =========================================
            ALL TESTS PASSED              
 =========================================

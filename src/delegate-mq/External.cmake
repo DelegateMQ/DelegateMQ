@@ -311,6 +311,25 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_CMSIS_RTOS2")
 endif()
 
 # ---------------------------------------------------------------------------
+# NuttX
+# ---------------------------------------------------------------------------
+if(DMQ_THREAD STREQUAL "DMQ_THREAD_NUTTX")
+    # Like Zephyr, NuttX is a build system, not just a library -- an
+    # application is normally built as a NuttX "app" from inside a NuttX
+    # source tree (nuttx + apps repos), using NuttX's own Make-based
+    # (or, on recent versions, CMake-based) build, which already supplies
+    # the cross-toolchain and POSIX-compatible include paths (pthread.h,
+    # mqueue.h, semaphore.h, nuttx/irq.h, etc.) that this port's headers
+    # need. DelegateMQ.cmake does not vendor or fetch NuttX itself; the
+    # including project's build must already be running under a NuttX
+    # toolchain (or the `sim` simulation target) before this file is hit.
+    #
+    # Do NOT glob NuttX kernel sources here -- only DelegateMQ's own
+    # port/os/nuttx/*.cpp adapter files, already collected via
+    # Port.cmake's THREAD_SOURCES glob.
+endif()
+
+# ---------------------------------------------------------------------------
 # Qt Framework
 # ---------------------------------------------------------------------------
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_QT")
