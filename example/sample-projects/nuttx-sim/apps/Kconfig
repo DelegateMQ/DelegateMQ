@@ -1,0 +1,7 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+# This directory replaces NuttX's apps/ entirely for this board build (see
+# Documentation/guides/customapps.rst) -- nothing to configure here, the one
+# app it builds runs unconditionally as CONFIG_INIT_ENTRYPOINT.
