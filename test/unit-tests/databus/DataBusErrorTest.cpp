@@ -11,6 +11,17 @@ public:
     int Receive(dmq::xstringstream&, dmq::transport::DmqHeader&) override { return -1; }
 };
 
+// Simulates a successful low-level read (result == 0) that carries a corrupt/wrong
+// DmqHeader marker, exercising Participant::ProcessIncoming()'s framing check.
+class BadMarkerTransport : public dmq::transport::ITransport {
+public:
+    int Send(dmq::xostringstream&, const dmq::transport::DmqHeader&) override { return 0; }
+    int Receive(dmq::xstringstream&, dmq::transport::DmqHeader& header) override {
+        header.SetMarker(0x0000); // Not dmq::transport::DmqHeader::MARKER
+        return 0;
+    }
+};
+
 // A serializer that can be made to fail
 template <typename T>
 class FailingSerializer : public dmq::ISerializer<void(T)> {
@@ -142,6 +153,29 @@ int DataBusErrorTest() {
             std::cout << "Test 4 Passed: Error fires again after ResetForTesting()" << std::endl;
         } else {
             std::cerr << "Test 4 Failed! Error: " << (int)capturedError << std::endl;
+            return 1;
+        }
+    }
+
+    // Test 5: ERR_TRANSPORT_RECEIVE reported when Receive() succeeds but the
+    // DmqHeader marker is corrupt (Participant::ProcessIncoming() framing check).
+    {
+        DataBus::ResetForTesting();
+        BadMarkerTransport transport;
+        auto participant = dmq::xmake_shared<Participant>(transport);
+        DataBus::AddParticipant(participant);
+
+        dmq::DelegateError capturedError = dmq::DelegateError::SUCCESS;
+        auto conn = DataBus::SubscribeError([&](const dmq::xstring&, dmq::DelegateError error) {
+            capturedError = error;
+        });
+
+        participant->ProcessIncoming();
+
+        if (capturedError == dmq::DelegateError::ERR_TRANSPORT_RECEIVE) {
+            std::cout << "Test 5 Passed: Caught ERR_TRANSPORT_RECEIVE on bad marker" << std::endl;
+        } else {
+            std::cerr << "Test 5 Failed! Error: " << (int)capturedError << std::endl;
             return 1;
         }
     }

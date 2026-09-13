@@ -123,6 +123,21 @@ public:
     /// @param[in] endpoint Pointer to the endpoint instance responsible for handling this ID.
     void RegisterEndpoint(dmq::DelegateRemoteId id, dmq::IRemoteInvoker* endpoint);
 
+    /// @brief Registers a RemoteChannel endpoint and automatically wires its error
+    /// handler to this NetworkEngine's OnError() hook.
+    /// @details Equivalent to calling `channel.SetErrorHandler(...)` followed by
+    /// `RegisterEndpoint(id, channel.GetEndpoint())`. Prefer this overload so a new
+    /// channel's send and receive errors are never left unreported. Call
+    /// `channel.SetErrorHandler(...)` again afterward to override with a custom
+    /// per-channel handler.
+    /// @param[in] id The unique identifier for the remote message type.
+    /// @param[in] channel The RemoteChannel instance responsible for handling this ID.
+    template <class Sig>
+    void RegisterEndpoint(dmq::DelegateRemoteId id, dmq::RemoteChannel<Sig>& channel) {
+        channel.SetErrorHandler(dmq::MakeDelegate(this, &NetworkEngine::InternalErrorHandler));
+        RegisterEndpoint(id, channel.GetEndpoint());
+    }
+
     /// @brief Generic helper function to synchronously invoke a remote delegate.
     /// 
     /// @details This function blocks the calling thread until one of two conditions is met:

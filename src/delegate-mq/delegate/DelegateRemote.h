@@ -69,7 +69,8 @@ enum class DelegateError {
     ERR_DESERIALIZE_EXCEPTION = 5,
     ERR_NO_DISPATCHER = 6,
     ERR_DISPATCH = 7,
-    ERR_TYPE_MISMATCH = 8
+    ERR_TYPE_MISMATCH = 8,
+    ERR_TRANSPORT_RECEIVE = 9  // Transport-level receive failure (bad frame, socket error)
 };
 
 typedef int DelegateErrorAux;
