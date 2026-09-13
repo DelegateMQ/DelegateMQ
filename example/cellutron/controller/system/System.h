@@ -51,6 +51,11 @@ private:
     void OnStop(StopProcessMsg msg);
     void OnFault(FaultMsg msg);
 
+    void OnDataBusError(const dmq::xstring& topic, dmq::DelegateError error);
+    void OnDeliveryFailed(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum);
+    void OnPeerCapExceeded(const dmq::xstring& peerName, size_t count);
+    void OnPeerPendingExceeded(const dmq::xstring& peerName, size_t remaining);
+
     dmq::os::Thread m_thread;
 
     Network m_network;
@@ -59,6 +64,12 @@ private:
     dmq::ScopedConnection m_startConn;
     dmq::ScopedConnection m_stopConn;
     dmq::ScopedConnection m_faultConn;
+
+    // Error/status reporting connections
+    dmq::ScopedConnection m_dataBusErrorConn;
+    dmq::ScopedConnection m_deliveryFailedConn;
+    dmq::ScopedConnection m_capExceededConn;
+    dmq::ScopedConnection m_pendingExceededConn;
 
     // Guards for incoming commands
     MessageGuard m_startGuard;

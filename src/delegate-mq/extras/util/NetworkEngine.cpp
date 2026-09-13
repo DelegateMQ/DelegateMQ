@@ -109,6 +109,7 @@ int NetworkEngine::Initialize(const std::string& sendIp, int sendPort, const std
 #endif
 
     m_statusConn = m_transportMonitor.OnSendStatus.Connect(dmq::MakeDelegate(this, &NetworkEngine::InternalStatusHandler));
+    m_deliveryFailedConn = m_retryMonitor.OnDeliveryFailed.Connect(dmq::MakeDelegate(this, &NetworkEngine::InternalDeliveryFailedHandler));
 
     m_sendTransport.SetTransportMonitor(&m_transportMonitor);
     m_recvTransport.SetTransportMonitor(&m_transportMonitor);
@@ -138,6 +139,7 @@ int NetworkEngine::Initialize(UART_HandleTypeDef* huart)
     err += m_transport.Create(huart);
 
     m_statusConn = m_transportMonitor.OnSendStatus.Connect(dmq::MakeDelegate(this, &NetworkEngine::InternalStatusHandler));
+    m_deliveryFailedConn = m_retryMonitor.OnDeliveryFailed.Connect(dmq::MakeDelegate(this, &NetworkEngine::InternalDeliveryFailedHandler));
 
     m_transport.SetTransportMonitor(&m_transportMonitor);
 
@@ -168,6 +170,7 @@ int NetworkEngine::Initialize(const std::string& portName, int baudRate)
     if (err == 0) {
         // Only hook up monitoring if open succeeded
         m_statusConn = m_transportMonitor.OnSendStatus.Connect(dmq::MakeDelegate(this, &NetworkEngine::InternalStatusHandler));
+        m_deliveryFailedConn = m_retryMonitor.OnDeliveryFailed.Connect(dmq::MakeDelegate(this, &NetworkEngine::InternalDeliveryFailedHandler));
 
         m_transport.SetTransportMonitor(&m_transportMonitor);
 
@@ -224,6 +227,7 @@ void NetworkEngine::Stop()
     m_timeoutTimer.Stop();
     m_timeoutTimerConn.Disconnect();
     m_statusConn.Disconnect();
+    m_deliveryFailedConn.Disconnect();
 }
 
 void NetworkEngine::RegisterEndpoint(dmq::DelegateRemoteId id, dmq::IRemoteInvoker* endpoint)
@@ -319,9 +323,14 @@ void NetworkEngine::InternalStatusHandler(dmq::DelegateRemoteId id, uint16_t seq
     OnStatus(id, seq, status);
 }
 
+void NetworkEngine::InternalDeliveryFailedHandler(dmq::DelegateRemoteId id, uint16_t seqNum) {
+    OnDeliveryFailed(id, seqNum);
+}
+
 // Default virtual implementations
 void NetworkEngine::OnError(dmq::DelegateRemoteId, dmq::DelegateError, dmq::DelegateErrorAux) {}
 void NetworkEngine::OnStatus(dmq::DelegateRemoteId, uint16_t, TransportMonitor::Status) {}
+void NetworkEngine::OnDeliveryFailed(dmq::DelegateRemoteId, uint16_t) {}
 
 } // namespace dmq::util
 

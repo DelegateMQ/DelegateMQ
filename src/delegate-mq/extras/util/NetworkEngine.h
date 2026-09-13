@@ -196,6 +196,11 @@ protected:
     virtual void OnError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux);
     virtual void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status);
 
+    /// @brief Called when a RELIABLE message exhausts its retry budget without
+    /// being ACKed (RetryMonitor::OnDeliveryFailed). Not connected for the
+    /// ZeroMQ transport, which has no RetryMonitor.
+    virtual void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum);
+
 private:
     /// @brief Shared synchronization state for RemoteInvokeWaitInternal().
     /// @details All fields are guarded by `mtx`. The dispatched sequence number
@@ -319,6 +324,7 @@ private:
     void Timeout();
     void InternalErrorHandler(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux);
     void InternalStatusHandler(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status);
+    void InternalDeliveryFailedHandler(dmq::DelegateRemoteId id, uint16_t seqNum);
 
     dmq::os::Thread m_recvThread;
     std::atomic<bool> m_recvThreadExit{ false };
@@ -376,6 +382,7 @@ private:
 
     dmq::xmap<dmq::DelegateRemoteId, dmq::IRemoteInvoker*> m_receiveIdMap;
     dmq::ScopedConnection m_statusConn;
+    dmq::ScopedConnection m_deliveryFailedConn;
 
     static const std::chrono::milliseconds RECV_TIMEOUT;
 };

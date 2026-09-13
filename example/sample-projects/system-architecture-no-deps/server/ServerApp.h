@@ -65,6 +65,7 @@ private:
         m_onActuatorConn = NetworkMgr::Instance().OnActuator.Connect(dmq::MakeDelegate(this, &ServerApp::ActuatorMsgRecv, m_thread));
         m_onNetworkErrorConn = NetworkMgr::Instance().OnNetworkError.Connect(dmq::MakeDelegate(this, &ServerApp::ErrorHandler, m_thread));
         m_onSendStatusConn = NetworkMgr::Instance().OnSendStatus.Connect(dmq::MakeDelegate(this, &ServerApp::SendStatusHandler, m_thread));
+        m_onDeliveryFailureConn = NetworkMgr::Instance().OnDeliveryFailure.Connect(dmq::MakeDelegate(this, &ServerApp::DeliveryFailureHandler, m_thread));
     }
 
     ~ServerApp()
@@ -111,6 +112,11 @@ private:
             std::cout << "ServerApp Timeout: " << id << " " << seqNum << std::endl;
     }
 
+    void DeliveryFailureHandler(dmq::DelegateRemoteId id, uint16_t seqNum)
+    {
+        std::cout << "ServerApp Delivery Failed (retries exhausted): " << id << " " << seqNum << std::endl;
+    }
+
     dmq::os::Thread m_thread;
 
     dmq::util::Timer m_pollTimer;
@@ -121,6 +127,7 @@ private:
     dmq::ScopedConnection m_onActuatorConn;
     dmq::ScopedConnection m_onNetworkErrorConn;
     dmq::ScopedConnection m_onSendStatusConn;
+    dmq::ScopedConnection m_onDeliveryFailureConn;
 
     Actuator m_actuator1;
     Actuator m_actuator2;

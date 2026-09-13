@@ -85,11 +85,34 @@ void System::OnFault(FaultMsg) {
     m_faulted = true;
 }
 
+void System::OnDataBusError(const dmq::xstring& topic, dmq::DelegateError error) {
+    printf("Safety: DataBus ERROR - topic=%s error=%d\n", topic.c_str(), static_cast<int>(error));
+}
+
+void System::OnDeliveryFailed(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum) {
+    printf("Safety: CRITICAL - delivery to %s failed (id=%u seq=%u, retries exhausted)\n",
+           peerName.c_str(), id, seqNum);
+}
+
+void System::OnPeerCapExceeded(const dmq::xstring& peerName, size_t count) {
+    printf("Safety: WARNING - unacked-message cap exceeded for %s (%zu messages)\n", peerName.c_str(), count);
+}
+
+void System::OnPeerPendingExceeded(const dmq::xstring& peerName, size_t remaining) {
+    printf("Safety: WARNING - retry backlog not draining fast enough for %s (%zu remaining)\n", peerName.c_str(), remaining);
+}
+
 void System::SetupNetwork() {
     SpyBridge::Start("127.0.0.1", 9999, "Safety");
     NodeBridge::StartMulticast("Safety", "239.1.1.1", 9998);
 
+    m_dataBusErrorConn = dmq::databus::DataBus::SubscribeError(dmq::MakeDelegate(this, &System::OnDataBusError));
+
     m_network.Start("Safety", /*listenPort=*/5013);
+
+    m_deliveryFailedConn = m_network.OnDeliveryFailed.Connect(dmq::MakeDelegate(this, &System::OnDeliveryFailed));
+    m_capExceededConn = m_network.OnPeerCapExceeded.Connect(dmq::MakeDelegate(this, &System::OnPeerCapExceeded));
+    m_pendingExceededConn = m_network.OnPeerPendingExceeded.Connect(dmq::MakeDelegate(this, &System::OnPeerPendingExceeded));
 
     // Incoming Topics
     m_network.Receive<CentrifugeSpeedMsg>(topics::CMD_CENTRIFUGE_SPEED, RID_CENTRIFUGE_SPEED, serSpeed);

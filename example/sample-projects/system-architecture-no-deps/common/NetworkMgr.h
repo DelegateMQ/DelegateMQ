@@ -49,6 +49,7 @@ public:
     dmq::Signal<void(ActuatorMsg&)>                                                     OnActuator;
     dmq::Signal<void(dmq::DelegateRemoteId, dmq::DelegateError, dmq::DelegateErrorAux)> OnNetworkError;
     dmq::Signal<void(dmq::DelegateRemoteId, uint16_t, dmq::util::TransportMonitor::Status)>   OnSendStatus;
+    dmq::Signal<void(dmq::DelegateRemoteId, uint16_t)>                                  OnDeliveryFailure;
 
     static NetworkMgr& Instance() { static NetworkMgr instance; return instance; }
 
@@ -69,6 +70,7 @@ protected:
     // Override base class hooks to fire our Signals
     void OnError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) override;
     void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) override;
+    void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) override;
 
 private:
     NetworkMgr();
