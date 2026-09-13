@@ -60,6 +60,26 @@ struct NestedMsg : public serialize::I
     }
 };
 
+/// Chain of N nested USER_DEFINED levels (DeepMsg<N> contains DeepMsg<N-1>, down
+/// to the DeepMsg<0> leaf). Used to exceed MAX_PARSE_STACK_DEPTH on read.
+template <int N>
+struct DeepMsg : public serialize::I
+{
+    DeepMsg<N - 1> inner;
+
+    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, inner); }
+    std::istream& read(serialize& ms, std::istream& is) override { return ms.read(is, inner); }
+};
+
+template <>
+struct DeepMsg<0> : public serialize::I
+{
+    int32_t val = 0;
+
+    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, val); }
+    std::istream& read(serialize& ms, std::istream& is) override { return ms.read(is, val); }
+};
+
 /// Version 1: one field.
 struct MsgV1 : public serialize::I
 {
@@ -792,6 +812,26 @@ static void ErrorTests()
         ser.write(oss, big);
         ASSERT_TRUE(!oss.good());
         ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::CONTAINER_TOO_MANY);
+    }
+
+    // USER_DEFINED nesting exceeds MAX_PARSE_STACK_DEPTH (5) on read: must fail
+    // that one parse gracefully (failbit + NESTING_TOO_DEEP), not hard-fault the
+    // process. Write has no depth limit (only read() tracks stop-parse positions),
+    // so DeepMsg<8> (9 levels: 8 down to the DeepMsg<0> leaf) writes fine and only
+    // fails coming back on read.
+    {
+        DeepMsg<8> src;
+        std::ostringstream oss;
+        ser.clearLastError();
+        ser.write(oss, src);
+        ASSERT_TRUE(oss.good());
+
+        DeepMsg<8> dst;
+        std::istringstream iss(oss.str());
+        ser.clearLastError();
+        ser.read(iss, dst);
+        ASSERT_TRUE(iss.fail());
+        ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NESTING_TOO_DEEP);
     }
 
     // Error handler callback is invoked on error

@@ -73,6 +73,7 @@ public:
         if (result == 0) {
             // Validate header marker
             if (header.GetMarker() != dmq::transport::DmqHeader::MARKER) {
+                OnChannelError(dmq::INVALID_REMOTE_ID, dmq::DelegateError::ERR_TRANSPORT_RECEIVE, 0);
                 return -1; // Protocol error
             }
 

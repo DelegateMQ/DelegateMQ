@@ -11,6 +11,17 @@ public:
     int Receive(dmq::xstringstream&, dmq::transport::DmqHeader&) override { return -1; }
 };
 
+// Simulates a successful low-level read (result == 0) that carries a corrupt/wrong
+// DmqHeader marker, exercising Participant::ProcessIncoming()'s framing check.
+class BadMarkerTransport : public dmq::transport::ITransport {
+public:
+    int Send(dmq::xostringstream&, const dmq::transport::DmqHeader&) override { return 0; }
+    int Receive(dmq::xstringstream&, dmq::transport::DmqHeader& header) override {
+        header.SetMarker(0x0000); // Not dmq::transport::DmqHeader::MARKER
+        return 0;
+    }
+};
+
 // A serializer that can be made to fail
 template <typename T>
 class FailingSerializer : public dmq::ISerializer<void(T)> {
@@ -146,7 +157,69 @@ int DataBusErrorTest() {
         }
     }
 
+    // Test 5: ERR_TRANSPORT_RECEIVE reported when Receive() succeeds but the
+    // DmqHeader marker is corrupt (Participant::ProcessIncoming() framing check).
+    {
+        DataBus::ResetForTesting();
+        BadMarkerTransport transport;
+        auto participant = dmq::xmake_shared<Participant>(transport);
+        DataBus::AddParticipant(participant);
+
+        dmq::DelegateError capturedError = dmq::DelegateError::SUCCESS;
+        auto conn = DataBus::SubscribeError([&](const dmq::xstring&, dmq::DelegateError error) {
+            capturedError = error;
+        });
+
+        participant->ProcessIncoming();
+
+        if (capturedError == dmq::DelegateError::ERR_TRANSPORT_RECEIVE) {
+            std::cout << "Test 5 Passed: Caught ERR_TRANSPORT_RECEIVE on bad marker" << std::endl;
+        } else {
+            std::cerr << "Test 5 Failed! Error: " << (int)capturedError << std::endl;
+            return 1;
+        }
+    }
+
     std::cout << "DataBusErrorTest Finished Successfully!" << std::endl;
+    return 0;
+}
+
+// Test 6: ERR_CAPACITY_EXCEEDED reported when adding more than MAX_PARTICIPANTS
+// participants. This intentionally triggers the same "report, then hard fault"
+// hybrid as the ERR_TYPE_MISMATCH sites — InternalAddParticipant() calls
+// InternalReportLatchedError() and then ASSERT(), which calls FaultHandler()
+// and aborts the process. Since it genuinely aborts, this is for manual
+// verification only and is disabled by default (same convention as
+// DataBusTypeMismatchTest.cpp).
+//
+// HOW TO VERIFY MANUALLY:
+// 1. Set #if 1 below.
+// 2. Build and run.
+// 3. Confirm output shows the captured ERR_CAPACITY_EXCEEDED error followed by
+//    "FaultHandler called" and the application terminating with a non-zero exit code.
+int DataBusCapacityTestMain() {
+#if 0
+    std::cout << "Starting DataBusCapacityTest (EXPECTED TO ABORT)..." << std::endl;
+    dmq::databus::DataBus::ResetForTesting();
+
+    MockTransport transport;
+    dmq::DelegateError capturedError = dmq::DelegateError::SUCCESS;
+    auto conn = dmq::databus::DataBus::SubscribeError([&](const dmq::xstring&, dmq::DelegateError error) {
+        capturedError = error;
+    });
+
+    // Fill to capacity.
+    for (size_t i = 0; i < dmq::MAX_PARTICIPANTS; ++i) {
+        dmq::databus::DataBus::AddParticipant(dmq::xmake_shared<Participant>(transport));
+    }
+
+    // One more should report ERR_CAPACITY_EXCEEDED, then hard fault.
+    std::cout << "Adding one participant beyond MAX_PARTICIPANTS (" << dmq::MAX_PARTICIPANTS << ")..." << std::endl;
+    dmq::databus::DataBus::AddParticipant(dmq::xmake_shared<Participant>(transport));
+
+    std::cerr << "ERROR: If you see this, the capacity check did not fault as expected. "
+              << "capturedError=" << (int)capturedError << std::endl;
+#endif
     return 0;
 }
 

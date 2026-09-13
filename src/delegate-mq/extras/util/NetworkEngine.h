@@ -123,6 +123,21 @@ public:
     /// @param[in] endpoint Pointer to the endpoint instance responsible for handling this ID.
     void RegisterEndpoint(dmq::DelegateRemoteId id, dmq::IRemoteInvoker* endpoint);
 
+    /// @brief Registers a RemoteChannel endpoint and automatically wires its error
+    /// handler to this NetworkEngine's OnError() hook.
+    /// @details Equivalent to calling `channel.SetErrorHandler(...)` followed by
+    /// `RegisterEndpoint(id, channel.GetEndpoint())`. Prefer this overload so a new
+    /// channel's send and receive errors are never left unreported. Call
+    /// `channel.SetErrorHandler(...)` again afterward to override with a custom
+    /// per-channel handler.
+    /// @param[in] id The unique identifier for the remote message type.
+    /// @param[in] channel The RemoteChannel instance responsible for handling this ID.
+    template <class Sig>
+    void RegisterEndpoint(dmq::DelegateRemoteId id, dmq::RemoteChannel<Sig>& channel) {
+        channel.SetErrorHandler(dmq::MakeDelegate(this, &NetworkEngine::InternalErrorHandler));
+        RegisterEndpoint(id, channel.GetEndpoint());
+    }
+
     /// @brief Generic helper function to synchronously invoke a remote delegate.
     /// 
     /// @details This function blocks the calling thread until one of two conditions is met:
@@ -180,6 +195,11 @@ protected:
 
     virtual void OnError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux);
     virtual void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status);
+
+    /// @brief Called when a RELIABLE message exhausts its retry budget without
+    /// being ACKed (RetryMonitor::OnDeliveryFailed). Not connected for the
+    /// ZeroMQ transport, which has no RetryMonitor.
+    virtual void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum);
 
 private:
     /// @brief Shared synchronization state for RemoteInvokeWaitInternal().
@@ -304,6 +324,7 @@ private:
     void Timeout();
     void InternalErrorHandler(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux);
     void InternalStatusHandler(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status);
+    void InternalDeliveryFailedHandler(dmq::DelegateRemoteId id, uint16_t seqNum);
 
     dmq::os::Thread m_recvThread;
     std::atomic<bool> m_recvThreadExit{ false };
@@ -361,6 +382,7 @@ private:
 
     dmq::xmap<dmq::DelegateRemoteId, dmq::IRemoteInvoker*> m_receiveIdMap;
     dmq::ScopedConnection m_statusConn;
+    dmq::ScopedConnection m_deliveryFailedConn;
 
     static const std::chrono::milliseconds RECV_TIMEOUT;
 };

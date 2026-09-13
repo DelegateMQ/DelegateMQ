@@ -5,6 +5,8 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <vector>
+#include <memory>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -279,6 +281,37 @@ static void TimerDelegate_WithTimer_DispatchesToThread()
     std::cout << "TimerDelegate_WithTimer_DispatchesToThread() complete!" << std::endl;
 }
 
+static void Timer_ProcessTimers_DrainsMultiplePasses()
+{
+    // More than MAX_TIMER_EXPIRED timers all due at once — a single
+    // ProcessTimers() call must drain every batch, not just the first, and
+    // must not hard-fault (see Timer::ProcessTimers()'s multi-pass restructure,
+    // mirroring TransportMonitor::Process()'s identical batch-cap handling).
+    const size_t timerCount = dmq::MAX_TIMER_EXPIRED + 5;
+
+    std::vector<std::unique_ptr<Timer>> timers;
+    std::vector<dmq::ScopedConnection> conns;
+    std::atomic<int> fireCount{ 0 };
+
+    for (size_t i = 0; i < timerCount; ++i) {
+        auto timer = std::make_unique<Timer>();
+        conns.push_back(timer->OnExpired.Connect(
+            dmq::MakeDelegate([&fireCount]() { fireCount.fetch_add(1); })));
+        timer->Start(std::chrono::milliseconds(1), /*once=*/true);
+        timers.push_back(std::move(timer));
+    }
+
+    // Let every one-shot timer become due.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    // OnExpired has no thread argument, so callbacks fire synchronously inside
+    // this call — one ProcessTimers() call must account for all of them.
+    Timer::ProcessTimers();
+
+    ASSERT_TRUE(fireCount.load() == static_cast<int>(timerCount));
+    std::cout << "Timer_ProcessTimers_DrainsMultiplePasses() complete!" << std::endl;
+}
+
 // =============================================================================
 // Test runner
 // =============================================================================
@@ -301,6 +334,7 @@ void TimerDelegateTests()
     TimerDelegate_SharedPtr_Dispatches();
     TimerDelegate_SharedPtr_SkipsDestroyedObject();
     TimerDelegate_WithTimer_DispatchesToThread();
+    Timer_ProcessTimers_DrainsMultiplePasses();
 
     std::cout << "TimerDelegateTests() complete!" << std::endl;
 }

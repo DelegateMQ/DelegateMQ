@@ -49,6 +49,12 @@ public:
         bool isSent = false;        ///< Flag to prevent TOCTOU races
     };
 
+    /// Signal emitted when a message exhausts its retry budget without being ACKed.
+    /// Subscribers receive: (remoteId, seqNum) — the message is now permanently
+    /// abandoned; no further retries or status callbacks will occur for this seqNum.
+    /// Fired outside the internal lock so subscribers may call back into RetryMonitor safely.
+    dmq::Signal<void(dmq::DelegateRemoteId, uint16_t)> OnDeliveryFailed;
+
     RetryMonitor() = default;
 
     /// @brief Constructor
@@ -139,6 +145,7 @@ private:
         // Variables to hold data for the retry OUTSIDE the lock
         bool shouldRetry = false;
         bool shouldReregister = false;
+        bool shouldReportFailure = false;
         dmq::xstring retryPayload;
         dmq::transport::DmqHeader retryHeader;
         uint32_t key = (static_cast<uint32_t>(id) << 16) | seqNum;
@@ -183,8 +190,8 @@ private:
                 else if (it->second.attemptsRemaining <= 0)
                 {
                     // Max retries exceeded. Clean up.
-                    // LOG_ERROR("RetryMonitor: Max retries exceeded for seq {}", seqNum);
                     m_retryStore.erase(it);
+                    shouldReportFailure = true;
                 }
             }
         } // <--- LOCK IS RELEASED HERE
@@ -210,6 +217,12 @@ private:
         if (shouldReregister && m_monitor)
         {
             m_monitor->Add(retryHeader.GetSeqNum(), retryHeader.GetId());
+        }
+
+        if (shouldReportFailure)
+        {
+            LOG_ERROR("RetryMonitor: Max retries exceeded for seq {}", seqNum);
+            OnDeliveryFailed(id, seqNum);
         }
     }
 

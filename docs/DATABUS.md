@@ -24,6 +24,9 @@
   - [Remote Integration](#remote-integration)
     - [Setup Checklist](#setup-checklist)
     - [Relay Loop Hazard](#relay-loop-hazard)
+  - [Error & Status Reporting](#error--status-reporting)
+    - [Errors — DataBus::SubscribeError](#errors--databussubscribeerror)
+    - [Status — NetworkNode signals](#status--networknode-signals)
   - [Design Philosophy](#design-philosophy)
   - [Pub/Sub vs. RPC](#pubsub-vs-rpc)
   - [Features](#features)
@@ -152,6 +155,47 @@ Remote distribution requires these specific calls (silent failure if missed):
 ### Relay Loop Hazard
 A relay loop occurs when a node re-broadcasts a message back to its originator.
 - **Prevention**: Use `AddIncomingTopic` (local dispatch only) for standard nodes. Use `AddRelayTopic` only on dedicated bridge/relay nodes that have no return path to the originator.
+
+## Error & Status Reporting
+
+DataBus reports two structurally different things: **errors** (`dmq::DelegateError` — something is wrong with a topic/type/serializer/transport) and **status** (delivery/backpressure health for RELIABLE messages — nothing is wrong yet, but worth watching).
+
+### Errors — `DataBus::SubscribeError`
+
+```cpp
+auto conn = dmq::databus::DataBus::SubscribeError(
+    [](const dmq::xstring& topic, dmq::DelegateError error) {
+        std::cerr << "DataBus error on " << topic << ": " << (int)error << "\n";
+    });
+```
+
+Fires for (non-exhaustive):
+- `ERR_TYPE_MISMATCH` — the same topic string used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer`/`RegisterStringifier` calls. A **local programmer-error detector**: `T` is a compile-time template parameter, so this can never be triggered by a remote peer's wire bytes, only by your own process's source code.
+- `ERR_NO_SERIALIZER` / `ERR_SERIALIZE` / `ERR_DESERIALIZE` — a topic has remote interest but no serializer registered, or serialization/deserialization itself failed.
+- `ERR_TRANSPORT_RECEIVE` — a `Participant` received bytes but the `DmqHeader` framing was corrupt (bad marker). Distinct from a plain non-zero `Receive()` result during normal polling, which is *not* reported here — see the note under NetworkNode below.
+- `ERR_CAPACITY_EXCEEDED` — a fixed-size capacity limit was reached (e.g. `DataBus::MAX_PARTICIPANTS`).
+
+Several of these (`ERR_TYPE_MISMATCH`, `ERR_CAPACITY_EXCEEDED`) are followed by a hard fault (`ASSERT()`) immediately after the report — the report is a last diagnostic before the process terminates, not a chance to recover. Errors are latched per (topic, error code) — reported once unless `DataBus::EnableContinuousErrors(true)` is set. Per-participant errors reach the global handler too: `Participant::SubscribeError` catches a single node's errors; `DataBus::SubscribeError` aggregates across every participant.
+
+### Status — `NetworkNode` signals
+
+If you use `NetworkNode` (see [Multi-Process Quickstart](../src/delegate-mq/extras/databus/README.md#multi-process-quickstart--networknode) in the module README), it exposes three additional signals with no `DataBus::SubscribeError` equivalent:
+
+```cpp
+auto failConn = g_net.OnDeliveryFailed.Connect(
+    [](const dmq::xstring& peer, dmq::DelegateRemoteId id, uint16_t seq) {
+        std::cerr << "Delivery to " << peer << " failed (retries exhausted): id=" << id << " seq=" << seq << "\n";
+    });
+auto capConn = g_net.OnPeerCapExceeded.Connect(
+    [](const dmq::xstring& peer, size_t count) {
+        std::cerr << peer << ": " << count << " unacked messages\n";
+    });
+```
+
+- `OnDeliveryFailed(peerName, remoteId, seqNum)` — a `Reliability::RELIABLE` message exhausted its retry budget without being ACKed. Fires **once**, only after retries are exhausted — distinct from the repeated `TIMEOUT` status an individual retry attempt produces along the way. If you never see this for a topic, either it's delivering fine or it's `UNRELIABLE` (no retry/ack tracking at all).
+- `OnPeerCapExceeded(peerName, count)` / `OnPeerPendingExceeded(peerName, remaining)` — backpressure health: too many unacked messages queued for a peer, or the retry monitor falling behind draining expired entries. Not errors by themselves — a widening trend across repeated calls is the signal to watch for, not a single occurrence.
+
+A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s normal short-timeout polling is **not** reported anywhere — it's the routine "nothing to read this tick" outcome, not a fault. Don't wire error handling to that return code.
 
 ## Design Philosophy
 

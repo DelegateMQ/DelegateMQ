@@ -56,6 +56,10 @@ void NetworkMgr::OnStatus(DelegateRemoteId id, uint16_t seq, dmq::util::Transpor
     OnSendStatus(id, seq, status);
 }
 
+void NetworkMgr::OnDeliveryFailed(DelegateRemoteId id, uint16_t seqNum) {
+    OnDeliveryFailure(id, seqNum);
+}
+
 void NetworkMgr::SendAlarmMsg(AlarmMsg& msg, AlarmNote& note) {
     if (!this->m_thread.IsCurrentThread()) {
         MakeDelegate(this, &NetworkMgr::SendAlarmMsg, this->m_thread)(msg, note);
