@@ -184,6 +184,45 @@ int DataBusErrorTest() {
     return 0;
 }
 
+// Test 6: ERR_CAPACITY_EXCEEDED reported when adding more than MAX_PARTICIPANTS
+// participants. This intentionally triggers the same "report, then hard fault"
+// hybrid as the ERR_TYPE_MISMATCH sites — InternalAddParticipant() calls
+// InternalReportLatchedError() and then ASSERT(), which calls FaultHandler()
+// and aborts the process. Since it genuinely aborts, this is for manual
+// verification only and is disabled by default (same convention as
+// DataBusTypeMismatchTest.cpp).
+//
+// HOW TO VERIFY MANUALLY:
+// 1. Set #if 1 below.
+// 2. Build and run.
+// 3. Confirm output shows the captured ERR_CAPACITY_EXCEEDED error followed by
+//    "FaultHandler called" and the application terminating with a non-zero exit code.
+int DataBusCapacityTestMain() {
+#if 0
+    std::cout << "Starting DataBusCapacityTest (EXPECTED TO ABORT)..." << std::endl;
+    dmq::databus::DataBus::ResetForTesting();
+
+    MockTransport transport;
+    dmq::DelegateError capturedError = dmq::DelegateError::SUCCESS;
+    auto conn = dmq::databus::DataBus::SubscribeError([&](const dmq::xstring&, dmq::DelegateError error) {
+        capturedError = error;
+    });
+
+    // Fill to capacity.
+    for (size_t i = 0; i < dmq::MAX_PARTICIPANTS; ++i) {
+        dmq::databus::DataBus::AddParticipant(dmq::xmake_shared<Participant>(transport));
+    }
+
+    // One more should report ERR_CAPACITY_EXCEEDED, then hard fault.
+    std::cout << "Adding one participant beyond MAX_PARTICIPANTS (" << dmq::MAX_PARTICIPANTS << ")..." << std::endl;
+    dmq::databus::DataBus::AddParticipant(dmq::xmake_shared<Participant>(transport));
+
+    std::cerr << "ERROR: If you see this, the capacity check did not fault as expected. "
+              << "capturedError=" << (int)capturedError << std::endl;
+#endif
+    return 0;
+}
+
 int DataBusErrorTestMain() {
     try {
         return DataBusErrorTest();

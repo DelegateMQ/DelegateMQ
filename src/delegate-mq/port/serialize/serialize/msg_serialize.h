@@ -207,7 +207,8 @@ public:
         STRING_TOO_LONG,
         CONTAINER_TOO_MANY,
         INVALID_INPUT,
-        END_OF_FILE
+        END_OF_FILE,
+        NESTING_TOO_DEEP        // USER_DEFINED nesting exceeded MAX_PARSE_STACK_DEPTH
     };
 
     serialize() = default;
@@ -295,7 +296,11 @@ public:
                 parseStatus(typeid(*t_), size);
 
                 // Save the stop parsing position to prevent parsing overrun
-                push_stop_parse_pos(targetStopPos);
+                if (!push_stop_parse_pos(targetStopPos)) {
+                    raiseError(ParsingError::NESTING_TOO_DEEP, __LINE__, __FILE__);
+                    is.setstate(std::ios::failbit);
+                    return is;
+                }
 
                 t_->read(*this, is);
 
@@ -1565,12 +1570,22 @@ private:
         return ptr != nullptr;
     }
 
-    void push_stop_parse_pos(std::streampos stopParsePos)
+    // Returns false if the stack is full (nesting too deep) instead of faulting —
+    // reachable from remote/untrusted input (deserializing a USER_DEFINED object
+    // nested more than MAX_PARSE_STACK_DEPTH levels deep), so a malformed message
+    // must fail that one parse, not hard-fault the process. Caller must not call
+    // pop_stop_parse_pos() for a push that returned false.
+    bool push_stop_parse_pos(std::streampos stopParsePos)
     {
-        ASSERT_TRUE(stopParsePosIdx < MAX_PARSE_STACK_DEPTH);
+        if (stopParsePosIdx >= MAX_PARSE_STACK_DEPTH)
+            return false;
         stopParsePosStack[stopParsePosIdx++] = stopParsePos;
+        return true;
     }
 
+    // Every call site pairs this 1:1 with a push_stop_parse_pos() that returned
+    // true, so an empty stack here means internal state corruption, not malformed
+    // input — stays a hard fault.
     std::streampos pop_stop_parse_pos()
     {
         ASSERT_TRUE(stopParsePosIdx > 0);

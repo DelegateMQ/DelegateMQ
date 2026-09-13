@@ -81,7 +81,8 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // K_THREAD_STACK_LEN calculates the correct size including guard pages/metadata.
         size_t stackBytes = K_THREAD_STACK_LEN(STACK_SIZE);
         char* stackBuf = (char*)k_aligned_alloc(Z_KERNEL_STACK_OBJ_ALIGN, stackBytes);
-        ASSERT_TRUE(stackBuf != nullptr);
+        if (!stackBuf)
+            BAD_ALLOC();
 
         m_stackMemory.reset(stackBuf); // Ownership passed to unique_ptr
 

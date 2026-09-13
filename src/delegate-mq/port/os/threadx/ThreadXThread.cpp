@@ -97,7 +97,8 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         ULONG stackSizeWords = (STACK_SIZE + sizeof(ULONG) - 1) / sizeof(ULONG);
 
         m_stackMemory.reset(new (std::nothrow) ULONG[stackSizeWords]);
-        ASSERT_TRUE(m_stackMemory != nullptr);
+        if (!m_stackMemory)
+            BAD_ALLOC();
 
         UINT ret = tx_thread_create(&m_thread,
                                (CHAR*)THREAD_NAME.c_str(),

@@ -573,7 +573,15 @@ private:
             dmq::MakeDelegate(this, &DataBus::InternalReportLatchedError));
 
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        ASSERT_TRUE(m_participantCount < dmq::MAX_PARTICIPANTS);
+        if (m_participantCount >= dmq::MAX_PARTICIPANTS) {
+            // Report via the error signal for diagnosability, then hard fault —
+            // same "report, then fault" hybrid as the ERR_TYPE_MISMATCH sites
+            // above. Recursive mutex allows re-entry into InternalReportLatchedError
+            // while m_mutex is already held.
+            InternalReportLatchedError("<AddParticipant>", dmq::DelegateError::ERR_CAPACITY_EXCEEDED);
+            ASSERT();
+            return;
+        }
         m_participantErrorConnections[m_participantCount] = std::move(conn);
         participant->EnableContinuousErrors(m_continuousErrors);
         m_participants[m_participantCount++] = participant;

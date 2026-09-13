@@ -157,6 +157,7 @@ void SetupNetwork() {
 - **Transport-agnostic**: Pass any `ITransport`-derived type as the template argument — `Win32UdpTransport`, `LinuxUdpTransport`, `ZephyrUdpTransport`, etc.
 - **Fixed allocation**: `MaxPeers` and `MaxTopics` template parameters control pre-allocated capacity. No heap for transport objects (`RemoteNode` members are by-value in `std::array`).
 - **`Participant` allocation**: Uses `xmake_shared` — fixed-block allocator on embedded targets.
+- **Error & status signals**: `OnDeliveryFailed(peerName, remoteId, seqNum)` fires once when a RELIABLE message exhausts its retry budget; `OnPeerCapExceeded`/`OnPeerPendingExceeded(peerName, count)` are backpressure health signals. None of these overlap `DataBus::SubscribeError` — see [Error & Status Reporting](../../../docs/DATABUS.md#error--status-reporting) in the full DataBus doc for the complete picture (including `DelegateError` codes) and usage examples.
 
 ### Template parameters
 

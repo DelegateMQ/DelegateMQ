@@ -11,6 +11,7 @@ extern int DataBusSpyTestMain();
 extern int DataBusBenchmarkTestMain();
 extern int DataBusTypeMismatchTestMain();
 extern int DataBusErrorTestMain();
+extern int DataBusCapacityTestMain();
 
 void RunDataBusTests() {
     std::cout << "--- Running DataBus Unit Tests ---" << std::endl;
@@ -22,6 +23,7 @@ void RunDataBusTests() {
     DataBusBenchmarkTestMain();
     DataBusTypeMismatchTestMain();
     DataBusErrorTestMain();
+    DataBusCapacityTestMain(); // Disabled by default (#if 0) — see DataBusErrorTest.cpp
     std::cout << "--- DataBus Unit Tests Completed ---" << std::endl;
 }
 
