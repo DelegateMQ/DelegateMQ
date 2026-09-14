@@ -12,9 +12,16 @@ endif()
 if (NOT CELLUTRON_COMMON_DIR)
     set(CELLUTRON_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../common)
 endif()
+if (NOT CELLUTRON_RTOS)
+    set(CELLUTRON_RTOS "FREERTOS")
+endif()
 
-# Set FreeRTOS thread port for this processor
-set(DMQ_THREAD "DMQ_THREAD_FREERTOS")
+# Set thread port for this processor — flip with -DCELLUTRON_RTOS=THREADX
+if (CELLUTRON_RTOS STREQUAL "THREADX")
+    set(DMQ_THREAD "DMQ_THREAD_THREADX")
+else()
+    set(DMQ_THREAD "DMQ_THREAD_FREERTOS")
+endif()
 set(DMQ_SERIALIZE "DMQ_SERIALIZE_SERIALIZE")
 set(DMQ_DATABUS "ON")
 set(DMQ_ALLOCATOR "ON")
@@ -47,12 +54,18 @@ set(SYSTEM_FILES
     system/System.h
 )
 
-add_executable(cellutron_safety 
-    main.cpp 
+if (CELLUTRON_RTOS STREQUAL "THREADX")
+    set(SAFETY_MAIN_FILE main_threadx.cpp)
+else()
+    set(SAFETY_MAIN_FILE main.cpp)
+endif()
+
+add_executable(cellutron_safety
+    ${SAFETY_MAIN_FILE}
     system/System.cpp
     system/System.h
     ${COMMON_SOURCES}
-    ${DMQ_LIB_SOURCES} 
+    ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
     ${FREERTOS_SOURCES}
 )
@@ -67,7 +80,11 @@ target_compile_definitions(cellutron_safety PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:_ITERATOR_DEBUG_LEVEL=0>
 )
 
-target_link_libraries(cellutron_safety PRIVATE ${FREERTOS_LIBRARIES})
+if (CELLUTRON_RTOS STREQUAL "THREADX")
+    target_link_libraries(cellutron_safety PRIVATE ${THREADX_LIBRARIES})
+else()
+    target_link_libraries(cellutron_safety PRIVATE ${FREERTOS_LIBRARIES})
+endif()
 
 # Organize delegate source files within IDE (Visual Studio)
 source_group("Source Files" FILES main.cpp)
@@ -78,7 +95,7 @@ source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
 source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 source_group("FreeRTOS Files" FILES ${FREERTOS_SOURCES})
 
-target_include_directories(cellutron_safety PRIVATE 
+target_include_directories(cellutron_safety PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CELLUTRON_COMMON_DIR}
     ${CELLUTRON_COMMON_DIR}/util
@@ -86,8 +103,15 @@ target_include_directories(cellutron_safety PRIVATE
     ${DMQ_INCLUDE_DIR}
     ${DMQ_SRC_DIR}
     ${SPDLOG_INCLUDE_DIR}
-    ${FREERTOS_ROOT_DIR}/include
-    ${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}
     ${TOOLS_BRIDGE_DIR}
     ${TOOLS_SRC_DIR}
 )
+
+if (NOT CELLUTRON_RTOS STREQUAL "THREADX")
+    # ThreadX's azrtos::threadx target exports its own include dirs PUBLIC via
+    # target_link_libraries above; FreeRTOS has no such CMake integration.
+    target_include_directories(cellutron_safety PRIVATE
+        ${FREERTOS_ROOT_DIR}/include
+        ${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}
+    )
+endif()

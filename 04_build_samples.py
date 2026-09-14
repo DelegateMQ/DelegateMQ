@@ -14,6 +14,9 @@ Key Features:
     3. Build Config: Builds Release configuration on both Windows (MSVC
        multi-config) and Linux (single-config generators).
     4. Summary Report: Prints a final pass/fail/skipped table.
+    5. Cellutron ThreadX variant: Also builds 'build-threadx/' (configured by
+       03_generate_samples.py on Linux), proving DelegateMQ isolates app code
+       from the RTOS choice.
 
 Skip List (always excluded):
     - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
@@ -175,13 +178,20 @@ def build_dotnet(project_subdir, label):
         return False, str(exc)
 
 
-def collect_build_dirs(project_dir, use_clang=False):
+def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
     """
     Return a list of (label, build_dir) tuples for a project.
     Client/server projects yield two entries; standalone yields one.
     When use_clang=True, also includes 'build-clang' variants if they exist.
+    extra_suffixes: additional build-dir suffixes to check (e.g. 'build-threadx'
+    for Cellutron's ThreadX variant) -- the label is derived from the suffix name.
     """
     suffixes = ["build", "build-clang"] if use_clang else ["build"]
+    if extra_suffixes:
+        suffixes = suffixes + list(extra_suffixes)
+
+    def variant_label(suffix):
+        return "" if suffix == "build" else suffix.replace("build-", "", 1)
 
     client_dir = os.path.join(project_dir, "client")
     server_dir = os.path.join(project_dir, "server")
@@ -195,19 +205,18 @@ def collect_build_dirs(project_dir, use_clang=False):
     if client_exist or server_exist:
         targets = []
         for suffix, path in client_exist:
-            label = "client" if suffix == "build" else "client (clang)"
-            targets.append((label, path))
+            variant = variant_label(suffix)
+            targets.append((f"client ({variant})" if variant else "client", path))
         for suffix, path in server_exist:
-            label = "server" if suffix == "build" else "server (clang)"
-            targets.append((label, path))
+            variant = variant_label(suffix)
+            targets.append((f"server ({variant})" if variant else "server", path))
         return targets
 
     targets = []
     for suffix in suffixes:
         path = os.path.join(project_dir, suffix)
         if os.path.isdir(path):
-            label = "" if suffix == "build" else "clang"
-            targets.append((label, path))
+            targets.append((variant_label(suffix), path))
     return targets
 
 
@@ -282,7 +291,11 @@ def build_samples(use_clang=False):
                 if project_name not in failed: failed.append(project_name)
 
         # 2. Check if the target_dir ITSELF is a configured project
-        targets = collect_build_dirs(target_dir, use_clang=use_clang)
+        # Cellutron's controller/safety nodes get an extra 'build-threadx'
+        # variant (see 03_generate_samples.py) proving DelegateMQ isolates
+        # app code from the RTOS choice.
+        extra_suffixes = ["build-threadx"] if project_name == "cellutron" else None
+        targets = collect_build_dirs(target_dir, use_clang=use_clang, extra_suffixes=extra_suffixes)
         if targets:
             project_failed = False
             for label, build_dir in targets:

@@ -66,14 +66,28 @@ def main():
         help="Build configuration to launch for main apps (default: Release)"
     )
     parser.add_argument(
-        "--log", 
-        choices=["on", "off"], 
+        "--log",
+        choices=["on", "off"],
         default="on",
         help="Enable or disable DMQ Spy logging to spy_logs.txt (default: on)"
+    )
+    parser.add_argument(
+        "--threadx",
+        action="store_true",
+        help="Launch the ThreadX build (build-threadx/) instead of the default "
+             "FreeRTOS build (build/). Same Controller/Safety/GUI app code either "
+             "way -- only the underlying RTOS differs. Build it first with "
+             "03_generate_samples.py + 04_build_samples.py (Linux only). "
+             "KNOWN ISSUE: the vendored ThreadX Linux/GNU simulation port has a "
+             "genuine kernel deadlock once 2+ ThreadX threads are concurrently "
+             "alive (see CELLUTRON.md); Controller runs 7, so this build "
+             "typically hangs partway through a run -- a vendor bug, not a "
+             "DelegateMQ/Cellutron one. See CELLUTRON.md's 'Known Limitation' note."
     )
     args_parsed = parser.parse_args()
     config = args_parsed.config
     log_enabled = args_parsed.log == "on"
+    build_dir_name = "build-threadx" if args_parsed.threadx else "build"
 
     # Linux Cleanup: Kill any orphan processes from previous runs
     if (not IS_WINDOWS) and (os.environ.get("SKIP_CLEANUP") != "1"):
@@ -123,11 +137,11 @@ def main():
         # Search for the app in various common build locations
         search_paths = [
             # Global build (from example/cellutron)
-            f"build/{app['name'].lower()}/{config}/{app['exe']}",
-            f"build/{app['name'].lower()}/{app['exe']}",
+            f"{build_dir_name}/{app['name'].lower()}/{config}/{app['exe']}",
+            f"{build_dir_name}/{app['name'].lower()}/{app['exe']}",
             # Local build (from example/cellutron/app)
-            f"{app['name'].lower()}/build/{config}/{app['exe']}",
-            f"{app['name'].lower()}/build/{app['exe']}",
+            f"{app['name'].lower()}/{build_dir_name}/{config}/{app['exe']}",
+            f"{app['name'].lower()}/{build_dir_name}/{app['exe']}",
         ]
         
         exe_path = get_newest_exe(base_path, search_paths)
@@ -140,8 +154,14 @@ def main():
     processes = []
 
     print(f"--- Starting Cellutron Distributed System ---")
+    print(f"  RTOS: {'ThreadX' if args_parsed.threadx else 'FreeRTOS'}")
     print(f"  Apps Config: {config}")
     print(f"  Tools: Auto-selecting newest (Debug/Release)")
+    if args_parsed.threadx:
+        print("  WARNING: The ThreadX Linux/GNU simulation port has a known vendor")
+        print("  kernel deadlock once 2+ ThreadX threads run concurrently (Controller")
+        print("  runs 7) -- this run may hang partway through. See CELLUTRON.md's")
+        print("  'Known Limitation' note. Not a DelegateMQ/Cellutron bug.")
 
     # 1. Launch Tools (Monitor/Spy/Thread)
     for tool in tools_definitions:
@@ -179,7 +199,11 @@ def main():
     missing_apps = [app["name"] for app in apps_to_launch if not os.path.exists(app["path"])]
     if missing_apps:
         print(f"ERROR: The following core applications are missing: {', '.join(missing_apps)}")
-        print("Please build the project first.")
+        if args_parsed.threadx:
+            print(f"Please build the '{build_dir_name}' directory first "
+                  f"(03_generate_samples.py + 04_build_samples.py, Linux only).")
+        else:
+            print("Please build the project first.")
         sys.exit(1)
 
     # Require exactly 3 core apps for a complete system

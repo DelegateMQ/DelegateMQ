@@ -67,7 +67,7 @@ Larger end-to-end projects that integrate multiple DelegateMQ features across se
 
 | Project | Location | Description |
 | :--- | :--- | :--- |
-| **Cellutron** | `example/cellutron/` | Multi-processor medical instrument demo with three independent CPUs: GUI (stdlib thread), Controller, and Safety (both FreeRTOS on Windows simulation). Integrates DataBus with QoS LVC, Active Objects, `DeadlineSubscription` cross-node heartbeats, Spy Monitor audit logging, and explicit per-thread `FullPolicy`. Start with `python run_cellutron.py`. See [Cellutron README](../cellutron/CELLUTRON.md). |
+| **Cellutron** | `example/cellutron/` | Multi-processor medical instrument demo with three independent CPUs: GUI (stdlib thread), Controller, and Safety — the latter two run on FreeRTOS (default) or ThreadX (`-DCELLUTRON_RTOS=THREADX`, Linux only), a single switch proving DelegateMQ isolates app code from the RTOS. Integrates DataBus with QoS LVC, Active Objects, `DeadlineSubscription` cross-node heartbeats, Spy Monitor audit logging, and explicit per-thread `FullPolicy`. Start with `python run_cellutron.py` (`--threadx` for the ThreadX build). See [Cellutron README](../cellutron/CELLUTRON.md). |
 | **sample-interop** | `example/sample-interop/` | Cross-language interop demo: C++ server publishes `SensorData` and receives `Command`; C# and Python clients subscribe and respond — all via a shared native C++ DLL. Demonstrates that scripting-language clients share the same ACK/timeout reliability logic as the C++ core. See [INTEROP.md](../../docs/INTEROP.md). |
 
 ## Build

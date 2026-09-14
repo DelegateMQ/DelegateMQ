@@ -20,6 +20,9 @@ Key Features:
        - Standard projects use the default generator (x64 on modern Windows).
     6. Optional Clang builds (--clang): On Linux, also configures a 'build-clang'
        directory using clang++ for projects that support it. Requires clang++ in PATH.
+    7. Cellutron ThreadX variant: On Linux, also configures a 'build-threadx'
+       directory (-DCELLUTRON_RTOS=THREADX) alongside the default FreeRTOS
+       'build' directory, proving DelegateMQ isolates app code from the RTOS.
 
 Usage:
     Run this script THIRD to generate project files for your IDE.
@@ -165,6 +168,36 @@ def build_samples(use_clang=False, clean=False):
                                 # Print a bit of context
                                 if i+1 < len(lines): print(f"          {lines[i+1].strip()}")
                                 break
+
+                # --- CELLUTRON THREADX CONFIGURE (Linux only) ---
+                # Cellutron's controller/safety nodes support a CELLUTRON_RTOS
+                # switch (FREERTOS default / THREADX) proving DelegateMQ isolates
+                # app code from the RTOS choice. Configure a second build-threadx/
+                # directory alongside the default build/ so both are exercised.
+                # ThreadX's Linux/GNU simulation port requires native Linux
+                # (UNIX AND NOT APPLE) -- see src/delegate-mq/External.cmake.
+                if project_name == "cellutron" and platform.system() == "Linux":
+                    build_threadx_path = os.path.join(dirpath, "build-threadx")
+                    if clean and os.path.exists(build_threadx_path):
+                        try: shutil.rmtree(build_threadx_path)
+                        except: pass
+                    print(f"[CONFIGURING] {display_name} (ThreadX)")
+                    cmd_threadx = ["cmake", "-B", "build-threadx", "-DCELLUTRON_RTOS=THREADX", "."]
+                    try:
+                        subprocess.run(
+                            cmd_threadx, cwd=dirpath, check=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                        )
+                        print("   Success!")
+                    except subprocess.CalledProcessError as e:
+                        print(f"   FAILED (ThreadX)")
+                        if e.stderr:
+                            lines = e.stderr.split('\n')
+                            for i, line in enumerate(lines):
+                                if "CMake Error" in line or "Could not find" in line or "FATAL_ERROR" in line:
+                                    print(f"   Reason: {line.strip()}")
+                                    if i+1 < len(lines): print(f"          {lines[i+1].strip()}")
+                                    break
 
                 # --- CLANG CONFIGURE (optional, Linux only) ---
                 if clang_exe and not needs_win32:
