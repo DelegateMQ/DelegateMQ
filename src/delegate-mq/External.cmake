@@ -246,7 +246,18 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
             set(THREADX_TOOLCHAIN "gnu")
         endif()
 
-        add_subdirectory("${THREADX_ROOT_DIR}" "${CMAKE_BINARY_DIR}/threadx_build")
+        # Guard against add_subdirectory() being reached more than once in the
+        # same top-level CMake project -- e.g. two executables (Cellutron's
+        # controller and safety nodes) each including DelegateMQ.cmake with
+        # DMQ_THREAD_THREADX. The "threadx" target, once created, is visible
+        # project-wide, so every caller after the first just reuses it; without
+        # this guard the second add_subdirectory() call fails outright (CMake
+        # refuses to bind the same source directory to a second binary
+        # directory, and a plain unique-binary-dir fix would still collide on
+        # the "threadx" target name itself).
+        if(NOT TARGET threadx)
+            add_subdirectory("${THREADX_ROOT_DIR}" "${CMAKE_BINARY_DIR}/threadx_build")
+        endif()
 
         # ThreadX's own ports/linux/gnu/CMakeLists.txt unconditionally adds
         # -DTX_LINUX_DEBUG_ENABLE as a PUBLIC compile definition on the

@@ -9,6 +9,9 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+### Added
+- **Cellutron ThreadX support** — the Controller and Safety nodes now build against ThreadX as well as FreeRTOS, selected with one switch (`cmake -DCELLUTRON_RTOS=THREADX`, or `run_cellutron.py --threadx`; Linux only). Only the RTOS kernel-init/task-creation glue differs (`main.cpp` vs. new `main_threadx.cpp`) and one `#ifdef` in `Constants.h` for ThreadX's inverted thread-priority scale — `Process`, `System`, `Actuators`, `Sensors`, and the state machines are unchanged, demonstrating DelegateMQ's OS isolation end-to-end. `03_generate_samples.py`/`04_build_samples.py` configure and build the `build-threadx/` variant automatically on Linux. Also fixes a `src/delegate-mq/External.cmake` bug where two executables in one CMake project (Controller + Safety) both linking ThreadX collided on the same `add_subdirectory()` binary directory. Note: the vendored ThreadX Linux/GNU simulation port has a known kernel deadlock once 2+ ThreadX threads are concurrently alive, which Cellutron's Controller (7 threads) reliably triggers — see `CELLUTRON.md`'s "Known Limitation" note; this is a vendor bug, not a DelegateMQ one.
+
 ## [2.0.3] - 2026-09-11
 
 ### Added

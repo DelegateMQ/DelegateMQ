@@ -3,8 +3,8 @@
 
 #include "util/Logger.h"
 
-// Cellutron Safety node — FreeRTOS target, minimal thread count.
-// Reduced limits to constrain RAM on embedded hardware.
+// Cellutron Safety node — FreeRTOS or ThreadX target (see CELLUTRON_RTOS),
+// minimal thread count. Reduced limits to constrain RAM on embedded hardware.
 
 #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2
 #define DMQ_MAX_TIMER_EXPIRED           4

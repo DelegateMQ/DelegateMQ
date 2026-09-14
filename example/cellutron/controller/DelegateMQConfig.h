@@ -3,7 +3,7 @@
 
 #include "util/Logger.h"
 
-// Cellutron Controller node — FreeRTOS target.
+// Cellutron Controller node — FreeRTOS or ThreadX target (see CELLUTRON_RTOS).
 // Reduced limits to constrain RAM on embedded hardware.
 
 #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2

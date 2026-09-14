@@ -23,13 +23,29 @@ namespace cellutron {
     static constexpr dmq::Duration HEARTBEAT_TIMEOUT = 10s;
     static constexpr dmq::Duration HEARTBEAT_WARMUP = 10s;
 
-    // Thread Priorities (FreeRTOS levels - range 0 to configMAX_PRIORITIES-1)
+    // Thread priorities, in dmq::os::Thread::SetThreadPriority()'s raw OS-native
+    // scale. FreeRTOS and ThreadX use OPPOSITE conventions -- FreeRTOS: higher
+    // number = more urgent (0..configMAX_PRIORITIES-1); ThreadX: lower number =
+    // more urgent (0 = highest). Each branch below independently encodes the
+    // same relative ordering (NETWORK/SYSTEM > HARDWARE/PROCESS > LOW) in its
+    // own scale -- do not share one numeric set across both.
+#if defined(DMQ_THREAD_THREADX)
+    // ThreadX levels - 0 is highest urgency. Main app/watchdog tasks (see
+    // main_threadx.cpp) run at 0, so these stay above that.
+    static constexpr int PRIORITY_NETWORK   = 1;
+    static constexpr int PRIORITY_SYSTEM    = 1;
+    static constexpr int PRIORITY_HARDWARE  = 2;
+    static constexpr int PRIORITY_PROCESS   = 2;
+    static constexpr int PRIORITY_LOW       = 4;
+#else
+    // FreeRTOS levels (range 0 to configMAX_PRIORITIES-1)
     // Note: configMAX_PRIORITIES=7. Timer Task is 6. We stay <= 5.
     static constexpr int PRIORITY_NETWORK   = 5;
     static constexpr int PRIORITY_HARDWARE  = 4;
     static constexpr int PRIORITY_PROCESS   = 4;
     static constexpr int PRIORITY_SYSTEM    = 5;
     static constexpr int PRIORITY_LOW       = 2;
+#endif
 
     namespace topics {
         static const char* const SAFETY_HEARTBEAT     = "sys/heartbeat/safety";

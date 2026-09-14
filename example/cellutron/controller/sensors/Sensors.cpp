@@ -4,9 +4,6 @@
 #include "util/Constants.h"
 #include <cstdio>
 
-#include "FreeRTOS.h"
-#include "task.h"
-
 using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
