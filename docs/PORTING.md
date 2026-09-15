@@ -56,6 +56,10 @@ Running C++ messaging on embedded targets (like STM32) requires specific attenti
 
 See the `stm32-freertos` example `README.md` for a complete implementation of static stacks, interrupt-driven UART, and correct FreeRTOS configuration.
 
+3. **Transport Buffer Sizes**
+
+   Every transport declares its own `BUFFER_SIZE` (send/receive scratch buffer) as a fixed literal local to that transport's header, rather than a tunable exposed via `DelegateMQConfig_Default.h`/`DelegateOpt.h`. Some are wire-constrained (sized to the Ethernet MTU) and shouldn't be raised without also handling fragmentation; others are just the size the transport happened to ship with and can likely be lowered on memory-constrained targets or raised for desktop throughput. If you're tuning memory on a constrained target, or need larger messages than a transport currently supports, grep that transport's header for `BUFFER_SIZE` (NetX UDP inlines its receive buffer as a bare literal instead of a named constant) and adjust it directly — don't assume the current value without checking, and treat any specific number as a snapshot that can drift out of date with the code.
+
 ---
 
 ## Interfaces

@@ -6,6 +6,7 @@
 /// delegate instances. Class is thread-safe.
 
 #include "MulticastDelegate.h"
+#include <array>
 
 DMQ_OPTIMIZE_ON
 
@@ -114,9 +115,9 @@ public:
         // is shared across every `MulticastDelegateSafe<Sig>` signature; only the final
         // invoke below needs the concrete `DelegateType` back. The snapshot-under-lock
         // logic itself lives in `detail::MulticastSafeSnapshot` for the same reason.
-        std::shared_ptr<DelegateBase> small_buf[SIGNAL_SBO_COUNT];
+        std::array<std::shared_ptr<DelegateBase>, SIGNAL_SBO_COUNT> small_buf;
         xlist<std::shared_ptr<DelegateBase>> large_buf;
-        size_t count = detail::MulticastSafeSnapshot(this->m_delegates, m_lock, small_buf, SIGNAL_SBO_COUNT, large_buf);
+        size_t count = detail::MulticastSafeSnapshot(this->m_delegates, m_lock, small_buf.data(), SIGNAL_SBO_COUNT, large_buf);
 
         if (count <= SIGNAL_SBO_COUNT) {
             for (size_t i = 0; i < count; ++i) {

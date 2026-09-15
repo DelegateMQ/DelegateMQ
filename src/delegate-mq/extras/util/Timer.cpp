@@ -1,5 +1,6 @@
 #include "Timer.h"
 #include "Fault.h"
+#include <array>
 #include <chrono>
 #include <algorithm>
 
@@ -151,7 +152,7 @@ void Timer::ProcessTimers()
     size_t count;
 
     do {
-        dmq::Signal<void()>::Snapshot snapshots[dmq::MAX_TIMER_EXPIRED];
+        std::array<dmq::Signal<void()>::Snapshot, dmq::MAX_TIMER_EXPIRED> snapshots;
         count = 0;
         size_t remaining = 0;
 
