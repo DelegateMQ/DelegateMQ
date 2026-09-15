@@ -6,7 +6,7 @@
 #include "port/transport/common/DmqHeader.h"
 #include <string>
 
-namespace dmq::util {
+namespace dmq::rpc {
 
 template <class C, class R>
 struct RemoteEndpoint; // Not defined
@@ -75,6 +75,6 @@ struct RemoteEndpoint<void, RetType(Args...)>
     }
 };
 
-} // namespace dmq::util
+} // namespace dmq::rpc
 
 #endif

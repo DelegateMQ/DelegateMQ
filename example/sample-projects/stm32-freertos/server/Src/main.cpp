@@ -33,7 +33,7 @@ extern void StartDatabusTests();
 
 // Global Handles
 UART_HandleTypeDef huart6;
-dmq::util::NetworkEngine* g_netEngine = nullptr;
+dmq::rpc::RemoteDispatcher* g_netEngine = nullptr;
 
 // --- DEFINE GLOBAL TRANSPORT INSTANCE ---
 dmq::transport::Stm32UartTransport* g_uartTransportInstance = nullptr;

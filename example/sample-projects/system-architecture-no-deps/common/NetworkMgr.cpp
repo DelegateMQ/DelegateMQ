@@ -6,11 +6,20 @@ using namespace dmq::util;
 using namespace std;
 
 NetworkMgr::NetworkMgr()
+    : m_retryMonitor(m_sendTransport, m_transportMonitor)
+    , m_reliableTransport(m_sendTransport, m_retryMonitor)
 {
 }
 
 int NetworkMgr::Create()
 {
+    // Hand our transports to the base engine. Raw UDP has no reliability of
+    // its own, so the ReliableTransport wrapper (not the raw transport) is
+    // attached as the send transport, and AttachRetryMonitor() wires
+    // retry-exhaustion through to OnDeliveryFailed() (see class doc comment).
+    Attach(m_reliableTransport, m_recvTransport);
+    AttachRetryMonitor(m_retryMonitor);
+
     // Initialize one RemoteChannel per message signature.
     // Each channel owns its Dispatcher, stream, and serializer — and now also
     // owns the delegate binding via Bind(), replacing the separate DelegateMemberRemote.
@@ -37,14 +46,46 @@ int NetworkMgr::Create()
     RegisterEndpoint(ids::DATA_MSG_ID,    m_dataChannel->GetEndpoint());
     RegisterEndpoint(ids::ACTUATOR_MSG_ID, m_actuatorChannel->GetEndpoint());
 
-    // Initialize Base Engine
+    if (!this->m_thread.IsCurrentThread())
+        return dmq::MakeDelegate(this, &NetworkMgr::OpenTransport, this->m_thread, dmq::WAIT_INFINITE)();
+    return OpenTransport();
+}
+
+int NetworkMgr::OpenTransport()
+{
+    int err = 0;
+#if defined(DMQ_TRANSPORT_WIN32_UDP)
 #ifdef SERVER_APP
     // Server Publishes on 50000, Listens on 50001
-    return Initialize("127.0.0.1", 50000, "127.0.0.1", 50001);
+    err += m_sendTransport.Create(dmq::transport::Win32UdpTransport::Type::PUB, "127.0.0.1", 50000);
+    err += m_recvTransport.Create(dmq::transport::Win32UdpTransport::Type::SUB, "127.0.0.1", 50001);
 #else
     // Client Publishes on 50001, Listens on 50000
-    return Initialize("127.0.0.1", 50001, "127.0.0.1", 50000);
+    err += m_sendTransport.Create(dmq::transport::Win32UdpTransport::Type::PUB, "127.0.0.1", 50001);
+    err += m_recvTransport.Create(dmq::transport::Win32UdpTransport::Type::SUB, "127.0.0.1", 50000);
 #endif
+#elif defined(DMQ_TRANSPORT_LINUX_UDP)
+#ifdef SERVER_APP
+    err += m_sendTransport.Create(dmq::transport::LinuxUdpTransport::Type::PUB, "127.0.0.1", 50000);
+    err += m_recvTransport.Create(dmq::transport::LinuxUdpTransport::Type::SUB, "127.0.0.1", 50001);
+#else
+    err += m_sendTransport.Create(dmq::transport::LinuxUdpTransport::Type::PUB, "127.0.0.1", 50001);
+    err += m_recvTransport.Create(dmq::transport::LinuxUdpTransport::Type::SUB, "127.0.0.1", 50000);
+#endif
+#endif
+
+    m_sendTransport.SetTransportMonitor(&m_transportMonitor);
+    m_recvTransport.SetTransportMonitor(&m_transportMonitor);
+    m_sendTransport.SetRecvTransport(&m_recvTransport);
+    m_recvTransport.SetSendTransport(&m_sendTransport);
+
+    return err;
+}
+
+void NetworkMgr::CloseTransports()
+{
+    m_recvTransport.Close();
+    m_sendTransport.Close();
 }
 
 // Override hooks to fire signals

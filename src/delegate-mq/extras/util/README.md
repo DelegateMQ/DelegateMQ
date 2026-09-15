@@ -23,9 +23,9 @@ These classes provide transport-layer reliability (ACKs and Retries) over unreli
 * **`dmq::util::ReliableTransport.h`**: A composite transport that wraps a raw transport (e.g., UDP) and adds reliability logic transparently.
 
 ### 4. Networking Logic
-* **`dmq::util::NetworkEngine.h`**: A high-level manager that coordinates the `dmq::util::Dispatcher` and `ITransport` to simplify sending messages to remote endpoints.
 * **`dmq::util::NetworkConnect.h`**: Platform-specific socket initialization helpers (e.g., `dmq::util::NetworkContext`) to handle networking boilerplate like `WSAStartup`.
-* **`dmq::util::RemoteEndpoint.h`**: Base class for `dmq::DelegateMemberRemote` used to register receive-side endpoints with `dmq::util::NetworkEngine`.
+
+> **`RemoteDispatcher`/`RemoteEndpoint`** (the point-to-point RPC pattern) moved to [`extras/rpc`](../rpc/README.md). They still use this directory's `TransportMonitor`/`RetryMonitor`/`ReliableTransport` as shared reliability plumbing.
 
 ### 5. Monotonic Messaging and Time
 These utilities help handle message ordering and timestamping in distributed systems.

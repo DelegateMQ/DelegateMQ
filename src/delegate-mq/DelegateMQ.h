@@ -253,20 +253,17 @@
 // available even under DMQ_THREAD_NONE.
 #include "extras/util/Timer.h"
 
-// TimerDelegate/AsyncInvoke/TransportMonitor/ThreadMonitor all take or
-// operate on a dmq::IThread&, which doesn't exist under DMQ_THREAD_NONE.
+// TimerDelegate/AsyncInvoke/TransportMonitor/ThreadMonitor/RemoteDispatcher all
+// take or operate on a dmq::IThread&, which doesn't exist under DMQ_THREAD_NONE.
+// RemoteDispatcher itself no longer depends on which transport (if any) is
+// selected -- it only ever sees dmq::transport::ITransport -- so unlike the
+// old NetworkEngine it needs no DMQ_TRANSPORT_* guard here.
 #if !defined(DMQ_THREAD_NONE)
     #include "extras/util/TimerDelegate.h"
     #include "extras/util/AsyncInvoke.h"
     #include "extras/util/TransportMonitor.h"
     #include "extras/util/ThreadMonitor.h"
-#endif
-
-// Only include NetworkEngine if a transport that uses it is active
-#if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_WIN32_UDP) || \
-    defined(DMQ_TRANSPORT_LINUX_UDP) || defined(DMQ_TRANSPORT_STM32_UART) || \
-    defined(DMQ_TRANSPORT_SERIAL_PORT)
-    #include "extras/util/NetworkEngine.h"
+    #include "extras/rpc/RemoteDispatcher.h"
 #endif
 
 #if defined(DMQ_DATABUS)

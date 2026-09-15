@@ -11,6 +11,11 @@ NetworkMgr::NetworkMgr()
 
 int NetworkMgr::Create()
 {
+    // Hand our transports to the base engine. ZeroMQ handles its own
+    // reliability, so send/recv are attached directly (no ReliableTransport
+    // wrapping, no AttachRetryMonitor() call -- see class doc comment).
+    Attach(m_sendTransport, m_recvTransport);
+
     // Initialize one RemoteChannel per message signature.
     // Each channel owns its Dispatcher, stream, and serializer — and now also
     // owns the delegate binding via Bind(), replacing the separate DelegateMemberRemote.
@@ -37,12 +42,36 @@ int NetworkMgr::Create()
     RegisterEndpoint(ids::DATA_MSG_ID,     m_dataChannel->GetEndpoint());
     RegisterEndpoint(ids::ACTUATOR_MSG_ID, m_actuatorChannel->GetEndpoint());
 
-    // Initialize Base Engine
+    if (!this->m_thread.IsCurrentThread())
+        return dmq::MakeDelegate(this, &NetworkMgr::OpenTransport, this->m_thread, dmq::WAIT_INFINITE)();
+    return OpenTransport();
+}
+
+int NetworkMgr::OpenTransport()
+{
+    int err = 0;
 #ifdef SERVER_APP
-    return Initialize("tcp://*:5555", "tcp://*:5556", true);
+    auto type = dmq::transport::ZeroMqTransport::Type::PAIR_SERVER;
+    err += m_sendTransport.Create(type, "tcp://*:5555");
+    err += m_recvTransport.Create(type, "tcp://*:5556");
 #else
-    return Initialize("tcp://localhost:5556", "tcp://localhost:5555", false);
+    auto type = dmq::transport::ZeroMqTransport::Type::PAIR_CLIENT;
+    err += m_sendTransport.Create(type, "tcp://localhost:5556");
+    err += m_recvTransport.Create(type, "tcp://localhost:5555");
 #endif
+
+    m_sendTransport.SetTransportMonitor(&m_transportMonitor);
+    m_recvTransport.SetTransportMonitor(&m_transportMonitor);
+    m_sendTransport.SetRecvTransport(&m_recvTransport);
+    m_recvTransport.SetSendTransport(&m_sendTransport);
+
+    return err;
+}
+
+void NetworkMgr::CloseTransports()
+{
+    m_recvTransport.Close();
+    m_sendTransport.Close();
 }
 
 // Override hooks to fire signals
