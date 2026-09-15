@@ -163,7 +163,7 @@
 #endif
 
 // Some OS port headers below (e.g. ThreadXMutex.h, ThreadXConditionVariable.h) use
-// ASSERT_TRUE in constructors. Include Fault.h here, ahead of those port headers,
+// DMQ_ASSERT_TRUE in constructors. Include Fault.h here, ahead of those port headers,
 // so the macro is defined before first use. Fault.h is include-guarded, so the
 // later #include "extras/util/Fault.h" below is a harmless no-op.
 #include "extras/util/Fault.h"
@@ -571,7 +571,7 @@ namespace dmq
     #include "extras/util/Fault.h"
     // Use assert error handling. Change assert to a different error 
     // handler as required by the target application.
-    #define BAD_ALLOC() ASSERT()
+    #define BAD_ALLOC() DMQ_ASSERT()
 #else
     #include "extras/util/Fault.h"
     #include <new>

@@ -91,7 +91,7 @@ private:
 
 #define END_TRANSITION_MAP_HSM(data) \
     }; \
-    ASSERT_TRUE(GetCurrentState() < ST_MAX_STATES); \
+    DMQ_ASSERT_TRUE(GetCurrentState() < ST_MAX_STATES); \
     { \
         const StateMapRowHSM* _map = GetStateMapHSM(); \
         uint8_t _state   = GetCurrentState(); \

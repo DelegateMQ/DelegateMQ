@@ -199,79 +199,79 @@ static void PrimitiveTests()
     // bool
     {
         bool out = false;
-        ASSERT_TRUE(RoundTripPrimitive(true, out));
-        ASSERT_TRUE(out == true);
-        ASSERT_TRUE(RoundTripPrimitive(false, out));
-        ASSERT_TRUE(out == false);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive(true, out));
+        DMQ_ASSERT_TRUE(out == true);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive(false, out));
+        DMQ_ASSERT_TRUE(out == false);
     }
 
     // int8_t / uint8_t (single byte — no endian swap path exercised)
     {
         int8_t out = 0;
-        ASSERT_TRUE(RoundTripPrimitive((int8_t)-128, out));
-        ASSERT_TRUE(out == -128);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((int8_t)-128, out));
+        DMQ_ASSERT_TRUE(out == -128);
 
         uint8_t uout = 0;
-        ASSERT_TRUE(RoundTripPrimitive((uint8_t)255, uout));
-        ASSERT_TRUE(uout == 255);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((uint8_t)255, uout));
+        DMQ_ASSERT_TRUE(uout == 255);
     }
 
     // int16_t / uint16_t
     {
         int16_t out = 0;
-        ASSERT_TRUE(RoundTripPrimitive((int16_t)-32768, out));
-        ASSERT_TRUE(out == -32768);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((int16_t)-32768, out));
+        DMQ_ASSERT_TRUE(out == -32768);
 
         uint16_t uout = 0;
-        ASSERT_TRUE(RoundTripPrimitive((uint16_t)65535, uout));
-        ASSERT_TRUE(uout == 65535);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((uint16_t)65535, uout));
+        DMQ_ASSERT_TRUE(uout == 65535);
     }
 
     // int32_t / uint32_t
     {
         int32_t out = 0;
-        ASSERT_TRUE(RoundTripPrimitive((int32_t)-1, out));
-        ASSERT_TRUE(out == -1);
-        ASSERT_TRUE(RoundTripPrimitive((int32_t)0x12345678, out));
-        ASSERT_TRUE(out == 0x12345678);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((int32_t)-1, out));
+        DMQ_ASSERT_TRUE(out == -1);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((int32_t)0x12345678, out));
+        DMQ_ASSERT_TRUE(out == 0x12345678);
 
         uint32_t uout = 0;
-        ASSERT_TRUE(RoundTripPrimitive((uint32_t)0xDEADBEEFu, uout));
-        ASSERT_TRUE(uout == 0xDEADBEEFu);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((uint32_t)0xDEADBEEFu, uout));
+        DMQ_ASSERT_TRUE(uout == 0xDEADBEEFu);
     }
 
     // int64_t / uint64_t
     {
         int64_t out = 0;
-        ASSERT_TRUE(RoundTripPrimitive((int64_t)0x0102030405060708LL, out));
-        ASSERT_TRUE(out == 0x0102030405060708LL);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((int64_t)0x0102030405060708LL, out));
+        DMQ_ASSERT_TRUE(out == 0x0102030405060708LL);
 
         uint64_t uout = 0;
-        ASSERT_TRUE(RoundTripPrimitive((uint64_t)0xFFFFFFFFFFFFFFFFULL, uout));
-        ASSERT_TRUE(uout == 0xFFFFFFFFFFFFFFFFULL);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((uint64_t)0xFFFFFFFFFFFFFFFFULL, uout));
+        DMQ_ASSERT_TRUE(uout == 0xFFFFFFFFFFFFFFFFULL);
     }
 
     // float
     {
         float out = 0.0f;
-        ASSERT_TRUE(RoundTripPrimitive(3.14159f, out));
-        ASSERT_TRUE(out == 3.14159f);
-        ASSERT_TRUE(RoundTripPrimitive(-0.0f, out));
-        ASSERT_TRUE(out == -0.0f);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive(3.14159f, out));
+        DMQ_ASSERT_TRUE(out == 3.14159f);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive(-0.0f, out));
+        DMQ_ASSERT_TRUE(out == -0.0f);
     }
 
     // double
     {
         double out = 0.0;
-        ASSERT_TRUE(RoundTripPrimitive(2.718281828459045, out));
-        ASSERT_TRUE(out == 2.718281828459045);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive(2.718281828459045, out));
+        DMQ_ASSERT_TRUE(out == 2.718281828459045);
     }
 
     // Zero values
     {
         int32_t out = 99;
-        ASSERT_TRUE(RoundTripPrimitive((int32_t)0, out));
-        ASSERT_TRUE(out == 0);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive((int32_t)0, out));
+        DMQ_ASSERT_TRUE(out == 0);
     }
 }
 
@@ -289,11 +289,11 @@ static void StringTests()
         std::string dst;
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 
     // Empty string
@@ -302,11 +302,11 @@ static void StringTests()
         std::string dst = "non-empty";
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
         // empty string returns false from check_slength (size==0), dst unchanged
-        ASSERT_TRUE(dst.empty() || dst == "non-empty"); // implementation skips read
+        DMQ_ASSERT_TRUE(dst.empty() || dst == "non-empty"); // implementation skips read
     }
 
     // String at max allowed length (1024 chars)
@@ -315,11 +315,11 @@ static void StringTests()
         std::string dst;
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 
     // String longer than MAX_STRING_SIZE (1025 chars) — write sets failbit
@@ -328,8 +328,8 @@ static void StringTests()
         std::ostringstream oss;
         ser.clearLastError();
         ser.write(oss, src);
-        ASSERT_TRUE(!oss.good());
-        ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
+        DMQ_ASSERT_TRUE(!oss.good());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
     }
 
     // std::wstring round-trip
@@ -338,11 +338,11 @@ static void StringTests()
         std::wstring dst;
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 }
 
@@ -360,11 +360,11 @@ static void CharArrayTests()
         char dst[32] = {};
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst, sizeof(dst));
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(std::strcmp(dst, src) == 0);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(std::strcmp(dst, src) == 0);
     }
 
     // Buffer exactly fits (including null terminator)
@@ -375,8 +375,8 @@ static void CharArrayTests()
         ser.write(oss, src);
         std::istringstream iss(oss.str());
         ser.read(iss, dst, sizeof(dst));
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(std::strcmp(dst, src) == 0);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(std::strcmp(dst, src) == 0);
     }
 
     // Destination buffer too small — read must set failbit
@@ -388,8 +388,8 @@ static void CharArrayTests()
         std::istringstream iss(oss.str());
         ser.clearLastError();
         ser.read(iss, dst, sizeof(dst));  // maxLen = 4, string needs 14
-        ASSERT_TRUE(iss.fail());
-        ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
     }
 }
 
@@ -405,9 +405,9 @@ static void UserDefinedObjectTests()
         src.id    = 42;
         src.value = 1.23f;
         SimpleMsg dst;
-        ASSERT_TRUE(RoundTrip(src, dst));
-        ASSERT_TRUE(dst.id    == src.id);
-        ASSERT_TRUE(dst.value == src.value);
+        DMQ_ASSERT_TRUE(RoundTrip(src, dst));
+        DMQ_ASSERT_TRUE(dst.id    == src.id);
+        DMQ_ASSERT_TRUE(dst.value == src.value);
     }
 
     // Default-constructed values survive round-trip
@@ -416,9 +416,9 @@ static void UserDefinedObjectTests()
         SimpleMsg dst;
         dst.id    = 99;
         dst.value = 9.9f;
-        ASSERT_TRUE(RoundTrip(src, dst));
-        ASSERT_TRUE(dst.id    == 0);
-        ASSERT_TRUE(dst.value == 0.0f);
+        DMQ_ASSERT_TRUE(RoundTrip(src, dst));
+        DMQ_ASSERT_TRUE(dst.id    == 0);
+        DMQ_ASSERT_TRUE(dst.value == 0.0f);
     }
 
     // Nested user-defined objects
@@ -428,10 +428,10 @@ static void UserDefinedObjectTests()
         src.inner.value = 3.14f;
         src.extra       = -100;
         NestedMsg dst;
-        ASSERT_TRUE(RoundTrip(src, dst));
-        ASSERT_TRUE(dst.inner.id    == src.inner.id);
-        ASSERT_TRUE(dst.inner.value == src.inner.value);
-        ASSERT_TRUE(dst.extra       == src.extra);
+        DMQ_ASSERT_TRUE(RoundTrip(src, dst));
+        DMQ_ASSERT_TRUE(dst.inner.id    == src.inner.id);
+        DMQ_ASSERT_TRUE(dst.inner.value == src.inner.value);
+        DMQ_ASSERT_TRUE(dst.extra       == src.extra);
     }
 
     // All primitive types survive round-trip
@@ -449,18 +449,18 @@ static void UserDefinedObjectTests()
         src.f   = 3.14159f;
         src.d   = 2.71828182845;
         AllPrimitivesMsg dst;
-        ASSERT_TRUE(RoundTrip(src, dst));
-        ASSERT_TRUE(dst.b   == src.b);
-        ASSERT_TRUE(dst.i8  == src.i8);
-        ASSERT_TRUE(dst.u8  == src.u8);
-        ASSERT_TRUE(dst.i16 == src.i16);
-        ASSERT_TRUE(dst.u16 == src.u16);
-        ASSERT_TRUE(dst.i32 == src.i32);
-        ASSERT_TRUE(dst.u32 == src.u32);
-        ASSERT_TRUE(dst.i64 == src.i64);
-        ASSERT_TRUE(dst.u64 == src.u64);
-        ASSERT_TRUE(dst.f   == src.f);
-        ASSERT_TRUE(dst.d   == src.d);
+        DMQ_ASSERT_TRUE(RoundTrip(src, dst));
+        DMQ_ASSERT_TRUE(dst.b   == src.b);
+        DMQ_ASSERT_TRUE(dst.i8  == src.i8);
+        DMQ_ASSERT_TRUE(dst.u8  == src.u8);
+        DMQ_ASSERT_TRUE(dst.i16 == src.i16);
+        DMQ_ASSERT_TRUE(dst.u16 == src.u16);
+        DMQ_ASSERT_TRUE(dst.i32 == src.i32);
+        DMQ_ASSERT_TRUE(dst.u32 == src.u32);
+        DMQ_ASSERT_TRUE(dst.i64 == src.i64);
+        DMQ_ASSERT_TRUE(dst.u64 == src.u64);
+        DMQ_ASSERT_TRUE(dst.f   == src.f);
+        DMQ_ASSERT_TRUE(dst.d   == src.d);
     }
 }
 
@@ -481,13 +481,13 @@ static void VersioningTests()
 
         std::ostringstream oss;
         ser.write(oss, v2src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
 
         MsgV1 v1dst;
         std::istringstream iss(oss.str());
         ser.read(iss, v1dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(v1dst.field1 == 111);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(v1dst.field1 == 111);
     }
 
     // Sender writes V1 (smaller), receiver reads V2 (larger).
@@ -498,14 +498,14 @@ static void VersioningTests()
 
         std::ostringstream oss;
         ser.write(oss, v1src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
 
         MsgV2 v2dst;
         v2dst.field2 = 999;  // pre-set to detect if it is wrongly overwritten
         std::istringstream iss(oss.str());
         ser.read(iss, v2dst);
-        ASSERT_TRUE(v2dst.field1 == 333);
-        ASSERT_TRUE(v2dst.field2 == 999);  // must be unchanged (not read)
+        DMQ_ASSERT_TRUE(v2dst.field1 == 333);
+        DMQ_ASSERT_TRUE(v2dst.field2 == 999);  // must be unchanged (not read)
     }
 }
 
@@ -523,11 +523,11 @@ static void ContainerValueTests()
         std::vector<int> dst;
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 
     // vector<int> — empty
@@ -538,7 +538,7 @@ static void ContainerValueTests()
         ser.write(oss, src);
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(dst.empty());
+        DMQ_ASSERT_TRUE(dst.empty());
     }
 
     // vector<bool> — special case (packed storage)
@@ -547,11 +547,11 @@ static void ContainerValueTests()
         std::vector<bool> dst;
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 
     // list<int>
@@ -562,8 +562,8 @@ static void ContainerValueTests()
         ser.write(oss, src);
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 
     // set<int>
@@ -574,8 +574,8 @@ static void ContainerValueTests()
         ser.write(oss, src);
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 
     // map<int, int>
@@ -586,8 +586,8 @@ static void ContainerValueTests()
         ser.write(oss, src);
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
     }
 
     // vector<SimpleMsg> — vector of user-defined objects
@@ -599,14 +599,14 @@ static void ContainerValueTests()
         std::vector<SimpleMsg> dst;
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst.size() == 3);
-        ASSERT_TRUE(dst[0].id == 1 && dst[0].value == 1.1f);
-        ASSERT_TRUE(dst[1].id == 2 && dst[1].value == 2.2f);
-        ASSERT_TRUE(dst[2].id == 3 && dst[2].value == 3.3f);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst.size() == 3);
+        DMQ_ASSERT_TRUE(dst[0].id == 1 && dst[0].value == 1.1f);
+        DMQ_ASSERT_TRUE(dst[1].id == 2 && dst[1].value == 2.2f);
+        DMQ_ASSERT_TRUE(dst[2].id == 3 && dst[2].value == 3.3f);
     }
 
     // map<int, SimpleMsg>
@@ -619,10 +619,10 @@ static void ContainerValueTests()
         ser.write(oss, src);
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst.size() == 2);
-        ASSERT_TRUE(dst[1].id == 10 && dst[1].value == 0.1f);
-        ASSERT_TRUE(dst[2].id == 20 && dst[2].value == 0.2f);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst.size() == 2);
+        DMQ_ASSERT_TRUE(dst[1].id == 10 && dst[1].value == 0.1f);
+        DMQ_ASSERT_TRUE(dst[2].id == 20 && dst[2].value == 0.2f);
     }
 }
 
@@ -643,15 +643,15 @@ static void ContainerPointerTests()
 
         std::ostringstream oss;
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
 
         std::vector<SimpleMsg*> dst;
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(dst.size() == 2);
-        ASSERT_TRUE(dst[0] != nullptr && dst[0]->id == 1 && dst[0]->value == 1.0f);
-        ASSERT_TRUE(dst[1] != nullptr && dst[1]->id == 2 && dst[1]->value == 2.0f);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst.size() == 2);
+        DMQ_ASSERT_TRUE(dst[0] != nullptr && dst[0]->id == 1 && dst[0]->value == 1.0f);
+        DMQ_ASSERT_TRUE(dst[1] != nullptr && dst[1]->id == 2 && dst[1]->value == 2.0f);
         for (auto* p : dst) delete p;
     }
 
@@ -667,9 +667,9 @@ static void ContainerPointerTests()
         std::vector<SimpleMsg*> dst;
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(dst.size() == 2);
-        ASSERT_TRUE(dst[0] != nullptr && dst[0]->id == 5);
-        ASSERT_TRUE(dst[1] == nullptr);
+        DMQ_ASSERT_TRUE(dst.size() == 2);
+        DMQ_ASSERT_TRUE(dst[0] != nullptr && dst[0]->id == 5);
+        DMQ_ASSERT_TRUE(dst[1] == nullptr);
         delete dst[0];
     }
 
@@ -685,8 +685,8 @@ static void ContainerPointerTests()
         std::list<SimpleMsg*> dst;
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(dst.size() == 1);
-        ASSERT_TRUE(dst.front() != nullptr && dst.front()->id == 7);
+        DMQ_ASSERT_TRUE(dst.size() == 1);
+        DMQ_ASSERT_TRUE(dst.front() != nullptr && dst.front()->id == 7);
         delete dst.front();
     }
 
@@ -704,9 +704,9 @@ static void ContainerPointerTests()
         std::map<int, SimpleMsg*> dst;
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(dst.size() == 2);
-        ASSERT_TRUE(dst[1] != nullptr && dst[1]->id == 11);
-        ASSERT_TRUE(dst[2] == nullptr);
+        DMQ_ASSERT_TRUE(dst.size() == 2);
+        DMQ_ASSERT_TRUE(dst[1] != nullptr && dst[1]->id == 11);
+        DMQ_ASSERT_TRUE(dst[2] == nullptr);
         delete dst[1];
     }
 
@@ -722,8 +722,8 @@ static void ContainerPointerTests()
         std::set<SimpleMsg*> dst;
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
-        ASSERT_TRUE(dst.size() == 1);
-        ASSERT_TRUE((*dst.begin()) != nullptr && (*dst.begin())->id == 99);
+        DMQ_ASSERT_TRUE(dst.size() == 1);
+        DMQ_ASSERT_TRUE((*dst.begin()) != nullptr && (*dst.begin())->id == 99);
         delete *dst.begin();
     }
 }
@@ -740,13 +740,13 @@ static void EndiannessTests()
     {
         std::ostringstream oss;
         ser.writeEndian(oss);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
 
         bool le = !serialize::LE();  // start with opposite value
         std::istringstream iss(oss.str());
         ser.readEndian(iss, le);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(le == serialize::LE());
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(le == serialize::LE());
     }
 
     // Multi-byte integer: value must survive the endian encode/decode cycle
@@ -754,21 +754,21 @@ static void EndiannessTests()
     {
         const int32_t val = 0x01020304;
         int32_t out = 0;
-        ASSERT_TRUE(RoundTripPrimitive(val, out));
-        ASSERT_TRUE(out == val);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive(val, out));
+        DMQ_ASSERT_TRUE(out == val);
     }
 
     // uint64_t with all distinct bytes — a byte-order error would corrupt it
     {
         const uint64_t val = 0x0102030405060708ULL;
         uint64_t out = 0;
-        ASSERT_TRUE(RoundTripPrimitive(val, out));
-        ASSERT_TRUE(out == val);
+        DMQ_ASSERT_TRUE(RoundTripPrimitive(val, out));
+        DMQ_ASSERT_TRUE(out == val);
     }
 
     // Verify LE() is consistent across calls
     {
-        ASSERT_TRUE(serialize::LE() == serialize::LE());
+        DMQ_ASSERT_TRUE(serialize::LE() == serialize::LE());
     }
 }
 
@@ -791,8 +791,8 @@ static void ErrorTests()
         std::istringstream iss(oss.str());
         ser.clearLastError();
         ser.read(iss, dst);
-        ASSERT_TRUE(iss.fail());
-        ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::TYPE_MISMATCH);
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::TYPE_MISMATCH);
     }
 
     // Reading from empty stream — should fail gracefully
@@ -801,7 +801,7 @@ static void ErrorTests()
         int32_t dst = 0;
         ser.clearLastError();
         ser.read(iss, dst);
-        ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(iss.fail());
     }
 
     // Container exceeds MAX_CONTAINER_SIZE (200): write should fail
@@ -810,8 +810,8 @@ static void ErrorTests()
         std::ostringstream oss;
         ser.clearLastError();
         ser.write(oss, big);
-        ASSERT_TRUE(!oss.good());
-        ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::CONTAINER_TOO_MANY);
+        DMQ_ASSERT_TRUE(!oss.good());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::CONTAINER_TOO_MANY);
     }
 
     // USER_DEFINED nesting exceeds MAX_PARSE_STACK_DEPTH (5) on read: must fail
@@ -824,14 +824,14 @@ static void ErrorTests()
         std::ostringstream oss;
         ser.clearLastError();
         ser.write(oss, src);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
 
         DeepMsg<8> dst;
         std::istringstream iss(oss.str());
         ser.clearLastError();
         ser.read(iss, dst);
-        ASSERT_TRUE(iss.fail());
-        ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NESTING_TOO_DEEP);
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NESTING_TOO_DEEP);
     }
 
     // Error handler callback is invoked on error
@@ -849,15 +849,15 @@ static void ErrorTests()
         std::string tooBig(1025, 'X');
         localSer.write(oss, tooBig);
 
-        ASSERT_TRUE(handlerCalled);
-        ASSERT_TRUE(lastErr == serialize::ParsingError::STRING_TOO_LONG);
+        DMQ_ASSERT_TRUE(handlerCalled);
+        DMQ_ASSERT_TRUE(lastErr == serialize::ParsingError::STRING_TOO_LONG);
     }
 
     // clearLastError resets state
     {
         serialize::ParsingError err = ser.getLastError();
         ser.clearLastError();
-        ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NONE);
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NONE);
     }
 }
 
@@ -878,15 +878,15 @@ static void MultiObjectStreamTests()
         std::ostringstream oss;
         ser.write(oss, a);
         ser.write(oss, b);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
 
         std::istringstream iss(oss.str());
         SimpleMsg ra, rb;
         ser.read(iss, ra);
         ser.read(iss, rb);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(ra.id == 1 && ra.value == 1.1f);
-        ASSERT_TRUE(rb.id == 2 && rb.value == 2.2f);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(ra.id == 1 && ra.value == 1.1f);
+        DMQ_ASSERT_TRUE(rb.id == 2 && rb.value == 2.2f);
     }
 
     // Mix of primitives and user objects in one stream.
@@ -900,7 +900,7 @@ static void MultiObjectStreamTests()
         ser.write(oss, n);
         ser.write(oss, msg);
         ser.write(oss, s);
-        ASSERT_TRUE(oss.good());
+        DMQ_ASSERT_TRUE(oss.good());
 
         std::istringstream iss(oss.str());
         int32_t rn = 0;
@@ -909,10 +909,10 @@ static void MultiObjectStreamTests()
         ser.read(iss, rn);
         ser.read(iss, rmsg);
         ser.read(iss, rs);
-        ASSERT_TRUE(!iss.fail());
-        ASSERT_TRUE(rn == 42);
-        ASSERT_TRUE(rmsg.id == 7 && rmsg.value == 3.0f);
-        ASSERT_TRUE(rs == "test");
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(rn == 42);
+        DMQ_ASSERT_TRUE(rmsg.id == 7 && rmsg.value == 3.0f);
+        DMQ_ASSERT_TRUE(rs == "test");
     }
 }
 
@@ -935,7 +935,7 @@ static void EmptyStringBugFixTest()
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
         
-        ASSERT_TRUE(dst.empty());
+        DMQ_ASSERT_TRUE(dst.empty());
     }
 
     // std::wstring
@@ -948,7 +948,7 @@ static void EmptyStringBugFixTest()
         std::istringstream iss(oss.str());
         ser.read(iss, dst);
         
-        ASSERT_TRUE(dst.empty());
+        DMQ_ASSERT_TRUE(dst.empty());
     }
 }
 
@@ -971,8 +971,8 @@ static void NonSeekableStreamTest()
     ser.clearLastError();
     ser.write(nss, msg);
     
-    ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NON_SEEKABLE_STREAM);
-    ASSERT_TRUE(nss.fail());
+    DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NON_SEEKABLE_STREAM);
+    DMQ_ASSERT_TRUE(nss.fail());
 }
 
 // ---------------------------------------------------------------------------

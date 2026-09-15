@@ -40,18 +40,18 @@ int DataBusSpyTestMain() {
 
     // Publish data
     DataBus::Publish<int>("sensor/temp", 22);
-    ASSERT_TRUE(lastTopic == "sensor/temp");
-    ASSERT_TRUE(lastValue == "22 C");
-    ASSERT_TRUE(lastTimestamp > 0);
+    DMQ_ASSERT_TRUE(lastTopic == "sensor/temp");
+    DMQ_ASSERT_TRUE(lastValue == "22 C");
+    DMQ_ASSERT_TRUE(lastTimestamp > 0);
 
     DataBus::Publish<dmq::xstring>("system/status", "OK");
-    ASSERT_TRUE(lastTopic == "system/status");
-    ASSERT_TRUE(lastValue == "OK");
+    DMQ_ASSERT_TRUE(lastTopic == "system/status");
+    DMQ_ASSERT_TRUE(lastValue == "OK");
 
     // Publish something without a stringifier
     DataBus::Publish<float>("unknown/topic", 1.23f);
-    ASSERT_TRUE(lastTopic == "unknown/topic");
-    ASSERT_TRUE(lastValue == "?");
+    DMQ_ASSERT_TRUE(lastTopic == "unknown/topic");
+    DMQ_ASSERT_TRUE(lastValue == "?");
 
     // 2. Async monitor — callback dispatches to the specified worker thread
     {
@@ -73,8 +73,8 @@ int DataBusSpyTestMain() {
         while (!monitorFired && retries++ < 50)
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-        ASSERT_TRUE(monitorFired == true);
-        ASSERT_TRUE(calledOnWorker == true);
+        DMQ_ASSERT_TRUE(monitorFired == true);
+        DMQ_ASSERT_TRUE(calledOnWorker == true);
 
         monThread.ExitThread();
     }

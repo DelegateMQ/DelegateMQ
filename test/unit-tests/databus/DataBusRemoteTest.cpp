@@ -64,7 +64,7 @@ int DataBusRemoteTestMain() {
         DataBus::Publish<int>("remote/topic", 42);
         nodeB->ProcessIncoming();
 
-        ASSERT_TRUE(receivedValue == 42);
+        DMQ_ASSERT_TRUE(receivedValue == 42);
     }
 
     // 2. PublishLocal vs Publish — PublishLocal skips remote participants
@@ -89,14 +89,14 @@ int DataBusRemoteTestMain() {
 
         // PublishLocal: local subscriber gets it; transport is NOT called
         DataBus::PublishLocal<int>("local/topic", 1);
-        ASSERT_TRUE(localReceived == true);
-        ASSERT_TRUE(countingTransport.sendCount == 0);
+        DMQ_ASSERT_TRUE(localReceived == true);
+        DMQ_ASSERT_TRUE(countingTransport.sendCount == 0);
 
         // Publish: local subscriber gets it AND transport is called
         localReceived = false;
         DataBus::Publish<int>("local/topic", 2);
-        ASSERT_TRUE(localReceived == true);
-        ASSERT_TRUE(countingTransport.sendCount == 1);
+        DMQ_ASSERT_TRUE(localReceived == true);
+        DMQ_ASSERT_TRUE(countingTransport.sendCount == 1);
     }
 
     // 3. AddIncomingTopic vs AddRelayTopic
@@ -138,8 +138,8 @@ int DataBusRemoteTestMain() {
             injectPacket(upstreamTransport, 400, 55);
             incomingParticipant->ProcessIncoming(); // → PublishLocal("relay/data", 55)
 
-            ASSERT_TRUE(localValue == 55);                  // local subscriber got it
-            ASSERT_TRUE(downstreamTransport.sendCount == 0); // NOT re-forwarded
+            DMQ_ASSERT_TRUE(localValue == 55);                  // local subscriber got it
+            DMQ_ASSERT_TRUE(downstreamTransport.sendCount == 0); // NOT re-forwarded
         }
 
         // 3b. AddRelayTopic → Publish → re-forwards to registered remote participants
@@ -167,8 +167,8 @@ int DataBusRemoteTestMain() {
             injectPacket(upstreamTransport, 400, 77);
             relayParticipant->ProcessIncoming(); // → Publish("relay/data", 77)
 
-            ASSERT_TRUE(localValue == 77);                   // local subscriber got it
-            ASSERT_TRUE(downstreamTransport.sendCount > 0);  // WAS re-forwarded
+            DMQ_ASSERT_TRUE(localValue == 77);                   // local subscriber got it
+            DMQ_ASSERT_TRUE(downstreamTransport.sendCount > 0);  // WAS re-forwarded
         }
     }
 
@@ -209,7 +209,7 @@ int DataBusRemoteTestMain() {
         while (!sendCalledOnWorker && retries++ < 50)
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-        ASSERT_TRUE(sendCalledOnWorker == true);
+        DMQ_ASSERT_TRUE(sendCalledOnWorker == true);
 
         sendWorker.ExitThread();
     }

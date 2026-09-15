@@ -179,13 +179,13 @@ void Thread::Process()
             case MSG_DISPATCH_DELEGATE:
             {
                 auto delegateMsg = msg->GetData();
-                ASSERT_TRUE(delegateMsg);
+                DMQ_ASSERT_TRUE(delegateMsg);
 
                 auto invoker = delegateMsg->GetInvoker();
-                ASSERT_TRUE(invoker);
+                DMQ_ASSERT_TRUE(invoker);
 
                 bool success = invoker->Invoke(delegateMsg);
-                ASSERT_TRUE(success);
+                DMQ_ASSERT_TRUE(success);
                 break;
             }
 

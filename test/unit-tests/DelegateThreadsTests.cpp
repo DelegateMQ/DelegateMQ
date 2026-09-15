@@ -97,9 +97,9 @@ static void FreeTests()
         delegateSync2(getRandomTime(), 1);
 
         auto retVal1 = delegateAsyncWait1.AsyncInvoke(getRandomTime(), 4);
-        ASSERT_TRUE(retVal1.has_value());
+        DMQ_ASSERT_TRUE(retVal1.has_value());
         auto retVal2 = delegateAsyncWait2.AsyncInvoke(getRandomTime(), 5);
-        ASSERT_TRUE(retVal2.has_value());
+        DMQ_ASSERT_TRUE(retVal2.has_value());
 
         while (cnt2++ < 5)
         {
@@ -112,13 +112,13 @@ static void FreeTests()
 
     Wait();
 
-    ASSERT_TRUE(callerCnt[0] == LOOPS);
-    ASSERT_TRUE(callerCnt[1] == LOOPS);
-    ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[4] == LOOPS);
-    ASSERT_TRUE(callerCnt[5] == LOOPS);
-    ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
+    DMQ_ASSERT_TRUE(callerCnt[0] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[1] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[4] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[5] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
     std::cout << "FreeTests() complete!" << std::endl;
 }
 
@@ -150,9 +150,9 @@ static void MemberTests()
         delegateSync2(getRandomTime(), 1);
 
         auto retVal1 = delegateAsyncWait1.AsyncInvoke(getRandomTime(), 4);
-        ASSERT_TRUE(retVal1.has_value());
+        DMQ_ASSERT_TRUE(retVal1.has_value());
         auto retVal2 = delegateAsyncWait2.AsyncInvoke(getRandomTime(), 5);
-        ASSERT_TRUE(retVal2.has_value());
+        DMQ_ASSERT_TRUE(retVal2.has_value());
 
         while (cnt2++ < 5)
         {
@@ -165,13 +165,13 @@ static void MemberTests()
 
     Wait();
 
-    ASSERT_TRUE(callerCnt[0] == LOOPS);
-    ASSERT_TRUE(callerCnt[1] == LOOPS);
-    ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[4] == LOOPS);
-    ASSERT_TRUE(callerCnt[5] == LOOPS);
-    ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
+    DMQ_ASSERT_TRUE(callerCnt[0] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[1] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[4] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[5] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
     std::cout << "MemberTests() complete!" << std::endl;
 }
 
@@ -203,9 +203,9 @@ static void MemberSpTests()
         delegateSync2(getRandomTime(), 1);
 
         auto retVal1 = delegateAsyncWait1.AsyncInvoke(getRandomTime(), 4);
-        ASSERT_TRUE(retVal1.has_value());
+        DMQ_ASSERT_TRUE(retVal1.has_value());
         auto retVal2 = delegateAsyncWait2.AsyncInvoke(getRandomTime(), 5);
-        ASSERT_TRUE(retVal2.has_value());
+        DMQ_ASSERT_TRUE(retVal2.has_value());
 
         while (cnt2++ < 5)
         {
@@ -218,13 +218,13 @@ static void MemberSpTests()
 
     Wait();
 
-    ASSERT_TRUE(callerCnt[0] == LOOPS);
-    ASSERT_TRUE(callerCnt[1] == LOOPS);
-    ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[4] == LOOPS);
-    ASSERT_TRUE(callerCnt[5] == LOOPS);
-    ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
+    DMQ_ASSERT_TRUE(callerCnt[0] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[1] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[4] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[5] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
     std::cout << "MemberSpTests() complete!" << std::endl;
 }
 
@@ -255,9 +255,9 @@ static void FunctionTests()
         delegateSync2(getRandomTime(), 1);
 
         auto retVal1 = delegateAsyncWait1.AsyncInvoke(getRandomTime(), 4);
-        ASSERT_TRUE(retVal1.has_value());
+        DMQ_ASSERT_TRUE(retVal1.has_value());
         auto retVal2 = delegateAsyncWait2.AsyncInvoke(getRandomTime(), 5);
-        ASSERT_TRUE(retVal2.has_value());
+        DMQ_ASSERT_TRUE(retVal2.has_value());
 
         while (cnt2++ < 5)
         {
@@ -270,13 +270,13 @@ static void FunctionTests()
 
     Wait();
 
-    ASSERT_TRUE(callerCnt[0] == LOOPS);
-    ASSERT_TRUE(callerCnt[1] == LOOPS);
-    ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
-    ASSERT_TRUE(callerCnt[4] == LOOPS);
-    ASSERT_TRUE(callerCnt[5] == LOOPS);
-    ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
+    DMQ_ASSERT_TRUE(callerCnt[0] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[1] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[2] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[3] == LOOPS * 5);
+    DMQ_ASSERT_TRUE(callerCnt[4] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[5] == LOOPS);
+    DMQ_ASSERT_TRUE(callerCnt[6] == LOOPS * 6);
     std::cout << "FunctionTests() complete!" << std::endl;
 }
 
@@ -308,7 +308,7 @@ static void FullPolicy_Drop_DropsWhenFull()
 
     // Publisher must NOT have blocked — posting 10 messages should finish well
     // under the time it would take to drain even one slot (50ms).
-    ASSERT_TRUE(elapsed < std::chrono::milliseconds(30));
+    DMQ_ASSERT_TRUE(elapsed < std::chrono::milliseconds(30));
 
     // Let the queue drain fully
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -316,8 +316,8 @@ static void FullPolicy_Drop_DropsWhenFull()
     // With a queue depth of 3 and 10 rapid-fire posts, at least some were dropped.
     // Exactly 3 might be delivered (the ones that fit) but we allow a little slack
     // for timing; the invariant is: delivered < 10.
-    ASSERT_TRUE(deliveredCount < 10);
-    ASSERT_TRUE(deliveredCount > 0);
+    DMQ_ASSERT_TRUE(deliveredCount < 10);
+    DMQ_ASSERT_TRUE(deliveredCount > 0);
 
     dropThread.ExitThread();
     std::cout << "FullPolicy_Drop_DropsWhenFull() complete! (delivered " << deliveredCount << "/10)" << std::endl;
@@ -340,7 +340,7 @@ static void FullPolicy_Drop_DeliversAllWhenBelowLimit()
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    ASSERT_TRUE(deliveredCount == SEND_COUNT);
+    DMQ_ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
     dropThread.ExitThread();
     std::cout << "FullPolicy_Drop_DeliversAllWhenBelowLimit() complete!" << std::endl;
@@ -366,7 +366,7 @@ static void FullPolicy_Timeout_DeliversAll()
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    ASSERT_TRUE(deliveredCount == SEND_COUNT);
+    DMQ_ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
     timeoutThread.ExitThread();
     std::cout << "FullPolicy_Timeout_DeliversAll() complete!" << std::endl;
@@ -391,7 +391,7 @@ static void FullPolicy_DefaultIsFault()
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    ASSERT_TRUE(deliveredCount == SEND_COUNT);
+    DMQ_ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
     defaultThread.ExitThread();
     std::cout << "FullPolicy_DefaultIsFault() complete!" << std::endl;
@@ -412,7 +412,7 @@ static void FullPolicy_Fault_WorksWhenNotFull()
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    ASSERT_TRUE(deliveredCount == 5);
+    DMQ_ASSERT_TRUE(deliveredCount == 5);
 
     faultThread.ExitThread();
     std::cout << "FullPolicy_Fault_WorksWhenNotFull() complete!" << std::endl;
@@ -434,7 +434,7 @@ static void FullPolicy_UnlimitedQueue_DeliversAll()
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    ASSERT_TRUE(deliveredCount == SEND_COUNT);
+    DMQ_ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
     unlimitedThread.ExitThread();
     std::cout << "FullPolicy_UnlimitedQueue_DeliversAll() complete!" << std::endl;

@@ -48,7 +48,7 @@ void Timer::Start(dmq::Duration timeout, bool once)
     if (timeout <= dmq::Duration(0)) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
         // Use the macro from Fault.h to halt the system
-        ASSERT();
+        DMQ_ASSERT();
         return;
 #else
         throw std::invalid_argument("Timeout cannot be 0");

@@ -48,19 +48,19 @@ void DispatcherTests()
         uint16_t seq1 = 0;
         int err = dispatcher.Dispatch(os, id, &seq1);
 
-        ASSERT_TRUE(err == 0);
-        ASSERT_TRUE(transport.sendCount == 1);
-        ASSERT_TRUE(transport.lastId == 100);
-        ASSERT_TRUE(transport.lastSeq == seq1);
+        DMQ_ASSERT_TRUE(err == 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 1);
+        DMQ_ASSERT_TRUE(transport.lastId == 100);
+        DMQ_ASSERT_TRUE(transport.lastSeq == seq1);
 
         os << "test data";
         uint16_t seq2 = 0;
         err = dispatcher.Dispatch(os, id, &seq2);
 
-        ASSERT_TRUE(err == 0);
-        ASSERT_TRUE(transport.sendCount == 2);
-        ASSERT_TRUE(transport.lastSeq == seq2);
-        ASSERT_TRUE(static_cast<uint16_t>(seq1 + 1) == seq2);
+        DMQ_ASSERT_TRUE(err == 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 2);
+        DMQ_ASSERT_TRUE(transport.lastSeq == seq2);
+        DMQ_ASSERT_TRUE(static_cast<uint16_t>(seq1 + 1) == seq2);
     }
 
     // Test RemoteChannel class
@@ -74,13 +74,13 @@ void DispatcherTests()
         int receivedVal = 0;
         channel.Bind([&receivedVal](int i) { receivedVal = i; }, DelegateRemoteId(200));
 
-        ASSERT_TRUE(channel.GetRemoteId() == 200);
+        DMQ_ASSERT_TRUE(channel.GetRemoteId() == 200);
 
         // Invoke sender side
         channel(123);
 
-        ASSERT_TRUE(transport.sendCount == 1);
-        ASSERT_TRUE(transport.lastId == 200);
+        DMQ_ASSERT_TRUE(transport.sendCount == 1);
+        DMQ_ASSERT_TRUE(transport.lastId == 200);
         
         // Test manual Receive (mirroring transport reception)
         xstringstream is;
@@ -99,7 +99,7 @@ void DispatcherTests()
         auto d = MakeDelegate(&FreeFunc, DelegateRemoteId(300), channel);
         
         d(456);
-        ASSERT_TRUE(transport.sendCount == 1);
-        ASSERT_TRUE(transport.lastId == 300);
+        DMQ_ASSERT_TRUE(transport.sendCount == 1);
+        DMQ_ASSERT_TRUE(transport.lastId == 300);
     }
 }

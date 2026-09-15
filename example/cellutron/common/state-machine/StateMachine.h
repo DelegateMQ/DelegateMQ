@@ -92,7 +92,7 @@ public:
     {
         SM* derivedSM = static_cast<SM*>(sm);		
         std::shared_ptr<const Data> derivedData = std::static_pointer_cast<const Data>(data);
-        ASSERT_TRUE(derivedData != nullptr);
+        DMQ_ASSERT_TRUE(derivedData != nullptr);
 
         // Call the guard function
         return (derivedSM->*Func)(derivedData);
@@ -121,7 +121,7 @@ public:
     {
         SM* derivedSM = static_cast<SM*>(sm);
         std::shared_ptr<const Data> derivedData = std::static_pointer_cast<const Data>(data);
-        ASSERT_TRUE(derivedData != nullptr);
+        DMQ_ASSERT_TRUE(derivedData != nullptr);
 
         // Call the entry function
         (derivedSM->*Func)(derivedData);
@@ -324,7 +324,7 @@ private:
 
 #define END_TRANSITION_MAP(data) \
     };\
-    ASSERT_TRUE(GetCurrentState() < ST_MAX_STATES); \
+    DMQ_ASSERT_TRUE(GetCurrentState() < ST_MAX_STATES); \
     ExternalEvent(TRANSITIONS[GetCurrentState()], data); \
     static_assert((sizeof(TRANSITIONS)/sizeof(uint8_t)) == ST_MAX_STATES, "Transition map size mismatch"); 
 

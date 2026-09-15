@@ -23,7 +23,7 @@ void ThreadMonitor::Register(dmq::os::Thread* thread) {
     if (instance.m_threadCount < dmq::MAX_WATCHDOG_THREADS)
         instance.m_threads[instance.m_threadCount++] = thread;
     else
-        ASSERT();
+        DMQ_ASSERT();
 }
 
 void ThreadMonitor::Deregister(dmq::os::Thread* thread) {

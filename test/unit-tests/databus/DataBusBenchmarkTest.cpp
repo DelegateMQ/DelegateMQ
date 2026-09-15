@@ -27,7 +27,7 @@ int DataBusBenchmarkTestMain() {
     
     std::chrono::duration<double> diff = end - start;
     std::cout << "Local Throughput (1 sub): " << iterations / diff.count() << " msg/sec" << std::endl;
-    ASSERT_TRUE(count == iterations);
+    DMQ_ASSERT_TRUE(count == iterations);
 
     // 2. Local Throughput (10 subscribers)
     count = 0;
@@ -47,7 +47,7 @@ int DataBusBenchmarkTestMain() {
     
     diff = end - start;
     std::cout << "Local Throughput (10 subs): " << (iterations * 10) / diff.count() << " msg/sec" << std::endl;
-    ASSERT_TRUE(count == iterations * 10);
+    DMQ_ASSERT_TRUE(count == iterations * 10);
 
     std::cout << "DataBusBenchmarkTest PASSED!" << std::endl;
     return 0;

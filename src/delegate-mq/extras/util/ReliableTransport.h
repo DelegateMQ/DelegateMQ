@@ -91,12 +91,12 @@ public:
     }
 
     virtual int Send(dmq::xostringstream& os, const dmq::transport::DmqHeader& header) override {
-        ASSERT_TRUE(m_retry != nullptr);
+        DMQ_ASSERT_TRUE(m_retry != nullptr);
         return m_retry->SendWithRetry(os, header);
     }
 
     virtual int Receive(dmq::xstringstream& is, dmq::transport::DmqHeader& header) override {
-        ASSERT_TRUE(m_transport != nullptr);
+        DMQ_ASSERT_TRUE(m_transport != nullptr);
         return m_transport->Receive(is, header);
     }
 

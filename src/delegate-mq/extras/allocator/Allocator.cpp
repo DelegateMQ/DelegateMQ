@@ -62,7 +62,7 @@ Allocator::~Allocator()
 //------------------------------------------------------------------------------
 void* Allocator::Allocate([[maybe_unused]] size_t size)
 {
-    ASSERT_TRUE(size <= m_objectSize);
+    DMQ_ASSERT_TRUE(size <= m_objectSize);
 	
     // If can't obtain existing block then get a new one
     void* pBlock = Pop();
@@ -123,10 +123,10 @@ void Allocator::Deallocate(void* pBlock)
 	{
 		// Check that pBlock is within the pool range
 		char* pCharBlock = (char*)pBlock;
-		ASSERT_TRUE(pCharBlock >= m_pPool && pCharBlock < (m_pPool + (m_blockSize * m_maxObjects)));
+		DMQ_ASSERT_TRUE(pCharBlock >= m_pPool && pCharBlock < (m_pPool + (m_blockSize * m_maxObjects)));
 
 		// Check that pBlock is aligned on a block boundary
-		ASSERT_TRUE(((size_t)(pCharBlock - m_pPool) % m_blockSize) == 0);
+		DMQ_ASSERT_TRUE(((size_t)(pCharBlock - m_pPool) % m_blockSize) == 0);
 	}
 #endif
 

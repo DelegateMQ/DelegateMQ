@@ -218,7 +218,7 @@ public:
     void AddPeer(const char* name, const char* addr, uint16_t port)
     {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        ASSERT_TRUE(m_peerCount < MaxPeers);
+        DMQ_ASSERT_TRUE(m_peerCount < MaxPeers);
 
         RemoteNode& node = m_peers[m_peerCount];
         strncpy(node.name, name, sizeof(node.name) - 1);
@@ -306,7 +306,7 @@ public:
               Reliability rel = Reliability::UNRELIABLE)
     {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        ASSERT_TRUE(m_outCount < MaxTopics);
+        DMQ_ASSERT_TRUE(m_outCount < MaxTopics);
         DataBus::RegisterSerializer<T>(topic, serializer);
         m_outTopics[m_outCount++] = {topic, remoteId, rel};
 
@@ -335,7 +335,7 @@ public:
                  dmq::ISerializer<void(T)>& serializer)
     {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        ASSERT_TRUE(m_inCount < MaxTopics);
+        DMQ_ASSERT_TRUE(m_inCount < MaxTopics);
 
         // Store a type-erased adder so it can be replayed when Start() creates the participant.
         m_inTopics[m_inCount++] = {

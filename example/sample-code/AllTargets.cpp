@@ -138,8 +138,8 @@ namespace Example
         delegateA -= MakeDelegate(testClassSp, &Class::MemberFunc, workerThread1, WAIT_INFINITE);
         delegateA -= MakeDelegate(testClassSp, &Class::MemberFuncConst, workerThread1, WAIT_INFINITE);
 
-        ASSERT_TRUE(delegateA.Size() == 0);
-        ASSERT_TRUE(callCnt == 27);
+        DMQ_ASSERT_TRUE(delegateA.Size() == 0);
+        DMQ_ASSERT_TRUE(callCnt == 27);
     }
 
     void AllTargetsExample()

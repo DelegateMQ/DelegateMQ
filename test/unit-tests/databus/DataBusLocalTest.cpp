@@ -24,8 +24,8 @@ int DataBusLocalTestMain() {
         });
 
         dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
-        ASSERT_TRUE(received == true);
-        ASSERT_TRUE(receivedValue == 25.5f);
+        DMQ_ASSERT_TRUE(received == true);
+        DMQ_ASSERT_TRUE(receivedValue == 25.5f);
     }
 
     // 2. Verify ScopedConnection auto-disconnect
@@ -38,7 +38,7 @@ int DataBusLocalTestMain() {
             });
         }
         dmq::databus::DataBus::Publish<float>("sensor/temp", 30.0f);
-        ASSERT_TRUE(received == false);
+        DMQ_ASSERT_TRUE(received == false);
     }
 
     // 3. Multiple subscribers
@@ -51,8 +51,8 @@ int DataBusLocalTestMain() {
         dmq::databus::DataBus::Publish<int>("count", 1);
         dmq::databus::DataBus::Publish<int>("count", 2);
 
-        ASSERT_TRUE(sub1Count == 2);
-        ASSERT_TRUE(sub2Count == 2);
+        DMQ_ASSERT_TRUE(sub1Count == 2);
+        DMQ_ASSERT_TRUE(sub2Count == 2);
     }
 
     // 4. Asynchronous Thread Dispatch
@@ -67,8 +67,8 @@ int DataBusLocalTestMain() {
 
         auto conn = dmq::databus::DataBus::Subscribe<int>("async/data", [&](int val) {
             std::cout << "Async callback on thread: " << Thread::GetCurrentThreadId() << std::endl;
-            ASSERT_TRUE(Thread::GetCurrentThreadId() != mainThreadId);
-            ASSERT_TRUE(Thread::GetCurrentThreadId() == workerThread.GetThreadId());
+            DMQ_ASSERT_TRUE(Thread::GetCurrentThreadId() != mainThreadId);
+            DMQ_ASSERT_TRUE(Thread::GetCurrentThreadId() == workerThread.GetThreadId());
             asyncValue = val;
             asyncReceived = true;
         }, &workerThread);
@@ -84,9 +84,9 @@ int DataBusLocalTestMain() {
 
         if (!asyncReceived) {
             std::cerr << "FAILED: Async callback not received within 1 second for topic 'async/data'" << std::endl;
-            ASSERT_TRUE(false);
+            DMQ_ASSERT_TRUE(false);
         }
-        ASSERT_TRUE(asyncValue == 100);
+        DMQ_ASSERT_TRUE(asyncValue == 100);
 
         workerThread.ExitThread();
     }
@@ -98,7 +98,7 @@ int DataBusLocalTestMain() {
             stringReceived = (name == "DelegateMQ");
         });
         dmq::databus::DataBus::Publish<dmq::xstring>("name", "DelegateMQ");
-        ASSERT_TRUE(stringReceived == true);
+        DMQ_ASSERT_TRUE(stringReceived == true);
     }
 
     // 6. SubscribeUnhandled — fires when no subscriber exists for a topic
@@ -111,20 +111,20 @@ int DataBusLocalTestMain() {
 
         // No subscriber: unhandled fires synchronously
         dmq::databus::DataBus::Publish<int>("ghost/topic", 42);
-        ASSERT_TRUE(unhandledTopic == "ghost/topic");
+        DMQ_ASSERT_TRUE(unhandledTopic == "ghost/topic");
 
         // With subscriber present: unhandled must NOT fire
         unhandledTopic = "";
         int received = 0;
         auto sub = dmq::databus::DataBus::Subscribe<int>("ghost/topic", [&](int v) { received = v; });
         dmq::databus::DataBus::Publish<int>("ghost/topic", 99);
-        ASSERT_TRUE(received == 99);
-        ASSERT_TRUE(unhandledTopic.empty());
+        DMQ_ASSERT_TRUE(received == 99);
+        DMQ_ASSERT_TRUE(unhandledTopic.empty());
 
         // Different unhandled topic alongside a subscribed topic: only the unhandled one fires
         unhandledTopic = "";
         dmq::databus::DataBus::Publish<float>("another/ghost", 1.0f);
-        ASSERT_TRUE(unhandledTopic == "another/ghost");
+        DMQ_ASSERT_TRUE(unhandledTopic == "another/ghost");
     }
 
     std::cout << "DataBusLocalTest PASSED!" << std::endl;

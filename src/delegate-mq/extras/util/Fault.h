@@ -36,17 +36,25 @@ extern "C" {
 #endif
 
 #ifdef __cplusplus
-#define ASSERT() \
+#ifndef DMQ_ASSERT
+#define DMQ_ASSERT() \
 	dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__))
+#endif
 
-#define ASSERT_TRUE(condition) \
+#ifndef DMQ_ASSERT_TRUE
+#define DMQ_ASSERT_TRUE(condition) \
 	do {if (!(condition)) dmq::util::FaultHandler(__FILE__, static_cast<unsigned short>(__LINE__));} while (0)
+#endif
 #else
-#define ASSERT() \
+#ifndef DMQ_ASSERT
+#define DMQ_ASSERT() \
 	FaultHandler(__FILE__, (unsigned short) __LINE__)
+#endif
 
-#define ASSERT_TRUE(condition) \
+#ifndef DMQ_ASSERT_TRUE
+#define DMQ_ASSERT_TRUE(condition) \
 	do {if (!(condition)) FaultHandler(__FILE__, (unsigned short) __LINE__);} while (0)
+#endif
 #endif
 
 #endif 

@@ -14,7 +14,7 @@ namespace dmq::os {
         ThreadXMutex() {
             // Cast string literal to (CHAR*) for strict compliance
             UINT status = tx_mutex_create(&m_mutex, (CHAR*)"DMQ_Mutex", TX_INHERIT);
-            ASSERT_TRUE(status == TX_SUCCESS);
+            DMQ_ASSERT_TRUE(status == TX_SUCCESS);
         }
 
         ~ThreadXMutex() {

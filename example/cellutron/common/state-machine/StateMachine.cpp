@@ -14,7 +14,7 @@ StateMachine::StateMachine(uint8_t maxStates, uint8_t initialState) :
     m_eventGenerated(false),
     m_pEventData(nullptr)
 {
-    ASSERT_TRUE(MAX_STATES < EVENT_IGNORED);
+    DMQ_ASSERT_TRUE(MAX_STATES < EVENT_IGNORED);
 }  
 
 //----------------------------------------------------------------------------
@@ -31,7 +31,7 @@ void StateMachine::ExternalEvent(uint8_t newState, std::shared_ptr<const EventDa
         if (newState == CANNOT_HAPPEN)
         {
             OnCannotHappen(m_currentState);
-            ASSERT();
+            DMQ_ASSERT();
         }
 
         if (!IsOnStateMachineThread())
@@ -93,7 +93,7 @@ void StateMachine::StateEngine(void)
         if (pStateMapEx != nullptr)
             StateEngine(pStateMapEx);
         else
-            ASSERT();
+            DMQ_ASSERT();
     }
 }
 
@@ -108,7 +108,7 @@ void StateMachine::StateEngine(const StateMapRow* const pStateMap)
     while (m_eventGenerated)
     {
         // Error check that the new state is valid before proceeding
-        ASSERT_TRUE(m_newState < MAX_STATES);
+        DMQ_ASSERT_TRUE(m_newState < MAX_STATES);
 
         // Get the pointer from the state map
         const StateBase* state = pStateMap[m_newState].State;
@@ -128,7 +128,7 @@ void StateMachine::StateEngine(const StateMapRow* const pStateMap)
         SetCurrentState(m_newState);
 
         // Execute the state action passing in event data
-        ASSERT_TRUE(state != nullptr);
+        DMQ_ASSERT_TRUE(state != nullptr);
         state->InvokeStateAction(this, pDataTemp);
 
         // Fire transition signal
@@ -147,7 +147,7 @@ void StateMachine::StateEngine(const StateMapRowEx* const pStateMapEx)
     while (m_eventGenerated)
     {
         // Error check that the new state is valid before proceeding
-        ASSERT_TRUE(m_newState < MAX_STATES);
+        DMQ_ASSERT_TRUE(m_newState < MAX_STATES);
 
         // Get the pointers from the state map
         const StateBase* state = pStateMapEx[m_newState].State;
@@ -192,7 +192,7 @@ void StateMachine::StateEngine(const StateMapRowEx* const pStateMapEx)
                 OnEntry(m_currentState);
 
                 // Ensure exit/entry actions didn't call InternalEvent by accident 
-                ASSERT_TRUE(m_eventGenerated == false);
+                DMQ_ASSERT_TRUE(m_eventGenerated == false);
             }
             else
             {
@@ -201,7 +201,7 @@ void StateMachine::StateEngine(const StateMapRowEx* const pStateMapEx)
             }
 
             // Execute the state action passing in event data
-            ASSERT_TRUE(state != nullptr);
+            DMQ_ASSERT_TRUE(state != nullptr);
             state->InvokeStateAction(this, pDataTemp);
 
             // Fire transition signal

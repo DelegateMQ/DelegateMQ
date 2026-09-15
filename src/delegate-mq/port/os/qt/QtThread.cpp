@@ -12,9 +12,9 @@ namespace dmq::os {
 using namespace dmq;
 using namespace dmq::util;
 
-// Define ASSERT_TRUE if not already defined
-#ifndef ASSERT_TRUE
-#define ASSERT_TRUE(x) Q_ASSERT(x)
+// Define DMQ_ASSERT_TRUE if not already defined
+#ifndef DMQ_ASSERT_TRUE
+#define DMQ_ASSERT_TRUE(x) Q_ASSERT(x)
 #endif
 
 // Register the metatype ID once
@@ -33,31 +33,31 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
             try {
                 bool success = invoker->Invoke(msg);
-                ASSERT_TRUE(success);
+                DMQ_ASSERT_TRUE(success);
             }
             catch (const std::bad_alloc& e) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled bad_alloc in delegate callback:" << e.what();
-                ASSERT();
+                DMQ_ASSERT();
             }
             catch (const std::invalid_argument& e) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled invalid_argument in delegate callback:" << e.what();
-                ASSERT();
+                DMQ_ASSERT();
             }
             catch (const std::runtime_error& e) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled runtime_error in delegate callback:" << e.what();
-                ASSERT();
+                DMQ_ASSERT();
             }
             catch (const std::exception& e) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled exception in delegate callback:" << e.what();
-                ASSERT();
+                DMQ_ASSERT();
             }
             catch (...) {
                 qWarning() << "[Thread:" << m_thread->objectName() << "] Unhandled unknown exception in delegate callback.";
-                ASSERT();
+                DMQ_ASSERT();
             }
 #else
             bool success = invoker->Invoke(msg);
-            ASSERT_TRUE(success);
+            DMQ_ASSERT_TRUE(success);
 #endif
 #if defined(DMQ_DATABUS_TOOLS)
             if (m_thread) {
@@ -307,7 +307,7 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             {
                 m_mutex.unlock();
                 printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", m_threadName.c_str());
-                ASSERT_TRUE(m_queueSize < m_maxQueueSize);
+                DMQ_ASSERT_TRUE(m_queueSize < m_maxQueueSize);
                 return false;
             }
 

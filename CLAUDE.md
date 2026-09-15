@@ -42,12 +42,12 @@ Exception: constants tied to protocol framing, wire format, or a genuinely fixed
 
 ## Fixed-Size Containers and Bounds
 
-When a fixed-size container is full, the default is `ASSERT_TRUE(condition)` or `ASSERT()` — do not silently drop, resize, or throw. Two established refinements:
+When a fixed-size container is full, the default is `DMQ_ASSERT_TRUE(condition)` or `DMQ_ASSERT()` — do not silently drop, resize, or throw. Two established refinements:
 
 - **The app already controls the policy for this container** (e.g. a `dmq::os::Thread` message queue): expose it via `FullPolicy` (`FAULT`/`DROP`/`TIMEOUT`) instead of hard-coding a fault. `FAULT` stays the default.
 - **The cap is hit mid-drain of a batch, not a fixed-capacity data member** (e.g. `TransportMonitor::Process()`, `Timer::ProcessTimers()`): loop across multiple bounded passes until the backlog is empty instead of faulting — see `TransportMonitor::Process()` for the reference pattern.
 
-`docs/asserts.md` catalogs every `ASSERT`/`ASSERT_TRUE` site in the library with the reasoning behind its classification — consult it before adding a new one or changing an existing one.
+`docs/asserts.md` catalogs every `DMQ_ASSERT`/`DMQ_ASSERT_TRUE` site in the library with the reasoning behind its classification — consult it before adding a new one or changing an existing one.
 
 ## Exception vs. Assert (`DMQ_ASSERTS` / `BAD_ALLOC`)
 
@@ -58,10 +58,10 @@ The library supports two error-handling modes, selected at build time:
 
 Rules:
 - Always use the `BAD_ALLOC()` macro for allocation failure paths — never write `throw std::bad_alloc()` directly or bare `assert`.
-- Use `ASSERT()` or `ASSERT_TRUE(condition)` for invariant/capacity violations (wrong type, full container, protocol error) — these are hard faults, not recoverable errors.
+- Use `DMQ_ASSERT()` or `DMQ_ASSERT_TRUE(condition)` for invariant/capacity violations (wrong type, full container, protocol error) — these are hard faults, not recoverable errors.
 - Use `dmq::DelegateError` + `SetErrorHandler` for soft operational errors (serialization failure, dispatch timeout) — these are recoverable and reported to the caller.
 - **Report-then-fault hybrid**: when a hard fault has an existing soft-error channel nearby that the app may already be listening to (`SetErrorHandler`/`SubscribeError`/a `Signal`), report through it *immediately before* the fault — one last diagnostic for the app, even though the fault itself stays unconditional and isn't skippable by that report. Reference pattern: `DataBus.h`'s `ERR_TYPE_MISMATCH` sites and `DataBus::InternalAddParticipant`'s `ERR_CAPACITY_EXCEEDED` check. Don't add this where no such channel already exists nearby — it's "route existing signals through the fault path," not "invent a new channel just to check this box."
-- `BAD_ALLOC()` and `extern "C"` don't always mix: on MSVC with `/EHc`, an `extern "C"` function is assumed never to throw, so `BAD_ALLOC()`'s non-`DMQ_ASSERTS` branch (`throw std::bad_alloc()`) is unsafe there — confirmed via compiler warning C4297 when attempted in `xallocator.cpp`, not just a lint nit. Keep `ASSERT`/`ASSERT_TRUE` in `extern "C"` functions; only route allocation failures through `BAD_ALLOC()` in ordinary C++ functions.
+- `BAD_ALLOC()` and `extern "C"` don't always mix: on MSVC with `/EHc`, an `extern "C"` function is assumed never to throw, so `BAD_ALLOC()`'s non-`DMQ_ASSERTS` branch (`throw std::bad_alloc()`) is unsafe there — confirmed via compiler warning C4297 when attempted in `xallocator.cpp`, not just a lint nit. Keep `DMQ_ASSERT`/`DMQ_ASSERT_TRUE` in `extern "C"` functions; only route allocation failures through `BAD_ALLOC()` in ordinary C++ functions.
 - Never add `try`/`catch` inside library internals; exception handling is the application's responsibility. (Exception: OS thread dispatch loops explicitly catch generic exceptions and `std::bad_alloc`, `std::invalid_argument`, and `std::runtime_error`).
 
 ## `XALLOCATOR` Macro

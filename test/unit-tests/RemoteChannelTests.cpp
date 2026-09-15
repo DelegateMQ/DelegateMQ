@@ -43,32 +43,32 @@ namespace RemoteChannelTest
     static void FreeFuncInt(int i) {
         g_invoked = true;
         g_lastInt = i;
-        ASSERT_TRUE(i == TEST_INT);
+        DMQ_ASSERT_TRUE(i == TEST_INT);
     }
 
     static void FreeFuncIntRef(int& i) {
         g_invoked = true;
         g_lastInt = i;
-        ASSERT_TRUE(i == TEST_INT);
+        DMQ_ASSERT_TRUE(i == TEST_INT);
     }
 
     static void FreeFuncIntPtr(int* pi) {
         g_invoked = true;
-        ASSERT_TRUE(pi != nullptr);
-        ASSERT_TRUE(*pi == TEST_INT);
+        DMQ_ASSERT_TRUE(pi != nullptr);
+        DMQ_ASSERT_TRUE(*pi == TEST_INT);
         g_lastInt = *pi;
     }
 
     static void FreeFuncRemoteData(RemoteData& d) {
         g_invoked = true;
-        ASSERT_TRUE(d.x == TEST_INT);
-        ASSERT_TRUE(d.y == TEST_INT + 1);
+        DMQ_ASSERT_TRUE(d.x == TEST_INT);
+        DMQ_ASSERT_TRUE(d.y == TEST_INT + 1);
     }
 
     static void FreeFuncTwoArgs(int a, int b) {
         g_invoked = true;
-        ASSERT_TRUE(a == TEST_INT);
-        ASSERT_TRUE(b == TEST_INT + 1);
+        DMQ_ASSERT_TRUE(a == TEST_INT);
+        DMQ_ASSERT_TRUE(b == TEST_INT + 1);
     }
 
     class RemoteClass {
@@ -76,16 +76,16 @@ namespace RemoteChannelTest
         void MemberFuncInt(int i) {
             g_invoked = true;
             g_lastInt = i;
-            ASSERT_TRUE(i == TEST_INT);
+            DMQ_ASSERT_TRUE(i == TEST_INT);
         }
         void MemberFuncIntConst(int i) const {
             g_invoked = true;
-            ASSERT_TRUE(i == TEST_INT);
+            DMQ_ASSERT_TRUE(i == TEST_INT);
         }
         void MemberFuncRemoteData(RemoteData& d) {
             g_invoked = true;
-            ASSERT_TRUE(d.x == TEST_INT);
-            ASSERT_TRUE(d.y == TEST_INT + 1);
+            DMQ_ASSERT_TRUE(d.x == TEST_INT);
+            DMQ_ASSERT_TRUE(d.y == TEST_INT + 1);
         }
     };
 
@@ -188,11 +188,11 @@ static void RemoteChannel_MakeDelegate_FreeFunc()
 
     auto d = MakeDelegate(&FreeFuncInt, REMOTE_ID, channel);
 
-    ASSERT_TRUE(!d.Empty());
-    ASSERT_TRUE(d.GetRemoteId() == REMOTE_ID);
+    DMQ_ASSERT_TRUE(!d.Empty());
+    DMQ_ASSERT_TRUE(d.GetRemoteId() == REMOTE_ID);
     d(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
-    ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
 }
 
 static void RemoteChannel_MakeDelegate_MemberFunc()
@@ -204,10 +204,10 @@ static void RemoteChannel_MakeDelegate_MemberFunc()
     RemoteClass obj;
     auto d = MakeDelegate(&obj, &RemoteClass::MemberFuncInt, REMOTE_ID, channel);
 
-    ASSERT_TRUE(!d.Empty());
-    ASSERT_TRUE(d.GetRemoteId() == REMOTE_ID);
+    DMQ_ASSERT_TRUE(!d.Empty());
+    DMQ_ASSERT_TRUE(d.GetRemoteId() == REMOTE_ID);
     d(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 }
 
 static void RemoteChannel_MakeDelegate_ConstMemberFunc()
@@ -219,9 +219,9 @@ static void RemoteChannel_MakeDelegate_ConstMemberFunc()
     RemoteClass obj;
     auto d = MakeDelegate(&obj, &RemoteClass::MemberFuncIntConst, REMOTE_ID, channel);
 
-    ASSERT_TRUE(!d.Empty());
+    DMQ_ASSERT_TRUE(!d.Empty());
     d(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 }
 
 static void RemoteChannel_MakeDelegate_SharedPtrMemberFunc()
@@ -233,9 +233,9 @@ static void RemoteChannel_MakeDelegate_SharedPtrMemberFunc()
     auto obj = std::make_shared<RemoteClass>();
     auto d = MakeDelegate(obj, &RemoteClass::MemberFuncInt, REMOTE_ID, channel);
 
-    ASSERT_TRUE(!d.Empty());
+    DMQ_ASSERT_TRUE(!d.Empty());
     d(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 }
 
 static void RemoteChannel_MakeDelegate_StdFunction()
@@ -245,13 +245,13 @@ static void RemoteChannel_MakeDelegate_StdFunction()
     RemoteChannel<void(int)> channel(transport, serializer);
 
     std::function<void(int)> func = [](int i) {
-        ASSERT_TRUE(i == TEST_INT);
+        DMQ_ASSERT_TRUE(i == TEST_INT);
     };
     auto d = MakeDelegate(func, REMOTE_ID, channel);
 
-    ASSERT_TRUE(!d.Empty());
+    DMQ_ASSERT_TRUE(!d.Empty());
     d(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 }
 
 // ---- Full round-trip tests: sender dispatches, receiver invokes ----------------
@@ -267,7 +267,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_Int()
     g_invoked = false;
     g_lastInt = 0;
     sender(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateFreeRemote<void(int)> receiver(&FreeFuncInt, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -276,8 +276,8 @@ static void RemoteChannel_RoundTrip_FreeFunc_Int()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
-    ASSERT_TRUE(g_lastInt == TEST_INT);
+    DMQ_ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_lastInt == TEST_INT);
 }
 
 static void RemoteChannel_RoundTrip_FreeFunc_IntRef()
@@ -291,7 +291,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_IntRef()
     g_invoked = false;
     int val = TEST_INT;
     sender(val);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateFreeRemote<void(int&)> receiver(&FreeFuncIntRef, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -300,7 +300,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_IntRef()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 static void RemoteChannel_RoundTrip_FreeFunc_IntPtr()
@@ -314,7 +314,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_IntPtr()
     g_invoked = false;
     int val = TEST_INT;
     sender(&val);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateFreeRemote<void(int*)> receiver(&FreeFuncIntPtr, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -323,7 +323,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_IntPtr()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 static void RemoteChannel_RoundTrip_FreeFunc_RemoteData()
@@ -337,7 +337,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_RemoteData()
     g_invoked = false;
     RemoteData d(TEST_INT, TEST_INT + 1);
     sender(d);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateFreeRemote<void(RemoteData&)> receiver(&FreeFuncRemoteData, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -346,7 +346,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_RemoteData()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 static void RemoteChannel_RoundTrip_FreeFunc_TwoArgs()
@@ -359,7 +359,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_TwoArgs()
 
     g_invoked = false;
     sender(TEST_INT, TEST_INT + 1);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateFreeRemote<void(int, int)> receiver(&FreeFuncTwoArgs, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -368,7 +368,7 @@ static void RemoteChannel_RoundTrip_FreeFunc_TwoArgs()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 static void RemoteChannel_RoundTrip_MemberFunc()
@@ -382,7 +382,7 @@ static void RemoteChannel_RoundTrip_MemberFunc()
 
     g_invoked = false;
     sender(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateMemberRemote<RemoteClass, void(int)> receiver(&obj, &RemoteClass::MemberFuncInt, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -391,7 +391,7 @@ static void RemoteChannel_RoundTrip_MemberFunc()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 static void RemoteChannel_RoundTrip_MemberFunc_RemoteData()
@@ -406,7 +406,7 @@ static void RemoteChannel_RoundTrip_MemberFunc_RemoteData()
     g_invoked = false;
     RemoteData d(TEST_INT, TEST_INT + 1);
     sender(d);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateMemberRemote<RemoteClass, void(RemoteData&)> receiver(&obj, &RemoteClass::MemberFuncRemoteData, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -415,7 +415,7 @@ static void RemoteChannel_RoundTrip_MemberFunc_RemoteData()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 static void RemoteChannel_RoundTrip_SharedPtrMemberFunc()
@@ -429,7 +429,7 @@ static void RemoteChannel_RoundTrip_SharedPtrMemberFunc()
 
     g_invoked = false;
     sender(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     DelegateMemberRemote<RemoteClass, void(int)> receiver(obj, &RemoteClass::MemberFuncInt, REMOTE_ID);
     receiver.SetSerializer(&serializer);
@@ -438,7 +438,7 @@ static void RemoteChannel_RoundTrip_SharedPtrMemberFunc()
     recvStream.seekg(0);
     receiver.Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 // ---- Error path: transport Send failure propagates to error handler ------------
@@ -460,8 +460,8 @@ static void RemoteChannel_DispatchError_PropagatedToErrorHandler()
 
     sender(TEST_INT);
 
-    ASSERT_TRUE(transport.m_sendCount == 1);
-    ASSERT_TRUE(lastError == DelegateError::ERR_DISPATCH);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(lastError == DelegateError::ERR_DISPATCH);
 }
 
 // ---- MakeDelegate result matches manual SetXxx wiring -------------------------
@@ -486,12 +486,12 @@ static void RemoteChannel_MakeDelegate_MatchesManualWiring()
 
     // Both should route through the same dispatcher -> same transport
     channelDelegate(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
-    ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
 
     manualDelegate(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 2);
-    ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 2);
+    DMQ_ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
 }
 
 // ---- Raw lambda MakeDelegate ---------------------------------------------------
@@ -503,26 +503,26 @@ static void RemoteChannel_MakeDelegate_RawLambda()
     RemoteChannel<void(int)> channel(transport, serializer);
 
     // Inline raw lambda — no std::function wrapper
-    auto d1 = MakeDelegate([](int i) { ASSERT_TRUE(i == TEST_INT); }, REMOTE_ID, channel);
-    ASSERT_TRUE(!d1.Empty());
-    ASSERT_TRUE(d1.GetRemoteId() == REMOTE_ID);
+    auto d1 = MakeDelegate([](int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }, REMOTE_ID, channel);
+    DMQ_ASSERT_TRUE(!d1.Empty());
+    DMQ_ASSERT_TRUE(d1.GetRemoteId() == REMOTE_ID);
     d1(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
-    ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
 
     // Named raw lambda (auto, not std::function)
-    auto rawLam = [](int i) { ASSERT_TRUE(i == TEST_INT); };
+    auto rawLam = [](int i) { DMQ_ASSERT_TRUE(i == TEST_INT); };
     auto d2 = MakeDelegate(rawLam, REMOTE_ID, channel);
-    ASSERT_TRUE(!d2.Empty());
+    DMQ_ASSERT_TRUE(!d2.Empty());
     d2(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 2);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 2);
 
     // Capturing lambda
     int captured = TEST_INT;
-    auto d3 = MakeDelegate([captured](int i) { ASSERT_TRUE(i == captured); }, REMOTE_ID, channel);
-    ASSERT_TRUE(!d3.Empty());
+    auto d3 = MakeDelegate([captured](int i) { DMQ_ASSERT_TRUE(i == captured); }, REMOTE_ID, channel);
+    DMQ_ASSERT_TRUE(!d3.Empty());
     d3(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 3);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 3);
 }
 
 // ---- Send-only channel: ctor ID, no Bind() required on the sender --------------
@@ -534,15 +534,15 @@ static void RemoteChannel_SendOnly_CtorId()
 
     // Default ctor ID is invalid until set
     RemoteChannel<void(int)> unbound(transport, serializer);
-    ASSERT_TRUE(unbound.GetRemoteId() == INVALID_REMOTE_ID);
+    DMQ_ASSERT_TRUE(unbound.GetRemoteId() == INVALID_REMOTE_ID);
 
     // Sender: ID from ctor, never calls Bind()
     RemoteChannel<void(int)> tx(transport, serializer, REMOTE_ID);
-    ASSERT_TRUE(tx.GetRemoteId() == REMOTE_ID);
+    DMQ_ASSERT_TRUE(tx.GetRemoteId() == REMOTE_ID);
 
     tx(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
-    ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_lastId == REMOTE_ID);
 
     // Receiver: separate channel binds a handler to the same ID
     g_invoked = false;
@@ -554,8 +554,8 @@ static void RemoteChannel_SendOnly_CtorId()
     recvStream.seekg(0);
     rx.GetEndpoint()->Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
-    ASSERT_TRUE(g_lastInt == TEST_INT);
+    DMQ_ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_lastInt == TEST_INT);
 }
 
 // ---- Raw lambda Bind on receive side with round-trip ---------------------------
@@ -569,20 +569,20 @@ static void RemoteChannel_Bind_RawLambda()
     g_invoked = false;
     channel.Bind([](int i) {
         g_invoked = true;
-        ASSERT_TRUE(i == TEST_INT);
+        DMQ_ASSERT_TRUE(i == TEST_INT);
     }, REMOTE_ID);
 
     // Send side: dispatch a value through the channel
     auto sender = MakeDelegate(&FreeFuncInt, REMOTE_ID, channel);
     sender(TEST_INT);
-    ASSERT_TRUE(transport.m_sendCount == 1);
+    DMQ_ASSERT_TRUE(transport.m_sendCount == 1);
 
     // Receive side: invoke through the channel's endpoint
     auto recvStream = transport.GetPayloadStream();
     recvStream.seekg(0);
     channel.GetEndpoint()->Invoke(recvStream);
 
-    ASSERT_TRUE(g_invoked);
+    DMQ_ASSERT_TRUE(g_invoked);
 }
 
 // ---- Entry point ---------------------------------------------------------------

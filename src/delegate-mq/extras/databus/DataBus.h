@@ -205,7 +205,7 @@ public:
     // priority without a thread is a programming error and triggers FaultHandler.
     template <typename F>
     [[nodiscard]] static dmq::ScopedConnection Monitor(F&& func, dmq::IThread* thread = nullptr, dmq::Priority priority = dmq::Priority::NORMAL) {
-        ASSERT_TRUE(thread || priority == dmq::Priority::NORMAL);
+        DMQ_ASSERT_TRUE(thread || priority == dmq::Priority::NORMAL);
 
         dmq::UnicastDelegate<void(const SpyPacket&)> ud;
         if constexpr (std::is_base_of_v<dmq::Delegate<void(const SpyPacket&)>, std::decay_t<F>>)
@@ -345,7 +345,7 @@ private:
             // Type mismatch: report through the error signal for diagnosability,
             // then hard fault (wrong type is an invariant violation).
             InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
-            ASSERT();
+            DMQ_ASSERT();
             return {};
         }
 
@@ -472,7 +472,7 @@ private:
                                 // Recovery copy also failed: the slot cannot be safely
                                 // restored to a valid state. This is an unrecoverable
                                 // invariant violation, not a normal operational error.
-                                ASSERT();
+                                DMQ_ASSERT();
                             }
                             throw;
                         }
@@ -509,7 +509,7 @@ private:
 
         if (typeMismatch) {
             InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
-            ASSERT();
+            DMQ_ASSERT();
             return;
         }
 
@@ -579,7 +579,7 @@ private:
             // above. Recursive mutex allows re-entry into InternalReportLatchedError
             // while m_mutex is already held.
             InternalReportLatchedError("<AddParticipant>", dmq::DelegateError::ERR_CAPACITY_EXCEEDED);
-            ASSERT();
+            DMQ_ASSERT();
             return;
         }
         m_participantErrorConnections[m_participantCount] = std::move(conn);
@@ -599,7 +599,7 @@ private:
         }
         if (typeMismatch) {
             InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
-            ASSERT();
+            DMQ_ASSERT();
         }
     }
 
@@ -622,7 +622,7 @@ private:
         }
         if (typeMismatch) {
             InternalReportLatchedError(topic, dmq::DelegateError::ERR_TYPE_MISMATCH);
-            ASSERT();
+            DMQ_ASSERT();
         }
     }
 
@@ -692,7 +692,7 @@ private:
 
     // Look up topic's registered type; if none yet, establish it as `expected`.
     // Returns true if topic was already registered with a DIFFERENT type -- a
-    // programming-error type mismatch the caller must report/ASSERT on.
+    // programming-error type mismatch the caller must report/DMQ_ASSERT on.
     bool CheckOrEstablishType(const dmq::xstring& topic, std::type_index expected) {
         auto it = m_typeIndices.find(topic);
         if (it != m_typeIndices.end())

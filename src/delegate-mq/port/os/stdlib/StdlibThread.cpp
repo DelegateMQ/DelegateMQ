@@ -250,7 +250,7 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         if (FULL_POLICY == FullPolicy::FAULT)
         {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
-            ASSERT_TRUE(false);
+            DMQ_ASSERT_TRUE(false);
             return false;
         }
 
@@ -454,31 +454,31 @@ void StdlibThread::Process()
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
                         try {
                             bool success = invoker->Invoke(delegateMsg);
-                            if (!selfExit) ASSERT_TRUE(success);
+                            if (!selfExit) DMQ_ASSERT_TRUE(success);
                         }
                         catch (const std::bad_alloc& e) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
-                            ASSERT();
+                            DMQ_ASSERT();
                         }
                         catch (const std::invalid_argument& e) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
-                            ASSERT();
+                            DMQ_ASSERT();
                         }
                         catch (const std::runtime_error& e) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
-                            ASSERT();
+                            DMQ_ASSERT();
                         }
                         catch (const std::exception& e) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
-                            ASSERT();
+                            DMQ_ASSERT();
                         }
                         catch (...) {
                             std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled unknown exception in delegate callback." << std::endl;
-                            ASSERT();
+                            DMQ_ASSERT();
                         }
 #else
                         bool success = invoker->Invoke(delegateMsg);
-                        if (!selfExit) ASSERT_TRUE(success);
+                        if (!selfExit) DMQ_ASSERT_TRUE(success);
 #endif
                         if (selfExit) {
                             t_self_exit = nullptr;
@@ -506,7 +506,7 @@ void StdlibThread::Process()
             }
 
             default:
-                ASSERT();
+                DMQ_ASSERT();
                 break;
         }
         // msg goes out of scope here — may trigger self-destruction of 'this'.

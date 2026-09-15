@@ -44,102 +44,102 @@ static void DelegateFreeTests()
     delete baseDel;
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3;
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6;
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     Del del1{ &FreeFuncInt1 };
     Del del2 = del1;
     Del del3;
     del3 = &FreeFuncInt1;
-    ASSERT_TRUE(!del1.Empty());
-    ASSERT_TRUE(!del2.Empty());
-    ASSERT_TRUE(!del3.Empty());
-    ASSERT_TRUE(del1 == del2);
-    ASSERT_TRUE(del2 == del3);
+    DMQ_ASSERT_TRUE(!del1.Empty());
+    DMQ_ASSERT_TRUE(!del2.Empty());
+    DMQ_ASSERT_TRUE(!del3.Empty());
+    DMQ_ASSERT_TRUE(del1 == del2);
+    DMQ_ASSERT_TRUE(del2 == del3);
 
     DelegateFree<std::uint16_t(void)> d;
-    ASSERT_TRUE(!d);
+    DMQ_ASSERT_TRUE(!d);
     auto r = d();
     using ArgT = decltype(r);
 #ifndef USE_ALLOCATOR
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
 #endif
-    ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
-    ASSERT_TRUE(r == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
+    DMQ_ASSERT_TRUE(r == 0);
 
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateFree<TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     DelegateFree<std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(&FuncUnique);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(*up == 12);
+    DMQ_ASSERT_TRUE(*up == 12);
 
     auto delS1 = MakeDelegate(FreeFuncInt1);
     auto delS2 = MakeDelegate(FreeFuncInt1_2);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
     delS1.Clear();
-    ASSERT_TRUE(delS1 == delS2);
+    DMQ_ASSERT_TRUE(delS1 == delS2);
 
     std::function<int(int)> stdFunc = MakeDelegate(&FreeFuncIntWithReturn1);
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == TEST_INT);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == TEST_INT);
 
     // ClassSingleton private constructor. Sync delegate does not make
     // copy of ClassSingleton argument; all setter functions ok.
@@ -159,28 +159,28 @@ static void DelegateFreeTests()
     sparam.val = TEST_INT;
     auto outgoingArg = MakeDelegate(&OutgoingPtrArg);
     outgoingArg(&sparam, &iparam);
-    ASSERT_TRUE(sparam.val == TEST_INT + 1);
-    ASSERT_TRUE(iparam == 101);
+    DMQ_ASSERT_TRUE(sparam.val == TEST_INT + 1);
+    DMQ_ASSERT_TRUE(iparam == 101);
 
     // Test outgoing ptr-ptr argument
     StructParam* psparam = nullptr;
     auto outgoingArg2 = MakeDelegate(&OutgoingPtrPtrArg);
     outgoingArg2(&psparam);
-    ASSERT_TRUE(psparam->val == TEST_INT);
+    DMQ_ASSERT_TRUE(psparam->val == TEST_INT);
     delete psparam;
 
     // Test outgoing ref argument
     sparam.val = TEST_INT;
     auto outgoingArg3 = MakeDelegate(&OutgoingRefArg);
     outgoingArg3(sparam);
-    ASSERT_TRUE(sparam.val == TEST_INT + 1);
+    DMQ_ASSERT_TRUE(sparam.val == TEST_INT + 1);
 
     // Sync invoke does not copy Class object when passed to func
     Class classInstance;
     Class::m_construtorCnt = 0;
     auto cntDel = MakeDelegate(&ConstructorCnt);
     cntDel(&classInstance);
-    ASSERT_TRUE(Class::m_construtorCnt == 0);
+    DMQ_ASSERT_TRUE(Class::m_construtorCnt == 0);
 
     // Test void* args
     const char* str = "Hello World!";
@@ -193,9 +193,9 @@ static void DelegateFreeTests()
     // Test void* return
     auto retVoidPtrDel = MakeDelegate(&RetVoidPtr);
     auto retVoidPtr = retVoidPtrDel();
-    ASSERT_TRUE(retVoidPtr != nullptr);
+    DMQ_ASSERT_TRUE(retVoidPtr != nullptr);
     const char* retStr = (const char*)retVoidPtr;
-    ASSERT_TRUE(strcmp(retStr, "Hello World!") == 0);
+    DMQ_ASSERT_TRUE(strcmp(retStr, "Hello World!") == 0);
 
     // Test rvalue ref
     auto rvalueRefDel = MakeDelegate(&FuncRvalueRef);
@@ -223,63 +223,63 @@ static void DelegateMemberTests()
     std::invoke(delegate1, TEST_INT);
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3;
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6;
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     Base* base = new Derive;
     DelegateMember<Base, int(void)> delegate7;
     delegate7 = MakeDelegate(base, &Base::Func);
-    ASSERT_TRUE(delegate7() == TEST_INT);
+    DMQ_ASSERT_TRUE(delegate7() == TEST_INT);
     delete base;
 
     DelegateMember<Class, std::uint16_t(void)> d;
-    ASSERT_TRUE(!d);
+    DMQ_ASSERT_TRUE(!d);
     auto r = d();
     using ArgT = decltype(r);
 #ifndef USE_ALLOCATOR
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
 #endif
-    ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
-    ASSERT_TRUE(r == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
+    DMQ_ASSERT_TRUE(r == 0);
 
     // Check for const correctness
     const Class c;
@@ -291,9 +291,9 @@ static void DelegateMemberTests()
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateMember<TestReturnClass, TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     // Temporary object function argument not allowed
     //DelegateMember<TestReturnClass, void(TestReturn&)> testArg;
@@ -302,38 +302,38 @@ static void DelegateMemberTests()
     Class c2;
     DelegateMember<Class, std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(&c2, &Class::FuncUnique);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(*up == 12);
+    DMQ_ASSERT_TRUE(*up == 12);
 
     auto delS1 = MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1);
     auto delS2 = MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1_2);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
 #if 0  // DelegateMember can't be inserted into ordered container
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 #endif
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
     delS1.Clear();
-    ASSERT_TRUE(delS1 == delS2);
+    DMQ_ASSERT_TRUE(delS1 == delS2);
 
     const TestClass1 tcConst;
     auto delConstCheck = MakeDelegate(&tcConst, &TestClass1::ConstCheck);
     auto delConstCheckRetVal = delConstCheck(TEST_INT);
-    ASSERT_TRUE(delConstCheckRetVal == TEST_INT);
+    DMQ_ASSERT_TRUE(delConstCheckRetVal == TEST_INT);
 
     std::function<int(int)> stdFunc = MakeDelegate(&testClass1, &TestClass1::MemberFuncIntWithReturn1);
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == TEST_INT);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == TEST_INT);
 
     SetClassSingleton setClassSingleton;
     // ClassSingleton private constructor. Sync delegate does not make
@@ -360,9 +360,9 @@ static void DelegateMemberTests()
     // Test void* return
     auto retVoidPtrDel = MakeDelegate(&voidTest, &Class::RetVoidPtr);
     auto retVoidPtr = retVoidPtrDel();
-    ASSERT_TRUE(retVoidPtr != nullptr);
+    DMQ_ASSERT_TRUE(retVoidPtr != nullptr);
     const char* retStr = (const char*)retVoidPtr;
-    ASSERT_TRUE(strcmp(retStr, "Hello World!") == 0);
+    DMQ_ASSERT_TRUE(strcmp(retStr, "Hello World!") == 0);
 
     // Test rvalue ref
     auto rvalueRefDel = MakeDelegate(&testClass1, &TestClass1::FuncRvalueRef);
@@ -390,62 +390,62 @@ static void DelegateMemberSharedTests()
     std::invoke(delegate1, TEST_INT);
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3;
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6;
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     std::shared_ptr<Base> base = std::make_shared<Derive>();
     DelegateMemberSp<Base, int(void)> delegate7;
     delegate7 = MakeDelegate(base, &Base::Func);
-    ASSERT_TRUE(delegate7() == TEST_INT);
+    DMQ_ASSERT_TRUE(delegate7() == TEST_INT);
 
     DelegateMember<Class, std::uint16_t(void)> d;
-    ASSERT_TRUE(!d);
+    DMQ_ASSERT_TRUE(!d);
     auto r = d();
     using ArgT = decltype(r);
 #ifndef USE_ALLOCATOR
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
 #endif
-    ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
-    ASSERT_TRUE(r == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
+    DMQ_ASSERT_TRUE(r == 0);
 
     // Check for const correctness
     auto c = std::make_shared<const Class>();
@@ -457,40 +457,40 @@ static void DelegateMemberSharedTests()
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateMember<TestReturnClass, TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     auto c2 = std::make_shared<Class>();
     DelegateMember<Class, std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(c2, &Class::FuncUnique);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(*up == 12);
+    DMQ_ASSERT_TRUE(*up == 12);
 
     auto delS1 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1);
     auto delS2 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1_2);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
 #if 0  // DelegateMember can't be inserted into ordered container
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 #endif
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
     delS1.Clear();
-    ASSERT_TRUE(delS1 == delS2);
+    DMQ_ASSERT_TRUE(delS1 == delS2);
 
     std::function<int(int)> stdFunc = MakeDelegate(testClass1, &TestClass1::MemberFuncIntWithReturn1);
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == TEST_INT);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == TEST_INT);
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -516,33 +516,33 @@ static void DelegateMemberSpTests()
 
     // 2. Copy and Assignment
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3;
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     // 3. Cloning
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     // 4. Move Semantics
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     // 5. MakeDelegate Helper
     auto delS1 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1);
     auto delS2 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1_2);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
     // 6. Const Correctness
     auto c = std::make_shared<const Class>();
@@ -550,7 +550,7 @@ static void DelegateMemberSpTests()
     // dConstClass.Bind(c, &Class::Func);      // Not OK. Should fail compile (const object, non-const func).
     dConstClass.Bind(c, &Class::FuncConst);    // OK
     auto rConst = dConstClass();
-    ASSERT_TRUE(rConst == 0); // Assuming FuncConst returns 0
+    DMQ_ASSERT_TRUE(rConst == 0); // Assuming FuncConst returns 0
 
     // ==========================================================
     // 7. THE CRITICAL TEST: Object Expiration (Weak Pointer Check)
@@ -568,10 +568,10 @@ static void DelegateMemberSpTests()
 
             // Invoke while alive: Should return TEST_INT
             int retAlive = d_expired(TEST_INT);
-            ASSERT_TRUE(retAlive == TEST_INT);
+            DMQ_ASSERT_TRUE(retAlive == TEST_INT);
 
             // Prove it is valid
-            ASSERT_TRUE(!d_expired.Empty());
+            DMQ_ASSERT_TRUE(!d_expired.Empty());
         }
         // 'tempObj' is now destroyed. 'd_expired' holds a weak_ptr to a dead object.
 
@@ -579,7 +579,7 @@ static void DelegateMemberSpTests()
         // 1. Should NOT CRASH.
         // 2. Should return default constructed value (0 for int).
         int retDead = d_expired(TEST_INT);
-        ASSERT_TRUE(retDead == 0);
+        DMQ_ASSERT_TRUE(retDead == 0);
     }
 
     // 8. Test void return on expired object
@@ -598,7 +598,7 @@ static void DelegateMemberSpTests()
     std::shared_ptr<Base> base = std::make_shared<Derive>();
     DelegateMemberSp<Base, int(void)> delegate7;
     delegate7 = MakeDelegate(base, &Base::Func);
-    ASSERT_TRUE(delegate7() == TEST_INT);
+    DMQ_ASSERT_TRUE(delegate7() == TEST_INT);
 
     // 10. Unique Ptr Return type
     // Note: DelegateMemberSp usually requires default constructible return types
@@ -608,13 +608,13 @@ static void DelegateMemberSpTests()
     DelegateMemberSp<Class, std::unique_ptr<int>(int)> delUnique;
     delUnique.Bind(c2, &Class::FuncUnique);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up != nullptr);
-    ASSERT_TRUE(*up == 12);
+    DMQ_ASSERT_TRUE(up != nullptr);
+    DMQ_ASSERT_TRUE(*up == 12);
 
     // Test unique ptr on dead object
     c2.reset(); // Kill object
     std::unique_ptr<int> upDead = delUnique(12);
-    ASSERT_TRUE(upDead == nullptr); // Should return default std::unique_ptr (nullptr)
+    DMQ_ASSERT_TRUE(upDead == nullptr); // Should return default std::unique_ptr (nullptr)
 }
 
 static void DelegateFunctionTests()
@@ -626,101 +626,101 @@ static void DelegateFunctionTests()
     std::invoke(delegate1, TEST_INT);
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3;
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6;
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFree<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
-    ASSERT_TRUE(nullptr == delegate6);
-    ASSERT_TRUE(!(delegate6 != nullptr));
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate6);
+    DMQ_ASSERT_TRUE(!(delegate6 != nullptr));
 
     Del del1{ LambdaNoCapture };
     Del del2 = del1;
     Del del3;
     del3 = LambdaNoCapture;
-    ASSERT_TRUE(!del1.Empty());
-    ASSERT_TRUE(!del2.Empty());
-    ASSERT_TRUE(!del3.Empty());
-    ASSERT_TRUE(del1 == del2);
-    ASSERT_TRUE(del2 == del3);
+    DMQ_ASSERT_TRUE(!del1.Empty());
+    DMQ_ASSERT_TRUE(!del2.Empty());
+    DMQ_ASSERT_TRUE(!del3.Empty());
+    DMQ_ASSERT_TRUE(del1 == del2);
+    DMQ_ASSERT_TRUE(del2 == del3);
 
     DelegateFunction<std::uint16_t(void)> d;
-    ASSERT_TRUE(!d);
+    DMQ_ASSERT_TRUE(!d);
     auto r = d();
     using ArgT = decltype(r);
 #ifndef USE_ALLOCATOR
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
-    ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::min)() == 0);
 #endif
-    ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
-    ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
-    ASSERT_TRUE(r == 0);
+    DMQ_ASSERT_TRUE((std::numeric_limits<ArgT>::max)() == 0xffff);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_signed == false);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_exact == true);
+    DMQ_ASSERT_TRUE(std::numeric_limits<ArgT>::is_integer == true);
+    DMQ_ASSERT_TRUE(r == 0);
 
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateFunction<TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     auto c2 = std::make_shared<Class>();
     DelegateFunction<std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(LambdaUnqiue);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(*up == 12);
+    DMQ_ASSERT_TRUE(*up == 12);
 
     auto delS1 = MakeDelegate(LambdaNoCapture);
     auto delS2 = MakeDelegate(LambdaNoCapture2);
-    //ASSERT_TRUE(!(delS1 == delS2));  // std::function can't distriguish difference
+    //DMQ_ASSERT_TRUE(!(delS1 == delS2));  // std::function can't distriguish difference
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
     delS1.Clear();
-    ASSERT_TRUE(delS1 == delS2);
+    DMQ_ASSERT_TRUE(delS1 == delS2);
 
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 1);
+    DMQ_ASSERT_TRUE(setDel.size() == 1);
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -734,14 +734,14 @@ static void DelegateFunctionTests()
         using Del = DelegateFunction<int(int)>;
 
         Del del4([](int x) -> int { return x + 7; });
-        ASSERT_TRUE(del4(1) == 8);
+        DMQ_ASSERT_TRUE(del4(1) == 8);
 
         Del del5 = Del{ [](int x) -> int { return x + 9; } };
-        ASSERT_TRUE(del5(1) == 10);
+        DMQ_ASSERT_TRUE(del5(1) == 10);
 
         int t = 5;
         Del del6 = Del{ [t](int x) -> int { return x + 9 + t; } };
-        ASSERT_TRUE(del6(1) == 15);
+        DMQ_ASSERT_TRUE(del6(1) == 15);
     }
 
     {
@@ -751,63 +751,63 @@ static void DelegateFunctionTests()
         Del del1{ lam };
         Del del2; //= lam;
         del2 = std::function(lam);
-        ASSERT_TRUE(!del1.Empty());
-        ASSERT_TRUE(del1() == 42);
-        ASSERT_TRUE(!del2.Empty());
-        ASSERT_TRUE(del2() == 42);
+        DMQ_ASSERT_TRUE(!del1.Empty());
+        DMQ_ASSERT_TRUE(del1() == 42);
+        DMQ_ASSERT_TRUE(!del2.Empty());
+        DMQ_ASSERT_TRUE(del2() == 42);
 
 #if 0
         Del del3 = lam;
         Del del13 = []() { return 42; };
-        ASSERT_TRUE(!del3.Empty());
-        ASSERT_TRUE(del3() == 42);
-        ASSERT_TRUE(!del13.Empty());
-        ASSERT_TRUE(del13() == 42);
+        DMQ_ASSERT_TRUE(!del3.Empty());
+        DMQ_ASSERT_TRUE(del3() == 42);
+        DMQ_ASSERT_TRUE(!del13.Empty());
+        DMQ_ASSERT_TRUE(del13() == 42);
 #endif
 
         Del del10{ lam };
         Del del11 = { lam };
         Del del12 = { []() { return 42; } };
-        ASSERT_TRUE(!del10.Empty());
-        ASSERT_TRUE(del10() == 42);
-        ASSERT_TRUE(!del11.Empty());
-        ASSERT_TRUE(del11() == 42);
-        ASSERT_TRUE(!del12.Empty());
-        ASSERT_TRUE(del12() == 42);
+        DMQ_ASSERT_TRUE(!del10.Empty());
+        DMQ_ASSERT_TRUE(del10() == 42);
+        DMQ_ASSERT_TRUE(!del11.Empty());
+        DMQ_ASSERT_TRUE(del11() == 42);
+        DMQ_ASSERT_TRUE(!del12.Empty());
+        DMQ_ASSERT_TRUE(del12() == 42);
 
         auto const lam2 = []() { return 42; };
         Del del4{ lam2 };
         Del del5; // = lam2;
         del5 = std::function(lam2);
-        ASSERT_TRUE(!del4.Empty());
-        ASSERT_TRUE(del4() == 42);
-        ASSERT_TRUE(!del5.Empty());
-        ASSERT_TRUE(del5() == 42);
+        DMQ_ASSERT_TRUE(!del4.Empty());
+        DMQ_ASSERT_TRUE(del4() == 42);
+        DMQ_ASSERT_TRUE(!del5.Empty());
+        DMQ_ASSERT_TRUE(del5() == 42);
     }
 
     // MakeDelegate with raw lambda — no std::function wrapper required
     {
         // Inline raw lambda
-        auto d1 = MakeDelegate([](int i) { ASSERT_TRUE(i == TEST_INT); });
-        ASSERT_TRUE(!d1.Empty());
+        auto d1 = MakeDelegate([](int i) { DMQ_ASSERT_TRUE(i == TEST_INT); });
+        DMQ_ASSERT_TRUE(!d1.Empty());
         d1(TEST_INT);
 
         // Named raw lambda (auto, not std::function)
-        auto rawLam = [](int i) { ASSERT_TRUE(i == TEST_INT); };
+        auto rawLam = [](int i) { DMQ_ASSERT_TRUE(i == TEST_INT); };
         auto d2 = MakeDelegate(rawLam);
-        ASSERT_TRUE(!d2.Empty());
+        DMQ_ASSERT_TRUE(!d2.Empty());
         d2(TEST_INT);
 
         // Capturing lambda
         int expected = TEST_INT;
-        auto d3 = MakeDelegate([expected](int i) { ASSERT_TRUE(i == expected); });
-        ASSERT_TRUE(!d3.Empty());
+        auto d3 = MakeDelegate([expected](int i) { DMQ_ASSERT_TRUE(i == expected); });
+        DMQ_ASSERT_TRUE(!d3.Empty());
         d3(TEST_INT);
 
         // Raw lambda with return value
         auto d4 = MakeDelegate([]() -> int { return TEST_INT; });
-        ASSERT_TRUE(!d4.Empty());
-        ASSERT_TRUE(d4() == TEST_INT);
+        DMQ_ASSERT_TRUE(!d4.Empty());
+        DMQ_ASSERT_TRUE(d4() == TEST_INT);
     }
 
     // Trait checks: is_callable excludes std::function and function pointers

@@ -9,9 +9,9 @@
 #include <cstdio>
 #include <cstring> // for memset
 
-// Define ASSERT_TRUE if not already defined
-#ifndef ASSERT_TRUE
-#define ASSERT_TRUE(x) __ASSERT(x, "DelegateMQ Assertion Failed")
+// Define DMQ_ASSERT_TRUE if not already defined
+#ifndef DMQ_ASSERT_TRUE
+#define DMQ_ASSERT_TRUE(x) __ASSERT(x, "DelegateMQ Assertion Failed")
 #endif
 
 namespace dmq::os {
@@ -73,7 +73,7 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_stackMemory)
     {
         // 1. Create Message Queues
-        ASSERT_TRUE(m_queue.Create(m_queueSize));
+        DMQ_ASSERT_TRUE(m_queue.Create(m_queueSize));
 
         // 2. Create Thread
         // CRITICAL: Stacks must be aligned to Z_KERNEL_STACK_OBJ_ALIGN for MPU/Arch reasons.
@@ -95,7 +95,7 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                                       0, 
                                       K_NO_WAIT);
         
-        ASSERT_TRUE(tid != nullptr);
+        DMQ_ASSERT_TRUE(tid != nullptr);
         
         // Optional: Set thread name for debug
         k_thread_name_set(tid, THREAD_NAME.c_str());
@@ -267,7 +267,7 @@ void ZephyrThread::Sleep(dmq::Duration timeout) {
 //----------------------------------------------------------------------------
 bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
-    ASSERT_TRUE(m_stackMemory != nullptr);
+    DMQ_ASSERT_TRUE(m_stackMemory != nullptr);
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
@@ -289,7 +289,7 @@ bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     {
         if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
-            ASSERT_TRUE(sent);
+            DMQ_ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
             printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
@@ -436,9 +436,9 @@ void ZephyrThread::Run()
 #endif
 
                 auto delegateMsg = msg->GetData();
-                ASSERT_TRUE(delegateMsg);
+                DMQ_ASSERT_TRUE(delegateMsg);
                 auto invoker = delegateMsg->GetInvoker();
-                ASSERT_TRUE(invoker);
+                DMQ_ASSERT_TRUE(invoker);
 
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::TimePoint start = Timer::GetNow();
@@ -447,31 +447,31 @@ void ZephyrThread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    ASSERT_TRUE(success);
+                    DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (const std::invalid_argument& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (const std::runtime_error& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (const std::exception& e) {
                     printf("[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (...) {
                     printf("[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
-                if (!selfExit) ASSERT_TRUE(success);
+                if (!selfExit) DMQ_ASSERT_TRUE(success);
 #endif
                 if (selfExit) {
                     delete msg;

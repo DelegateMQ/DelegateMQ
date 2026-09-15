@@ -131,7 +131,7 @@ public:
 
         if (typeMismatch) {
             OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
-            ASSERT();
+            DMQ_ASSERT();
             return true;
         }
 
@@ -176,7 +176,7 @@ public:
         }
         if (typeMismatch) {
             OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
-            ASSERT();
+            DMQ_ASSERT();
         }
     }
 
@@ -194,7 +194,7 @@ public:
         }
         if (typeMismatch) {
             OnChannelError(remoteId, dmq::DelegateError::ERR_TYPE_MISMATCH, 0);
-            ASSERT();
+            DMQ_ASSERT();
         }
     }
 

@@ -7,7 +7,7 @@ StateMachineHSM::StateMachineHSM(uint8_t maxStates, uint8_t initialState)
     : StateMachine(maxStates, initialState)
 {
     // Sentinel values 0xFC and 0xFD must not collide with valid state indices.
-    ASSERT_TRUE(maxStates < PROPAGATE_TO_PARENT);
+    DMQ_ASSERT_TRUE(maxStates < PROPAGATE_TO_PARENT);
 }
 
 //----------------------------------------------------------------------------
@@ -16,14 +16,14 @@ StateMachineHSM::StateMachineHSM(uint8_t maxStates, uint8_t initialState)
 void StateMachineHSM::StateEngine()
 {
     const StateMapRowHSM* map = GetStateMapHSM();
-    ASSERT_TRUE(map != nullptr);
+    DMQ_ASSERT_TRUE(map != nullptr);
 
     std::shared_ptr<const EventData> pDataTemp;
 
     while (IsEventPending())
     {
         uint8_t newState = GetNewState();
-        ASSERT_TRUE(newState < GetMaxStates());
+        DMQ_ASSERT_TRUE(newState < GetMaxStates());
 
         const StateBase* state = map[newState].State;
         const GuardBase* guard = map[newState].Guard;
@@ -75,14 +75,14 @@ void StateMachineHSM::StateEngine()
                 }
 
                 // Entry/exit actions must not fire new events.
-                ASSERT_TRUE(!IsEventPending());
+                DMQ_ASSERT_TRUE(!IsEventPending());
             }
             else
             {
                 SetCurrentState(newState);
             }
 
-            ASSERT_TRUE(state != nullptr);
+            DMQ_ASSERT_TRUE(state != nullptr);
             state->InvokeStateAction(this, pDataTemp);
 
             OnTransition(fromState, GetCurrentState());

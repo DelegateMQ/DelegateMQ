@@ -31,23 +31,23 @@ namespace Remote
         TestReturn Func() { return TestReturn{}; }
     };
     
-    void FreeFuncInt(int i) { ASSERT_TRUE(i == TEST_INT); }
-    void FreeFuncIntRef(int& i) { ASSERT_TRUE(i == TEST_INT); }
+    void FreeFuncInt(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+    void FreeFuncIntRef(int& i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
     void FreeFuncIntPtr(int* pi) { 
-        ASSERT_TRUE(pi); 
-        ASSERT_TRUE(*pi == TEST_INT); 
+        DMQ_ASSERT_TRUE(pi); 
+        DMQ_ASSERT_TRUE(*pi == TEST_INT); 
     }
     void FreeFuncConstIntPtr(const int* pi) { 
-        ASSERT_TRUE(pi); 
-        ASSERT_TRUE(*pi == TEST_INT); 
+        DMQ_ASSERT_TRUE(pi); 
+        DMQ_ASSERT_TRUE(*pi == TEST_INT); 
     }
     void FreeFuncConstIntRef(const int& i) {
-        ASSERT_TRUE(i == TEST_INT);
+        DMQ_ASSERT_TRUE(i == TEST_INT);
     }
     void FreeFuncIntPtrPtr(int** pi) {
-        ASSERT_TRUE(pi);
-        ASSERT_TRUE(*pi);
-        ASSERT_TRUE(**pi == TEST_INT);
+        DMQ_ASSERT_TRUE(pi);
+        DMQ_ASSERT_TRUE(*pi);
+        DMQ_ASSERT_TRUE(**pi == TEST_INT);
     }
 
     class RemoteData {
@@ -71,30 +71,30 @@ namespace Remote
     }
 
     void FreeFuncRemoteData(RemoteData& d) { 
-        ASSERT_TRUE(d.x == TEST_INT); 
-        ASSERT_TRUE(d.y == TEST_INT+1);
+        DMQ_ASSERT_TRUE(d.x == TEST_INT); 
+        DMQ_ASSERT_TRUE(d.y == TEST_INT+1);
     }
 
     void FreeFuncRemoteDataPtr(RemoteData* d) {
-        ASSERT_TRUE(d->x == TEST_INT);
-        ASSERT_TRUE(d->y == TEST_INT + 1);
+        DMQ_ASSERT_TRUE(d->x == TEST_INT);
+        DMQ_ASSERT_TRUE(d->y == TEST_INT + 1);
     }
 
     class RemoteClass {
     public: 
-        void MemberFuncInt(int i) { ASSERT_TRUE(i == TEST_INT); }
-        void MmberFuncIntRef(int& i) { ASSERT_TRUE(i == TEST_INT); }
+        void MemberFuncInt(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+        void MmberFuncIntRef(int& i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
         void MemberFuncIntPtr(int* pi) {
-            ASSERT_TRUE(pi);
-            ASSERT_TRUE(*pi == TEST_INT);
+            DMQ_ASSERT_TRUE(pi);
+            DMQ_ASSERT_TRUE(*pi == TEST_INT);
         }
         void MemberFuncRemoteData(RemoteData& d) {
-            ASSERT_TRUE(d.x == TEST_INT);
-            ASSERT_TRUE(d.y == TEST_INT + 1);
+            DMQ_ASSERT_TRUE(d.x == TEST_INT);
+            DMQ_ASSERT_TRUE(d.y == TEST_INT + 1);
         }
         void MemberFuncRemoteDataPtr(RemoteData* d) {
-            ASSERT_TRUE(d->x == TEST_INT);
-            ASSERT_TRUE(d->y == TEST_INT + 1);
+            DMQ_ASSERT_TRUE(d->x == TEST_INT);
+            DMQ_ASSERT_TRUE(d->y == TEST_INT + 1);
         }
     };
 
@@ -209,61 +209,61 @@ static void DelegateFreeRemoteTests()
     // ERR_NO_SERIALIZER through the error handler (no throw when handled).
     delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(FreeFuncInt1, REMOTE_ID);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(FreeFuncInt1, REMOTE_ID);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateFreeRemote<TestReturn()> testRet;
     testRet.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     DelegateFreeRemote<std::unique_ptr<int>(int)> delUnique;
     delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
 
     // Test const pointer and reference arguments
     {
@@ -307,22 +307,22 @@ static void DelegateFreeRemoteTests()
     }
     delUnique.Bind(&FuncUnique, REMOTE_ID);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
 
     auto delS1 = MakeDelegate(FreeFuncInt1, REMOTE_ID);
     auto delS2 = MakeDelegate(FreeFuncInt1_2, REMOTE_ID);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     // Error handler is copied with the delegate into std::function, so the
     // unconfigured invoke reports ERR_NO_SERIALIZER instead of throwing.
@@ -330,7 +330,7 @@ static void DelegateFreeRemoteTests()
     stdFuncDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     std::function<int(int)> stdFunc = stdFuncDel;
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == 0);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == 0);
 
 #if 0
     // ClassSingleton private constructor. Can't use singleton as ref (&),
@@ -377,8 +377,8 @@ static void DelegateFreeRemoteTests()
     outgoingArg.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     outgoingArg(&sparam, &iparam);
-    ASSERT_TRUE(sparam.val == TEST_INT);
-    ASSERT_TRUE(iparam == 100);
+    DMQ_ASSERT_TRUE(sparam.val == TEST_INT);
+    DMQ_ASSERT_TRUE(iparam == 100);
 
 #if 0  // Arg** not supported on remote delegate
     // Test outgoing ptr-ptr argument
@@ -386,7 +386,7 @@ static void DelegateFreeRemoteTests()
     auto outgoingArg2 = MakeDelegate(&OutgoingPtrPtrArg, REMOTE_ID);
     // outgoingArg2(&psparam);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    ASSERT_TRUE(psparam == nullptr);
+    DMQ_ASSERT_TRUE(psparam == nullptr);
 #endif
 
     // Test outgoing ref argument
@@ -395,7 +395,7 @@ static void DelegateFreeRemoteTests()
     outgoingArg3.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     outgoingArg3(sparam);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    ASSERT_TRUE(sparam.val == TEST_INT);
+    DMQ_ASSERT_TRUE(sparam.val == TEST_INT);
     
     {
         MockDispatcher dispatcher;
@@ -409,7 +409,7 @@ static void DelegateFreeRemoteTests()
         cntDel.SetDispatcher(&dispatcher);
         cntDel.SetSerializer(&serializer);
         cntDel(&classInstance);
-        ASSERT_TRUE(Class::m_construtorCnt == 0);
+        DMQ_ASSERT_TRUE(Class::m_construtorCnt == 0);
     }
 
     // Compile error. Invalid to pass void* argument to remote target function
@@ -428,9 +428,9 @@ static void DelegateFreeRemoteTests()
     auto retVoidPtrDel = MakeDelegate(&RetVoidPtr, REMOTE_ID);
     retVoidPtrDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto retVoidPtr = retVoidPtrDel();
-    ASSERT_TRUE(retVoidPtr == nullptr);
+    DMQ_ASSERT_TRUE(retVoidPtr == nullptr);
     const char* retStr = (const char*)retVoidPtr;
-    ASSERT_TRUE(retStr == nullptr);
+    DMQ_ASSERT_TRUE(retStr == nullptr);
 
 #if 0
     // Invalid: Can't pass a && argument through a message queue
@@ -453,7 +453,7 @@ static void DelegateFreeRemoteTests()
 
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandler = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {
         if (error != dmq::DelegateError::SUCCESS)
-            ASSERT_TRUE(false);
+            DMQ_ASSERT_TRUE(false);
     };
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandlerNoAssert = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {};
     MockDispatcher dispatcher;
@@ -471,13 +471,13 @@ static void DelegateFreeRemoteTests()
         std::istream& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
         recv_stream.setstate(std::ios::failbit);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
     {
@@ -568,48 +568,48 @@ static void DelegateMemberRemoteTests()
     Del delegate1(&testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(&testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(&testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Check for const correctness
     const Class c;
@@ -623,47 +623,47 @@ static void DelegateMemberRemoteTests()
     TestReturn::val = 0;
     DelegateMemberRemote<TestReturnClass, TestReturn()> testRet;
     testRet.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     Class c2;
     DelegateMemberRemote<Class, std::unique_ptr<int>(int)> delUnique;
     delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(&c2, &Class::FuncUnique, REMOTE_ID);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
 
     auto delS1 = MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     auto delS2 = MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1_2, REMOTE_ID);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
 #if 0  // DelegateMemberRemote can't be inserted into ordered container
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 #endif
 
     const TestClass1 tcConst;
     auto delConstCheck = MakeDelegate(&tcConst, &TestClass1::ConstCheck, REMOTE_ID);
     delConstCheck.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto delConstCheckRetVal = delConstCheck(TEST_INT);
-    ASSERT_TRUE(delConstCheckRetVal == 0);
+    DMQ_ASSERT_TRUE(delConstCheckRetVal == 0);
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     auto stdFuncDel = MakeDelegate(&testClass1, &TestClass1::MemberFuncIntWithReturn1, REMOTE_ID);
     stdFuncDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     std::function<int(int)> stdFunc = stdFuncDel;
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == 0);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == 0);
 
     SetClassSingleton setClassSingleton;
 #if 0
@@ -711,9 +711,9 @@ static void DelegateMemberRemoteTests()
     auto retVoidPtrDel = MakeDelegate(&voidTest, &Class::RetVoidPtr, REMOTE_ID);
     retVoidPtrDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto retVoidPtr = retVoidPtrDel();
-    ASSERT_TRUE(retVoidPtr == nullptr);
+    DMQ_ASSERT_TRUE(retVoidPtr == nullptr);
     const char* retStr = (const char*)retVoidPtr;
-    ASSERT_TRUE(retStr == nullptr);
+    DMQ_ASSERT_TRUE(retStr == nullptr);
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -727,7 +727,7 @@ static void DelegateMemberRemoteTests()
 
     std::function<void(DelegateRemoteId, DelegateError, DelegateErrorAux)> errorHandler = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {
         if (error != dmq::DelegateError::SUCCESS)
-            ASSERT_TRUE(false);
+            DMQ_ASSERT_TRUE(false);
     };
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandlerNoAssert = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {};
     MockDispatcher dispatcher;
@@ -746,13 +746,13 @@ static void DelegateMemberRemoteTests()
         std::istream& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
         recv_stream.setstate(std::ios::failbit);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
     {
@@ -823,51 +823,51 @@ static void DelegateMemberSpRemoteTests()
     auto testClass1 = std::make_shared<TestClass1>();
 
     Del delegate1(testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::SUCCESS);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::SUCCESS);
     delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Check for const correctness
     auto c = std::make_shared<const Class>();
@@ -881,41 +881,41 @@ static void DelegateMemberSpRemoteTests()
     TestReturn::val = 0;
     DelegateMemberRemote<TestReturnClass, TestReturn()> testRet;
     testRet.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     auto c2 = std::make_shared<Class>();
     DelegateMemberRemote<Class, std::unique_ptr<int>(int)> delUnique;
     delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(c2, &Class::FuncUnique, REMOTE_ID);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
 
     auto delS1 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1, REMOTE_ID);
     auto delS2 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1_2, REMOTE_ID);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
 #if 0  // DelegateMemberRemote can't be inserted into ordered container
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 #endif
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     auto stdFuncDel = MakeDelegate(testClass1, &TestClass1::MemberFuncIntWithReturn1, REMOTE_ID);
     stdFuncDel.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     std::function<int(int)> stdFunc = stdFuncDel;
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == 0);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == 0);
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -929,27 +929,27 @@ static void DelegateMemberSpRemoteTests()
 
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandler = [](DelegateRemoteId id, DelegateError error, int code) {
         if (error != dmq::DelegateError::SUCCESS)
-            ASSERT_TRUE(false);
+            DMQ_ASSERT_TRUE(false);
     };
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandlerNoAssert = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {};
     static std::function<void(int)> LambdaFuncInt = +[](int i) {
-        ASSERT_TRUE(i == TEST_INT);
+        DMQ_ASSERT_TRUE(i == TEST_INT);
     };
     static std::function<void(int&)> LambdaFuncIntRef = +[](int& i) {
-        ASSERT_TRUE(i == TEST_INT);
+        DMQ_ASSERT_TRUE(i == TEST_INT);
     };
     static std::function<void(int*)> LambdaFuncIntPtr = +[](int* i) {
-        ASSERT_TRUE(i);
-        ASSERT_TRUE(*i == TEST_INT);
+        DMQ_ASSERT_TRUE(i);
+        DMQ_ASSERT_TRUE(*i == TEST_INT);
     };
     static std::function<void(RemoteData&)> LambdaFuncRemoteData = +[](RemoteData& d) {
-        ASSERT_TRUE(d.x == TEST_INT);
-        ASSERT_TRUE(d.y == TEST_INT+1);
+        DMQ_ASSERT_TRUE(d.x == TEST_INT);
+        DMQ_ASSERT_TRUE(d.y == TEST_INT+1);
     };
     static std::function<void(RemoteData*)> LambdaFuncRemoteDataPtr = +[](RemoteData* d) {
-        ASSERT_TRUE(d);
-        ASSERT_TRUE(d->x == TEST_INT);
-        ASSERT_TRUE(d->y == TEST_INT + 1);
+        DMQ_ASSERT_TRUE(d);
+        DMQ_ASSERT_TRUE(d->x == TEST_INT);
+        DMQ_ASSERT_TRUE(d->y == TEST_INT + 1);
     };
     MockDispatcher dispatcher;
     xostringstream os(ios::in | ios::out | ios::binary);
@@ -966,13 +966,13 @@ static void DelegateMemberSpRemoteTests()
         std::istream& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
         recv_stream.setstate(std::ios::failbit);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
     {
@@ -1043,79 +1043,79 @@ static void DelegateFunctionRemoteTests()
     Del delegate1(LambdaNoCapture, REMOTE_ID);
     delegate1.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     delegate1(TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
     std::invoke(delegate1, TEST_INT);
-    ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
+    DMQ_ASSERT_TRUE(delegate1.GetError() == DelegateError::ERR_NO_SERIALIZER);
 
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(LambdaNoCapture, REMOTE_ID);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(LambdaNoCapture, REMOTE_ID);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFree<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateFunction<TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     auto c2 = std::make_shared<Class>();
     DelegateFunctionRemote<std::unique_ptr<int>(int)> delUnique;
     delUnique.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int) {}));
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(LambdaUnqiue, REMOTE_ID);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Remote delegate has default return value 
 
     auto delS1 = MakeDelegate(LambdaNoCapture, REMOTE_ID);
     auto delS2 = MakeDelegate(LambdaNoCapture2, REMOTE_ID);
-    //ASSERT_TRUE(!(delS1 == delS2));  // std::function can't distiguish difference
+    //DMQ_ASSERT_TRUE(!(delS1 == delS2));  // std::function can't distiguish difference
 
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 1);
+    DMQ_ASSERT_TRUE(setDel.size() == 1);
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -1149,25 +1149,25 @@ static void DelegateFunctionRemoteTests()
     {
         // Inline raw lambda
         auto d1 = MakeDelegate([](int i) {}, REMOTE_ID);
-        ASSERT_TRUE(!d1.Empty());
-        ASSERT_TRUE(d1.GetRemoteId() == REMOTE_ID);
+        DMQ_ASSERT_TRUE(!d1.Empty());
+        DMQ_ASSERT_TRUE(d1.GetRemoteId() == REMOTE_ID);
 
         // Named raw lambda (auto, not std::function)
         auto rawLam = [](int i) {};
         auto d2 = MakeDelegate(rawLam, REMOTE_ID);
-        ASSERT_TRUE(!d2.Empty());
-        ASSERT_TRUE(d2.GetRemoteId() == REMOTE_ID);
+        DMQ_ASSERT_TRUE(!d2.Empty());
+        DMQ_ASSERT_TRUE(d2.GetRemoteId() == REMOTE_ID);
 
         // Capturing lambda
         int captured = 0;
         auto d3 = MakeDelegate([captured](int i) {}, REMOTE_ID);
-        ASSERT_TRUE(!d3.Empty());
-        ASSERT_TRUE(d3.GetRemoteId() == REMOTE_ID);
+        DMQ_ASSERT_TRUE(!d3.Empty());
+        DMQ_ASSERT_TRUE(d3.GetRemoteId() == REMOTE_ID);
     }
 
     std::function<void(DelegateRemoteId, DelegateError, DelegateErrorAux)> errorHandler = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {
         if (error != dmq::DelegateError::SUCCESS)
-            ASSERT_TRUE(false);
+            DMQ_ASSERT_TRUE(false);
     };
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandlerNoAssert = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {};
     MockDispatcher dispatcher;
@@ -1186,13 +1186,13 @@ static void DelegateFunctionRemoteTests()
         std::istream& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
         recv_stream.setstate(std::ios::failbit);
         delegateRemote.Invoke(recv_stream);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
-        ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
     {

@@ -275,7 +275,7 @@ extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
     std::cout << "\n************************************************" << std::endl;
     std::cout << "WATCHDOG EXPIRED: " << threadName << std::endl;
     std::cout << "************************************************\n" << std::endl;
-    ASSERT();
+    DMQ_ASSERT();
 #else
     printf("WATCHDOG EXPIRED: %s\r\n", threadName);
     while (1);

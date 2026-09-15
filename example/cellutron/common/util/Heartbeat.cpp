@@ -30,7 +30,7 @@ void Heartbeat::Start()
 
 void Heartbeat::MonitorNode(const char* remoteTopic, FaultCode faultCode, const std::string& nodeName)
 {
-    ASSERT_TRUE(m_monitorCount < m_monitors.size());
+    DMQ_ASSERT_TRUE(m_monitorCount < m_monitors.size());
 
     Monitor& monitor = m_monitors[m_monitorCount++];
     monitor.name = nodeName;
