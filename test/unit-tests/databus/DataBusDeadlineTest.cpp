@@ -54,8 +54,8 @@ int DataBusDeadlineTestMain()
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
 
-        ASSERT_TRUE(deliveryCount == 5);
-        ASSERT_TRUE(missedCount == 0);
+        DMQ_ASSERT_TRUE(deliveryCount == 5);
+        DMQ_ASSERT_TRUE(missedCount == 0);
 
         stopDriver();
     }
@@ -78,7 +78,7 @@ int DataBusDeadlineTestMain()
         dmq::databus::DataBus::Publish<int>("deadline/topic", 1);
         std::this_thread::sleep_for(std::chrono::milliseconds(120));
 
-        ASSERT_TRUE(missedCount >= 1);
+        DMQ_ASSERT_TRUE(missedCount >= 1);
 
         stopDriver();
     }
@@ -100,7 +100,7 @@ int DataBusDeadlineTestMain()
         // No publish at all
         std::this_thread::sleep_for(std::chrono::milliseconds(120));
 
-        ASSERT_TRUE(missedCount >= 1);
+        DMQ_ASSERT_TRUE(missedCount >= 1);
 
         stopDriver();
     }
@@ -122,7 +122,7 @@ int DataBusDeadlineTestMain()
         // Let it miss once
         std::this_thread::sleep_for(std::chrono::milliseconds(120));
         int missesAfterSilence = missedCount.load();
-        ASSERT_TRUE(missesAfterSilence >= 1);
+        DMQ_ASSERT_TRUE(missesAfterSilence >= 1);
 
         // Resume publishing — resets the timer each time
         for (int i = 0; i < 4; i++) {
@@ -131,7 +131,7 @@ int DataBusDeadlineTestMain()
         }
 
         int missesAfterRecovery = missedCount.load();
-        ASSERT_TRUE(missesAfterRecovery == missesAfterSilence); // no new misses
+        DMQ_ASSERT_TRUE(missesAfterRecovery == missesAfterSilence); // no new misses
 
         stopDriver();
     }
@@ -155,7 +155,7 @@ int DataBusDeadlineTestMain()
         } // sub destroyed: DataBus disconnected, timer stopped
 
         std::this_thread::sleep_for(std::chrono::milliseconds(120));
-        ASSERT_TRUE(missedCount == 0);
+        DMQ_ASSERT_TRUE(missedCount == 0);
 
         stopDriver();
     }
@@ -191,8 +191,8 @@ int DataBusDeadlineTestMain()
         while ((!dataOnWorker || !missedOnWorker) && retries++ < 40)
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-        ASSERT_TRUE(dataOnWorker == true);
-        ASSERT_TRUE(missedOnWorker == true);
+        DMQ_ASSERT_TRUE(dataOnWorker == true);
+        DMQ_ASSERT_TRUE(missedOnWorker == true);
 
         workerThread.ExitThread();
         stopDriver();

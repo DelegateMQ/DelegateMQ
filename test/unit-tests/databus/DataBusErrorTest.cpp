@@ -187,7 +187,7 @@ int DataBusErrorTest() {
 // Test 6: ERR_CAPACITY_EXCEEDED reported when adding more than MAX_PARTICIPANTS
 // participants. This intentionally triggers the same "report, then hard fault"
 // hybrid as the ERR_TYPE_MISMATCH sites — InternalAddParticipant() calls
-// InternalReportLatchedError() and then ASSERT(), which calls FaultHandler()
+// InternalReportLatchedError() and then DMQ_ASSERT(), which calls FaultHandler()
 // and aborts the process. Since it genuinely aborts, this is for manual
 // verification only and is disabled by default (same convention as
 // DataBusTypeMismatchTest.cpp).

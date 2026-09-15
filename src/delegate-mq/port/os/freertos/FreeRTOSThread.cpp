@@ -8,8 +8,8 @@
 #include "extras/util/Fault.h"
 #include <cstdio>
 
-#ifndef ASSERT_TRUE
-#define ASSERT_TRUE(x) configASSERT(x)
+#ifndef DMQ_ASSERT_TRUE
+#define DMQ_ASSERT_TRUE(x) configASSERT(x)
 #endif
 
 namespace dmq::os {
@@ -88,7 +88,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     // 1. Create Synchronization Semaphore (Critical for cleanup)
     if (!m_exitSem) {
         m_exitSem = xSemaphoreCreateBinary();
-        ASSERT_TRUE(m_exitSem != nullptr);
+        DMQ_ASSERT_TRUE(m_exitSem != nullptr);
     }
 
     // 2. Create the Queue NOW (Synchronously)
@@ -162,7 +162,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         }
     }
 
-    ASSERT_TRUE(m_thread != nullptr);
+    DMQ_ASSERT_TRUE(m_thread != nullptr);
     return true;
 }
 
@@ -272,7 +272,7 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     if (!sent) {
         if (FULL_POLICY == FullPolicy::FAULT) {
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
-            ASSERT_TRUE(sent);
+            DMQ_ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
             printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
         }
@@ -299,7 +299,7 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 void FreeRTOSThread::Process(void* instance)
 {
     FreeRTOSThread* thread = static_cast<FreeRTOSThread*>(instance);
-    ASSERT_TRUE(thread != nullptr);
+    DMQ_ASSERT_TRUE(thread != nullptr);
     thread->Run();
     vTaskDelete(NULL);
 }
@@ -388,9 +388,9 @@ void FreeRTOSThread::Run()
 #endif
 
                 auto delegateMsg = msg->GetData();
-                ASSERT_TRUE(delegateMsg);
+                DMQ_ASSERT_TRUE(delegateMsg);
                 auto invoker = delegateMsg->GetInvoker();
-                ASSERT_TRUE(invoker);
+                DMQ_ASSERT_TRUE(invoker);
 
 #if defined(DMQ_DATABUS_TOOLS)
                 dmq::TimePoint start = Timer::GetNow();
@@ -399,31 +399,31 @@ void FreeRTOSThread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    ASSERT_TRUE(success);
+                    DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (const std::invalid_argument& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (const std::runtime_error& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (const std::exception& e) {
                     printf("[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
                 catch (...) {
                     printf("[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
-                    ASSERT();
+                    DMQ_ASSERT();
                 }
 #else
                 bool success = invoker->Invoke(delegateMsg);
-                if (!selfExit) ASSERT_TRUE(success);
+                if (!selfExit) DMQ_ASSERT_TRUE(success);
 #endif
                 if (selfExit) {
                     delete msg;

@@ -49,34 +49,34 @@ void RetryMonitorTests()
         DmqHeader header(/*id=*/42, /*seqNum=*/7);
 
         int err = retry.SendWithRetry(os, header);
-        ASSERT_TRUE(err == 0);
-        ASSERT_TRUE(transport.sendCount == 1);
-        ASSERT_TRUE(failedCount == 0);
+        DMQ_ASSERT_TRUE(err == 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 1);
+        DMQ_ASSERT_TRUE(failedCount == 0);
 
         // Timeout #1: 2 attempts remaining -> retry (send #2).
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
         monitor.Process();
-        ASSERT_TRUE(transport.sendCount == 2);
-        ASSERT_TRUE(failedCount == 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 2);
+        DMQ_ASSERT_TRUE(failedCount == 0);
 
         // Timeout #2: 1 attempt remaining -> retry (send #3).
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
         monitor.Process();
-        ASSERT_TRUE(transport.sendCount == 3);
-        ASSERT_TRUE(failedCount == 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 3);
+        DMQ_ASSERT_TRUE(failedCount == 0);
 
         // Timeout #3: 0 attempts remaining -> retry budget exhausted.
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
         monitor.Process();
-        ASSERT_TRUE(failedCount == 1);
-        ASSERT_TRUE(failedId == 42);
-        ASSERT_TRUE(failedSeq == 7);
+        DMQ_ASSERT_TRUE(failedCount == 1);
+        DMQ_ASSERT_TRUE(failedId == 42);
+        DMQ_ASSERT_TRUE(failedSeq == 7);
 
         // No further sends or failure signals after exhaustion.
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
         monitor.Process();
-        ASSERT_TRUE(transport.sendCount == 3);
-        ASSERT_TRUE(failedCount == 1);
+        DMQ_ASSERT_TRUE(transport.sendCount == 3);
+        DMQ_ASSERT_TRUE(failedCount == 1);
     }
 
     // A message that IS acknowledged before timing out never reports failure.
@@ -93,12 +93,12 @@ void RetryMonitorTests()
         os << "payload";
         DmqHeader header(/*id=*/99, /*seqNum=*/3);
 
-        ASSERT_TRUE(retry.SendWithRetry(os, header) == 0);
+        DMQ_ASSERT_TRUE(retry.SendWithRetry(os, header) == 0);
         monitor.Remove(header.GetSeqNum(), header.GetId()); // ACK arrives
 
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
         monitor.Process();
-        ASSERT_TRUE(transport.sendCount == 1); // no retry
-        ASSERT_TRUE(failedCount == 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 1); // no retry
+        DMQ_ASSERT_TRUE(failedCount == 0);
     }
 }

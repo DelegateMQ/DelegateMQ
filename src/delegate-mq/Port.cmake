@@ -163,7 +163,7 @@ if (DMQ_UTIL STREQUAL "ON")
         # exist specifically so Timer::ProcessTimers() can be driven from a
         # hardware ISR, e.g. SysTick_Handler, with no RTOS at all -- see
         # BareMetalCriticalSection.h's own doc comment). AsyncInvoke.h/
-        # TimerDelegate.h/NetworkEngine.cpp/ThreadMonitor.cpp all genuinely
+        # TimerDelegate.h/RemoteDispatcher.cpp/ThreadMonitor.cpp all genuinely
         # need a real dmq::IThread and stay excluded.
         file(GLOB UTIL_SOURCES CONFIGURE_DEPENDS
             "${DMQ_ROOT_DIR}/extras/util/Fault.h"
@@ -171,10 +171,16 @@ if (DMQ_UTIL STREQUAL "ON")
             "${DMQ_ROOT_DIR}/extras/util/Timer.cpp"
         )
     else()
-        # OS/RTOS present: Include everything 
+        # OS/RTOS present: Include everything
         file(GLOB UTIL_SOURCES CONFIGURE_DEPENDS
             "${DMQ_ROOT_DIR}/extras/util/*.c*"
             "${DMQ_ROOT_DIR}/extras/util/*.h"
+        )
+        # RPC sources (RemoteDispatcher/RemoteEndpoint) need a real dmq::IThread,
+        # same reasoning as the bare-metal exclusion above -- only globbed here.
+        file(GLOB RPC_SOURCES CONFIGURE_DEPENDS
+            "${DMQ_ROOT_DIR}/extras/rpc/*.c*"
+            "${DMQ_ROOT_DIR}/extras/rpc/*.h"
         )
     endif()
 endif()
@@ -205,6 +211,7 @@ set(DMQ_EXTRAS_SOURCES "")
 list(APPEND DMQ_EXTRAS_SOURCES ${DISPATCHER_SOURCES})
 list(APPEND DMQ_EXTRAS_SOURCES ${ALLOCATOR_SOURCES})
 list(APPEND DMQ_EXTRAS_SOURCES ${UTIL_SOURCES})
+list(APPEND DMQ_EXTRAS_SOURCES ${RPC_SOURCES})
 
 if (DMQ_DATABUS STREQUAL "ON")
     add_compile_definitions(DMQ_DATABUS)

@@ -12,23 +12,37 @@
 #include "DataMsg.h"
 #include "CommandMsg.h"
 #include "ActuatorMsg.h"
+#include "extras/util/ReliableTransport.h"
+#include "extras/util/RetryMonitor.h"
+#if defined(DMQ_TRANSPORT_WIN32_UDP)
+#include "port/transport/win32-udp/Win32UdpTransport.h"
+#elif defined(DMQ_TRANSPORT_LINUX_UDP)
+#include "port/transport/linux-udp/LinuxUdpTransport.h"
+#endif
 #include <optional>
 
 /// @brief NetworkMgr sends and receives data using a DelegateMQ transport implemented
 /// with Windows UDP sockets and msg_serialize. Class is thread safe. All public APIs are
 /// asynchronous.
 ///
-/// @details NetworkMgr inherits from NetworkEngine, which manages the internal thread
+/// @details NetworkMgr inherits from RemoteDispatcher, which manages the internal thread
 /// of control. All public APIs are asynchronous (blocking and non-blocking). Register
 /// with OnError or OnSendStatus to handle success or errors.
 ///
-/// The underlying UDP transport layer managed by NetworkEngine is accessed only by a
+/// NetworkMgr owns the UDP transport itself and hands it to the base class via
+/// Attach() -- RemoteDispatcher only ever sees dmq::transport::ITransport, it neither
+/// constructs nor knows the concrete transport type. Raw UDP has no reliability of
+/// its own, so NetworkMgr layers ReliableTransport+RetryMonitor on top and attaches
+/// the ReliableTransport (not the raw transport) as the send transport, and calls
+/// AttachRetryMonitor() so retry-exhaustion reaches OnDeliveryFailed().
+///
+/// The underlying UDP transport layer managed by RemoteDispatcher is accessed only by a
 /// single internal thread. Therefore, when invoking a remote delegate, the call is
-/// automatically dispatched to the internal NetworkEngine thread.
+/// automatically dispatched to the internal RemoteDispatcher thread.
 ///
 /// **Key Responsibilities:**
 /// * **Asynchronous Communication:** Exposes a fully thread-safe, asynchronous public API for network operations,
-///   utilizing an internal thread managed by `NetworkEngine` to handle all I/O.
+///   utilizing an internal thread managed by `RemoteDispatcher` to handle all I/O.
 /// * **Transport Abstraction:** Implements specific UDP transport logic (using Windows or Linux sockets) while abstracting
 ///   these details from the application logic. Two sockets are created: one for sending and one for receiving.
 /// * **Message Dispatching:** Automatically marshals all outgoing remote delegate invocations to the internal
@@ -39,7 +53,7 @@
 ///     3. *Future-based:* Returns a `std::future` immediately, allowing retrieval of the result at a later time.
 /// * **Error & Status Reporting:** Provides registration points (`OnNetworkError`, `OnSendStatus`) for clients to subscribe
 ///   to transmission results and error notifications.
-class NetworkMgr : public dmq::util::NetworkEngine
+class NetworkMgr : public dmq::rpc::RemoteDispatcher
 {
 public:
     // Public Signals — clients Connect() to these using RAII ScopedConnection.
@@ -72,9 +86,18 @@ protected:
     void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) override;
     void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) override;
 
+    // ITransport has no Close(); close our own concrete transports here.
+    // Called by RemoteDispatcher::Stop() before the receive thread is joined.
+    void CloseTransports() override;
+
 private:
     NetworkMgr();
     ~NetworkMgr() = default;
+
+    // Opens the UDP sockets and wires ACK/status routing. Must run on the
+    // network thread, same as the transport-creation calls RemoteDispatcher's old
+    // per-transport Initialize() used to marshal there itself.
+    int OpenTransport();
 
     // Helper functions to forward incoming data to the Signals
     void ForwardAlarm(AlarmMsg& msg, AlarmNote& note)   { OnAlarm(msg, note); }
@@ -94,6 +117,19 @@ private:
     std::optional<dmq::RemoteChannel<void(CommandMsg&)>>           m_commandChannel;
     std::optional<dmq::RemoteChannel<void(DataMsg&)>>              m_dataChannel;
     std::optional<dmq::RemoteChannel<void(ActuatorMsg&)>>          m_actuatorChannel;
+
+    // Owned directly by NetworkMgr -- RemoteDispatcher only ever sees these through
+    // the ITransport& passed to Attach()/AttachRetryMonitor().
+#if defined(DMQ_TRANSPORT_WIN32_UDP)
+    dmq::transport::Win32UdpTransport m_sendTransport;
+    dmq::transport::Win32UdpTransport m_recvTransport;
+#elif defined(DMQ_TRANSPORT_LINUX_UDP)
+    dmq::transport::LinuxUdpTransport m_sendTransport;
+    dmq::transport::LinuxUdpTransport m_recvTransport;
+#endif
+    // Raw UDP has no reliability of its own -- wrap in ACK/retry.
+    dmq::util::RetryMonitor m_retryMonitor;
+    dmq::util::ReliableTransport m_reliableTransport;
 };
 
 #endif

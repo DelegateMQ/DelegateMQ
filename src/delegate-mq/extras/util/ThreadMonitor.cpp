@@ -3,6 +3,7 @@
 
 #if defined(DMQ_DATABUS)
 
+#include <array>
 #include <chrono>
 
 namespace dmq::util {
@@ -22,7 +23,7 @@ void ThreadMonitor::Register(dmq::os::Thread* thread) {
     if (instance.m_threadCount < dmq::MAX_WATCHDOG_THREADS)
         instance.m_threads[instance.m_threadCount++] = thread;
     else
-        ASSERT();
+        DMQ_ASSERT();
 }
 
 void ThreadMonitor::Deregister(dmq::os::Thread* thread) {
@@ -69,7 +70,7 @@ void ThreadMonitor::Disable() {
 void ThreadMonitor::MonitorLoop() {
     if (!m_enabled) return;
 
-    dmq::os::Thread::ThreadStats snapshots[dmq::MAX_WATCHDOG_THREADS];
+    std::array<dmq::os::Thread::ThreadStats, dmq::MAX_WATCHDOG_THREADS> snapshots;
     size_t snapshotCount = 0;
     {
         dmq::LockGuard<dmq::Mutex> lock(m_mutex);

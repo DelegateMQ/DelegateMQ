@@ -14,7 +14,7 @@ Dependencies Pinned:
     - ZeroMQ:        v4.3.5       (Stable C++ standard)
     - NNG:           v1.8.0       (Known compatibility)
     - MQTT:          v1.3.13      (Paho C stable release)
-    - libserialport:              (Sigrok stable release)
+    - libserialport: 0.1.2        (Sigrok stable release)
     - RapidJSON:     v1.1.0       (Official release)
     - Spdlog:        v1.12.0      (Stable logging)
     - Cereal:        v1.3.2       (Serialization stable)
@@ -44,8 +44,12 @@ repos = {
     # MQTT (Paho): v1.3.13 is the robust, long-term stable release.
     "mqtt": ("https://github.com/eclipse/paho.mqtt.c.git", "v1.3.13", False),
 
-    # libserialport: v0.1.1 is the official stable tag from the sigrok project.
-    "libserialport": ("https://github.com/sigrokproject/libserialport.git", "", False),
+    # libserialport: tagged as "libserialport-0.1.2" (not "vX.Y.Z" like the
+    # others -- sigrok's own tag naming convention), the latest official
+    # stable release from the sigrok project. Previously pinned to "" here,
+    # which never actually passed --branch to git clone, so every fresh
+    # checkout silently grabbed whatever HEAD happened to be that day.
+    "libserialport": ("https://github.com/sigrokproject/libserialport.git", "libserialport-0.1.2", False),
 
     # RapidJSON: Pinned to v1.1.0 (Official release). 
     # Note: This is old (2016) but is the only official tag.

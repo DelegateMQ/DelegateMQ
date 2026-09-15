@@ -63,78 +63,78 @@ static void DelegateFreeAsyncTests()
 
     delegate1.SetPriority(Priority::HIGH);
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(FreeFuncInt1, workerThread);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(FreeFuncInt1, workerThread);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateFreeAsync<TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     DelegateFreeAsync<std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(&FuncUnique, workerThread);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
 
     auto delS1 = MakeDelegate(FreeFuncInt1, workerThread);
     auto delS2 = MakeDelegate(FreeFuncInt1_2, workerThread);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     std::function<int(int)> stdFunc = MakeDelegate(&FreeFuncIntWithReturn1, workerThread);
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == 0);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == 0);
 
 #if 0
     // ClassSingleton private constructor. Can't use singleton as ref (&),
@@ -184,29 +184,29 @@ static void DelegateFreeAsyncTests()
     auto outgoingArg = MakeDelegate(&OutgoingPtrArg, workerThread);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     outgoingArg(&sparam, &iparam);
-    ASSERT_TRUE(sparam.val == TEST_INT);
-    ASSERT_TRUE(iparam == 100);
+    DMQ_ASSERT_TRUE(sparam.val == TEST_INT);
+    DMQ_ASSERT_TRUE(iparam == 100);
 
     // Test outgoing ptr-ptr argument
     StructParam* psparam = nullptr;
     auto outgoingArg2 = MakeDelegate(&OutgoingPtrPtrArgAsync, workerThread);
     outgoingArg2(&psparam);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    ASSERT_TRUE(psparam == nullptr);
+    DMQ_ASSERT_TRUE(psparam == nullptr);
 
     // Test outgoing ref argument
     sparam.val = TEST_INT;
     auto outgoingArg3 = MakeDelegate(&OutgoingRefArg, workerThread);
     outgoingArg3(sparam);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    ASSERT_TRUE(sparam.val == TEST_INT);
+    DMQ_ASSERT_TRUE(sparam.val == TEST_INT);
 
     // Aync invoke copies Class object when passed to func
     Class classInstance;
     Class::m_construtorCnt = 0;
     auto cntDel = MakeDelegate(&ConstructorCnt, workerThread);
     cntDel(&classInstance);
-    ASSERT_TRUE(Class::m_construtorCnt == 1);
+    DMQ_ASSERT_TRUE(Class::m_construtorCnt == 1);
 
     // Compile error. Invalid to pass void* argument to async target function
 #if 0
@@ -223,9 +223,9 @@ static void DelegateFreeAsyncTests()
     // value is invalid on a non-blocking async delegate
     auto retVoidPtrDel = MakeDelegate(&RetVoidPtr, workerThread);
     auto retVoidPtr = retVoidPtrDel();
-    ASSERT_TRUE(retVoidPtr == nullptr);
+    DMQ_ASSERT_TRUE(retVoidPtr == nullptr);
     const char* retStr = (const char*)retVoidPtr;
-    ASSERT_TRUE(retStr == nullptr);
+    DMQ_ASSERT_TRUE(retStr == nullptr);
 
 #if 0
     // Invalid: Can't pass a && argument through a message queue
@@ -281,8 +281,8 @@ static void DelegateFreeAsyncTests()
     delegateHigh(dmq::Priority::HIGH);
 
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    ASSERT_TRUE(sleepCnt == 5);
-    ASSERT_TRUE(failed == false);
+    DMQ_ASSERT_TRUE(sleepCnt == 5);
+    DMQ_ASSERT_TRUE(failed == false);
 }
 
 static TestClass1 testClass1;
@@ -296,45 +296,45 @@ static void DelegateMemberAsyncTests()
 
     delegate1.SetPriority(Priority::HIGH);
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(&testClass1, &TestClass1::MemberFuncInt1, workerThread);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(&testClass1, &TestClass1::MemberFuncInt1, workerThread);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Check for const correctness
     const Class c;
@@ -346,43 +346,43 @@ static void DelegateMemberAsyncTests()
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateMemberAsync<TestReturnClass, TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     Class c2;
     DelegateMemberAsync<Class, std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(&c2, &Class::FuncUnique, workerThread);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
 
     auto delS1 = MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1, workerThread);
     auto delS2 = MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1_2, workerThread);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
 #if 0  // DelegateMemberAsync can't be inserted into ordered container
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 #endif
 
     const TestClass1 tcConst;
     auto delConstCheck = MakeDelegate(&tcConst, &TestClass1::ConstCheck, workerThread);
     auto delConstCheckRetVal = delConstCheck(TEST_INT);
-    ASSERT_TRUE(delConstCheckRetVal == 0);
+    DMQ_ASSERT_TRUE(delConstCheckRetVal == 0);
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     std::function<int(int)> stdFunc = MakeDelegate(&testClass1, &TestClass1::MemberFuncIntWithReturn1, workerThread);
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == 0);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == 0);
 
     SetClassSingleton setClassSingleton;
 #if 0
@@ -433,9 +433,9 @@ static void DelegateMemberAsyncTests()
     // value is invalid on a non-blocking async delegate
     auto retVoidPtrDel = MakeDelegate(&voidTest, &Class::RetVoidPtr, workerThread);
     auto retVoidPtr = retVoidPtrDel();
-    ASSERT_TRUE(retVoidPtr == nullptr);
+    DMQ_ASSERT_TRUE(retVoidPtr == nullptr);
     const char* retStr = (const char*)retVoidPtr;
-    ASSERT_TRUE(retStr == nullptr);
+    DMQ_ASSERT_TRUE(retStr == nullptr);
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -458,45 +458,45 @@ static void DelegateMemberSpAsyncTests()
 
     delegate1.SetPriority(Priority::HIGH);
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(testClass1, &TestClass1::MemberFuncInt1, workerThread);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(testClass1, &TestClass1::MemberFuncInt1, workerThread);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFunction<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Check for const correctness
     auto c = std::make_shared<const Class>();
@@ -508,38 +508,38 @@ static void DelegateMemberSpAsyncTests()
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateMemberAsync<TestReturnClass, TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     auto c2 = std::make_shared<Class>();
     DelegateMemberAsync<Class, std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(c2, &Class::FuncUnique, workerThread);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
 
     auto delS1 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1, workerThread);
     auto delS2 = MakeDelegate(testClass1, &TestClass1::MemberFuncInt1_2, workerThread);
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
 #if 0  // DelegateMemberAsync can't be inserted into ordered container
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 2);
+    DMQ_ASSERT_TRUE(setDel.size() == 2);
 #endif
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     std::function<int(int)> stdFunc = MakeDelegate(testClass1, &TestClass1::MemberFuncIntWithReturn1, workerThread);
     int stdFuncRetVal = stdFunc(TEST_INT);
-    ASSERT_TRUE(stdFuncRetVal == 0);
+    DMQ_ASSERT_TRUE(stdFuncRetVal == 0);
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -570,31 +570,31 @@ static void DelegateMemberAsyncSpTests()
     // 2. Priority and Copy
     delegate1.SetPriority(Priority::HIGH);
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     // 3. Assignment
     Del delegate3(testClass1, &TestClass1::MemberFuncInt1, workerThread);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     // 4. Cloning
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     // 5. Move Semantics
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     // ==========================================================
     // 6. ASYNC RETURN VALUE TEST
@@ -608,7 +608,7 @@ static void DelegateMemberAsyncSpTests()
         // Even though the function returns TEST_INT (e.g. 12345), 
         // the async wrapper should return int() which is 0.
         int retVal = delRet(TEST_INT);
-        ASSERT_TRUE(retVal == 0);
+        DMQ_ASSERT_TRUE(retVal == 0);
     }
 
     // ==========================================================
@@ -652,7 +652,7 @@ static void DelegateMemberAsyncSpTests()
     // dConstClass.Bind(c, &Class::Func, workerThread);      // Not OK. Compile Error.
     dConstClass.Bind(c, &Class::FuncConst, workerThread);    // OK
     auto rConst = dConstClass(); // Returns 0 (default), doesn't wait
-    ASSERT_TRUE(rConst == 0);
+    DMQ_ASSERT_TRUE(rConst == 0);
 
     // 9. Unique Ptr Return type
     // Async delegates return default constructed values. 
@@ -661,7 +661,7 @@ static void DelegateMemberAsyncSpTests()
     DelegateMemberAsyncSp<Class, std::unique_ptr<int>(int)> delUnique;
     delUnique.Bind(c2, &Class::FuncUnique, workerThread);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);
+    DMQ_ASSERT_TRUE(up == nullptr);
 
     // 10. Equality Checks
     // Note: Use MakeDelegate if overloads are available, otherwise direct construction
@@ -673,13 +673,13 @@ static void DelegateMemberAsyncSpTests()
     Del delS1(testClass1, &TestClass1::MemberFuncInt1, workerThread);
     Del delS2(testClass1, &TestClass1::MemberFuncInt1_2, workerThread);
 
-    ASSERT_TRUE(!(delS1 == delS2));
+    DMQ_ASSERT_TRUE(!(delS1 == delS2));
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 }
 
 static void DelegateFunctionAsyncTests()
@@ -692,75 +692,75 @@ static void DelegateFunctionAsyncTests()
 
     delegate1.SetPriority(Priority::HIGH);
     auto delegate2 = delegate1;
-    ASSERT_TRUE(delegate1 == delegate2);
-    ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate1.Empty());
-    ASSERT_TRUE(!delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate1 == delegate2);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate1.Empty());
+    DMQ_ASSERT_TRUE(!delegate2.Empty());
 
     Del delegate3(LambdaNoCapture, workerThread);
     delegate3 = delegate1;
-    ASSERT_TRUE(delegate3 == delegate1);
-    ASSERT_TRUE(delegate3);
+    DMQ_ASSERT_TRUE(delegate3 == delegate1);
+    DMQ_ASSERT_TRUE(delegate3);
 
     delegate3.Clear();
-    ASSERT_TRUE(delegate3.Empty());
-    ASSERT_TRUE(!delegate3);
+    DMQ_ASSERT_TRUE(delegate3.Empty());
+    DMQ_ASSERT_TRUE(!delegate3);
 
     auto* delegate4 = delegate1.Clone();
-    ASSERT_TRUE(*delegate4 == delegate1);
+    DMQ_ASSERT_TRUE(*delegate4 == delegate1);
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
-    ASSERT_TRUE(!delegate5.Empty());
-    ASSERT_TRUE(delegate1.Empty());
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(!delegate5.Empty());
+    DMQ_ASSERT_TRUE(delegate1.Empty());
 
     Del delegate6(LambdaNoCapture, workerThread);
     delegate6 = std::move(delegate2);
-    ASSERT_TRUE(!delegate6.Empty());
-    ASSERT_TRUE(delegate2.Empty());
-    ASSERT_TRUE(delegate6 != nullptr);
-    ASSERT_TRUE(nullptr != delegate6);
-    ASSERT_TRUE(delegate2 == nullptr);
-    ASSERT_TRUE(nullptr == delegate2);
+    DMQ_ASSERT_TRUE(!delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate2.Empty());
+    DMQ_ASSERT_TRUE(delegate6 != nullptr);
+    DMQ_ASSERT_TRUE(nullptr != delegate6);
+    DMQ_ASSERT_TRUE(delegate2 == nullptr);
+    DMQ_ASSERT_TRUE(nullptr == delegate2);
 
     // Compare disparate delegate types
     DelegateFree<void(int)> other;
-    ASSERT_TRUE(!(delegate6.Equal(other)));
+    DMQ_ASSERT_TRUE(!(delegate6.Equal(other)));
 
     delegate6 = nullptr;
-    ASSERT_TRUE(delegate6.Empty());
-    ASSERT_TRUE(delegate6 == nullptr);
+    DMQ_ASSERT_TRUE(delegate6.Empty());
+    DMQ_ASSERT_TRUE(delegate6 == nullptr);
 
     // Make sure we get a default constructed return value.
     TestReturn::val = 0;
     DelegateFunction<TestReturn()> testRet;
-    ASSERT_TRUE(TestReturn::val == 0);
+    DMQ_ASSERT_TRUE(TestReturn::val == 0);
     testRet();
-    ASSERT_TRUE(TestReturn::val == 1);
+    DMQ_ASSERT_TRUE(TestReturn::val == 1);
 
     auto c2 = std::make_shared<Class>();
     DelegateFunctionAsync<std::unique_ptr<int>(int)> delUnique;
     auto tmp = delUnique(10);
-    ASSERT_TRUE(tmp == nullptr);
+    DMQ_ASSERT_TRUE(tmp == nullptr);
     delUnique.Bind(LambdaUnqiue, workerThread);
     std::unique_ptr<int> up = delUnique(12);
-    ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
+    DMQ_ASSERT_TRUE(up == nullptr);  // Async delegate has default return value 
 
     auto delS1 = MakeDelegate(LambdaNoCapture, workerThread);
     auto delS2 = MakeDelegate(LambdaNoCapture2, workerThread);
-    //ASSERT_TRUE(!(delS1 == delS2));  // std::function can't distiguish difference
+    //DMQ_ASSERT_TRUE(!(delS1 == delS2));  // std::function can't distiguish difference
 
     std::set<Del> setDel;
     setDel.insert(delS1);
     setDel.insert(delS2);
-    ASSERT_TRUE(setDel.size() == 1);
+    DMQ_ASSERT_TRUE(setDel.size() == 1);
 
     delS1.Clear();
-    ASSERT_TRUE(delS1.Empty());
+    DMQ_ASSERT_TRUE(delS1.Empty());
     std::swap(delS1, delS2);
-    ASSERT_TRUE(!delS1.Empty());
-    ASSERT_TRUE(delS2.Empty());
+    DMQ_ASSERT_TRUE(!delS1.Empty());
+    DMQ_ASSERT_TRUE(delS2.Empty());
 
     // Array of delegates
     Del* arr = new Del[2];
@@ -792,19 +792,19 @@ static void DelegateFunctionAsyncTests()
     {
         // Inline raw lambda
         auto d1 = MakeDelegate([](int i) {}, workerThread);
-        ASSERT_TRUE(!d1.Empty());
+        DMQ_ASSERT_TRUE(!d1.Empty());
         d1(TEST_INT);
 
         // Named raw lambda (auto, not std::function)
         auto rawLam = [](int i) {};
         auto d2 = MakeDelegate(rawLam, workerThread);
-        ASSERT_TRUE(!d2.Empty());
+        DMQ_ASSERT_TRUE(!d2.Empty());
         d2(TEST_INT);
 
         // Capturing lambda
         int captured = TEST_INT;
         auto d3 = MakeDelegate([captured](int i) {}, workerThread);
-        ASSERT_TRUE(!d3.Empty());
+        DMQ_ASSERT_TRUE(!d3.Empty());
         d3(TEST_INT);
     }
 }

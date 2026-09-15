@@ -41,9 +41,9 @@ static void PacedDispatch_TryFireClearSucceeds()
     PacedDispatch gate;
     bool fired = false;
     bool result = gate.TryFire([&fired](std::shared_ptr<DispatchToken>) { fired = true; });
-    ASSERT_TRUE(result == true);
-    ASSERT_TRUE(fired == true);
-    ASSERT_TRUE(!gate.IsInFlight()); // token not captured -> expired immediately
+    DMQ_ASSERT_TRUE(result == true);
+    DMQ_ASSERT_TRUE(fired == true);
+    DMQ_ASSERT_TRUE(!gate.IsInFlight()); // token not captured -> expired immediately
     std::cout << "PacedDispatch_TryFireClearSucceeds() complete!" << std::endl;
 }
 
@@ -53,11 +53,11 @@ static void PacedDispatch_TryFireInFlightFails()
     std::shared_ptr<DispatchToken> liveToken;
 
     bool first = gate.TryFire([&liveToken](std::shared_ptr<DispatchToken> t) { liveToken = t; });
-    ASSERT_TRUE(first == true);
-    ASSERT_TRUE(gate.IsInFlight());
+    DMQ_ASSERT_TRUE(first == true);
+    DMQ_ASSERT_TRUE(gate.IsInFlight());
 
     bool second = gate.TryFire([](std::shared_ptr<DispatchToken>) {});
-    ASSERT_TRUE(second == false);
+    DMQ_ASSERT_TRUE(second == false);
     std::cout << "PacedDispatch_TryFireInFlightFails() complete!" << std::endl;
 }
 
@@ -67,13 +67,13 @@ static void PacedDispatch_TryFireAfterTokenReleased()
     std::shared_ptr<DispatchToken> liveToken;
 
     gate.TryFire([&liveToken](std::shared_ptr<DispatchToken> t) { liveToken = t; });
-    ASSERT_TRUE(gate.IsInFlight());
+    DMQ_ASSERT_TRUE(gate.IsInFlight());
 
     liveToken.reset(); // simulate message completion
-    ASSERT_TRUE(!gate.IsInFlight());
+    DMQ_ASSERT_TRUE(!gate.IsInFlight());
 
     bool result = gate.TryFire([](std::shared_ptr<DispatchToken>) {});
-    ASSERT_TRUE(result == true);
+    DMQ_ASSERT_TRUE(result == true);
     std::cout << "PacedDispatch_TryFireAfterTokenReleased() complete!" << std::endl;
 }
 
@@ -83,13 +83,13 @@ static void PacedDispatch_Reset()
     std::shared_ptr<DispatchToken> liveToken;
 
     gate.TryFire([&liveToken](std::shared_ptr<DispatchToken> t) { liveToken = t; });
-    ASSERT_TRUE(gate.IsInFlight());
+    DMQ_ASSERT_TRUE(gate.IsInFlight());
 
     gate.Reset();
-    ASSERT_TRUE(!gate.IsInFlight());
+    DMQ_ASSERT_TRUE(!gate.IsInFlight());
 
     bool result = gate.TryFire([](std::shared_ptr<DispatchToken>) {});
-    ASSERT_TRUE(result == true);
+    DMQ_ASSERT_TRUE(result == true);
     std::cout << "PacedDispatch_Reset() complete!" << std::endl;
 }
 
@@ -100,24 +100,24 @@ static void PacedDispatch_PendingFlag()
 
     // First fire — succeeds, sets in-flight
     bool first = gate.TryFire([&liveToken](std::shared_ptr<DispatchToken> t) { liveToken = t; });
-    ASSERT_TRUE(first == true);
-    ASSERT_TRUE(gate.IsInFlight());
-    ASSERT_TRUE(!gate.IsPending());
+    DMQ_ASSERT_TRUE(first == true);
+    DMQ_ASSERT_TRUE(gate.IsInFlight());
+    DMQ_ASSERT_TRUE(!gate.IsPending());
 
     // Second fire — fails, sets pending
     bool second = gate.TryFire([](std::shared_ptr<DispatchToken>) {});
-    ASSERT_TRUE(second == false);
-    ASSERT_TRUE(gate.IsPending());
+    DMQ_ASSERT_TRUE(second == false);
+    DMQ_ASSERT_TRUE(gate.IsPending());
 
     // Release token
     liveToken.reset();
-    ASSERT_TRUE(!gate.IsInFlight());
-    ASSERT_TRUE(gate.IsPending());
+    DMQ_ASSERT_TRUE(!gate.IsInFlight());
+    DMQ_ASSERT_TRUE(gate.IsPending());
 
     // Third fire — succeeds because was pending, clears pending
     bool third = gate.TryFire([](std::shared_ptr<DispatchToken>) {});
-    ASSERT_TRUE(third == true);
-    ASSERT_TRUE(!gate.IsPending());
+    DMQ_ASSERT_TRUE(third == true);
+    DMQ_ASSERT_TRUE(!gate.IsPending());
 
     std::cout << "PacedDispatch_PendingFlag() complete!" << std::endl;
 }
@@ -135,7 +135,7 @@ static void PacedDispatch_OnStuckFires()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     gate.TryFire([](std::shared_ptr<DispatchToken>) {}, std::chrono::milliseconds(1));
 
-    ASSERT_TRUE(stuckCount.load() >= 1);
+    DMQ_ASSERT_TRUE(stuckCount.load() >= 1);
     std::cout << "PacedDispatch_OnStuckFires() complete!" << std::endl;
 }
 
@@ -162,7 +162,7 @@ static void TimerDelegate_RawPtr_Dispatches()
     TDTarget target;
     auto d = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
     d();
-    ASSERT_TRUE(WaitCount(target.count, 1));
+    DMQ_ASSERT_TRUE(WaitCount(target.count, 1));
     Drain(s_thread);
     std::cout << "TimerDelegate_RawPtr_Dispatches() complete!" << std::endl;
 }
@@ -180,7 +180,7 @@ static void TimerDelegate_ConstRawPtr_Dispatches()
 
     auto d = MakeTimerDelegate(cptr, &ConstTarget::OnTick, s_thread);
     d();
-    ASSERT_TRUE(WaitCount(count, 1));
+    DMQ_ASSERT_TRUE(WaitCount(count, 1));
     Drain(s_thread);
     std::cout << "TimerDelegate_ConstRawPtr_Dispatches() complete!" << std::endl;
 }
@@ -195,9 +195,9 @@ static void TimerDelegate_AtMostOneInFlight()
     for (int i = 0; i < 10; i++)
         d();
 
-    ASSERT_TRUE(WaitCount(target.count, 1, std::chrono::milliseconds(3000)));
+    DMQ_ASSERT_TRUE(WaitCount(target.count, 1, std::chrono::milliseconds(3000)));
     Drain(s_thread);
-    ASSERT_TRUE(target.count.load() == 1);
+    DMQ_ASSERT_TRUE(target.count.load() == 1);
     std::cout << "TimerDelegate_AtMostOneInFlight() complete!" << std::endl;
 }
 
@@ -208,15 +208,15 @@ static void TimerDelegate_FiresAgainAfterCompletion()
 
     // First dispatch
     d();
-    ASSERT_TRUE(WaitCount(target.count, 1, std::chrono::milliseconds(3000)));
+    DMQ_ASSERT_TRUE(WaitCount(target.count, 1, std::chrono::milliseconds(3000)));
     Drain(s_thread); // ensures token is expired before firing again
 
     // Second dispatch — token is now free
     d();
-    ASSERT_TRUE(WaitCount(target.count, 2, std::chrono::milliseconds(3000)));
+    DMQ_ASSERT_TRUE(WaitCount(target.count, 2, std::chrono::milliseconds(3000)));
     Drain(s_thread);
 
-    ASSERT_TRUE(target.count.load() == 2);
+    DMQ_ASSERT_TRUE(target.count.load() == 2);
     std::cout << "TimerDelegate_FiresAgainAfterCompletion() complete!" << std::endl;
 }
 
@@ -225,7 +225,7 @@ static void TimerDelegate_SharedPtr_Dispatches()
     auto target = std::make_shared<TDTarget>();
     auto d = MakeTimerDelegate(target, &TDTarget::OnTick, s_thread);
     d();
-    ASSERT_TRUE(WaitCount(target->count, 1));
+    DMQ_ASSERT_TRUE(WaitCount(target->count, 1));
     Drain(s_thread);
     std::cout << "TimerDelegate_SharedPtr_Dispatches() complete!" << std::endl;
 }
@@ -237,9 +237,9 @@ static void TimerDelegate_SharedPtr_SkipsDestroyedObject()
 
     // First fire — object alive
     d();
-    ASSERT_TRUE(WaitCount(target->count, 1));
+    DMQ_ASSERT_TRUE(WaitCount(target->count, 1));
     Drain(s_thread);
-    ASSERT_TRUE(target->count.load() == 1);
+    DMQ_ASSERT_TRUE(target->count.load() == 1);
 
     // Destroy object; delegate holds only a weak_ptr
     target.reset();
@@ -270,14 +270,14 @@ static void TimerDelegate_WithTimer_DispatchesToThread()
         MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread));
 
     timer.Start(std::chrono::milliseconds(20));
-    ASSERT_TRUE(WaitCount(target.count, 3, std::chrono::milliseconds(2000)));
+    DMQ_ASSERT_TRUE(WaitCount(target.count, 3, std::chrono::milliseconds(2000)));
 
     timer.Stop();
     timerExit.store(true);
     timerThread.join();
     Drain(s_thread);
 
-    ASSERT_TRUE(target.count.load() >= 3);
+    DMQ_ASSERT_TRUE(target.count.load() >= 3);
     std::cout << "TimerDelegate_WithTimer_DispatchesToThread() complete!" << std::endl;
 }
 
@@ -308,7 +308,7 @@ static void Timer_ProcessTimers_DrainsMultiplePasses()
     // this call — one ProcessTimers() call must account for all of them.
     Timer::ProcessTimers();
 
-    ASSERT_TRUE(fireCount.load() == static_cast<int>(timerCount));
+    DMQ_ASSERT_TRUE(fireCount.load() == static_cast<int>(timerCount));
     std::cout << "Timer_ProcessTimers_DrainsMultiplePasses() complete!" << std::endl;
 }
 

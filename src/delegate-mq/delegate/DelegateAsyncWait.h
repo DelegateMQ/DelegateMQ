@@ -561,7 +561,7 @@ public:
 
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
-        ASSERT();
+        DMQ_ASSERT();
 #endif
         return RetType();
 #else
@@ -978,7 +978,7 @@ public:
 
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
-        ASSERT();
+        DMQ_ASSERT();
 #endif
         return RetType();
 #else
@@ -1312,7 +1312,7 @@ public:
 
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
-        ASSERT();
+        DMQ_ASSERT();
 #endif
         return RetType();
 #else
@@ -1648,7 +1648,7 @@ public:
 
         // Optional: If you want to trap this error in debug mode
 #if defined(DMQ_ASSERTS)
-        ASSERT();
+        DMQ_ASSERT();
 #endif
         return RetType();
 #else

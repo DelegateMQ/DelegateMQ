@@ -1,5 +1,0 @@
-var searchData=
-[
-  ['memberfunc_0',['MemberFunc',['../classdmq_1_1_delegate_member_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ac4b8ca4068b0fdeeb8c7c5623c67ff02',1,'dmq::DelegateMember&lt; TClass, RetType(Args...)&gt;::MemberFunc'],['../classdmq_1_1_delegate_member_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#ac8f781855f5207be8599c83faf7f2779',1,'dmq::DelegateMemberSp&lt; TClass, RetType(Args...)&gt;::MemberFunc'],['../classdmq_1_1_delegate_member_async_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a3f61521387aa3d8a9b097162d1f1e33c',1,'dmq::DelegateMemberAsync&lt; TClass, RetType(Args...)&gt;::MemberFunc'],['../classdmq_1_1_delegate_member_async_sp_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#add626c1315482716c55b82e09f249e9f',1,'dmq::DelegateMemberAsyncSp&lt; TClass, RetType(Args...)&gt;::MemberFunc'],['../classdmq_1_1_delegate_member_remote_3_01_t_class_00_01_ret_type_07_args_8_8_8_08_4.html#a71719ac1a49f5cbc1888e4aead556d2a',1,'dmq::DelegateMemberRemote&lt; TClass, RetType(Args...)&gt;::MemberFunc']]],
-  ['mutex_1',['Mutex',['../namespacedmq.html#a8698347146f2270db3906748c029c529',1,'dmq']]]
-];

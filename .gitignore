@@ -361,3 +361,6 @@ org.eclipse.ui.prefs
 *.dylib
 *.a
 *.lib
+
+# Generated Doxygen HTML output (regenerate locally with `doxygen Doxyfile`)
+docs/html/

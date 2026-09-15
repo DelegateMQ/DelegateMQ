@@ -9,12 +9,32 @@ using namespace dmq::os;
 using namespace dmq::util;
 using namespace std;
 
+#if defined(DMQ_TRANSPORT_STM32_UART) && defined(DMQ_THREAD_FREERTOS)
+// [STM32-FreeRTOS] Static stack for the network thread. Increased to 2048
+// words (8KB) to handle Debug mode call depths.
+static StackType_t g_networkThreadStack[2048];
+#endif
+
 NetworkMgr::NetworkMgr()
+    : m_retryMonitor(m_transport, m_transportMonitor)
+    , m_reliableTransport(m_transport, m_retryMonitor)
 {
+#if defined(DMQ_TRANSPORT_STM32_UART) && defined(DMQ_THREAD_FREERTOS)
+    m_thread.SetStackMem(g_networkThreadStack, 2048);
+#endif
 }
 
 int NetworkMgr::Create()
 {
+    // Hand our transport to the base engine. Neither UART nor raw serial is
+    // reliable on its own, so the ReliableTransport wrapper (not the raw
+    // transport) is attached as the send transport, and AttachRetryMonitor()
+    // wires retry-exhaustion through to OnDeliveryFailed() (see class doc
+    // comment). Receive goes straight to the raw transport, same object as
+    // send since this link is full-duplex on one instance.
+    Attach(m_reliableTransport, m_transport);
+    AttachRetryMonitor(m_retryMonitor);
+
     // Initialize one RemoteChannel per message signature.
     // Each channel owns its Dispatcher, stream, and serializer.
     m_alarmChannel.emplace(GetSendTransport(), m_alarmSer);
@@ -40,16 +60,39 @@ int NetworkMgr::Create()
     RegisterEndpoint(ids::COMMAND_MSG_ID,  m_commandChannel->GetEndpoint());
     RegisterEndpoint(ids::ACTUATOR_MSG_ID, m_actuatorChannel->GetEndpoint());
 
-    // Initialize Base Engine
-#ifdef SERVER_APP
+    if (!this->m_thread.IsCurrentThread())
+        return dmq::MakeDelegate(this, &NetworkMgr::OpenTransport, this->m_thread, dmq::WAIT_INFINITE)();
+    return OpenTransport();
+}
+
+int NetworkMgr::OpenTransport()
+{
+    int err = 0;
+
+#if defined(DMQ_TRANSPORT_STM32_UART)
     #if defined(STM32F407xx)
-        return Initialize(&huart6);
+        // Call Create() ONCE on the shared, full-duplex object.
+        err += m_transport.Create(&huart6);
     #endif
-#else
+
+    m_transport.SetTransportMonitor(&m_transportMonitor);
+    // Point to self for full-duplex logic.
+    m_transport.SetRecvTransport(&m_transport);
+    m_transport.SetSendTransport(&m_transport);
+#elif defined(DMQ_TRANSPORT_SERIAL_PORT)
     // Connects to STM32 UART @ 115200 baud
     // @TODO Change PC COM port if necessary.
-    return Initialize("COM3", 115200);
+    err += m_transport.Create("COM3", 115200);
+
+    if (err == 0) {
+        m_transport.SetTransportMonitor(&m_transportMonitor);
+        // Serial is full-duplex logic on one object.
+        m_transport.SetRecvTransport(&m_transport);
+        m_transport.SetSendTransport(&m_transport);
+    }
 #endif
+
+    return err;
 }
 
 // Override hooks to fire signals

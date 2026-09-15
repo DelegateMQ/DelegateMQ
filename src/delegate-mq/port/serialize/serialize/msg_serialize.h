@@ -1588,7 +1588,7 @@ private:
     // input — stays a hard fault.
     std::streampos pop_stop_parse_pos()
     {
-        ASSERT_TRUE(stopParsePosIdx > 0);
+        DMQ_ASSERT_TRUE(stopParsePosIdx > 0);
         return stopParsePosStack[--stopParsePosIdx];
     }
 

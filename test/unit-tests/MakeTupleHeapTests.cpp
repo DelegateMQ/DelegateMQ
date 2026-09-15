@@ -15,8 +15,8 @@ void MakeTupleHeapTests()
         int val = 42;
         auto tup = make_tuple_heap(heapArgs, empty_tup, std::move(val));
         
-        ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation restored for by-value/r-value
-        ASSERT_TRUE(std::get<0>(tup) == 42);
+        DMQ_ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation restored for by-value/r-value
+        DMQ_ASSERT_TRUE(std::get<0>(tup) == 42);
     }
 
     // Test 2: R-value literal argument (should NOT allocate on heap)
@@ -25,8 +25,8 @@ void MakeTupleHeapTests()
         std::tuple<> empty_tup;
         auto tup = make_tuple_heap(heapArgs, empty_tup, 100);
         
-        ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation restored for r-value
-        ASSERT_TRUE(std::get<0>(tup) == 100);
+        DMQ_ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation restored for r-value
+        DMQ_ASSERT_TRUE(std::get<0>(tup) == 100);
     }
 
     // Test 3: Pointer argument (SHOULD allocate on heap)
@@ -37,9 +37,9 @@ void MakeTupleHeapTests()
         int* pVal = &val;
         auto tup = make_tuple_heap(heapArgs, empty_tup, pVal);
         
-        ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation for pointer
-        ASSERT_TRUE(*(std::get<0>(tup)) == 42);
-        ASSERT_TRUE(std::get<0>(tup) != pVal); // Address should be different (it was copied to heap)
+        DMQ_ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation for pointer
+        DMQ_ASSERT_TRUE(*(std::get<0>(tup)) == 42);
+        DMQ_ASSERT_TRUE(std::get<0>(tup) != pVal); // Address should be different (it was copied to heap)
     }
 
     // Test 4: Reference argument (SHOULD allocate on heap)
@@ -50,9 +50,9 @@ void MakeTupleHeapTests()
         int& rVal = val;
         auto tup = make_tuple_heap(heapArgs, empty_tup, rVal);
         
-        ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation for reference
-        ASSERT_TRUE(std::get<0>(tup) == 42);
-        ASSERT_TRUE(&(std::get<0>(tup)) != &val); // Address should be different
+        DMQ_ASSERT_TRUE(heapArgs.size() == 1); // Heap allocation for reference
+        DMQ_ASSERT_TRUE(std::get<0>(tup) == 42);
+        DMQ_ASSERT_TRUE(&(std::get<0>(tup)) != &val); // Address should be different
     }
 
     // Test 5: Mixed arguments
@@ -70,11 +70,11 @@ void MakeTupleHeapTests()
         // pVal -> 1 allocation
         // rVal -> 1 allocation
         // dVal -> 1 allocation
-        ASSERT_TRUE(heapArgs.size() == 4); 
-        ASSERT_TRUE(std::get<0>(tup) == 42);
-        ASSERT_TRUE(*(std::get<1>(tup)) == 42);
-        ASSERT_TRUE(std::get<2>(tup) == 42);
-        ASSERT_TRUE(std::get<3>(tup) == 3.14);
+        DMQ_ASSERT_TRUE(heapArgs.size() == 4); 
+        DMQ_ASSERT_TRUE(std::get<0>(tup) == 42);
+        DMQ_ASSERT_TRUE(*(std::get<1>(tup)) == 42);
+        DMQ_ASSERT_TRUE(std::get<2>(tup) == 42);
+        DMQ_ASSERT_TRUE(std::get<3>(tup) == 3.14);
     }
 
     std::cout << "MakeTupleHeapTests() complete!" << std::endl;

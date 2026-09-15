@@ -21,6 +21,7 @@
 
 #include "DelegateOpt.h"
 #include "Delegate.h"
+#include <array>
 #include <memory>
 
 DMQ_OPTIMIZE_ON
@@ -165,7 +166,7 @@ struct SignalState {
 /// @brief Non-templated: a snapshot of a signal's subscriber list at a point in
 /// time, captured under lock so `operator()` can invoke without holding it.
 struct SignalSnapshot {
-    std::shared_ptr<DelegateBase> small_buf[SIGNAL_SBO_COUNT];
+    std::array<std::shared_ptr<DelegateBase>, SIGNAL_SBO_COUNT> small_buf;
     xlist<std::shared_ptr<DelegateBase>> large_buf;
     size_t count = 0;
 };

@@ -134,7 +134,7 @@ static void check_alignment(void* ptr)
 	// On 64-bit systems, we expect 8 or 16-byte alignment.
 	if ((address & (sizeof(void*) - 1)) != 0)
 	{
-		ASSERT();
+		DMQ_ASSERT();
 	}
 }
 #endif
@@ -167,12 +167,12 @@ static inline Allocator* get_block_allocator(void* block)
 {
 	BlockHeader* pHeader = (BlockHeader*)((char*)block - BLOCK_HEADER_SIZE);
 #ifdef DMQ_ALLOCATOR_SAFEGUARDS
-	ASSERT_TRUE(pHeader->magic != XALLOC_FREED);
-	ASSERT_TRUE(pHeader->magic == XALLOC_MAGIC);
-	ASSERT_TRUE(pHeader->canary == XALLOC_CANARY);
+	DMQ_ASSERT_TRUE(pHeader->magic != XALLOC_FREED);
+	DMQ_ASSERT_TRUE(pHeader->magic == XALLOC_MAGIC);
+	DMQ_ASSERT_TRUE(pHeader->canary == XALLOC_CANARY);
 	size_t userSize = pHeader->allocator->GetBlockSize() - BLOCK_HEADER_SIZE - BLOCK_FOOTER_SIZE;
 	uint32_t* pFooter = (uint32_t*)((char*)pHeader + BLOCK_HEADER_SIZE + userSize);
-	ASSERT_TRUE(*pFooter == XALLOC_CANARY);
+	DMQ_ASSERT_TRUE(*pFooter == XALLOC_CANARY);
 #endif
 	return pHeader->allocator;
 }
@@ -301,7 +301,7 @@ extern "C" dmq::Allocator* xallocator_get_allocator(size_t size)
 	dmq::get_mutex().unlock();
 
 #ifdef STATIC_POOLS
-	ASSERT_TRUE(allocator != NULL);
+	DMQ_ASSERT_TRUE(allocator != NULL);
 #else
 	// If there is not an allocator already created to handle this block size
 	if (allocator == NULL)  
@@ -321,7 +321,7 @@ extern "C" dmq::Allocator* xallocator_get_allocator(size_t size)
 			{
 				dmq::get_mutex().unlock();
 				delete allocator;
-				ASSERT();
+				DMQ_ASSERT();
 			}
 			existing = allocator;
 		}

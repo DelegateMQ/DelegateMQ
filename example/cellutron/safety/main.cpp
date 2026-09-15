@@ -76,15 +76,15 @@ extern "C" void vApplicationIdleHook(void) {
 #endif
 }
 extern "C" void vApplicationTickHook(void) {}
-extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS Safety: Malloc Failed!\n"); ASSERT(); }
+extern "C" void vApplicationMallocFailedHook(void) { printf("FreeRTOS Safety: Malloc Failed!\n"); DMQ_ASSERT(); }
 extern "C" void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
     printf("FreeRTOS Safety: STACK OVERFLOW in task '%s'!\n", pcTaskName);
-    ASSERT();
+    DMQ_ASSERT();
 }
 extern "C" void vApplicationDaemonTaskStartupHook(void) {}
 extern "C" void vAssertCalled(unsigned long ulLine, const char* const pcFileName) {
-    printf("FreeRTOS Safety: ASSERT FAIL at %s:%lu\n", pcFileName, ulLine);
-    ASSERT();
+    printf("FreeRTOS Safety: DMQ_ASSERT FAIL at %s:%lu\n", pcFileName, ulLine);
+    DMQ_ASSERT();
 }
 extern "C" void vApplicationGetIdleTaskMemory(StaticTask_t** p, StackType_t** s, configSTACK_DEPTH_TYPE* sz) {
     static StaticTask_t x; static StackType_t st[configMINIMAL_STACK_SIZE];

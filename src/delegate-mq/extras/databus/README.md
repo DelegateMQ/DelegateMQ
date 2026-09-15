@@ -2,6 +2,23 @@
 
 The `dmq::databus::DataBus` is a central registry for topic-based communication within DelegateMQ. It provides a flexible publish-subscribe (Pub/Sub) architecture that decouples data producers from consumers.
 
+## DataBus vs. RemoteDispatcher — Data Distribution vs. Remote Function Invoke
+
+DelegateMQ has two distinct patterns for talking across threads/processes/machines. Picking the wrong one for the job shows up as awkward code, not a compile error, so it's worth knowing which is which before starting:
+
+| | **DataBus** (this directory) | **RemoteDispatcher** ([`extras/rpc`](../rpc/README.md)) |
+|---|---|---|
+| Pattern | Publish/subscribe (data distribution) | Point-to-point RPC (remote function invoke) |
+| Addressing | Topic string, many-to-many | Remote ID → one specific registered endpoint |
+| Who receives | Any number of subscribers (0, 1, or many) — the publisher doesn't know or care who | Exactly one endpoint per remote ID |
+| Call semantics | `Publish()` is always fire-and-forget from the caller's side; delivery outcome (if any) arrives later via signals (`OnSendStatus`, `OnDeliveryFailed`) | `RemoteInvokeWait()` blocks the caller until the remote ACKs or times out, returning success/failure directly — plus a fire-and-forget mode too |
+| How you use it | Compose: hold an `ITransport&` (`Participant`), or instantiate `NetworkNode<Transport>` — no subclassing required | Subclass: `NetworkMgr : public dmq::rpc::RemoteDispatcher`, override virtual hooks (`OnError`/`OnStatus`/`OnDeliveryFailed`) |
+| Reliability opt-in | Per-message — pass `Reliability::RELIABLE` or `UNRELIABLE` to `Send()` | Per-connection — the derived class decides once, at construction, whether to wrap its transport in `ReliableTransport` |
+| Multi-peer topology | Built in — `NetworkNode` manages any number of peers | One connection per `RemoteDispatcher` instance; the app manages multiple peers itself if it needs more than one |
+| Typical use | Sensor data, telemetry, status broadcasts, state that should reach whoever's currently interested | Commands, remote function calls, request/response where the caller needs to know the call landed |
+
+**Rule of thumb:** if you're asking "who needs to know this happened?" reach for DataBus. If you're asking "did that specific call succeed?" reach for RemoteDispatcher.
+
 ## Quickstart
 
 Three steps to send data between components:

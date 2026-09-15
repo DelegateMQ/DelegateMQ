@@ -1,5 +1,6 @@
 #include "Timer.h"
 #include "Fault.h"
+#include <array>
 #include <chrono>
 #include <algorithm>
 
@@ -47,7 +48,7 @@ void Timer::Start(dmq::Duration timeout, bool once)
     if (timeout <= dmq::Duration(0)) {
 #if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
         // Use the macro from Fault.h to halt the system
-        ASSERT();
+        DMQ_ASSERT();
         return;
 #else
         throw std::invalid_argument("Timeout cannot be 0");
@@ -151,7 +152,7 @@ void Timer::ProcessTimers()
     size_t count;
 
     do {
-        dmq::Signal<void()>::Snapshot snapshots[dmq::MAX_TIMER_EXPIRED];
+        std::array<dmq::Signal<void()>::Snapshot, dmq::MAX_TIMER_EXPIRED> snapshots;
         count = 0;
         size_t remaining = 0;
 

@@ -56,7 +56,7 @@ int DataBusQosTestMain() {
                 receivedLvc = val;
             }, nullptr, qos);
             
-            ASSERT_TRUE(receivedLvc == 10); // Should receive the cached value immediately
+            DMQ_ASSERT_TRUE(receivedLvc == 10); // Should receive the cached value immediately
         }
         
         // Subscribe WITHOUT LVC
@@ -65,7 +65,7 @@ int DataBusQosTestMain() {
             auto conn = DataBus::Subscribe<int>("status", [&](int val) {
                 receivedNoLvc = val;
             });
-            ASSERT_TRUE(receivedNoLvc == 0); // Should NOT receive the cached value
+            DMQ_ASSERT_TRUE(receivedNoLvc == 0); // Should NOT receive the cached value
         }
     }
 
@@ -91,7 +91,7 @@ int DataBusQosTestMain() {
         catch (const std::runtime_error&) {
             caught = true;
         }
-        ASSERT_TRUE(caught);
+        DMQ_ASSERT_TRUE(caught);
 
         // The cache slot must still be in a valid state: a subsequent publish
         // (which no longer throws) must succeed and be observable.
@@ -104,7 +104,7 @@ int DataBusQosTestMain() {
             auto conn = DataBus::Subscribe<ThrowOnMoveOnce>("throwtopic", [&](const ThrowOnMoveOnce& v) {
                 receivedValue = v.value;
             }, nullptr, qos);
-            ASSERT_TRUE(receivedValue == 3);
+            DMQ_ASSERT_TRUE(receivedValue == 3);
         }
     }
 
@@ -120,13 +120,13 @@ int DataBusQosTestMain() {
         );
 
         DataBus::Publish<int>("sensor", 30);
-        ASSERT_TRUE(lastLowValue == 30);
+        DMQ_ASSERT_TRUE(lastLowValue == 30);
 
         DataBus::Publish<int>("sensor", 70);
-        ASSERT_TRUE(lastLowValue == 30); // Should still be 30, 70 was filtered out
+        DMQ_ASSERT_TRUE(lastLowValue == 30); // Should still be 30, 70 was filtered out
 
         DataBus::Publish<int>("sensor", 10);
-        ASSERT_TRUE(lastLowValue == 10);
+        DMQ_ASSERT_TRUE(lastLowValue == 10);
     }
 
     // 3. Test Lifespan QoS
@@ -148,7 +148,7 @@ int DataBusQosTestMain() {
             auto conn = DataBus::Subscribe<int>("lvc/topic", [&](int val) {
                 received = val;
             }, nullptr, qos);
-            ASSERT_TRUE(received == 42);
+            DMQ_ASSERT_TRUE(received == 42);
         }
 
         // 3b. Without lifespan: LVC is always delivered regardless of age
@@ -161,7 +161,7 @@ int DataBusQosTestMain() {
             auto conn = DataBus::Subscribe<int>("lvc/topic", [&](int val) {
                 received = val;
             }, nullptr, qos);
-            ASSERT_TRUE(received == 42);
+            DMQ_ASSERT_TRUE(received == 42);
         }
 
         // 3c. Past lifespan: LVC should NOT be delivered
@@ -173,7 +173,7 @@ int DataBusQosTestMain() {
             auto conn = DataBus::Subscribe<int>("lvc/topic", [&](int val) {
                 received = val;
             }, nullptr, qos);
-            ASSERT_TRUE(received == 0);
+            DMQ_ASSERT_TRUE(received == 0);
         }
 
         // 3d. Fresh publish resets the timestamp; new subscriber within lifespan receives it
@@ -186,7 +186,7 @@ int DataBusQosTestMain() {
             auto conn = DataBus::Subscribe<int>("lvc/topic", [&](int val) {
                 received = val;
             }, nullptr, qos);
-            ASSERT_TRUE(received == 99);
+            DMQ_ASSERT_TRUE(received == 99);
         }
     }
 
@@ -207,7 +207,7 @@ int DataBusQosTestMain() {
             for (int i = 0; i < 5; i++) {
                 DataBus::Publish<int>("fast/topic", i);
             }
-            ASSERT_TRUE(deliveryCount == 1);
+            DMQ_ASSERT_TRUE(deliveryCount == 1);
         }
 
         // 4b. After minSeparation elapses, the next publish goes through
@@ -220,18 +220,18 @@ int DataBusQosTestMain() {
             }, nullptr, qos);
 
             DataBus::Publish<int>("rate/topic", 1); // passes
-            ASSERT_TRUE(deliveryCount == 1);
+            DMQ_ASSERT_TRUE(deliveryCount == 1);
 
             DataBus::Publish<int>("rate/topic", 2); // dropped, too soon
-            ASSERT_TRUE(deliveryCount == 1);
+            DMQ_ASSERT_TRUE(deliveryCount == 1);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
             DataBus::Publish<int>("rate/topic", 3); // passes, enough time elapsed
-            ASSERT_TRUE(deliveryCount == 2);
+            DMQ_ASSERT_TRUE(deliveryCount == 2);
 
             DataBus::Publish<int>("rate/topic", 4); // dropped, too soon
-            ASSERT_TRUE(deliveryCount == 2);
+            DMQ_ASSERT_TRUE(deliveryCount == 2);
         }
 
         // 4c. Each subscriber has an independent rate limit
@@ -255,8 +255,8 @@ int DataBusQosTestMain() {
             DataBus::Publish<int>("shared/topic", 2);
             DataBus::Publish<int>("shared/topic", 3);
 
-            ASSERT_TRUE(throttledCount == 1);   // only first got through
-            ASSERT_TRUE(unthrottledCount == 3); // all got through
+            DMQ_ASSERT_TRUE(throttledCount == 1);   // only first got through
+            DMQ_ASSERT_TRUE(unthrottledCount == 3); // all got through
         }
 
         // 4d. Min separation with LVC: the LVC delivery counts as the first delivery,
@@ -277,10 +277,10 @@ int DataBusQosTestMain() {
                 deliveryCount++;
             }, nullptr, qos);
 
-            ASSERT_TRUE(deliveryCount == 1); // LVC delivery went through
+            DMQ_ASSERT_TRUE(deliveryCount == 1); // LVC delivery went through
 
             DataBus::Publish<int>("lvc/fast", 100); // dropped: minSeparation not elapsed
-            ASSERT_TRUE(deliveryCount == 1);
+            DMQ_ASSERT_TRUE(deliveryCount == 1);
         }
     }
 

@@ -17,23 +17,23 @@ int FreeFuncIntWithReturn0() { return TEST_INT; }
 
 void FreeFunc0() { }
 
-void FreeFuncInt1(int i) { ASSERT_TRUE(i == TEST_INT); }
-int FreeFuncIntWithReturn1(int i) { ASSERT_TRUE(i == TEST_INT); return i; }
-void FreeFuncPtrPtr1(StructParam** s) { ASSERT_TRUE((*s)->val == TEST_INT); }
-void FreeFuncStruct1(StructParam s) { ASSERT_TRUE(s.val == TEST_INT); }
-void FreeFuncStructPtr1(StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-void FreeFuncStructConstPtr1(const StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-void FreeFuncStructRef1(StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
-void FreeFuncStructConstRef1(const StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
+void FreeFuncInt1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+int FreeFuncIntWithReturn1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+void FreeFuncPtrPtr1(StructParam** s) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+void FreeFuncStruct1(StructParam s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+void FreeFuncStructPtr1(StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+void FreeFuncStructConstPtr1(const StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+void FreeFuncStructRef1(StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+void FreeFuncStructConstRef1(const StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-void FreeFuncInt2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); ASSERT_TRUE(i2 == TEST_INT); }
-int FreeFuncIntWithReturn2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); return i; }
-void FreeFuncPtrPtr2(StructParam** s, int i) { ASSERT_TRUE((*s)->val == TEST_INT); }
-void FreeFuncStruct2(StructParam s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-void FreeFuncStructPtr2(StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-void FreeFuncStructConstPtr2(const StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-void FreeFuncStructRef2(StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-void FreeFuncStructConstRef2(const StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
+void FreeFuncInt2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); DMQ_ASSERT_TRUE(i2 == TEST_INT); }
+int FreeFuncIntWithReturn2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+void FreeFuncPtrPtr2(StructParam** s, int i) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+void FreeFuncStruct2(StructParam s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+void FreeFuncStructPtr2(StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+void FreeFuncStructConstPtr2(const StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+void FreeFuncStructRef2(StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+void FreeFuncStructConstRef2(const StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
 class TestClass0
 {
@@ -48,106 +48,106 @@ public:
 class TestClass1
 {
 public:
-	void MemberFuncInt1(int i) { ASSERT_TRUE(i == TEST_INT); }
-	void MemberFuncInt1Const(int i) const { ASSERT_TRUE(i == TEST_INT); }
-	int MemberFuncIntWithReturn1(int i) { ASSERT_TRUE(i == TEST_INT); return i; }
-	void MemberFuncStruct1(StructParam s) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructPtr1(StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructPtrPtr1(StructParam** s) { ASSERT_TRUE((*s)->val == TEST_INT); }
-	void MemberFuncStructConstPtr1(const StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructRef1(StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructConstRef1(const StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncInt1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	void MemberFuncInt1Const(int i) const { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	int MemberFuncIntWithReturn1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+	void MemberFuncStruct1(StructParam s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructPtr1(StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructPtrPtr1(StructParam** s) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+	void MemberFuncStructConstPtr1(const StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructRef1(StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructConstRef1(const StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-	static void StaticFuncInt1(int i) { ASSERT_TRUE(i == TEST_INT); }
-	static void StaticFuncStruct1(StructParam s) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructPtr1(StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructConstPtr1(const StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructRef1(StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructConstRef1(const StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncInt1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static void StaticFuncStruct1(StructParam s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructPtr1(StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructConstPtr1(const StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructRef1(StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructConstRef1(const StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 };
 
 class TestClass2
 {
 public:
-	void MemberFuncInt2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); }
-	void MemberFuncInt2Const(int i, int i2) const { ASSERT_TRUE(i == TEST_INT); }
-	int MemberFuncIntWithReturn2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); return i; }
-	void MemberFuncStruct2(StructParam s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructPtr2(StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructPtrPtr2(StructParam** s, int i) { ASSERT_TRUE((*s)->val == TEST_INT); }
-	void MemberFuncStructConstPtr2(const StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructRef2(StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructConstRef2(const StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncInt2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	void MemberFuncInt2Const(int i, int i2) const { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	int MemberFuncIntWithReturn2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+	void MemberFuncStruct2(StructParam s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructPtr2(StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructPtrPtr2(StructParam** s, int i) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+	void MemberFuncStructConstPtr2(const StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructRef2(StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructConstRef2(const StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-	static void StaticFuncInt2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); }
-	static void StaticFuncStruct2(StructParam s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructPtr2(StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructConstPtr2(const StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructRef2(StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructConstRef2(const StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncInt2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static void StaticFuncStruct2(StructParam s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructPtr2(StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructConstPtr2(const StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructRef2(StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructConstRef2(const StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 };
 
 class TestClass3
 {
 public:
-	void MemberFuncInt3(int i, int i2, int i3) { ASSERT_TRUE(i == TEST_INT); }
-	void MemberFuncInt3Const(int i, int i2, int i3) const { ASSERT_TRUE(i == TEST_INT); }
-	int MemberFuncIntWithReturn3(int i, int i2, int i3) { ASSERT_TRUE(i == TEST_INT); return i; }
-	void MemberFuncStruct3(StructParam s, int i, int i2) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructPtr3(StructParam* s, int i, int i2) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructPtrPtr3(StructParam** s, int i, int i2) { ASSERT_TRUE((*s)->val == TEST_INT); }
-	void MemberFuncStructConstPtr3(const StructParam* s, int i, int i2) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructRef3(StructParam& s, int i, int i2) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructConstRef3(const StructParam& s, int i, int i2) { ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncInt3(int i, int i2, int i3) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	void MemberFuncInt3Const(int i, int i2, int i3) const { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	int MemberFuncIntWithReturn3(int i, int i2, int i3) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+	void MemberFuncStruct3(StructParam s, int i, int i2) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructPtr3(StructParam* s, int i, int i2) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructPtrPtr3(StructParam** s, int i, int i2) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+	void MemberFuncStructConstPtr3(const StructParam* s, int i, int i2) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructRef3(StructParam& s, int i, int i2) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructConstRef3(const StructParam& s, int i, int i2) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-	static void StaticFuncInt3(int i, int i2, int i3) { ASSERT_TRUE(i == TEST_INT); }
-	static void StaticFuncStruct3(StructParam s, int i, int i2) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructPtr3(StructParam* s, int i, int i2) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructConstPtr3(const StructParam* s, int i, int i2) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructRef3(StructParam& s, int i, int i2) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructConstRef3(const StructParam& s, int i, int i2) { ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncInt3(int i, int i2, int i3) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static void StaticFuncStruct3(StructParam s, int i, int i2) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructPtr3(StructParam* s, int i, int i2) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructConstPtr3(const StructParam* s, int i, int i2) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructRef3(StructParam& s, int i, int i2) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructConstRef3(const StructParam& s, int i, int i2) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 };
 
 class TestClass4
 {
 public:
-	void MemberFuncInt4(int i, int i2, int i3, int i4) { ASSERT_TRUE(i == TEST_INT); }
-	void MemberFuncInt4Const(int i, int i2, int i3, int i4) const { ASSERT_TRUE(i == TEST_INT); }
-	int MemberFuncIntWithReturn4(int i, int i2, int i3, int i4) { ASSERT_TRUE(i == TEST_INT); return i; }
-	void MemberFuncStruct4(StructParam s, int i, int i2, int i3) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructPtr4(StructParam* s, int i, int i2, int i3) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructPtrPtr4(StructParam** s, int i, int i2, int i3) { ASSERT_TRUE((*s)->val == TEST_INT); }
-	void MemberFuncStructConstPtr4(const StructParam* s, int i, int i2, int i3) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructRef4(StructParam& s, int i, int i2, int i3) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructConstRef4(const StructParam& s, int i, int i2, int i3) { ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncInt4(int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	void MemberFuncInt4Const(int i, int i2, int i3, int i4) const { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	int MemberFuncIntWithReturn4(int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+	void MemberFuncStruct4(StructParam s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructPtr4(StructParam* s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructPtrPtr4(StructParam** s, int i, int i2, int i3) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+	void MemberFuncStructConstPtr4(const StructParam* s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructRef4(StructParam& s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructConstRef4(const StructParam& s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-	static void StaticFuncInt4(int i, int i2, int i3, int i4) { ASSERT_TRUE(i == TEST_INT); }
-	static void StaticFuncStruct4(StructParam s, int i, int i2, int i3) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructPtr4(StructParam* s, int i, int i2, int i3) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructConstPtr4(const StructParam* s, int i, int i2, int i3) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructRef4(StructParam& s, int i, int i2, int i3) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructConstRef4(const StructParam& s, int i, int i2, int i3) { ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncInt4(int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static void StaticFuncStruct4(StructParam s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructPtr4(StructParam* s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructConstPtr4(const StructParam* s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructRef4(StructParam& s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructConstRef4(const StructParam& s, int i, int i2, int i3) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 };
 
 class TestClass5
 {
 public:
-	void MemberFuncInt5(int i, int i2, int i3, int i4, int i5) { ASSERT_TRUE(i == TEST_INT); }
-	void MemberFuncInt5Const(int i, int i2, int i3, int i4, int i5) const { ASSERT_TRUE(i == TEST_INT); }
-	int MemberFuncIntWithReturn5(int i, int i2, int i3, int i4, int i5) { ASSERT_TRUE(i == TEST_INT); return i; }
-	void MemberFuncStruct5(StructParam s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructPtr5(StructParam* s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructPtrPtr5(StructParam** s, int i, int i2, int i3, int i4) { ASSERT_TRUE((*s)->val == TEST_INT); }
-	void MemberFuncStructConstPtr5(const StructParam* s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s->val == TEST_INT); }
-	void MemberFuncStructRef5(StructParam& s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s.val == TEST_INT); }
-	void MemberFuncStructConstRef5(const StructParam& s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncInt5(int i, int i2, int i3, int i4, int i5) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	void MemberFuncInt5Const(int i, int i2, int i3, int i4, int i5) const { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	int MemberFuncIntWithReturn5(int i, int i2, int i3, int i4, int i5) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+	void MemberFuncStruct5(StructParam s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructPtr5(StructParam* s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructPtrPtr5(StructParam** s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+	void MemberFuncStructConstPtr5(const StructParam* s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	void MemberFuncStructRef5(StructParam& s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	void MemberFuncStructConstRef5(const StructParam& s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-	static void StaticFuncInt5(int i, int i2, int i3, int i4, int i5) { ASSERT_TRUE(i == TEST_INT); }
-	static void StaticFuncStruct5(StructParam s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructPtr5(StructParam* s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructConstPtr5(const StructParam* s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void StaticFuncStructRef5(StructParam& s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void StaticFuncStructConstRef5(const StructParam& s, int i, int i2, int i3, int i4) { ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncInt5(int i, int i2, int i3, int i4, int i5) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static void StaticFuncStruct5(StructParam s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructPtr5(StructParam* s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructConstPtr5(const StructParam* s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void StaticFuncStructRef5(StructParam& s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void StaticFuncStructConstRef5(const StructParam& s, int i, int i2, int i3, int i4) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 };
 
 void UnicastDelegateTests()
@@ -158,35 +158,35 @@ void UnicastDelegateTests()
 
 	// N=0 Free Functions
 	UnicastDelegate<void(void)> FreeFunc0UnicastDelegate;
-	ASSERT_TRUE(FreeFunc0UnicastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFunc0UnicastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0UnicastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFunc0UnicastDelegate);
 	FreeFunc0UnicastDelegate = MakeDelegate(&FreeFunc0);
-	ASSERT_TRUE(FreeFunc0UnicastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFunc0UnicastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0UnicastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFunc0UnicastDelegate);
 	FreeFunc0UnicastDelegate();
 	FreeFunc0UnicastDelegate.Clear();
-	ASSERT_TRUE(!FreeFunc0UnicastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFunc0UnicastDelegate);
 
 	UnicastDelegate<int(void)> FreeFuncIntWithReturn0UnicastDelegate;
 	FreeFuncIntWithReturn0UnicastDelegate = MakeDelegate(&FreeFuncIntWithReturn0);
-	ASSERT_TRUE(FreeFuncIntWithReturn0UnicastDelegate() == TEST_INT);
+	DMQ_ASSERT_TRUE(FreeFuncIntWithReturn0UnicastDelegate() == TEST_INT);
 
 	// N=0 Member Functions
 	TestClass0 testClass0;
 
 	UnicastDelegate<void(void)> MemberFunc0UnicastDelegate;
-	ASSERT_TRUE(MemberFunc0UnicastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFunc0UnicastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0UnicastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFunc0UnicastDelegate);
 	MemberFunc0UnicastDelegate = MakeDelegate(&testClass0, &TestClass0::MemberFunc0);
-	ASSERT_TRUE(MemberFunc0UnicastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFunc0UnicastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0UnicastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFunc0UnicastDelegate);
 	MemberFunc0UnicastDelegate();
 	MemberFunc0UnicastDelegate.Clear();
-	ASSERT_TRUE(!MemberFunc0UnicastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFunc0UnicastDelegate);
 
 	UnicastDelegate<int(void)> MemberFuncIntWithReturn0UnicastDelegate;
 	MemberFuncIntWithReturn0UnicastDelegate = MakeDelegate(&testClass0, &TestClass0::MemberFuncWithReturn0);
-	ASSERT_TRUE(MemberFuncIntWithReturn0UnicastDelegate() == TEST_INT);
+	DMQ_ASSERT_TRUE(MemberFuncIntWithReturn0UnicastDelegate() == TEST_INT);
 
 	// N=0 Static Functions
 	UnicastDelegate<void(void)> StaticFunc0UnicastDelegate;
@@ -195,18 +195,18 @@ void UnicastDelegateTests()
 
 	// N=1 Free Functions
 	UnicastDelegate<void(int)> FreeFuncInt1UnicastDelegate;
-	ASSERT_TRUE(FreeFuncInt1UnicastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt1UnicastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1UnicastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1UnicastDelegate);
 	FreeFuncInt1UnicastDelegate = MakeDelegate(&FreeFuncInt1);
-	ASSERT_TRUE(FreeFuncInt1UnicastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt1UnicastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1UnicastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt1UnicastDelegate);
 	FreeFuncInt1UnicastDelegate(TEST_INT);
 	FreeFuncInt1UnicastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt1UnicastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1UnicastDelegate);
 
 	UnicastDelegate<int(int)> FreeFuncIntWithReturn1UnicastDelegate;
 	FreeFuncIntWithReturn1UnicastDelegate = MakeDelegate(&FreeFuncIntWithReturn1);
-	ASSERT_TRUE(FreeFuncIntWithReturn1UnicastDelegate(TEST_INT) == TEST_INT);
+	DMQ_ASSERT_TRUE(FreeFuncIntWithReturn1UnicastDelegate(TEST_INT) == TEST_INT);
 
 	UnicastDelegate<void(StructParam**)> FreeFuncPtrPtr1UnicastDelegate;
 	FreeFuncPtrPtr1UnicastDelegate = MakeDelegate(&FreeFuncPtrPtr1);
@@ -236,18 +236,18 @@ void UnicastDelegateTests()
 	TestClass1 testClass1;
 
 	UnicastDelegate<void(int)> MemberFuncInt1UnicastDelegate;
-	ASSERT_TRUE(MemberFuncInt1UnicastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt1UnicastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1UnicastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1UnicastDelegate);
 	MemberFuncInt1UnicastDelegate = MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1);
-	ASSERT_TRUE(MemberFuncInt1UnicastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt1UnicastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1UnicastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt1UnicastDelegate);
 	MemberFuncInt1UnicastDelegate(TEST_INT);
 	MemberFuncInt1UnicastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt1UnicastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1UnicastDelegate);
 
 	UnicastDelegate<int(int)> MemberFuncIntWithReturn1UnicastDelegate;
 	MemberFuncIntWithReturn1UnicastDelegate = MakeDelegate(&testClass1, &TestClass1::MemberFuncIntWithReturn1);
-	ASSERT_TRUE(MemberFuncIntWithReturn1UnicastDelegate(TEST_INT) == TEST_INT);
+	DMQ_ASSERT_TRUE(MemberFuncIntWithReturn1UnicastDelegate(TEST_INT) == TEST_INT);
 
 	UnicastDelegate<void(StructParam)> MemberFuncStruct1UnicastDelegate;
 	MemberFuncStruct1UnicastDelegate = MakeDelegate(&testClass1, &TestClass1::MemberFuncStruct1);
@@ -296,18 +296,18 @@ void UnicastDelegateTests()
 
 	// N=2 Free Functions
 	UnicastDelegate<void(int, int)> FreeFuncInt2UnicastDelegate;
-	ASSERT_TRUE(FreeFuncInt2UnicastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt2UnicastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2UnicastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2UnicastDelegate);
 	FreeFuncInt2UnicastDelegate = MakeDelegate(&FreeFuncInt2);
-	ASSERT_TRUE(FreeFuncInt2UnicastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt2UnicastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2UnicastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt2UnicastDelegate);
 	FreeFuncInt2UnicastDelegate(TEST_INT, TEST_INT);
 	FreeFuncInt2UnicastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt2UnicastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2UnicastDelegate);
 
 	UnicastDelegate<int(int, int)> FreeFuncIntWithReturn2UnicastDelegate;
 	FreeFuncIntWithReturn2UnicastDelegate = MakeDelegate(&FreeFuncIntWithReturn2);
-	ASSERT_TRUE(FreeFuncIntWithReturn2UnicastDelegate(TEST_INT, TEST_INT) == TEST_INT);
+	DMQ_ASSERT_TRUE(FreeFuncIntWithReturn2UnicastDelegate(TEST_INT, TEST_INT) == TEST_INT);
 
 	UnicastDelegate<void(StructParam**, int)> FreeFuncPtrPtr2UnicastDelegate;
 	FreeFuncPtrPtr2UnicastDelegate = MakeDelegate(&FreeFuncPtrPtr2);
@@ -337,18 +337,18 @@ void UnicastDelegateTests()
 	TestClass2 testClass2;
 
 	UnicastDelegate<void(int, int)> MemberFuncInt2UnicastDelegate;
-	ASSERT_TRUE(MemberFuncInt2UnicastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt2UnicastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2UnicastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2UnicastDelegate);
 	MemberFuncInt2UnicastDelegate = MakeDelegate(&testClass2, &TestClass2::MemberFuncInt2);
-	ASSERT_TRUE(MemberFuncInt2UnicastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt2UnicastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2UnicastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt2UnicastDelegate);
 	MemberFuncInt2UnicastDelegate(TEST_INT, TEST_INT);
 	MemberFuncInt2UnicastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt2UnicastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2UnicastDelegate);
 
 	UnicastDelegate<int(int, int)> MemberFuncIntWithReturn2UnicastDelegate;
 	MemberFuncIntWithReturn2UnicastDelegate = MakeDelegate(&testClass2, &TestClass2::MemberFuncIntWithReturn2);
-	ASSERT_TRUE(MemberFuncIntWithReturn2UnicastDelegate(TEST_INT, TEST_INT) == TEST_INT);
+	DMQ_ASSERT_TRUE(MemberFuncIntWithReturn2UnicastDelegate(TEST_INT, TEST_INT) == TEST_INT);
 
 	UnicastDelegate<void(StructParam, int)> MemberFuncStruct2UnicastDelegate;
 	MemberFuncStruct2UnicastDelegate = MakeDelegate(&testClass2, &TestClass2::MemberFuncStruct2);
@@ -404,30 +404,30 @@ void MulticastDelegateTests()
 
 	// N=0 Free Functions
 	MulticastDelegate<void(void)> FreeFunc0MulticastDelegate;
-	ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate += MakeDelegate(&FreeFunc0);
 	FreeFunc0MulticastDelegate += MakeDelegate(&FreeFunc0);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate();
 	FreeFunc0MulticastDelegate -= MakeDelegate(&FreeFunc0);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 
 	// N=0 Member Functions
 	TestClass0 testClass0;
 
 	MulticastDelegate<void(void)> MemberFunc0MulticastDelegate;
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 	MemberFunc0MulticastDelegate += MakeDelegate(&testClass0, &TestClass0::MemberFunc0);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate);
 	MemberFunc0MulticastDelegate();
 	MemberFunc0MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 
 	// N=0 Static Functions
 	MulticastDelegate<void(void)> StaticFunc0MulticastDelegate;
@@ -436,17 +436,17 @@ void MulticastDelegateTests()
 
 	// N=1 Free Functions
 	MulticastDelegate<void(int)> FreeFuncInt1MulticastDelegate;
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate += MakeDelegate(&FreeFuncInt1);
 	FreeFuncInt1MulticastDelegate += MakeDelegate(&FreeFuncInt1);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate(TEST_INT);
 	FreeFuncInt1MulticastDelegate -= MakeDelegate(&FreeFuncInt1);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 
 	MulticastDelegate<void(StructParam)> FreeFuncStruct1MulticastDelegate;
 	FreeFuncStruct1MulticastDelegate += MakeDelegate(&FreeFuncStruct1);
@@ -472,14 +472,14 @@ void MulticastDelegateTests()
 	TestClass1 testClass1;
 
 	MulticastDelegate<void(int)> MemberFuncInt1MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate(TEST_INT);
 	MemberFuncInt1MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 
 	MulticastDelegate<void(StructParam)> MemberFuncStruct1MulticastDelegate;
 	MemberFuncStruct1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncStruct1);
@@ -528,17 +528,17 @@ void MulticastDelegateTests()
 
 	// N=2 Free Functions
 	MulticastDelegate<void(int, int)> FreeFuncInt2MulticastDelegate;
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate += MakeDelegate(&FreeFuncInt2);
 	FreeFuncInt2MulticastDelegate += MakeDelegate(&FreeFuncInt2);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	FreeFuncInt2MulticastDelegate -= MakeDelegate(&FreeFuncInt2);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 
 	MulticastDelegate<void(StructParam, int)> FreeFuncStruct2MulticastDelegate;
 	FreeFuncStruct2MulticastDelegate += MakeDelegate(&FreeFuncStruct2);
@@ -564,14 +564,14 @@ void MulticastDelegateTests()
 	TestClass2 testClass2;
 
 	MulticastDelegate<void(int, int)> MemberFuncInt2MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncInt2);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	MemberFuncInt2MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 
 	MulticastDelegate<void(StructParam, int)> MemberFuncStruct2MulticastDelegate;
 	MemberFuncStruct2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncStruct2);
@@ -630,40 +630,40 @@ void MulticastDelegateSafeTests()
 	TestClass0 testClass0;
 
 	MulticastDelegateSafe<void(void)> MemberFunc0MulticastDelegate;
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 	MemberFunc0MulticastDelegate += MakeDelegate(&testClass0, &TestClass0::MemberFunc0);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate);
 	MemberFunc0MulticastDelegate();
 	MemberFunc0MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 
 	// N=1 Member Functions
 	TestClass1 testClass1;
 
 	MulticastDelegateSafe<void(int)> MemberFuncInt1MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate(TEST_INT);
 	MemberFuncInt1MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 
 	// N=2 Member Functions
 	TestClass2 testClass2;
 
 	MulticastDelegateSafe<void(int, int)> MemberFuncInt2MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncInt2);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	MemberFuncInt2MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 
 }
 
@@ -675,32 +675,32 @@ void MulticastDelegateSafeAsyncTests()
 
 	// N=0 Free Functions
 	MulticastDelegateSafe<void(void)> FreeFunc0MulticastDelegate;
-	ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate += MakeDelegate(&FreeFunc0, testThread);
 	FreeFunc0MulticastDelegate += MakeDelegate(&FreeFunc0, testThread);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate();
 	FreeFunc0MulticastDelegate -= MakeDelegate(&FreeFunc0, testThread);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 
 	// N=0 Member Functions
 	TestClass0 testClass0;
 
 	MulticastDelegateSafe<void(void)> MemberFunc0MulticastDelegate;
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 	MemberFunc0MulticastDelegate += MakeDelegate(&testClass0, &TestClass0::MemberFunc0, testThread);
 	MemberFunc0MulticastDelegate += MakeDelegate(&testClass0, &TestClass0::MemberFunc0Const, testThread);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate);
 	if (MemberFunc0MulticastDelegate)
 		MemberFunc0MulticastDelegate();
 	MemberFunc0MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 
 	// N=0 Static Functions
 	MulticastDelegateSafe<void(void)> StaticFunc0MulticastDelegate;
@@ -709,17 +709,17 @@ void MulticastDelegateSafeAsyncTests()
 
 	// N=1 Free Functions
 	MulticastDelegateSafe<void(int)> FreeFuncInt1MulticastDelegate;
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate += MakeDelegate(&FreeFuncInt1, testThread);
 	FreeFuncInt1MulticastDelegate += MakeDelegate(&FreeFuncInt1, testThread);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate(TEST_INT);
 	FreeFuncInt1MulticastDelegate -= MakeDelegate(&FreeFuncInt1, testThread);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam)> FreeFuncStruct1MulticastDelegate;
 	FreeFuncStruct1MulticastDelegate += MakeDelegate(&FreeFuncStruct1);
@@ -745,15 +745,15 @@ void MulticastDelegateSafeAsyncTests()
 	TestClass1 testClass1;
 
 	MulticastDelegateSafe<void(int)> MemberFuncInt1MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1, testThread);
 	MemberFuncInt1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1Const, testThread);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate(TEST_INT);
 	MemberFuncInt1MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam)> MemberFuncStruct1MulticastDelegate;
 	MemberFuncStruct1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncStruct1, testThread);
@@ -803,17 +803,17 @@ void MulticastDelegateSafeAsyncTests()
 
 	// N=2 Free Functions
 	MulticastDelegateSafe<void(int, int)> FreeFuncInt2MulticastDelegate;
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate += MakeDelegate(&FreeFuncInt2, testThread);
 	FreeFuncInt2MulticastDelegate += MakeDelegate(&FreeFuncInt2, testThread);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	FreeFuncInt2MulticastDelegate -= MakeDelegate(&FreeFuncInt2, testThread);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam, int)> FreeFuncStruct2MulticastDelegate;
 	FreeFuncStruct2MulticastDelegate += MakeDelegate(&FreeFuncStruct2, testThread);
@@ -839,15 +839,15 @@ void MulticastDelegateSafeAsyncTests()
 	TestClass2 testClass2;
 
 	MulticastDelegateSafe<void(int, int)> MemberFuncInt2MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncInt2, testThread);
 	MemberFuncInt2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncInt2Const, testThread);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	MemberFuncInt2MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam, int)> MemberFuncStruct2MulticastDelegate;
 	MemberFuncStruct2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncStruct2, testThread);
@@ -987,36 +987,36 @@ void DelegateMemberAsyncWaitTests()
 
 	// N=0 Free Functions
 	MulticastDelegateSafe<void(void)> FreeFunc0MulticastDelegate;
-	ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate += MakeDelegate(&FreeFunc0, testThread, WAIT_INFINITE);
 	FreeFunc0MulticastDelegate += MakeDelegate(&FreeFunc0, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate();
 	FreeFunc0MulticastDelegate -= MakeDelegate(&FreeFunc0, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFunc0MulticastDelegate);
 	FreeFunc0MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFunc0MulticastDelegate);
 
 	// N=0 Member Functions
 	TestClass0 testClass0;
 
 	MulticastDelegateSafe<void(void)> MemberFunc0MulticastDelegate;
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 	//auto d1 = MakeDelegate(&testClass0, &TestClass0::MemberFunc0, testThread, WAIT_INFINITE);
 	//MemberFunc0MulticastDelegate += d1;
 	MemberFunc0MulticastDelegate += MakeDelegate(&testClass0, &TestClass0::MemberFunc0, testThread, WAIT_INFINITE);
 	MemberFunc0MulticastDelegate += MakeDelegate(&testClass0, &TestClass0::MemberFunc0Const, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate);
 	if (MemberFunc0MulticastDelegate)
 		MemberFunc0MulticastDelegate();
 	MemberFunc0MulticastDelegate -= MakeDelegate(&testClass0, &TestClass0::MemberFunc0, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(MemberFunc0MulticastDelegate.Size() == 1);
+	DMQ_ASSERT_TRUE(MemberFunc0MulticastDelegate.Size() == 1);
 	MemberFunc0MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFunc0MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFunc0MulticastDelegate);
 
 	// N=0 Static Functions
 	MulticastDelegateSafe<void(void)> StaticFunc0MulticastDelegate;
@@ -1025,18 +1025,18 @@ void DelegateMemberAsyncWaitTests()
 
 	// N=0 Free/Member Functions with Return
 	auto FreeFuncIntWithReturn0Delegate = MakeDelegate(&FreeFuncIntWithReturn0, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncIntWithReturn0Delegate);
+	DMQ_ASSERT_TRUE(FreeFuncIntWithReturn0Delegate);
 	if (FreeFuncIntWithReturn0Delegate) {
-		ASSERT_TRUE(FreeFuncIntWithReturn0Delegate() == TEST_INT);
-		ASSERT_TRUE(FreeFuncIntWithReturn0Delegate.IsSuccess() == true);
+		DMQ_ASSERT_TRUE(FreeFuncIntWithReturn0Delegate() == TEST_INT);
+		DMQ_ASSERT_TRUE(FreeFuncIntWithReturn0Delegate.IsSuccess() == true);
 		FreeFuncIntWithReturn0Delegate.Clear();
 	}
 
 	auto MemberFuncIntWithReturn0Delegate = MakeDelegate(&testClass0, &TestClass0::MemberFuncWithReturn0, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(MemberFuncIntWithReturn0Delegate);
+	DMQ_ASSERT_TRUE(MemberFuncIntWithReturn0Delegate);
 	if (MemberFuncIntWithReturn0Delegate) {
-		ASSERT_TRUE(MemberFuncIntWithReturn0Delegate() == TEST_INT);
-		ASSERT_TRUE(MemberFuncIntWithReturn0Delegate.IsSuccess() == true);
+		DMQ_ASSERT_TRUE(MemberFuncIntWithReturn0Delegate() == TEST_INT);
+		DMQ_ASSERT_TRUE(MemberFuncIntWithReturn0Delegate.IsSuccess() == true);
 		MemberFuncIntWithReturn0Delegate.Clear();
 	}
 
@@ -1050,18 +1050,18 @@ void DelegateMemberAsyncWaitTests()
 
 	// N=1 Free Functions
 	MulticastDelegateSafe<void(int)> FreeFuncInt1MulticastDelegate;
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate += MakeDelegate(&FreeFuncInt1, testThread, WAIT_INFINITE);
 	FreeFuncInt1MulticastDelegate += MakeDelegate(&FreeFuncInt1, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate(TEST_INT);
 	FreeFuncInt1MulticastDelegate -= MakeDelegate(&FreeFuncInt1, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Size() == 1);
-	ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate.Size() == 1);
+	DMQ_ASSERT_TRUE(FreeFuncInt1MulticastDelegate);
 	FreeFuncInt1MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt1MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam)> FreeFuncStruct1MulticastDelegate;
 	FreeFuncStruct1MulticastDelegate += MakeDelegate(&FreeFuncStruct1);
@@ -1087,15 +1087,15 @@ void DelegateMemberAsyncWaitTests()
 	TestClass1 testClass1;
 
 	MulticastDelegateSafe<void(int)> MemberFuncInt1MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1, testThread, WAIT_INFINITE);
 	MemberFuncInt1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncInt1Const, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt1MulticastDelegate);
 	MemberFuncInt1MulticastDelegate(TEST_INT);
 	MemberFuncInt1MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt1MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam)> MemberFuncStruct1MulticastDelegate;
 	MemberFuncStruct1MulticastDelegate += MakeDelegate(&testClass1, &TestClass1::MemberFuncStruct1, testThread, WAIT_INFINITE);
@@ -1149,18 +1149,18 @@ void DelegateMemberAsyncWaitTests()
 
 	// N=1 Free/Member Functions with Return
 	auto FreeFuncIntWithReturn1Delegate = MakeDelegate(&FreeFuncIntWithReturn1, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncIntWithReturn1Delegate);
+	DMQ_ASSERT_TRUE(FreeFuncIntWithReturn1Delegate);
 	if (FreeFuncIntWithReturn1Delegate) {
-		ASSERT_TRUE(FreeFuncIntWithReturn1Delegate(TEST_INT) == TEST_INT);
-		ASSERT_TRUE(FreeFuncIntWithReturn1Delegate.IsSuccess() == true);
+		DMQ_ASSERT_TRUE(FreeFuncIntWithReturn1Delegate(TEST_INT) == TEST_INT);
+		DMQ_ASSERT_TRUE(FreeFuncIntWithReturn1Delegate.IsSuccess() == true);
 		FreeFuncIntWithReturn1Delegate.Clear();
 	}
 
 	auto MemberFuncIntWithReturn1Delegate = MakeDelegate(&testClass1, &TestClass1::MemberFuncIntWithReturn1, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(MemberFuncIntWithReturn1Delegate);
+	DMQ_ASSERT_TRUE(MemberFuncIntWithReturn1Delegate);
 	if (MemberFuncIntWithReturn1Delegate) {
-		ASSERT_TRUE(MemberFuncIntWithReturn1Delegate(TEST_INT) == TEST_INT);
-		ASSERT_TRUE(MemberFuncIntWithReturn1Delegate.IsSuccess() == true);
+		DMQ_ASSERT_TRUE(MemberFuncIntWithReturn1Delegate(TEST_INT) == TEST_INT);
+		DMQ_ASSERT_TRUE(MemberFuncIntWithReturn1Delegate.IsSuccess() == true);
 		MemberFuncIntWithReturn1Delegate.Clear();
 	}
 
@@ -1174,17 +1174,17 @@ void DelegateMemberAsyncWaitTests()
 
 	// N=2 Free Functions
 	MulticastDelegateSafe<void(int, int)> FreeFuncInt2MulticastDelegate;
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate += MakeDelegate(&FreeFuncInt2, testThread, WAIT_INFINITE);
 	FreeFuncInt2MulticastDelegate += MakeDelegate(&FreeFuncInt2, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	FreeFuncInt2MulticastDelegate -= MakeDelegate(&FreeFuncInt2, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(FreeFuncInt2MulticastDelegate);
 	FreeFuncInt2MulticastDelegate.Clear();
-	ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(!FreeFuncInt2MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam, int)> FreeFuncStruct2MulticastDelegate;
 	FreeFuncStruct2MulticastDelegate += MakeDelegate(&FreeFuncStruct2, testThread, WAIT_INFINITE);
@@ -1210,15 +1210,15 @@ void DelegateMemberAsyncWaitTests()
 	TestClass2 testClass2;
 
 	MulticastDelegateSafe<void(int, int)> MemberFuncInt2MulticastDelegate;
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == true);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncInt2, testThread, WAIT_INFINITE);
 	MemberFuncInt2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncInt2Const, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
-	ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate.Empty() == false);
+	DMQ_ASSERT_TRUE(MemberFuncInt2MulticastDelegate);
 	MemberFuncInt2MulticastDelegate(TEST_INT, TEST_INT);
 	MemberFuncInt2MulticastDelegate.Clear();
-	ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
+	DMQ_ASSERT_TRUE(!MemberFuncInt2MulticastDelegate);
 
 	MulticastDelegateSafe<void(StructParam, int)> MemberFuncStruct2MulticastDelegate;
 	MemberFuncStruct2MulticastDelegate += MakeDelegate(&testClass2, &TestClass2::MemberFuncStruct2, testThread, WAIT_INFINITE);
@@ -1268,18 +1268,18 @@ void DelegateMemberAsyncWaitTests()
 
 	// N=2 Free/Member Functions with Return
 	auto FreeFuncIntWithReturn2Delegate = MakeDelegate(&FreeFuncIntWithReturn2, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(FreeFuncIntWithReturn2Delegate);
+	DMQ_ASSERT_TRUE(FreeFuncIntWithReturn2Delegate);
 	if (FreeFuncIntWithReturn2Delegate) {
-		ASSERT_TRUE(FreeFuncIntWithReturn2Delegate(TEST_INT, TEST_INT) == TEST_INT);
-		ASSERT_TRUE(FreeFuncIntWithReturn2Delegate.IsSuccess() == true);
+		DMQ_ASSERT_TRUE(FreeFuncIntWithReturn2Delegate(TEST_INT, TEST_INT) == TEST_INT);
+		DMQ_ASSERT_TRUE(FreeFuncIntWithReturn2Delegate.IsSuccess() == true);
 		FreeFuncIntWithReturn2Delegate.Clear();
 	}
 
 	auto MemberFuncIntWithReturn2Delegate = MakeDelegate(&testClass2, &TestClass2::MemberFuncIntWithReturn2, testThread, WAIT_INFINITE);
-	ASSERT_TRUE(MemberFuncIntWithReturn2Delegate);
+	DMQ_ASSERT_TRUE(MemberFuncIntWithReturn2Delegate);
 	if (MemberFuncIntWithReturn2Delegate) {
-		ASSERT_TRUE(MemberFuncIntWithReturn2Delegate(TEST_INT, TEST_INT) == TEST_INT);
-		ASSERT_TRUE(MemberFuncIntWithReturn2Delegate.IsSuccess() == true);
+		DMQ_ASSERT_TRUE(MemberFuncIntWithReturn2Delegate(TEST_INT, TEST_INT) == TEST_INT);
+		DMQ_ASSERT_TRUE(MemberFuncIntWithReturn2Delegate.IsSuccess() == true);
 		MemberFuncIntWithReturn2Delegate.Clear();
 	}
 
@@ -1337,13 +1337,13 @@ void RunDelegateUnitTests()
 	{
 		LOG_ERROR("Unit Tests Failed: {}", e.what());
 		std::cout << "Unit Tests Failed: " << e.what() << std::endl;
-		ASSERT_TRUE(false);
+		DMQ_ASSERT_TRUE(false);
 	}
 	catch (...)
 	{
 		LOG_ERROR("Unit Tests Failed!");
 		std::cout << "Unit Tests Failed!" << std::endl;
-		ASSERT_TRUE(false);
+		DMQ_ASSERT_TRUE(false);
 	}
 
 	testThread.CreateThread();
@@ -1376,13 +1376,13 @@ void RunDelegateUnitTests()
 	{
 		LOG_ERROR("Unit Tests Failed: {}", e.what());
 		std::cout << "Unit Tests Failed: " << e.what() << std::endl;
-		ASSERT_TRUE(false);
+		DMQ_ASSERT_TRUE(false);
 	}
 	catch (...)
 	{
 		LOG_ERROR("Unit Tests Failed!");
 		std::cout << "Unit Tests Failed!" << std::endl;
-		ASSERT_TRUE(false);
+		DMQ_ASSERT_TRUE(false);
 	}
 
 #ifdef _WIN32

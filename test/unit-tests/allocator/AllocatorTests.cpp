@@ -49,35 +49,35 @@ void AllocatorTests()
     {
         size_t requestSize = 32;
         Allocator allocator(requestSize, 5, NULL, "TestAllocator");
-        ASSERT_TRUE(allocator.GetBlockSize() == (requestSize < minBlockSize ? minBlockSize : requestSize));
-        ASSERT_TRUE(allocator.GetBlockCount() == 0);
-        ASSERT_TRUE(allocator.GetBlocksInUse() == 0);
+        DMQ_ASSERT_TRUE(allocator.GetBlockSize() == (requestSize < minBlockSize ? minBlockSize : requestSize));
+        DMQ_ASSERT_TRUE(allocator.GetBlockCount() == 0);
+        DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 0);
 
         void* p1 = allocator.Allocate(requestSize);
-        ASSERT_TRUE(p1 != NULL);
-        ASSERT_TRUE(allocator.GetBlocksInUse() == 1);
-        ASSERT_TRUE(allocator.GetAllocations() == 1);
+        DMQ_ASSERT_TRUE(p1 != NULL);
+        DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 1);
+        DMQ_ASSERT_TRUE(allocator.GetAllocations() == 1);
 
         void* p2 = allocator.Allocate(requestSize);
-        ASSERT_TRUE(p2 != NULL);
-        ASSERT_TRUE(allocator.GetBlocksInUse() == 2);
+        DMQ_ASSERT_TRUE(p2 != NULL);
+        DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 2);
 
         allocator.Deallocate(p1);
-        ASSERT_TRUE(allocator.GetBlocksInUse() == 1);
-        ASSERT_TRUE(allocator.GetDeallocations() == 1);
+        DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 1);
+        DMQ_ASSERT_TRUE(allocator.GetDeallocations() == 1);
 
         allocator.Deallocate(p2);
-        ASSERT_TRUE(allocator.GetBlocksInUse() == 0);
+        DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 0);
     }
 
     // Test AllocatorPool
     {
         AllocatorPool<int, 5> pool;
         size_t expectedSize = sizeof(int) < minBlockSize ? minBlockSize : sizeof(int);
-        ASSERT_TRUE(pool.GetBlockSize() == expectedSize);
+        DMQ_ASSERT_TRUE(pool.GetBlockSize() == expectedSize);
         
         int* p1 = (int*)pool.Allocate(sizeof(int));
-        ASSERT_TRUE(p1 != NULL);
+        DMQ_ASSERT_TRUE(p1 != NULL);
         
         pool.Deallocate(p1);
     }
@@ -85,31 +85,31 @@ void AllocatorTests()
     // Test DECLARE_ALLOCATOR/IMPLEMENT_ALLOCATOR macros
     {
         MyClass* p1 = new MyClass();
-        ASSERT_TRUE(p1 != NULL);
+        DMQ_ASSERT_TRUE(p1 != NULL);
         delete p1;
     }
 
     // Test xallocator (C API)
     {
         void* p1 = xmalloc(10);
-        ASSERT_TRUE(p1 != NULL);
+        DMQ_ASSERT_TRUE(p1 != NULL);
         
         // p1 should handle up to 10 bytes (or block size power of 2)
         // xrealloc to smaller or same size
         void* p2 = xrealloc(p1, 5);
-        ASSERT_TRUE(p2 != NULL);
+        DMQ_ASSERT_TRUE(p2 != NULL);
         
         // xrealloc to larger size
         void* p3 = xrealloc(p2, 100);
-        ASSERT_TRUE(p3 != NULL);
+        DMQ_ASSERT_TRUE(p3 != NULL);
 
         // xrealloc(NULL, size) should be like xmalloc
         void* p4 = xrealloc(NULL, 50);
-        ASSERT_TRUE(p4 != NULL);
+        DMQ_ASSERT_TRUE(p4 != NULL);
 
         // xrealloc(p, 0) should be like xfree
         void* p5 = xrealloc(p4, 0);
-        ASSERT_TRUE(p5 == NULL);
+        DMQ_ASSERT_TRUE(p5 == NULL);
         
         xfree(p3);
     }
@@ -120,9 +120,9 @@ void AllocatorTests()
         l.push_back(1);
         l.push_back(2);
         l.push_back(3);
-        ASSERT_TRUE(l.size() == 3);
+        DMQ_ASSERT_TRUE(l.size() == 3);
         l.pop_front();
-        ASSERT_TRUE(l.size() == 2);
+        DMQ_ASSERT_TRUE(l.size() == 2);
     }
 
     // Test stl_allocator with set
@@ -130,13 +130,13 @@ void AllocatorTests()
         std::set<int, std::less<int>, stl_allocator<int>> s;
         s.insert(10);
         s.insert(20);
-        ASSERT_TRUE(s.size() == 2);
+        DMQ_ASSERT_TRUE(s.size() == 2);
     }
 
     // Test XALLOCATOR macro
     {
         MyXClass* p1 = new MyXClass();
-        ASSERT_TRUE(p1 != NULL);
+        DMQ_ASSERT_TRUE(p1 != NULL);
         delete p1;
     }
 
@@ -145,7 +145,7 @@ void AllocatorTests()
         std::vector<int, stl_allocator<int>> v;
         v.push_back(1);
         v.push_back(2);
-        ASSERT_TRUE(v.size() == 2);
+        DMQ_ASSERT_TRUE(v.size() == 2);
         v.clear();
     }
 
@@ -154,14 +154,14 @@ void AllocatorTests()
         std::map<int, int, std::less<int>, stl_allocator<std::pair<const int, int>>> m;
         m[1] = 10;
         m[2] = 20;
-        ASSERT_TRUE(m.size() == 2);
+        DMQ_ASSERT_TRUE(m.size() == 2);
     }
 
     // Test xmake_shared
     {
         auto sp = dmq::xmake_shared<int>(123);
-        ASSERT_TRUE(sp != NULL);
-        ASSERT_TRUE(*sp == 123);
+        DMQ_ASSERT_TRUE(sp != NULL);
+        DMQ_ASSERT_TRUE(*sp == 123);
     }
 
     // Test xnew<T>() returns the pool block instead of leaking it when T's
@@ -182,8 +182,8 @@ void AllocatorTests()
         catch (const std::runtime_error&) {
             caught = true;
         }
-        ASSERT_TRUE(caught);
-        ASSERT_TRUE(allocator->GetBlocksInUse() == before);
+        DMQ_ASSERT_TRUE(caught);
+        DMQ_ASSERT_TRUE(allocator->GetBlocksInUse() == before);
     }
 #endif
 
@@ -192,14 +192,14 @@ void AllocatorTests()
     {
         size_t size = 16;
         void* p = xmalloc(size);
-        ASSERT_TRUE(p != NULL);
+        DMQ_ASSERT_TRUE(p != NULL);
 
         // Check magic and canary in header
         // Header layout (safeguards ON, 64-bit): [allocator*:8][magic:4][canary:4] = 16 bytes
         uint32_t* pMagic = (uint32_t*)((char*)p - 8);
         uint32_t* pCanaryFront = (uint32_t*)((char*)p - 4);
-        ASSERT_TRUE(*pMagic == XALLOC_MAGIC);
-        ASSERT_TRUE(*pCanaryFront == XALLOC_CANARY);
+        DMQ_ASSERT_TRUE(*pMagic == XALLOC_MAGIC);
+        DMQ_ASSERT_TRUE(*pCanaryFront == XALLOC_CANARY);
 
         // Check canary in footer
         // nexthigher(16 + XALLOC_BLOCK_HEADER_SIZE + XALLOC_BLOCK_FOOTER_SIZE) = nexthigher(36) = 64
@@ -207,7 +207,7 @@ void AllocatorTests()
         Allocator* allocator = xallocator_get_allocator(size);
         size_t userSize = allocator->GetBlockSize() - XALLOC_BLOCK_HEADER_SIZE - XALLOC_BLOCK_FOOTER_SIZE;
         uint32_t* pCanaryBack = (uint32_t*)((char*)p + userSize);
-        ASSERT_TRUE(*pCanaryBack == XALLOC_CANARY);
+        DMQ_ASSERT_TRUE(*pCanaryBack == XALLOC_CANARY);
 
         xfree(p);
     }

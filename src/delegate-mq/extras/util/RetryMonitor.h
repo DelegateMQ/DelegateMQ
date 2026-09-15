@@ -89,7 +89,7 @@ public:
     /// @return 0 on success, -1 on immediate transport failure.
     int SendWithRetry(dmq::xostringstream& os, const dmq::transport::DmqHeader& header)
     {
-        ASSERT_TRUE(m_transport != nullptr);
+        DMQ_ASSERT_TRUE(m_transport != nullptr);
         // Critical Section: Store the packet for retry before sending.
         // If Send() fails we remove the entry immediately so it doesn't leak.
         uint32_t key = (static_cast<uint32_t>(header.GetId()) << 16) | header.GetSeqNum();

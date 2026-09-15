@@ -35,9 +35,9 @@ namespace UnitTestData
 		std::uint16_t Func() { return 0; }
 		std::uint16_t FuncConst() const { return 0; }
 		std::unique_ptr<int> FuncUnique(int i) { return std::make_unique<int>(i); }
-		void FuncRvalueRef(int&& i) { ASSERT_TRUE(i == TEST_INT); }
-		void VoidPtrArgNull(void* p) { ASSERT_TRUE(p == nullptr); }
-		void VoidPtrArgNotNull(void* p) { ASSERT_TRUE(p != nullptr); }
+		void FuncRvalueRef(int&& i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		void VoidPtrArgNull(void* p) { DMQ_ASSERT_TRUE(p == nullptr); }
+		void VoidPtrArgNotNull(void* p) { DMQ_ASSERT_TRUE(p != nullptr); }
 		void* RetVoidPtr() {
 			static const char* str = "Hello World!";
 			return (void*)str;
@@ -53,9 +53,9 @@ namespace UnitTestData
 	static void ConstructorCnt(Class* c) {}
 	static std::uint16_t Func() { return 0; }
 	static std::unique_ptr<int> FuncUnique(int i) { return std::make_unique<int>(i); }
-	static void FuncRvalueRef(int&& i) { ASSERT_TRUE(i == TEST_INT); }
-	static void VoidPtrArgNull(void* p) { ASSERT_TRUE(p == nullptr); }
-	static void VoidPtrArgNotNull(void* p) { ASSERT_TRUE(p != nullptr); }
+	static void FuncRvalueRef(int&& i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static void VoidPtrArgNull(void* p) { DMQ_ASSERT_TRUE(p == nullptr); }
+	static void VoidPtrArgNotNull(void* p) { DMQ_ASSERT_TRUE(p != nullptr); }
 	static void* RetVoidPtr() { 
 		static const char* str = "Hello World!";
 		return (void*)str;
@@ -106,14 +106,14 @@ namespace UnitTestData
 		void Shared(std::shared_ptr<ClassSingleton> s) {}
 	};
 
-	static void NullPtrArg(int* n) { ASSERT_TRUE(n == nullptr); }
-	static void NullPtrPtrArg(int** n) { ASSERT_TRUE(*n == nullptr); }
+	static void NullPtrArg(int* n) { DMQ_ASSERT_TRUE(n == nullptr); }
+	static void NullPtrPtrArg(int** n) { DMQ_ASSERT_TRUE(*n == nullptr); }
 
 	struct StructParam { int val; };
 
 	static void OutgoingPtrArg(StructParam* s, int* i) { 
-		ASSERT_TRUE(s != nullptr);
-		ASSERT_TRUE(s->val == TEST_INT);
+		DMQ_ASSERT_TRUE(s != nullptr);
+		DMQ_ASSERT_TRUE(s->val == TEST_INT);
 		s->val++; 
 		(*i)++;
 	}
@@ -121,13 +121,13 @@ namespace UnitTestData
 	static void OutgoingPtrPtrArg(StructParam** s) {
 		StructParam* param = new StructParam;
 		param->val = TEST_INT;
-		ASSERT_TRUE(*s == nullptr);
+		DMQ_ASSERT_TRUE(*s == nullptr);
 		(*s) = param;
 	}
 
 	// Async variant: ptr-ptr output can't propagate back to caller, so no allocation
 	static void OutgoingPtrPtrArgAsync(StructParam** s) {
-		ASSERT_TRUE(*s == nullptr);
+		DMQ_ASSERT_TRUE(*s == nullptr);
 	}
 
 	static void OutgoingRefArg(StructParam& s) {
@@ -138,24 +138,24 @@ namespace UnitTestData
 
 	static void FreeFunc0() { }
 
-	static void FreeFuncInt1(int i) { ASSERT_TRUE(i == TEST_INT); }
-	static void FreeFuncInt1_2(int i) { ASSERT_TRUE(i == TEST_INT); }
-	static int FreeFuncIntWithReturn1(int i) { ASSERT_TRUE(i == TEST_INT); return i; }
-	static void FreeFuncPtrPtr1(StructParam** s) { ASSERT_TRUE((*s)->val == TEST_INT); (*s)->val++; }
-	static void FreeFuncStruct1(StructParam s) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void FreeFuncStructPtr1(StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); s->val++; }
-	static void FreeFuncStructConstPtr1(const StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void FreeFuncStructRef1(StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); s.val++; }
-	static void FreeFuncStructConstRef1(const StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
+	static void FreeFuncInt1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static void FreeFuncInt1_2(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+	static int FreeFuncIntWithReturn1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+	static void FreeFuncPtrPtr1(StructParam** s) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); (*s)->val++; }
+	static void FreeFuncStruct1(StructParam s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void FreeFuncStructPtr1(StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); s->val++; }
+	static void FreeFuncStructConstPtr1(const StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void FreeFuncStructRef1(StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); s.val++; }
+	static void FreeFuncStructConstRef1(const StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-	static void FreeFuncInt2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); ASSERT_TRUE(i2 == TEST_INT); }
-	static int FreeFuncIntWithReturn2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); return i; }
-	static void FreeFuncPtrPtr2(StructParam** s, int i) { ASSERT_TRUE((*s)->val == TEST_INT); }
-	static void FreeFuncStruct2(StructParam s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void FreeFuncStructPtr2(StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void FreeFuncStructConstPtr2(const StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-	static void FreeFuncStructRef2(StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-	static void FreeFuncStructConstRef2(const StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
+	static void FreeFuncInt2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); DMQ_ASSERT_TRUE(i2 == TEST_INT); }
+	static int FreeFuncIntWithReturn2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+	static void FreeFuncPtrPtr2(StructParam** s, int i) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+	static void FreeFuncStruct2(StructParam s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void FreeFuncStructPtr2(StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void FreeFuncStructConstPtr2(const StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+	static void FreeFuncStructRef2(StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+	static void FreeFuncStructConstRef2(const StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
 	class TestClass0
 	{
@@ -171,49 +171,49 @@ namespace UnitTestData
 	class TestClass1
 	{
 	public:
-		int ConstCheck(int i) { ASSERT_TRUE(i == TEST_INT); return TEST_INT; }
-		int ConstCheck(int i) const { ASSERT_TRUE(i == TEST_INT); return TEST_INT; }
-		void FuncRvalueRef(int&& i) { ASSERT_TRUE(i == TEST_INT); }
+		int ConstCheck(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); return TEST_INT; }
+		int ConstCheck(int i) const { DMQ_ASSERT_TRUE(i == TEST_INT); return TEST_INT; }
+		void FuncRvalueRef(int&& i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
 
-		void MemberFuncInt1(int i) { ASSERT_TRUE(i == TEST_INT); }
-		void MemberFuncInt1_2(int i) { ASSERT_TRUE(i == TEST_INT); }
-		void MemberFuncInt1Const(int i) const { ASSERT_TRUE(i == TEST_INT); }
-		int MemberFuncIntWithReturn1(int i) { ASSERT_TRUE(i == TEST_INT); return i; }
-		void MemberFuncStruct1(StructParam s) { ASSERT_TRUE(s.val == TEST_INT); }
-		void MemberFuncStructPtr1(StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-		void MemberFuncStructPtrPtr1(StructParam** s) { ASSERT_TRUE((*s)->val == TEST_INT); }
-		void MemberFuncStructConstPtr1(const StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-		void MemberFuncStructRef1(StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
-		void MemberFuncStructConstRef1(const StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
+		void MemberFuncInt1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		void MemberFuncInt1_2(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		void MemberFuncInt1Const(int i) const { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		int MemberFuncIntWithReturn1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+		void MemberFuncStruct1(StructParam s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		void MemberFuncStructPtr1(StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		void MemberFuncStructPtrPtr1(StructParam** s) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+		void MemberFuncStructConstPtr1(const StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		void MemberFuncStructRef1(StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		void MemberFuncStructConstRef1(const StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-		static void StaticFuncInt1(int i) { ASSERT_TRUE(i == TEST_INT); }
-		static void StaticFuncStruct1(StructParam s) { ASSERT_TRUE(s.val == TEST_INT); }
-		static void StaticFuncStructPtr1(StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-		static void StaticFuncStructConstPtr1(const StructParam* s) { ASSERT_TRUE(s->val == TEST_INT); }
-		static void StaticFuncStructRef1(StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
-		static void StaticFuncStructConstRef1(const StructParam& s) { ASSERT_TRUE(s.val == TEST_INT); }
+		static void StaticFuncInt1(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		static void StaticFuncStruct1(StructParam s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		static void StaticFuncStructPtr1(StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		static void StaticFuncStructConstPtr1(const StructParam* s) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		static void StaticFuncStructRef1(StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		static void StaticFuncStructConstRef1(const StructParam& s) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 		XALLOCATOR
 	};
 
 	class TestClass2
 	{
 	public:
-		void MemberFuncInt2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); }
-		void MemberFuncInt2Const(int i, int i2) const { ASSERT_TRUE(i == TEST_INT); }
-		int MemberFuncIntWithReturn2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); return i; }
-		void MemberFuncStruct2(StructParam s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-		void MemberFuncStructPtr2(StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-		void MemberFuncStructPtrPtr2(StructParam** s, int i) { ASSERT_TRUE((*s)->val == TEST_INT); }
-		void MemberFuncStructConstPtr2(const StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-		void MemberFuncStructRef2(StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-		void MemberFuncStructConstRef2(const StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
+		void MemberFuncInt2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		void MemberFuncInt2Const(int i, int i2) const { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		int MemberFuncIntWithReturn2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); return i; }
+		void MemberFuncStruct2(StructParam s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		void MemberFuncStructPtr2(StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		void MemberFuncStructPtrPtr2(StructParam** s, int i) { DMQ_ASSERT_TRUE((*s)->val == TEST_INT); }
+		void MemberFuncStructConstPtr2(const StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		void MemberFuncStructRef2(StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		void MemberFuncStructConstRef2(const StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 
-		static void StaticFuncInt2(int i, int i2) { ASSERT_TRUE(i == TEST_INT); }
-		static void StaticFuncStruct2(StructParam s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-		static void StaticFuncStructPtr2(StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-		static void StaticFuncStructConstPtr2(const StructParam* s, int i) { ASSERT_TRUE(s->val == TEST_INT); }
-		static void StaticFuncStructRef2(StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
-		static void StaticFuncStructConstRef2(const StructParam& s, int i) { ASSERT_TRUE(s.val == TEST_INT); }
+		static void StaticFuncInt2(int i, int i2) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+		static void StaticFuncStruct2(StructParam s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		static void StaticFuncStructPtr2(StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		static void StaticFuncStructConstPtr2(const StructParam* s, int i) { DMQ_ASSERT_TRUE(s->val == TEST_INT); }
+		static void StaticFuncStructRef2(StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
+		static void StaticFuncStructConstRef2(const StructParam& s, int i) { DMQ_ASSERT_TRUE(s.val == TEST_INT); }
 		XALLOCATOR
 	};
 }

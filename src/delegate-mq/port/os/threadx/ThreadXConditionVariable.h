@@ -21,7 +21,7 @@ namespace dmq::os {
             // Create a semaphore with initial count 0.
             // Cast string literal to (CHAR*) to satisfy strict C++ compilers interfacing with C API.
             UINT status = tx_semaphore_create(&m_sem, (CHAR*)"DMQ_CondVar", 0);
-            ASSERT_TRUE(status == TX_SUCCESS);
+            DMQ_ASSERT_TRUE(status == TX_SUCCESS);
         }
 
         ~ThreadXConditionVariable()

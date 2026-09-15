@@ -253,20 +253,29 @@
 // available even under DMQ_THREAD_NONE.
 #include "extras/util/Timer.h"
 
-// TimerDelegate/AsyncInvoke/TransportMonitor/ThreadMonitor all take or
-// operate on a dmq::IThread&, which doesn't exist under DMQ_THREAD_NONE.
+// TimerDelegate/AsyncInvoke/TransportMonitor/ThreadMonitor/RetryMonitor/
+// ReliableTransport/RemoteDispatcher all take or operate on a dmq::IThread&
+// (RetryMonitor/ReliableTransport indirectly, via TransportMonitor), which
+// doesn't exist under DMQ_THREAD_NONE.
+// RetryMonitor/ReliableTransport are listed explicitly here as first-class
+// extras/util components usable directly with Participant/DataBus, independent
+// of RemoteDispatcher -- the old NetworkEngine used to pull both in as a side
+// effect of its own per-transport #include block, which any DelegateMQ.h
+// consumer (not just RPC users) could end up silently depending on. That
+// implicit path is gone now that RemoteDispatcher itself no longer knows about
+// ReliableTransport (only RetryMonitor, for AttachRetryMonitor()'s signature),
+// so both are pulled in explicitly instead. RemoteDispatcher itself no longer
+// depends on which transport (if any) is selected -- it only ever sees
+// dmq::transport::ITransport -- so unlike the old NetworkEngine it needs no
+// DMQ_TRANSPORT_* guard here.
 #if !defined(DMQ_THREAD_NONE)
     #include "extras/util/TimerDelegate.h"
     #include "extras/util/AsyncInvoke.h"
     #include "extras/util/TransportMonitor.h"
     #include "extras/util/ThreadMonitor.h"
-#endif
-
-// Only include NetworkEngine if a transport that uses it is active
-#if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_WIN32_UDP) || \
-    defined(DMQ_TRANSPORT_LINUX_UDP) || defined(DMQ_TRANSPORT_STM32_UART) || \
-    defined(DMQ_TRANSPORT_SERIAL_PORT)
-    #include "extras/util/NetworkEngine.h"
+    #include "extras/util/RetryMonitor.h"
+    #include "extras/util/ReliableTransport.h"
+    #include "extras/rpc/RemoteDispatcher.h"
 #endif
 
 #if defined(DMQ_DATABUS)

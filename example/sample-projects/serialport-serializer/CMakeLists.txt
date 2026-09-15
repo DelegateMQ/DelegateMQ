@@ -38,11 +38,22 @@ link_directories(
 # Add an executable target
 add_executable(${DELEGATE_APP} ${SOURCES} ${DMQ_LIB_SOURCES})
 
-target_link_libraries(${DELEGATE_APP} libserialport)
+if(WIN32)
+    # Windows import lib is literally named libserialport.lib (MSVC project name).
+    target_link_libraries(${DELEGATE_APP} libserialport)
+else()
+    # CMake/GCC's bare-name convention prepends "lib" automatically -- "libserialport"
+    # here would resolve to -llibserialport (liblibserialport.so/.a), which doesn't
+    # exist. The real Linux artifact from libserialport's autotools build is
+    # libserialport.so/.a, so the target name must be "serialport".
+    target_link_libraries(${DELEGATE_APP} serialport)
+endif()
 
-add_custom_command(TARGET ${DELEGATE_APP} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${SERIALPORT_ROOT}/x64/Debug/libserialport.dll"      # Source
-    $<TARGET_FILE_DIR:${DELEGATE_APP}>                    # Destination (EXE folder)
-)
+if(WIN32)
+    add_custom_command(TARGET ${DELEGATE_APP} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SERIALPORT_ROOT}/x64/Debug/libserialport.dll"      # Source
+        $<TARGET_FILE_DIR:${DELEGATE_APP}>                    # Destination (EXE folder)
+    )
+endif()
 
