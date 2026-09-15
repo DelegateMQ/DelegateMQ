@@ -1,4 +1,0 @@
-var structdmq_1_1trait_1_1function__traits_3_01_ret_type_07_class_type_1_1_5_08_07_args_8_8_8_08_4 =
-[
-    [ "function_type", "structdmq_1_1trait_1_1function__traits_3_01_ret_type_07_class_type_1_1_5_08_07_args_8_8_8_08_4.html#a9535a1011a5c0b50c4b3cf4c3c41d325", null ]
-];

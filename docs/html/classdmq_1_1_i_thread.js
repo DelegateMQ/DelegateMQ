@@ -1,6 +1,0 @@
-var classdmq_1_1_i_thread =
-[
-    [ "~IThread", "classdmq_1_1_i_thread.html#a9e6ada351d8e8f32bdee5cb8ae70b5bb", null ],
-    [ "DispatchDelegate", "classdmq_1_1_i_thread.html#a4b820b8175f7de2fb40288c1882878a9", null ],
-    [ "IsCurrentThread", "classdmq_1_1_i_thread.html#a0fbec4883b326e0aa8af4b45ba2b0dfd", null ]
-];
