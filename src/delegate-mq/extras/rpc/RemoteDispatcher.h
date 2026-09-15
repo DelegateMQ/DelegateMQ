@@ -9,6 +9,7 @@
 
 #include "delegate/DelegateAsync.h"
 #include "delegate/DelegateAsyncWait.h"
+#include "delegate/Semaphore.h"
 #include "extras/rpc/RemoteEndpoint.h"
 #include "extras/util/TransportMonitor.h"
 #include "extras/util/RetryMonitor.h"
