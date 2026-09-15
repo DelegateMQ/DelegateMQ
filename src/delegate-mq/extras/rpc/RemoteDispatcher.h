@@ -225,7 +225,11 @@ private:
         /// Statuses received before seqSet land here.
         dmq::xmap<uint16_t, TransportMonitor::Status> early;
         dmq::Mutex mtx;              // Generic Mutex
-        dmq::ConditionVariable cv;   // Generic CV
+        dmq::Semaphore sem;          // Portable wake signal (DMQ_HAS_SEMAPHORE is
+                                     // available everywhere this file is included --
+                                     // see DelegateMQ.h's #if defined(DMQ_HAS_SEMAPHORE)
+                                     // guard -- unlike dmq::ConditionVariable, which
+                                     // has no port on Zephyr/CMSIS-RTOS2/NuttX)
         XALLOCATOR
     };
 
@@ -268,7 +272,7 @@ private:
                     }
                 }
                 if (notify)
-                    state->cv.notify_one();
+                    state->sem.Signal();
             };
 
         // 3. [Caller Thread] Register the callback.
@@ -295,7 +299,7 @@ private:
                 state->early.clear();
             }
             if (notify)
-                state->cv.notify_one();
+                state->sem.Signal();
             return (targetPtr->GetError() == dmq::DelegateError::SUCCESS);
         };
 
@@ -314,9 +318,14 @@ private:
         if (retVal.has_value() && retVal.value() == true)
         {
             // 6. [Caller Thread] BLOCK until the status callback (or the send
-            // lambda's reconciliation) completes the wait, or timeout.
-            dmq::UniqueLock<dmq::Mutex> lock(state->mtx);
-            state->cv.wait_for(lock, RECV_TIMEOUT, [&] { return state->complete; });
+            // lambda's reconciliation) completes the wait, or timeout. Whichever
+            // lambda sets state->complete/state->success calls state->sem.Signal()
+            // exactly once, outside the lock; Signal()-before-Wait() is safe since
+            // dmq::Semaphore retains its signaled state (see delegate/Semaphore.h).
+            // If Wait() times out, state->success is still correctly read below --
+            // it was initialized false and nothing sets it without also signaling.
+            state->sem.Wait(RECV_TIMEOUT);
+            dmq::LockGuard<dmq::Mutex> lock(state->mtx);
             return state->success;
         }
 
