@@ -73,11 +73,6 @@ public:
     std::future<bool> SendActuatorMsgFuture(ActuatorMsg& msg);
 
 protected:
-    // Override base class hooks to fire our Signals
-    void OnError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) override;
-    void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) override;
-    void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) override;
-
     // ITransport has no Close(); close our own concrete transports here.
     // Called by RemoteDispatcher::Stop() before the receive thread is joined.
     void CloseTransports() override;
@@ -97,6 +92,16 @@ private:
     void ForwardData(DataMsg& msg)                      { OnData(msg); }
     void ForwardActuator(ActuatorMsg& msg)              { OnActuator(msg); }
 
+    // Forward the base class's OnError/OnStatus/OnDeliveryFailed Signals (and,
+    // for ForwardError, each channel's SetErrorHandler() too) to our own
+    // OnNetworkError/OnSendStatus/OnDeliveryFailure. OnDeliveryFailed never
+    // actually fires for ZeroMQ (no AttachRetryMonitor() call -- ZeroMQ has
+    // no RetryMonitor, see class doc comment), but connecting it anyway costs
+    // nothing and keeps this class's wiring uniform with the other samples.
+    void ForwardError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) { OnNetworkError(id, error, aux); }
+    void ForwardStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) { OnSendStatus(id, seq, status); }
+    void ForwardDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) { OnDeliveryFailure(id, seqNum); }
+
     // Per-signature serializers (one per message type)
     dmq::serialization::msgpack::Serializer<void(AlarmMsg&, AlarmNote&)> m_alarmSer;
     dmq::serialization::msgpack::Serializer<void(CommandMsg&)>           m_commandSer;
@@ -114,6 +119,16 @@ private:
     // the ITransport& passed to Attach().
     dmq::transport::ZeroMqTransport m_sendTransport;
     dmq::transport::ZeroMqTransport m_recvTransport;
+
+    // Forward the base class's OnError/OnStatus/OnDeliveryFailed Signals to
+    // our own OnNetworkError/OnSendStatus/OnDeliveryFailure (kept as separate
+    // Signals -- rather than exposing the base ones directly -- so client
+    // code's existing names don't change). Connected once in the constructor;
+    // no override needed since the base class notifies via Signal, not a
+    // virtual hook.
+    dmq::ScopedConnection m_baseErrorConn;
+    dmq::ScopedConnection m_baseStatusConn;
+    dmq::ScopedConnection m_baseDeliveryFailedConn;
 };
 
 #endif

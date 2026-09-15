@@ -9,6 +9,11 @@ NetworkMgr::NetworkMgr()
     : m_retryMonitor(m_sendTransport, m_transportMonitor)
     , m_reliableTransport(m_sendTransport, m_retryMonitor)
 {
+    // Base class notifies via Signal, not a virtual hook -- forward to our
+    // own Signals so client code's existing names don't change.
+    m_baseErrorConn = OnError.Connect(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_baseStatusConn = OnStatus.Connect(MakeDelegate(this, &NetworkMgr::ForwardStatus));
+    m_baseDeliveryFailedConn = OnDeliveryFailed.Connect(MakeDelegate(this, &NetworkMgr::ForwardDeliveryFailed));
 }
 
 int NetworkMgr::Create()
@@ -35,10 +40,10 @@ int NetworkMgr::Create()
     m_actuatorChannel->Bind(this, &NetworkMgr::ForwardActuator, ids::ACTUATOR_MSG_ID);
 
     // Register error handlers
-    m_alarmChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
-    m_commandChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
-    m_dataChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
-    m_actuatorChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
+    m_alarmChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_commandChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_dataChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_actuatorChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
 
     // Register endpoints with the Base Engine (so Incoming() can route by ID)
     RegisterEndpoint(ids::ALARM_MSG_ID,   m_alarmChannel->GetEndpoint());
@@ -86,19 +91,6 @@ void NetworkMgr::CloseTransports()
 {
     m_recvTransport.Close();
     m_sendTransport.Close();
-}
-
-// Override hooks to fire signals
-void NetworkMgr::OnError(DelegateRemoteId id, DelegateError error, DelegateErrorAux aux) {
-    OnNetworkError(id, error, aux);
-}
-
-void NetworkMgr::OnStatus(DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) {
-    OnSendStatus(id, seq, status);
-}
-
-void NetworkMgr::OnDeliveryFailed(DelegateRemoteId id, uint16_t seqNum) {
-    OnDeliveryFailure(id, seqNum);
 }
 
 void NetworkMgr::SendAlarmMsg(AlarmMsg& msg, AlarmNote& note) {

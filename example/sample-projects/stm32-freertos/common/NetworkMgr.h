@@ -85,11 +85,6 @@ public:
     bool SendActuatorMsgWait(ActuatorMsg& msg);
 
 protected:
-    // Override base class hooks to fire our Signals
-    void OnError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) override;
-    void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) override;
-    void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) override;
-
     // ITransport has no Close(); close our own concrete transport here.
     // Called by RemoteDispatcher::Stop() before the receive thread is joined.
     void CloseTransports() override { m_transport.Close(); }
@@ -108,6 +103,13 @@ private:
     void ForwardCommand(CommandMsg& msg)                 { OnCommand(msg); }
     void ForwardData(DataMsg& msg)                       { OnData(msg); }
     void ForwardActuator(ActuatorMsg& msg)               { OnActuator(msg); }
+
+    // Forward the base class's OnError/OnStatus/OnDeliveryFailed Signals (and,
+    // for ForwardError, each channel's SetErrorHandler() too) to our own
+    // OnNetworkError/OnSendStatus/OnDeliveryFailure.
+    void ForwardError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) { OnNetworkError(id, error, aux); }
+    void ForwardStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) { OnSendStatus(id, seq, status); }
+    void ForwardDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) { OnDeliveryFailure(id, seqNum); }
 
     // Per-signature serializers (one per message type)
     dmq::serialization::serializer::Serializer<void(AlarmMsg&, AlarmNote&)> m_alarmSer;
@@ -131,6 +133,16 @@ private:
     // Neither UART nor raw serial is reliable on its own -- wrap in ACK/retry.
     dmq::util::RetryMonitor m_retryMonitor;
     dmq::util::ReliableTransport m_reliableTransport;
+
+    // Forward the base class's OnError/OnStatus/OnDeliveryFailed Signals to
+    // our own OnNetworkError/OnSendStatus/OnDeliveryFailure (kept as separate
+    // Signals -- rather than exposing the base ones directly -- so client
+    // code's existing names don't change). Connected once in the constructor;
+    // no override needed since the base class notifies via Signal, not a
+    // virtual hook.
+    dmq::ScopedConnection m_baseErrorConn;
+    dmq::ScopedConnection m_baseStatusConn;
+    dmq::ScopedConnection m_baseDeliveryFailedConn;
 };
 
 #endif

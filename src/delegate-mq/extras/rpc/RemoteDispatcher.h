@@ -10,6 +10,7 @@
 #include "delegate/DelegateAsync.h"
 #include "delegate/DelegateAsyncWait.h"
 #include "delegate/Semaphore.h"
+#include "delegate/Signal.h"
 #include "extras/rpc/RemoteEndpoint.h"
 #include "extras/util/TransportMonitor.h"
 #include "extras/util/RetryMonitor.h"
@@ -61,6 +62,14 @@ using dmq::util::Timer;
 ///   thread safety and prevent blocking the caller's UI or logic threads.
 /// * **Message Routing:** Maps incoming data (by ID) to specific `DelegateMemberRemote` instances via `RegisterEndpoint`.
 /// * **Reliability:** Integrates with `TransportMonitor` to handle Acknowledgments (ACKs) and retransmissions/timeouts.
+///
+/// @note Status is reported via public Signal members (OnError/OnStatus/
+/// OnDeliveryFailed below), not virtual hooks -- Connect() to whichever
+/// you need, no subclassing required just to observe them. This matches
+/// `extras/databus`'s NetworkNode (OnDeliveryFailed/OnPeerCapExceeded/
+/// OnPeerPendingExceeded are the same shape); subclassing RemoteDispatcher
+/// is still how a derived class supplies its own transport and endpoints,
+/// it's just no longer required merely to see status events.
 class RemoteDispatcher
 {
 public:
@@ -69,6 +78,22 @@ public:
 
     RemoteDispatcher(const RemoteDispatcher&) = delete;
     RemoteDispatcher& operator=(const RemoteDispatcher&) = delete;
+
+    /// @brief Fires when a channel/endpoint reports a technical error
+    /// (serialization failure, type mismatch, etc.) via SetErrorHandler().
+    dmq::Signal<void(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux)> OnError;
+
+    /// @brief Fires on every send-status update from the internal
+    /// TransportMonitor (e.g. TIMEOUT while a RELIABLE message is still
+    /// being retried, or SUCCESS on ACK). Not the same as OnDeliveryFailed:
+    /// a message can report TIMEOUT several times while still retrying
+    /// before either succeeding or finally exhausting its retry budget.
+    dmq::Signal<void(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status)> OnStatus;
+
+    /// @brief Fires when a RELIABLE message exhausts its retry budget
+    /// without being ACKed (RetryMonitor::OnDeliveryFailed). Only fires if
+    /// the derived class called AttachRetryMonitor().
+    dmq::Signal<void(dmq::DelegateRemoteId id, uint16_t seqNum)> OnDeliveryFailed;
 
     /// @brief Attach the transport(s) this engine sends/receives through.
     /// @details Call exactly once, after the derived class's own transport
@@ -88,7 +113,7 @@ public:
     void Attach(dmq::transport::ITransport& sendTransport, dmq::transport::ITransport& recvTransport);
 
     /// @brief Optionally wire a RetryMonitor's delivery-failure signal to this
-    /// engine's OnDeliveryFailed() hook.
+    /// engine's own OnDeliveryFailed signal.
     /// @details Call once, after Attach(), only if the derived class layered
     /// RetryMonitor/ReliableTransport on top of its transport for ACK/retry
     /// reliability. Skip this call for a self-reliable transport (e.g. ZeroMQ)
@@ -128,7 +153,7 @@ public:
     void RegisterEndpoint(dmq::DelegateRemoteId id, dmq::IRemoteInvoker* endpoint);
 
     /// @brief Registers a RemoteChannel endpoint and automatically wires its error
-    /// handler to this RemoteDispatcher's OnError() hook.
+    /// handler to fire this RemoteDispatcher's OnError signal.
     /// @details Equivalent to calling `channel.SetErrorHandler(...)` followed by
     /// `RegisterEndpoint(id, channel.GetEndpoint())`. Prefer this overload so a new
     /// channel's send and receive errors are never left unreported. Call
@@ -201,14 +226,6 @@ protected:
     dmq::os::Thread m_thread;
     Dispatcher m_dispatcher;
     TransportMonitor m_transportMonitor;
-
-    virtual void OnError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux);
-    virtual void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status);
-
-    /// @brief Called when a RELIABLE message exhausts its retry budget without
-    /// being ACKed (RetryMonitor::OnDeliveryFailed). Only fires if the derived
-    /// class called AttachRetryMonitor().
-    virtual void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum);
 
 private:
     /// @brief Shared synchronization state for RemoteInvokeWaitInternal().

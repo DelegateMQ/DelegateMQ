@@ -189,9 +189,4 @@ void RemoteDispatcher::InternalDeliveryFailedHandler(dmq::DelegateRemoteId id, u
     OnDeliveryFailed(id, seqNum);
 }
 
-// Default virtual implementations
-void RemoteDispatcher::OnError(dmq::DelegateRemoteId, dmq::DelegateError, dmq::DelegateErrorAux) {}
-void RemoteDispatcher::OnStatus(dmq::DelegateRemoteId, uint16_t, TransportMonitor::Status) {}
-void RemoteDispatcher::OnDeliveryFailed(dmq::DelegateRemoteId, uint16_t) {}
-
 } // namespace dmq::rpc
