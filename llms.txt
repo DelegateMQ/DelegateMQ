@@ -27,7 +27,7 @@ All four share the same `dmq::MakeDelegate()` factory and `operator()` invocatio
 
 ### Ports & Interfaces
 
-- `dmq::IThread` — cross-platform thread dispatch interface; pre-built ports for stdlib, Win32, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, Qt, and bare-metal ARM
+- `dmq::IThread` — cross-platform thread dispatch interface; pre-built ports for stdlib, Win32, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare-metal (ARM/RISC-V)
 - `dmq::ISerializer<Sig>` — serialization interface; adapters for MessagePack, RapidJSON, Cereal, Bitsery
 - `dmq::transport::ITransport` — transport interface; adapters for ZeroMQ, NNG, MQTT, TCP/UDP, serial, pipes
 - `dmq::IDispatcher` — dispatches serialized data to remote endpoints
@@ -71,12 +71,14 @@ OnEvent(42);  // conn auto-disconnects when it goes out of scope
 // Receiver: bind a handler to the shared message ID
 dmq::RemoteChannel<void(int)> rx(transport, serializer);
 rx.Bind(this, &Class::Handler, MSG_ID);
-dmq::RegisterEndpoint(MSG_ID, rx.GetEndpoint());
+dispatcher.RegisterEndpoint(MSG_ID, rx.GetEndpoint());  // dispatcher: dmq::rpc::RemoteDispatcher
 
 // Sender: pass the ID to the constructor — no Bind() needed
 dmq::RemoteChannel<void(int)> tx(transport, serializer, MSG_ID);
 tx(42);  // serialized and sent over the network
 ```
+
+`dmq::rpc::RemoteDispatcher` (`extras/rpc/`) is what an application holds to use `RemoteChannel` — it owns the network thread, the receive loop, and ACK/retry-status routing. Key methods: `Attach(sendTransport, recvTransport)`, `AttachRetryMonitor(retryMonitor)`, `SetCloseHandler(handler)`, `RegisterEndpoint(id, endpoint)`, `Start()`/`Stop()`, `RemoteInvokeWait(channel, args...)`.
 
 ### DataBus publish/subscribe
 
@@ -337,7 +339,7 @@ For maximum reliability, pair the software watchdog with a hardware watchdog (e.
 
 Desktop / server: Windows (Win32), Linux (POSIX / stdlib), Qt event loop.
 
-Embedded / RTOS: FreeRTOS, ThreadX / NetX, Zephyr, CMSIS-RTOS2, ARM Cortex-M bare-metal, ATfE (picolibc).
+Embedded / RTOS: FreeRTOS, ThreadX / NetX, Zephyr, CMSIS-RTOS2, NuttX, bare-metal (ARM Cortex-M and RISC-V), ATfE (picolibc).
 
 For unsupported platforms, implement the `dmq::IThread` interface and the library compiles unchanged.
 
