@@ -76,9 +76,11 @@ void RemoteDispatcher::Stop()
         // 2. Close transports to unblock any pending Receive() calls.
         // This is necessary because some transports (like sockets) are blocking
         // and won't return until a message arrives or the resource is closed.
-        // ITransport has no Close() of its own -- the derived class overrides
-        // CloseTransports() to close whichever concrete transport(s) it owns.
-        CloseTransports();
+        // ITransport has no Close() of its own -- the owning class supplies a
+        // handler via SetCloseHandler() to close whichever concrete
+        // transport(s) it owns. Optional: if never set, this is a no-op.
+        if (m_closeHandler)
+            m_closeHandler();
 
         // 3. Exit/Join the receive thread.
         m_recvThread.ExitThread();

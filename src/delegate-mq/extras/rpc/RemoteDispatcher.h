@@ -11,6 +11,7 @@
 #include "delegate/DelegateAsyncWait.h"
 #include "delegate/Semaphore.h"
 #include "delegate/Signal.h"
+#include "delegate/UnicastDelegate.h"
 #include "extras/rpc/RemoteEndpoint.h"
 #include "extras/util/TransportMonitor.h"
 #include "extras/util/RetryMonitor.h"
@@ -50,7 +51,7 @@ using dmq::util::Timer;
 /// @details RemoteDispatcher encapsulates the "plumbing" of point-to-point remote
 /// calls -- transport dispatch, the receive thread, ACK/timeout bookkeeping --
 /// entirely behind `dmq::transport::ITransport`. It never constructs or knows
-/// the concrete transport type: a derived class owns its own transport
+/// the concrete transport type: an owning class constructs its own transport
 /// (Win32UdpTransport, ZeroMqTransport, ...), optionally wraps it in
 /// ReliableTransport for ACK/retry reliability, and hands the result to
 /// Attach(). This works with any transport that implements ITransport, not a
@@ -63,18 +64,17 @@ using dmq::util::Timer;
 /// * **Message Routing:** Maps incoming data (by ID) to specific `DelegateMemberRemote` instances via `RegisterEndpoint`.
 /// * **Reliability:** Integrates with `TransportMonitor` to handle Acknowledgments (ACKs) and retransmissions/timeouts.
 ///
-/// @note Status is reported via public Signal members (OnError/OnStatus/
-/// OnDeliveryFailed below), not virtual hooks -- Connect() to whichever
-/// you need, no subclassing required just to observe them. This matches
-/// `extras/databus`'s NetworkNode (OnDeliveryFailed/OnPeerCapExceeded/
-/// OnPeerPendingExceeded are the same shape); subclassing RemoteDispatcher
-/// is still how a derived class supplies its own transport and endpoints,
-/// it's just no longer required merely to see status events.
+/// @note Designed to be held as a member (composition), not inherited from --
+/// matching `extras/databus`'s Participant/NetworkNode shape. Status is
+/// reported via public Signal members (OnError/OnStatus/OnDeliveryFailed
+/// below); transport lifecycle (constructing/closing the concrete transport)
+/// is wired through Attach()/SetCloseHandler(). An owning class never needs
+/// to subclass RemoteDispatcher just to plug into it.
 class RemoteDispatcher
 {
 public:
     RemoteDispatcher();
-    virtual ~RemoteDispatcher();
+    ~RemoteDispatcher();
 
     RemoteDispatcher(const RemoteDispatcher&) = delete;
     RemoteDispatcher& operator=(const RemoteDispatcher&) = delete;
@@ -96,13 +96,11 @@ public:
     dmq::Signal<void(dmq::DelegateRemoteId id, uint16_t seqNum)> OnDeliveryFailed;
 
     /// @brief Attach the transport(s) this engine sends/receives through.
-    /// @details Call exactly once, after the derived class's own transport
+    /// @details Call exactly once, after the owning class's own transport
     /// member(s) are constructed and before Start()/any send -- e.g. from the
-    /// derived constructor's body or a separate Create()-style init method,
-    /// but never from a base class mem-initializer list, since referencing a
-    /// not-yet-constructed derived member there is undefined behavior. The
-    /// derived class retains ownership; sendTransport/recvTransport must
-    /// outlive this object. Pass a decorator
+    /// owning class's constructor body or a separate Create()-style init
+    /// method. The owning class retains ownership; sendTransport/recvTransport
+    /// must outlive this object. Pass a decorator
     /// (e.g. a ReliableTransport wrapping a raw one) as sendTransport to add
     /// ACK/retry reliability on top of an unreliable transport -- RemoteDispatcher
     /// only ever sees the ITransport interface, so it neither knows nor cares.
@@ -114,11 +112,41 @@ public:
 
     /// @brief Optionally wire a RetryMonitor's delivery-failure signal to this
     /// engine's own OnDeliveryFailed signal.
-    /// @details Call once, after Attach(), only if the derived class layered
+    /// @details Call once, after Attach(), only if the owning class layered
     /// RetryMonitor/ReliableTransport on top of its transport for ACK/retry
     /// reliability. Skip this call for a self-reliable transport (e.g. ZeroMQ)
     /// that has no RetryMonitor.
     void AttachRetryMonitor(RetryMonitor& retryMonitor);
+
+    /// @brief Set the handler Stop() calls to close the underlying transport(s).
+    /// @details Call once, any time before Stop() (typically right after
+    /// Attach()). Necessary because some transports (sockets, serial ports)
+    /// are blocking and won't return from Receive() until a message arrives
+    /// or the resource is closed -- ITransport itself has no Close() (its
+    /// concrete transports each expose their own), so Stop() calls this
+    /// handler at the exact point closing needs to happen: after the exit
+    /// flag is set, before the receive thread is joined. Optional -- if never
+    /// set, Stop() simply skips this step, same as the old CloseTransports()
+    /// hook's no-op default.
+    void SetCloseHandler(dmq::UnicastDelegate<void()> handler) { m_closeHandler = std::move(handler); }
+
+    /// @brief Returns the network thread this engine dispatches on.
+    /// @details Use `GetThread().IsCurrentThread()` for thread-affinity checks,
+    /// or pass `GetThread()` as the destination thread to `dmq::MakeDelegate(...)`
+    /// when marshaling a call from the owning class onto the network thread.
+    dmq::os::Thread& GetThread() { return m_thread; }
+
+    /// @brief Returns the internal TransportMonitor, for wiring into whichever
+    /// concrete transport(s) the owning class constructs, e.g.
+    /// `transport.SetTransportMonitor(&GetTransportMonitor())`.
+    TransportMonitor& GetTransportMonitor() { return m_transportMonitor; }
+
+    /// @brief Returns the transport passed as `sendTransport` to Attach(), for
+    /// use by RemoteChannel instances.
+    /// @details Pass this to RemoteChannel constructors so each channel owns
+    /// its own Dispatcher while sharing the same physical transport.
+    /// Hard-faults if called before Attach().
+    dmq::transport::ITransport& GetSendTransport();
 
     /// @brief Starts the network engine and its receiving thread.
     ///
@@ -134,9 +162,10 @@ public:
     /// @brief Stops the network engine and releases resources.
     ///
     /// @details This method gracefully shuts down the `RecvThread`, stops the timeout
-    /// timer, and calls the CloseTransports() hook so a derived class can close its
-    /// underlying transport socket(s). It ensures that all internal threads are
-    /// joined before returning to prevent resource leaks.
+    /// timer, and calls the handler set via SetCloseHandler() (if any) so the
+    /// owning class can close its underlying transport socket(s). It ensures
+    /// that all internal threads are joined before returning to prevent
+    /// resource leaks.
     ///
     /// @note This call blocks until the shutdown sequence is complete.
     void Stop();
@@ -206,28 +235,12 @@ public:
             channel, std::forward<Args>(args)...);
     }
 
-protected:
-    /// @brief Returns the transport passed as `sendTransport` to Attach(), for
-    /// use by RemoteChannel instances.
-    /// @details Derived classes can pass this to RemoteChannel constructors so each
-    /// channel owns its own Dispatcher while sharing the same physical transport.
-    /// Hard-faults if called before Attach().
-    dmq::transport::ITransport& GetSendTransport();
-
-    /// @brief Hook called by Stop() to close the underlying transport(s) before
-    /// the receive thread is joined.
-    /// @details Necessary because some transports (sockets, serial ports) are
-    /// blocking and won't return from Receive() until a message arrives or the
-    /// resource is closed. ITransport itself has no Close() (its concrete
-    /// transports each expose their own), so override this to call it on
-    /// whichever transport object(s) the derived class owns. Default is a no-op.
-    virtual void CloseTransports() {}
-
+private:
     dmq::os::Thread m_thread;
     Dispatcher m_dispatcher;
     TransportMonitor m_transportMonitor;
+    dmq::UnicastDelegate<void()> m_closeHandler;
 
-private:
     /// @brief Shared synchronization state for RemoteInvokeWaitInternal().
     /// @details All fields are guarded by `mtx`. The dispatched sequence number
     /// is not known until the send executes on the network thread, but the ACK

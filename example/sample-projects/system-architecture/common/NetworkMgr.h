@@ -19,15 +19,17 @@
 /// with the ZeroMQ library. Class is thread safe. All public APIs are
 /// asynchronous.
 ///
-/// @details NetworkMgr inherits from RemoteDispatcher, which manages the internal thread
-/// of control. All public APIs are asynchronous (blocking and non-blocking). Register
-/// with OnNetworkError or OnSendStatus to handle success or errors.
+/// @details NetworkMgr holds a RemoteDispatcher as a member (composition, not
+/// inheritance -- matching extras/databus's Participant/NetworkNode shape),
+/// which manages the internal thread of control. All public APIs are
+/// asynchronous (blocking and non-blocking). Register with OnNetworkError or
+/// OnSendStatus to handle success or errors.
 ///
-/// NetworkMgr owns the ZeroMQ transport itself and hands it to the base class via
-/// Attach() -- RemoteDispatcher only ever sees dmq::transport::ITransport, it neither
-/// constructs nor knows the concrete transport type. ZeroMQ provides its own
-/// reliability, so send/recv are attached directly (no ReliableTransport wrapping,
-/// no AttachRetryMonitor() call).
+/// NetworkMgr owns the ZeroMQ transport itself and hands it to m_dispatcher via
+/// Attach() -- RemoteDispatcher only ever sees dmq::transport::ITransport, it
+/// neither constructs nor knows the concrete transport type. ZeroMQ provides
+/// its own reliability, so send/recv are attached directly (no ReliableTransport
+/// wrapping, no AttachRetryMonitor() call).
 ///
 /// The underlying ZeroMQ transport layer managed by RemoteDispatcher is accessed only by a
 /// single internal thread. Therefore, when invoking a remote delegate, the call is
@@ -46,7 +48,7 @@
 ///     3. *Future-based:* Returns a `std::future` immediately, allowing retrieval of the result at a later time.
 /// * **Error & Status Reporting:** Provides registration points (`OnNetworkError`, `OnSendStatus`) for clients to subscribe
 ///   to transmission results and error notifications.
-class NetworkMgr : public dmq::rpc::RemoteDispatcher
+class NetworkMgr
 {
 public:
     // Public Signals — clients Connect() to these using RAII ScopedConnection.
@@ -62,6 +64,10 @@ public:
 
     int Create();
 
+    // Thin forwarders -- app code (main.cpp) calls these directly on NetworkMgr.
+    void Start() { m_dispatcher.Start(); }
+    void Stop()  { m_dispatcher.Stop(); }
+
     // Send Functions (non-blocking, blocking, and future)
     void SendAlarmMsg(AlarmMsg& msg, AlarmNote& note);
     bool SendAlarmMsgWait(AlarmMsg& msg, AlarmNote& note);
@@ -72,11 +78,6 @@ public:
     bool SendActuatorMsgWait(ActuatorMsg& msg);
     std::future<bool> SendActuatorMsgFuture(ActuatorMsg& msg);
 
-protected:
-    // ITransport has no Close(); close our own concrete transports here.
-    // Called by RemoteDispatcher::Stop() before the receive thread is joined.
-    void CloseTransports() override;
-
 private:
     NetworkMgr();
     ~NetworkMgr() = default;
@@ -86,13 +87,18 @@ private:
     // per-transport Initialize() used to marshal there itself.
     int OpenTransport();
 
+    // ITransport has no Close(); close our own concrete transports here.
+    // Wired to m_dispatcher via SetCloseHandler() in the constructor; called
+    // by RemoteDispatcher::Stop() before the receive thread is joined.
+    void CloseTransports();
+
     // Helper functions to forward incoming data to the Signals
     void ForwardAlarm(AlarmMsg& msg, AlarmNote& note)   { OnAlarm(msg, note); }
     void ForwardCommand(CommandMsg& msg)                { OnCommand(msg); }
     void ForwardData(DataMsg& msg)                      { OnData(msg); }
     void ForwardActuator(ActuatorMsg& msg)              { OnActuator(msg); }
 
-    // Forward the base class's OnError/OnStatus/OnDeliveryFailed Signals (and,
+    // Forward m_dispatcher's OnError/OnStatus/OnDeliveryFailed Signals (and,
     // for ForwardError, each channel's SetErrorHandler() too) to our own
     // OnNetworkError/OnSendStatus/OnDeliveryFailure. OnDeliveryFailed never
     // actually fires for ZeroMQ (no AttachRetryMonitor() call -- ZeroMQ has
@@ -101,6 +107,9 @@ private:
     void ForwardError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) { OnNetworkError(id, error, aux); }
     void ForwardStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) { OnSendStatus(id, seq, status); }
     void ForwardDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) { OnDeliveryFailure(id, seqNum); }
+
+    // Composed, not inherited.
+    dmq::rpc::RemoteDispatcher m_dispatcher;
 
     // Per-signature serializers (one per message type)
     dmq::serialization::msgpack::Serializer<void(AlarmMsg&, AlarmNote&)> m_alarmSer;
@@ -120,12 +129,8 @@ private:
     dmq::transport::ZeroMqTransport m_sendTransport;
     dmq::transport::ZeroMqTransport m_recvTransport;
 
-    // Forward the base class's OnError/OnStatus/OnDeliveryFailed Signals to
-    // our own OnNetworkError/OnSendStatus/OnDeliveryFailure (kept as separate
-    // Signals -- rather than exposing the base ones directly -- so client
-    // code's existing names don't change). Connected once in the constructor;
-    // no override needed since the base class notifies via Signal, not a
-    // virtual hook.
+    // Connections for the ForwardError/Status/DeliveryFailed forwarding
+    // wired in the constructor -- see those methods' comment above.
     dmq::ScopedConnection m_baseErrorConn;
     dmq::ScopedConnection m_baseStatusConn;
     dmq::ScopedConnection m_baseDeliveryFailedConn;
