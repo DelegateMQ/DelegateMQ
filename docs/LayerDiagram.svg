@@ -1,7 +1,7 @@
-<svg width="800" height="540" xmlns="http://www.w3.org/2000/svg">
+<svg width="800" height="535" xmlns="http://www.w3.org/2000/svg">
   <!-- Background -->
   <rect width="100%" height="100%" fill="white"/>
-  
+
   <!-- Styles -->
   <style>
     .app-box { fill: #e3f2fd; stroke: #1976d2; stroke-width: 2; } /* Blue for User Code */
@@ -11,6 +11,7 @@
     .ext-box { fill: #f5f5f5; stroke: #616161; stroke-width: 2; } /* Grey for External Implementations */
     .text { font-family: Arial, sans-serif; font-size: 13px; text-anchor: middle; fill: #212121; }
     .title { font-weight: bold; font-size: 15px; }
+    .classname { font-family: 'Courier New', monospace; font-size: 11px; text-anchor: middle; fill: #616161; }
     .arrow { stroke: #424242; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
   </style>
 
@@ -25,58 +26,63 @@
   <text x="400" y="50" class="text title">User Application Code</text>
 
   <!-- Middleware Layer (Part of Library) -->
-  <rect x="50" y="90" width="340" height="50" rx="5" class="lib-middleware-box"/>
-  <text x="220" y="120" class="text title">DataBus (DDS Lite)</text>
-  
-  <rect x="410" y="90" width="340" height="50" rx="5" class="lib-middleware-box"/>
-  <text x="580" y="120" class="text title">Signal / Slot</text>
+  <rect x="50" y="90" width="220" height="70" rx="5" class="lib-middleware-box"/>
+  <text x="160" y="120" class="text title">DataBus (DDS Lite)</text>
+  <text x="160" y="140" class="classname">dmq::databus::DataBus</text>
+
+  <rect x="290" y="90" width="220" height="70" rx="5" class="lib-middleware-box"/>
+  <text x="400" y="120" class="text title">Signal / Slot</text>
+  <text x="400" y="140" class="classname">dmq::Signal&lt;Sig&gt;</text>
+
+  <rect x="530" y="90" width="220" height="70" rx="5" class="lib-middleware-box"/>
+  <text x="640" y="120" class="text title">Remote RPC (P2P)</text>
+  <text x="640" y="140" class="classname">dmq::rpc::RemoteDispatcher</text>
 
   <!-- Core Layer (Part of Library) -->
-  <rect x="50" y="180" width="220" height="70" rx="5" class="lib-box"/>
-  <text x="160" y="210" class="text title">Delegate</text>
-  <text x="160" y="230" class="text">(Synchronous)</text>
+  <rect x="50" y="200" width="220" height="70" rx="5" class="lib-box"/>
+  <text x="160" y="230" class="text title">Delegate</text>
+  <text x="160" y="250" class="text">(Synchronous)</text>
 
-  <rect x="290" y="180" width="220" height="70" rx="5" class="lib-box"/>
-  <text x="400" y="210" class="text title">DelegateAsync</text>
-  <text x="400" y="230" class="text title">DelegateAsyncWait</text>
+  <rect x="290" y="200" width="220" height="70" rx="5" class="lib-box"/>
+  <text x="400" y="230" class="text title">DelegateAsync</text>
+  <text x="400" y="250" class="text title">DelegateAsyncWait</text>
 
 
-  <rect x="530" y="180" width="220" height="70" rx="5" class="lib-box"/>
-  <text x="640" y="220" class="text title">DelegateRemote</text>
+  <rect x="530" y="200" width="220" height="70" rx="5" class="lib-box"/>
+  <text x="640" y="240" class="text title">DelegateRemote</text>
 
   <!-- Infrastructure Layer (Part of Library) -->
-  <rect x="290" y="270" width="220" height="50" rx="5" class="lib-infra-box"/>
-  <text x="400" y="300" class="text title">IThread</text>
+  <rect x="290" y="290" width="220" height="50" rx="5" class="lib-infra-box"/>
+  <text x="400" y="320" class="text title">IThread</text>
 
-  <rect x="530" y="270" width="105" height="50" rx="5" class="lib-infra-box"/>
-  <text x="582" y="300" class="text title">IDispatcher</text>
+  <rect x="530" y="290" width="105" height="50" rx="5" class="lib-infra-box"/>
+  <text x="582" y="320" class="text title">IDispatcher</text>
 
-  <rect x="645" y="270" width="105" height="50" rx="5" class="lib-infra-box"/>
-  <text x="697" y="300" class="text title">ISerializer</text>
+  <rect x="645" y="290" width="105" height="50" rx="5" class="lib-infra-box"/>
+  <text x="697" y="320" class="text title">ISerializer</text>
 
-  <rect x="530" y="330" width="220" height="50" rx="5" class="lib-infra-box"/>
-  <text x="640" y="360" class="text title">ITransport</text>
+  <rect x="530" y="350" width="220" height="50" rx="5" class="lib-infra-box"/>
+  <text x="640" y="380" class="text title">ITransport</text>
 
   <!-- Implementation Layer (External to Library) -->
-  <rect x="50" y="410" width="700" height="110" rx="5" class="ext-box"/>
-  <text x="400" y="435" class="text title">Porting Layer (External Implementations)</text>
-  <text x="400" y="460" class="text">OS: Windows, Linux, RTOS (FreeRTOS, Zephyr, ThreadX), Bare-Metal</text>
-  <text x="400" y="480" class="text">Transport/Serializers: ZeroMQ, MQTT, TCP, MessagePack, JSON, Cereal...</text>
-  <text x="400" y="500" class="text">Reliability: ReliableTransport (Optional)</text>
+  <rect x="50" y="430" width="700" height="85" rx="5" class="ext-box"/>
+  <text x="400" y="455" class="text title">Porting Layer (External Implementations)</text>
+  <text x="400" y="480" class="text">OS: Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-Metal</text>
+  <text x="400" y="500" class="text">Transport/Serializers: ZeroMQ, MQTT, TCP, MessagePack, JSON, Cereal...</text>
 
   <!-- Middleware to Core Arrows -->
-  <path d="M 220,140 L 220,160 L 400,160 L 400,175" class="arrow" />
-  <path d="M 220,140 L 220,160 L 640,160 L 640,175" class="arrow" />
-  <path d="M 580,140 L 580,160 L 160,160 L 160,175" class="arrow" />
-  <path d="M 580,140 L 580,160 L 400,160 L 400,175" class="arrow" />
+  <path d="M 160,160 L 160,180 L 400,180 L 400,195" class="arrow" />
+  <path d="M 160,160 L 160,180 L 590,180 L 590,195" class="arrow" />
+  <path d="M 400,160 L 400,180 L 160,180 L 160,195" class="arrow" />
+  <line x1="640" y1="160" x2="640" y2="195" class="arrow" />
 
   <!-- Core to Infrastructure Arrows -->
-  <line x1="400" y1="250" x2="400" y2="265" class="arrow" />
-  <line x1="640" y1="250" x2="640" y2="265" class="arrow" />
-  <line x1="640" y1="320" x2="640" y2="325" class="arrow" />
+  <line x1="400" y1="270" x2="400" y2="285" class="arrow" />
+  <line x1="640" y1="270" x2="640" y2="285" class="arrow" />
+  <line x1="640" y1="340" x2="640" y2="345" class="arrow" />
 
   <!-- Infrastructure to Implementation Arrows -->
-  <line x1="400" y1="320" x2="400" y2="405" class="arrow" />
-  <line x1="640" y1="380" x2="640" y2="405" class="arrow" />
+  <line x1="400" y1="340" x2="400" y2="425" class="arrow" />
+  <line x1="640" y1="400" x2="640" y2="425" class="arrow" />
 
 </svg>

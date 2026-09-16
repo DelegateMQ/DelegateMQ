@@ -1,11 +1,6 @@
-# Collect all .cpp files in this subdirectory
-file(GLOB SUBDIR_SOURCES "*.cpp")
-
-# Collect all .h files in this subdirectory
+# Header-only common library — no .cpp files, so INTERFACE avoids the
+# "no source files" MSVC error that STATIC would produce.
 file(GLOB SUBDIR_HEADERS "*.h")
 
-# Create a library target
-add_library(common_lib STATIC ${SUBDIR_SOURCES} ${SUBDIR_HEADERS})
-
-# Include directories for the library
-target_include_directories(common_lib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+add_library(common_lib INTERFACE)
+target_include_directories(common_lib INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -227,15 +227,17 @@ auto conn2 = dmq::databus::DataBus::Subscribe<int>("status", [](int s) {
 
 # Remote Delegates
 
-Remote delegates send a function call across a process or network boundary. Both sides share a message ID; the receiver binds a member function to it, and the sender's invocation is serialized, transported, and executed remotely — just like a normal function call.
+Remote delegates send a function call across a process or network boundary. Both sides share a message ID; the receiver binds a handler function to it, and the sender's invocation is serialized, transported, and executed remotely — just like a normal function call.
 
 ```cpp
 constexpr dmq::DelegateRemoteId TEMPERATURE_ID = 1;
 
+void OnTemperature(float t) { std::cout << "Temp: " << t << "\n"; }
+
 // --- Receiver process: bind a handler to the ID ---
 dmq::RemoteChannel<void(float)> rx(transport, serializer);
-rx.Bind(&logger, &DataLogger::OnTemperature, TEMPERATURE_ID);
-dmq::RegisterEndpoint(TEMPERATURE_ID, rx.GetEndpoint());
+rx.Bind(OnTemperature, TEMPERATURE_ID);
+dispatcher.RegisterEndpoint(TEMPERATURE_ID, rx.GetEndpoint());  // dispatcher: dmq::rpc::RemoteDispatcher, see below
 
 // --- Sender process: invoke the channel to send ---
 dmq::RemoteChannel<void(float)> tx(transport, serializer, TEMPERATURE_ID);
@@ -243,6 +245,36 @@ tx(25.5f);  // invoke; argument is serialized and sent to the receiver
 ```
 
 Any transport (ZeroMQ, TCP, UDP, serial, ...) and serializer (MessagePack, Cereal, ...) can carry the call. See [Design Details](docs/DETAILS.md) for the complete pattern and [Example Projects](docs/BUILD.md#example-ecosystem-sandbox) for working programs with real transports.
+
+## Remote Dispatcher
+
+`RemoteChannel` is the wire-level primitive above; `dmq::rpc::RemoteDispatcher` is what an application actually holds to use it. It owns the network thread, the receive loop, and ACK/retry-status routing, and hands `RemoteChannel` the transport it needs:
+
+```cpp
+class NetworkMgr
+{
+public:
+    dmq::Signal<void(float)> OnTemperature;  // clients Connect() to this
+
+    int Create() {
+        m_dispatcher.Attach(m_transport, m_transport);
+        m_rxChannel.emplace(m_transport, m_serializer);
+        m_rxChannel->Bind(this, &NetworkMgr::ForwardTemperature, TEMPERATURE_ID);
+        m_dispatcher.RegisterEndpoint(TEMPERATURE_ID, m_rxChannel->GetEndpoint());
+        return 0;
+    }
+    void Start() { m_dispatcher.Start(); }
+    void Stop()  { m_dispatcher.Stop(); }
+
+private:
+    void ForwardTemperature(float t) { OnTemperature(t); }
+
+    dmq::rpc::RemoteDispatcher m_dispatcher;
+    dmq::transport::ZeroMqTransport m_transport;  // could be any dmq::transport::ITransport (TCP, UDP, serial, ...)
+    dmq::serialization::serializer::Serializer<void(float)> m_serializer;
+    std::optional<dmq::RemoteChannel<void(float)>> m_rxChannel;
+};
+```
 
 # DelegateMQ Tools
 

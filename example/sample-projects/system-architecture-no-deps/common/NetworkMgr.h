@@ -25,16 +25,19 @@
 /// with Windows UDP sockets and msg_serialize. Class is thread safe. All public APIs are
 /// asynchronous.
 ///
-/// @details NetworkMgr inherits from RemoteDispatcher, which manages the internal thread
-/// of control. All public APIs are asynchronous (blocking and non-blocking). Register
-/// with OnError or OnSendStatus to handle success or errors.
+/// @details NetworkMgr holds a RemoteDispatcher as a member (composition, not
+/// inheritance -- matching extras/databus's Participant/NetworkNode shape),
+/// which manages the internal thread of control. All public APIs are
+/// asynchronous (blocking and non-blocking). Register with OnError or
+/// OnSendStatus to handle success or errors.
 ///
-/// NetworkMgr owns the UDP transport itself and hands it to the base class via
-/// Attach() -- RemoteDispatcher only ever sees dmq::transport::ITransport, it neither
-/// constructs nor knows the concrete transport type. Raw UDP has no reliability of
-/// its own, so NetworkMgr layers ReliableTransport+RetryMonitor on top and attaches
-/// the ReliableTransport (not the raw transport) as the send transport, and calls
-/// AttachRetryMonitor() so retry-exhaustion reaches OnDeliveryFailed().
+/// NetworkMgr owns the UDP transport itself and hands it to m_dispatcher via
+/// Attach() -- RemoteDispatcher only ever sees dmq::transport::ITransport, it
+/// neither constructs nor knows the concrete transport type. Raw UDP has no
+/// reliability of its own, so NetworkMgr layers ReliableTransport+RetryMonitor
+/// on top and attaches the ReliableTransport (not the raw transport) as the
+/// send transport, and calls AttachRetryMonitor() so retry-exhaustion reaches
+/// OnDeliveryFailed().
 ///
 /// The underlying UDP transport layer managed by RemoteDispatcher is accessed only by a
 /// single internal thread. Therefore, when invoking a remote delegate, the call is
@@ -53,7 +56,7 @@
 ///     3. *Future-based:* Returns a `std::future` immediately, allowing retrieval of the result at a later time.
 /// * **Error & Status Reporting:** Provides registration points (`OnNetworkError`, `OnSendStatus`) for clients to subscribe
 ///   to transmission results and error notifications.
-class NetworkMgr : public dmq::rpc::RemoteDispatcher
+class NetworkMgr
 {
 public:
     // Public Signals — clients Connect() to these using RAII ScopedConnection.
@@ -69,6 +72,10 @@ public:
 
     int Create();
 
+    // Thin forwarders -- app code (main.cpp) calls these directly on NetworkMgr.
+    void Start() { m_dispatcher.Start(); }
+    void Stop()  { m_dispatcher.Stop(); }
+
     // Send Functions (non-blocking, blocking, and future)
     void SendAlarmMsg(AlarmMsg& msg, AlarmNote& note);
     bool SendAlarmMsgWait(AlarmMsg& msg, AlarmNote& note);
@@ -80,16 +87,6 @@ public:
     bool SendActuatorMsgWait(ActuatorMsg& msg);
     std::future<bool> SendActuatorMsgFuture(ActuatorMsg& msg);
 
-protected:
-    // Override base class hooks to fire our Signals
-    void OnError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) override;
-    void OnStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) override;
-    void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) override;
-
-    // ITransport has no Close(); close our own concrete transports here.
-    // Called by RemoteDispatcher::Stop() before the receive thread is joined.
-    void CloseTransports() override;
-
 private:
     NetworkMgr();
     ~NetworkMgr() = default;
@@ -99,11 +96,27 @@ private:
     // per-transport Initialize() used to marshal there itself.
     int OpenTransport();
 
+    // ITransport has no Close(); close our own concrete transports here.
+    // Wired to m_dispatcher via SetCloseHandler() in the constructor; called
+    // by RemoteDispatcher::Stop() before the receive thread is joined.
+    void CloseTransports();
+
     // Helper functions to forward incoming data to the Signals
     void ForwardAlarm(AlarmMsg& msg, AlarmNote& note)   { OnAlarm(msg, note); }
     void ForwardCommand(CommandMsg& msg)                { OnCommand(msg); }
     void ForwardData(DataMsg& msg)                      { OnData(msg); }
     void ForwardActuator(ActuatorMsg& msg)              { OnActuator(msg); }
+
+    // Forward m_dispatcher's OnError/OnStatus/OnDeliveryFailed Signals (and,
+    // for ForwardError, each channel's SetErrorHandler() too) to our own
+    // OnNetworkError/OnSendStatus/OnDeliveryFailure.
+    void ForwardError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) { OnNetworkError(id, error, aux); }
+    void ForwardStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) { OnSendStatus(id, seq, status); }
+    void ForwardDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) { OnDeliveryFailure(id, seqNum); }
+
+    // Composed, not inherited -- declared first so it's fully constructed
+    // before m_retryMonitor below references m_dispatcher.GetTransportMonitor().
+    dmq::rpc::RemoteDispatcher m_dispatcher;
 
     // Per-signature serializers (one per message type)
     dmq::serialization::serializer::Serializer<void(AlarmMsg&, AlarmNote&)> m_alarmSer;
@@ -130,6 +143,12 @@ private:
     // Raw UDP has no reliability of its own -- wrap in ACK/retry.
     dmq::util::RetryMonitor m_retryMonitor;
     dmq::util::ReliableTransport m_reliableTransport;
+
+    // Connections for the ForwardError/Status/DeliveryFailed forwarding
+    // wired in the constructor -- see those methods' comment above.
+    dmq::ScopedConnection m_baseErrorConn;
+    dmq::ScopedConnection m_baseStatusConn;
+    dmq::ScopedConnection m_baseDeliveryFailedConn;
 };
 
 #endif

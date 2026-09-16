@@ -6,27 +6,34 @@ using namespace dmq::util;
 using namespace std;
 
 NetworkMgr::NetworkMgr()
-    : m_retryMonitor(m_sendTransport, m_transportMonitor)
+    : m_retryMonitor(m_sendTransport, m_dispatcher.GetTransportMonitor())
     , m_reliableTransport(m_sendTransport, m_retryMonitor)
 {
+    m_dispatcher.SetCloseHandler(MakeDelegate(this, &NetworkMgr::CloseTransports));
+
+    // m_dispatcher notifies via Signal, not a virtual hook -- forward to our
+    // own Signals so client code's existing names don't change.
+    m_baseErrorConn = m_dispatcher.OnError.Connect(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_baseStatusConn = m_dispatcher.OnStatus.Connect(MakeDelegate(this, &NetworkMgr::ForwardStatus));
+    m_baseDeliveryFailedConn = m_dispatcher.OnDeliveryFailed.Connect(MakeDelegate(this, &NetworkMgr::ForwardDeliveryFailed));
 }
 
 int NetworkMgr::Create()
 {
-    // Hand our transports to the base engine. Raw UDP has no reliability of
+    // Hand our transports to m_dispatcher. Raw UDP has no reliability of
     // its own, so the ReliableTransport wrapper (not the raw transport) is
     // attached as the send transport, and AttachRetryMonitor() wires
     // retry-exhaustion through to OnDeliveryFailed() (see class doc comment).
-    Attach(m_reliableTransport, m_recvTransport);
-    AttachRetryMonitor(m_retryMonitor);
+    m_dispatcher.Attach(m_reliableTransport, m_recvTransport);
+    m_dispatcher.AttachRetryMonitor(m_retryMonitor);
 
     // Initialize one RemoteChannel per message signature.
     // Each channel owns its Dispatcher, stream, and serializer — and now also
     // owns the delegate binding via Bind(), replacing the separate DelegateMemberRemote.
-    m_alarmChannel.emplace(GetSendTransport(), m_alarmSer);
-    m_commandChannel.emplace(GetSendTransport(), m_commandSer);
-    m_dataChannel.emplace(GetSendTransport(), m_dataSer);
-    m_actuatorChannel.emplace(GetSendTransport(), m_actuatorSer);
+    m_alarmChannel.emplace(m_dispatcher.GetSendTransport(), m_alarmSer);
+    m_commandChannel.emplace(m_dispatcher.GetSendTransport(), m_commandSer);
+    m_dataChannel.emplace(m_dispatcher.GetSendTransport(), m_dataSer);
+    m_actuatorChannel.emplace(m_dispatcher.GetSendTransport(), m_actuatorSer);
 
     // Bind the receive-side handler and wire the send-side infrastructure in one call.
     m_alarmChannel->Bind(this, &NetworkMgr::ForwardAlarm, ids::ALARM_MSG_ID);
@@ -35,19 +42,19 @@ int NetworkMgr::Create()
     m_actuatorChannel->Bind(this, &NetworkMgr::ForwardActuator, ids::ACTUATOR_MSG_ID);
 
     // Register error handlers
-    m_alarmChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
-    m_commandChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
-    m_dataChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
-    m_actuatorChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::OnError));
+    m_alarmChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_commandChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_dataChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
+    m_actuatorChannel->SetErrorHandler(MakeDelegate(this, &NetworkMgr::ForwardError));
 
-    // Register endpoints with the Base Engine (so Incoming() can route by ID)
-    RegisterEndpoint(ids::ALARM_MSG_ID,   m_alarmChannel->GetEndpoint());
-    RegisterEndpoint(ids::COMMAND_MSG_ID, m_commandChannel->GetEndpoint());
-    RegisterEndpoint(ids::DATA_MSG_ID,    m_dataChannel->GetEndpoint());
-    RegisterEndpoint(ids::ACTUATOR_MSG_ID, m_actuatorChannel->GetEndpoint());
+    // Register endpoints with m_dispatcher (so Incoming() can route by ID)
+    m_dispatcher.RegisterEndpoint(ids::ALARM_MSG_ID,   m_alarmChannel->GetEndpoint());
+    m_dispatcher.RegisterEndpoint(ids::COMMAND_MSG_ID, m_commandChannel->GetEndpoint());
+    m_dispatcher.RegisterEndpoint(ids::DATA_MSG_ID,    m_dataChannel->GetEndpoint());
+    m_dispatcher.RegisterEndpoint(ids::ACTUATOR_MSG_ID, m_actuatorChannel->GetEndpoint());
 
-    if (!this->m_thread.IsCurrentThread())
-        return dmq::MakeDelegate(this, &NetworkMgr::OpenTransport, this->m_thread, dmq::WAIT_INFINITE)();
+    if (!m_dispatcher.GetThread().IsCurrentThread())
+        return dmq::MakeDelegate(this, &NetworkMgr::OpenTransport, m_dispatcher.GetThread(), dmq::WAIT_INFINITE)();
     return OpenTransport();
 }
 
@@ -74,8 +81,8 @@ int NetworkMgr::OpenTransport()
 #endif
 #endif
 
-    m_sendTransport.SetTransportMonitor(&m_transportMonitor);
-    m_recvTransport.SetTransportMonitor(&m_transportMonitor);
+    m_sendTransport.SetTransportMonitor(&m_dispatcher.GetTransportMonitor());
+    m_recvTransport.SetTransportMonitor(&m_dispatcher.GetTransportMonitor());
     m_sendTransport.SetRecvTransport(&m_recvTransport);
     m_recvTransport.SetSendTransport(&m_sendTransport);
 
@@ -88,65 +95,52 @@ void NetworkMgr::CloseTransports()
     m_sendTransport.Close();
 }
 
-// Override hooks to fire signals
-void NetworkMgr::OnError(DelegateRemoteId id, DelegateError error, DelegateErrorAux aux) {
-    OnNetworkError(id, error, aux);
-}
-
-void NetworkMgr::OnStatus(dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) {
-    OnSendStatus(id, seq, status);
-}
-
-void NetworkMgr::OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seqNum) {
-    OnDeliveryFailure(id, seqNum);
-}
-
 void NetworkMgr::SendAlarmMsg(AlarmMsg& msg, AlarmNote& note) {
-    if (!this->m_thread.IsCurrentThread()) {
-        dmq::MakeDelegate(this, &NetworkMgr::SendAlarmMsg, this->m_thread)(msg, note);
+    if (!m_dispatcher.GetThread().IsCurrentThread()) {
+        dmq::MakeDelegate(this, &NetworkMgr::SendAlarmMsg, m_dispatcher.GetThread())(msg, note);
         return;
     }
     (*m_alarmChannel)(msg, note);
 }
 
 bool NetworkMgr::SendAlarmMsgWait(AlarmMsg& msg, AlarmNote& note) {
-    return this->RemoteInvokeWait(*m_alarmChannel, msg, note);
+    return m_dispatcher.RemoteInvokeWait(*m_alarmChannel, msg, note);
 }
 
 void NetworkMgr::SendCommandMsg(CommandMsg& command) {
-    if (!this->m_thread.IsCurrentThread()) {
-        dmq::MakeDelegate(this, &NetworkMgr::SendCommandMsg, this->m_thread)(command);
+    if (!m_dispatcher.GetThread().IsCurrentThread()) {
+        dmq::MakeDelegate(this, &NetworkMgr::SendCommandMsg, m_dispatcher.GetThread())(command);
         return;
     }
     (*m_commandChannel)(command);
 }
 
 bool NetworkMgr::SendCommandMsgWait(CommandMsg& command) {
-    return this->RemoteInvokeWait(*m_commandChannel, command);
+    return m_dispatcher.RemoteInvokeWait(*m_commandChannel, command);
 }
 
 void NetworkMgr::SendDataMsg(DataMsg& data) {
-    if (!this->m_thread.IsCurrentThread()) {
-        dmq::MakeDelegate(this, &NetworkMgr::SendDataMsg, this->m_thread)(data);
+    if (!m_dispatcher.GetThread().IsCurrentThread()) {
+        dmq::MakeDelegate(this, &NetworkMgr::SendDataMsg, m_dispatcher.GetThread())(data);
         return;
     }
     (*m_dataChannel)(data);
 }
 
 bool NetworkMgr::SendDataMsgWait(DataMsg& data) {
-    return this->RemoteInvokeWait(*m_dataChannel, data);
+    return m_dispatcher.RemoteInvokeWait(*m_dataChannel, data);
 }
 
 void NetworkMgr::SendActuatorMsg(ActuatorMsg& msg) {
-    if (!this->m_thread.IsCurrentThread()) {
-        dmq::MakeDelegate(this, &NetworkMgr::SendActuatorMsg, this->m_thread)(msg);
+    if (!m_dispatcher.GetThread().IsCurrentThread()) {
+        dmq::MakeDelegate(this, &NetworkMgr::SendActuatorMsg, m_dispatcher.GetThread())(msg);
         return;
     }
     (*m_actuatorChannel)(msg);
 }
 
 bool NetworkMgr::SendActuatorMsgWait(ActuatorMsg& msg) {
-    return this->RemoteInvokeWait(*m_actuatorChannel, msg);
+    return m_dispatcher.RemoteInvokeWait(*m_actuatorChannel, msg);
 }
 
 std::future<bool> NetworkMgr::SendActuatorMsgFuture(ActuatorMsg& msg) {
