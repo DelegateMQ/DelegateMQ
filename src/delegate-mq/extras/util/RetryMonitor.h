@@ -124,11 +124,15 @@ public:
 
         int result = m_transport->Send(os, header);
 
-        // If the send failed, TransportMonitor::Add() was never called so
-        // OnStatusChanged() will never fire for this seqNum. Remove the entry
-        // and report the failure now so it isn't silently lost.
+        // If the send failed, TransportMonitor::Add() already succeeded above, so
+        // this entry is sitting in TransportMonitor's pending map. Cancel() frees
+        // that slot immediately (silently -- no false SUCCESS/TIMEOUT signal) instead
+        // of leaving it to occupy a slot until TRANSPORT_TIMEOUT expires naturally.
+        // Report the failure now so it isn't silently lost.
         if (result != 0)
         {
+            if (m_monitor)
+                m_monitor->Cancel(header.GetSeqNum(), header.GetId());
             {
                 dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
                 m_retryStore.erase(key);
@@ -217,7 +221,20 @@ private:
                 added = m_monitor->Add(retryHeader.GetSeqNum(), retryHeader.GetId());
 
             if (added) {
-                m_transport->Send(os, retryHeader);
+                int result = m_transport->Send(os, retryHeader);
+                if (result != 0) {
+                    // Same reasoning as SendWithRetry's immediate-failure path: Add()
+                    // already succeeded, so cancel it silently rather than leaving the
+                    // slot occupied until TRANSPORT_TIMEOUT expires naturally.
+                    if (m_monitor)
+                        m_monitor->Cancel(retryHeader.GetSeqNum(), retryHeader.GetId());
+                    {
+                        dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
+                        m_retryStore.erase(key);
+                    }
+                    LOG_ERROR("RetryMonitor: immediate Send() failure while retrying seq {}", seqNum);
+                    OnDeliveryFailed(id, seqNum);
+                }
             } else {
                 {
                     dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);

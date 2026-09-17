@@ -142,6 +142,24 @@ public:
     // Standard ITransportMonitor override (uses default remoteId 0)
     virtual void Remove(uint16_t seqNum) override { Remove(seqNum, 0); }
 
+    /// @brief Silently remove a sequence number without signaling SUCCESS.
+    /// @details Use this instead of Remove() when the entry must be freed because
+    /// the send itself is known to have failed (e.g. a synchronous ITransport::Send()
+    /// error right after Add() succeeded) -- Remove() fires OnSendStatus(..., SUCCESS),
+    /// which would misreport a failed send as an acknowledged one. Frees the pending
+    /// slot immediately instead of leaving it to expire via Process()/TRANSPORT_TIMEOUT.
+    /// @return true if an entry was found and removed.
+    bool Cancel(uint16_t seqNum, dmq::DelegateRemoteId remoteId)
+    {
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
+        uint32_t key = (static_cast<uint32_t>(remoteId) << 16) | seqNum;
+        auto it = m_pending.find(key);
+        if (it == m_pending.end())
+            return false;
+        m_pending.erase(it);
+        return true;
+    }
+
     /// Call periodically to process message timeouts.
     /// Drains all expired entries across multiple passes so a single call always
     /// fully clears the backlog, regardless of how many entries have timed out.
