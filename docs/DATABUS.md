@@ -179,12 +179,17 @@ Several of these (`ERR_TYPE_MISMATCH`, `ERR_CAPACITY_EXCEEDED`) are followed by 
 
 ### Status — `NetworkNode` signals
 
-If you use `NetworkNode` (see [Multi-Process Quickstart](../src/delegate-mq/extras/databus/README.md#multi-process-quickstart--networknode) in the module README), it exposes three additional signals with no `DataBus::SubscribeError` equivalent:
+If you use `NetworkNode` (see [Multi-Process Quickstart](../src/delegate-mq/extras/databus/README.md#multi-process-quickstart--networknode) in the module README), it exposes four additional signals with no `DataBus::SubscribeError` equivalent:
 
 ```cpp
 auto failConn = g_net.OnDeliveryFailed.Connect(
     [](const dmq::xstring& peer, dmq::DelegateRemoteId id, uint16_t seq) {
         std::cerr << "Delivery to " << peer << " failed (retries exhausted): id=" << id << " seq=" << seq << "\n";
+    });
+auto statusConn = g_net.OnPeerSendStatus.Connect(
+    [](const dmq::xstring& peer, dmq::DelegateRemoteId id, uint16_t seq, dmq::util::TransportMonitor::Status status) {
+        if (status == dmq::util::TransportMonitor::Status::TIMEOUT)
+            std::cerr << "Still retrying delivery to " << peer << ": id=" << id << " seq=" << seq << "\n";
     });
 auto capConn = g_net.OnPeerCapExceeded.Connect(
     [](const dmq::xstring& peer, size_t count) {
@@ -193,6 +198,7 @@ auto capConn = g_net.OnPeerCapExceeded.Connect(
 ```
 
 - `OnDeliveryFailed(peerName, remoteId, seqNum)` — a `Reliability::RELIABLE` message exhausted its retry budget without being ACKed. Fires **once**, only after retries are exhausted — distinct from the repeated `TIMEOUT` status an individual retry attempt produces along the way. If you never see this for a topic, either it's delivering fine or it's `UNRELIABLE` (no retry/ack tracking at all).
+- `OnPeerSendStatus(peerName, remoteId, seqNum, status)` — fires on every per-attempt outcome for a `RELIABLE` message: `SUCCESS` when an ACK arrives, or `TIMEOUT` on each retry attempt before the budget is exhausted. A message can report `TIMEOUT` several times while still being retried before either succeeding or finally firing `OnDeliveryFailed` once. `SUCCESS` fires on every acked message, so most apps only care about the `TIMEOUT` case.
 - `OnPeerCapExceeded(peerName, count)` / `OnPeerPendingExceeded(peerName, remaining)` — backpressure health: too many unacked messages queued for a peer, or the retry monitor falling behind draining expired entries. Not errors by themselves — a widening trend across repeated calls is the signal to watch for, not a single occurrence.
 
 A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s normal short-timeout polling is **not** reported anywhere — it's the routine "nothing to read this tick" outcome, not a fault. Don't wire error handling to that return code.

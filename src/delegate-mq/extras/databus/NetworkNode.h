@@ -107,6 +107,15 @@ public:
     /// Subscribers receive: (peerName, remoteId, seqNum).
     dmq::Signal<void(const dmq::xstring&, dmq::DelegateRemoteId, uint16_t)> OnDeliveryFailed;
 
+    /// Fired on every per-attempt send status for a RELIABLE message to a peer
+    /// (TransportMonitor::OnSendStatus): SUCCESS when an ACK arrives, or TIMEOUT
+    /// on each retry attempt before the budget is exhausted. A message may report
+    /// TIMEOUT several times while still being retried before either succeeding
+    /// or finally firing OnDeliveryFailed once -- see OnDeliveryFailed for the
+    /// permanent-abandonment signal this is deliberately kept separate from.
+    /// Subscribers receive: (peerName, remoteId, seqNum, status).
+    dmq::Signal<void(const dmq::xstring&, dmq::DelegateRemoteId, uint16_t, TransportMonitor::Status)> OnPeerSendStatus;
+
     NetworkNode()  = default;
     ~NetworkNode() { Stop(); }
 
@@ -201,6 +210,7 @@ public:
             node.capConn.Disconnect();
             node.pendingConn.Disconnect();
             node.deliveryFailedConn.Disconnect();
+            node.sendStatusConn.Disconnect();
             node.rawTransport.Close();
             node.active = false;
         }
@@ -264,6 +274,16 @@ public:
                 printf("NetworkNode [%s]: delivery failed id=%u seq=%u (retries exhausted)\n",
                        peerName.c_str(), id, seq);
                 this->OnDeliveryFailed(peerName, id, seq);
+            }));
+        node.sendStatusConn = node.transportMonitor.OnSendStatus.Connect(
+            dmq::MakeDelegate([this, peerName](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
+                // Only TIMEOUT is print-worthy here -- SUCCESS fires on every
+                // acked RELIABLE message and would flood the log under normal load.
+                if (status == TransportMonitor::Status::TIMEOUT) {
+                    printf("NetworkNode [%s]: send status TIMEOUT id=%u seq=%u (retry pending)\n",
+                           peerName.c_str(), id, seq);
+                }
+                this->OnPeerSendStatus(peerName, id, seq, status);
             }));
 
         node.reliableParticipant   = dmq::xmake_shared<Participant>(node.reliableTransport);
@@ -406,6 +426,7 @@ private:
         dmq::ScopedConnection capConn;
         dmq::ScopedConnection pendingConn;
         dmq::ScopedConnection deliveryFailedConn;
+        dmq::ScopedConnection sendStatusConn;
         std::shared_ptr<Participant> reliableParticipant;    // xmake_shared on construction
         std::shared_ptr<Participant> unreliableParticipant;  // xmake_shared on construction
         bool active = false;
