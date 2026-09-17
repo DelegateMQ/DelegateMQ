@@ -29,7 +29,7 @@ StdlibThread::StdlibThread(const char* threadName, size_t maxQueueSize, FullPoli
     , m_exit(false)
     , THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
-    , MAX_QUEUE_SIZE(maxQueueSize)
+    , MAX_QUEUE_SIZE(maxQueueSize == 0 ? dmq::THREAD_DESKTOP_QUEUE_SIZE : maxQueueSize)
     , FULL_POLICY(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)
 {
@@ -245,7 +245,13 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     if (MAX_QUEUE_SIZE > 0 && (m_highQueue.size() + m_normalQueue.size()) >= MAX_QUEUE_SIZE)
     {
         if (FULL_POLICY == FullPolicy::DROP)
+        {
+            size_t depth = m_highQueue.size() + m_normalQueue.size();
+            lk.unlock();
+            if (m_droppedHandler)
+                m_droppedHandler(depth);
             return false;  // silently discard — caller is not stalled, no allocation wasted
+        }
 
         if (FULL_POLICY == FullPolicy::FAULT)
         {
@@ -261,6 +267,10 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             });
             if (!hasSpace) {
                 printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+                size_t depth = m_highQueue.size() + m_normalQueue.size();
+                lk.unlock();
+                if (m_droppedHandler)
+                    m_droppedHandler(depth);
                 return false;
             }
             // space found — fall through to push

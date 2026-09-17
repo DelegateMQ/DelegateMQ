@@ -35,6 +35,7 @@
 ///   -- typically a hardware timer ISR or the highest-priority task in the system.
 
 #include "delegate/IThread.h"
+#include "delegate/UnicastDelegate.h"
 #include "port/os/common/ThreadMsg.h"
 #include "ThreadXDelegateQueue.h"
 #include "extras/util/Timer.h"
@@ -133,6 +134,14 @@ public:
     // IThread Interface Implementation
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
+    /// @brief Register a handler invoked when DispatchDelegate() drops a message:
+    /// under FullPolicy::DROP (queue full, discarded immediately) or
+    /// FullPolicy::TIMEOUT (queue stayed full for dispatchTimeout, discarded).
+    /// Optional; unset by default. Called synchronously on the calling (producer)
+    /// thread, with the queue depth at the time of the drop.
+    void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
+    void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
+
     /// @brief Manually update the watchdog alive timestamp.
     /// @details The Run() loop refreshes the timestamp automatically on every iteration.
     /// Call this from inside long-running message handlers to prevent a false watchdog
@@ -188,6 +197,9 @@ private:
     // ThreadX Control Blocks
     TX_THREAD m_thread;
     ThreadXDelegateQueue m_queue;
+
+    // Optional handler invoked when a message is dropped (FullPolicy::DROP or TIMEOUT)
+    dmq::UnicastDelegate<void(size_t)> m_droppedHandler;
     TX_SEMAPHORE m_exitSem; // Semaphore to signal thread completion
     std::atomic<bool> m_exit = false;
     bool* m_selfExitPtr = nullptr;

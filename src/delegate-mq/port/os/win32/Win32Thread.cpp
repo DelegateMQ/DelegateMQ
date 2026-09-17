@@ -23,7 +23,7 @@ static thread_local bool* t_self_exit = nullptr;
 Win32Thread::Win32Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
-    , MAX_QUEUE_SIZE(maxQueueSize)
+    , MAX_QUEUE_SIZE(maxQueueSize == 0 ? dmq::THREAD_DESKTOP_QUEUE_SIZE : maxQueueSize)
     , FULL_POLICY(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
@@ -135,7 +135,10 @@ bool Win32Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     {
         if (FULL_POLICY == FullPolicy::DROP)
         {
+            size_t depth = m_highQueue.size() + m_normalQueue.size();
             LeaveCriticalSection(&m_cs);
+            if (m_droppedHandler)
+                m_droppedHandler(depth);
             return false; // silently discard
         }
 
@@ -155,8 +158,11 @@ bool Win32Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             {
                 if (!SleepConditionVariableCS(&m_cvNotFull, &m_cs, dwTimeout))
                 {
+                    size_t depth = m_highQueue.size() + m_normalQueue.size();
                     LeaveCriticalSection(&m_cs);
                     printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+                    if (m_droppedHandler)
+                        m_droppedHandler(depth);
                     return false;
                 }
             }

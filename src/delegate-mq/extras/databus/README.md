@@ -11,7 +11,7 @@ DelegateMQ has two distinct patterns for talking across threads/processes/machin
 | Pattern | Publish/subscribe (data distribution) | Point-to-point RPC (remote function invoke) |
 | Addressing | Topic string, many-to-many | Remote ID → one specific registered endpoint |
 | Who receives | Any number of subscribers (0, 1, or many) — the publisher doesn't know or care who | Exactly one endpoint per remote ID |
-| Call semantics | `Publish()` is always fire-and-forget from the caller's side; delivery outcome (if any) arrives later via signals (`OnSendStatus`, `OnDeliveryFailed`) | `RemoteInvokeWait()` blocks the caller until the remote ACKs or times out, returning success/failure directly — plus a fire-and-forget mode too |
+| Call semantics | `Publish()` is always fire-and-forget from the caller's side; delivery outcome (if any) arrives later via signals (`OnPeerSendStatus`, `OnDeliveryFailed`) | `RemoteInvokeWait()` blocks the caller until the remote ACKs or times out, returning success/failure directly — plus a fire-and-forget mode too |
 | How you use it | Compose: hold an `ITransport&` (`Participant`), or instantiate `NetworkNode<Transport>` — no subclassing required | Subclass: `NetworkMgr : public dmq::rpc::RemoteDispatcher`, override virtual hooks (`OnError`/`OnStatus`/`OnDeliveryFailed`) |
 | Reliability opt-in | Per-message — pass `Reliability::RELIABLE` or `UNRELIABLE` to `Send()` | Per-connection — the derived class decides once, at construction, whether to wrap its transport in `ReliableTransport` |
 | Multi-peer topology | Built in — `NetworkNode` manages any number of peers | One connection per `RemoteDispatcher` instance; the app manages multiple peers itself if it needs more than one |
@@ -174,7 +174,7 @@ void SetupNetwork() {
 - **Transport-agnostic**: Pass any `ITransport`-derived type as the template argument — `Win32UdpTransport`, `LinuxUdpTransport`, `ZephyrUdpTransport`, etc.
 - **Fixed allocation**: `MaxPeers` and `MaxTopics` template parameters control pre-allocated capacity. No heap for transport objects (`RemoteNode` members are by-value in `std::array`).
 - **`Participant` allocation**: Uses `xmake_shared` — fixed-block allocator on embedded targets.
-- **Error & status signals**: `OnDeliveryFailed(peerName, remoteId, seqNum)` fires once when a RELIABLE message exhausts its retry budget; `OnPeerCapExceeded`/`OnPeerPendingExceeded(peerName, count)` are backpressure health signals. None of these overlap `DataBus::SubscribeError` — see [Error & Status Reporting](../../../docs/DATABUS.md#error--status-reporting) in the full DataBus doc for the complete picture (including `DelegateError` codes) and usage examples.
+- **Error & status signals**: `OnDeliveryFailed(peerName, remoteId, seqNum)` fires once when a RELIABLE message exhausts its retry budget; `OnPeerSendStatus(peerName, remoteId, seqNum, status)` fires on every per-attempt outcome (SUCCESS or TIMEOUT) leading up to that, so an app can tell "still retrying" apart from "permanently abandoned"; `OnPeerCapExceeded`/`OnPeerPendingExceeded(peerName, count)` are backpressure health signals. None of these overlap `DataBus::SubscribeError` — see [Error & Status Reporting](../../../docs/DATABUS.md#error--status-reporting) in the full DataBus doc for the complete picture (including `DelegateError` codes) and usage examples.
 
 ### Template parameters
 

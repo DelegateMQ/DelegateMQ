@@ -72,6 +72,7 @@ private:
 
         m_onNetworkErrorConn = NetworkMgr::Instance().OnNetworkError.Connect(MakeDelegate(this, &ClientApp::ErrorHandler, m_thread));
         m_onSendStatusConn = NetworkMgr::Instance().OnSendStatus.Connect(MakeDelegate(this, &ClientApp::SendStatusHandler, m_thread));
+        m_onDeliveryFailureConn = NetworkMgr::Instance().OnDeliveryFailure.Connect(MakeDelegate(this, &ClientApp::DeliveryFailureHandler, m_thread));
     }
 
     ~ClientApp()
@@ -136,6 +137,14 @@ private:
             std::cout << "Msg Timeout (Retrying): ID " << id << " Seq " << seqNum << std::endl;
     }
 
+    // Fires once the retry budget is exhausted -- a real, actionable failure on
+    // this UART link (RetryMonitor is genuinely attached here, unlike the ZeroMQ
+    // system-architecture sample where this signal never fires).
+    void DeliveryFailureHandler(dmq::DelegateRemoteId id, uint16_t seqNum)
+    {
+        std::cout << "ClientApp Delivery Failed (retries exhausted): ID " << id << " Seq " << seqNum << std::endl;
+    }
+
     dmq::os::Thread m_thread;
 
     dmq::util::Timer m_pollTimer;
@@ -145,6 +154,7 @@ private:
     dmq::ScopedConnection m_actuatorTimerConn;
     dmq::ScopedConnection m_onNetworkErrorConn;
     dmq::ScopedConnection m_onSendStatusConn;
+    dmq::ScopedConnection m_onDeliveryFailureConn;
 
     Actuator m_actuator3;
     Actuator m_actuator4;

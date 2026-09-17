@@ -49,9 +49,11 @@ public:
         bool isSent = false;        ///< Flag to prevent TOCTOU races
     };
 
-    /// Signal emitted when a message exhausts its retry budget without being ACKed.
-    /// Subscribers receive: (remoteId, seqNum) — the message is now permanently
-    /// abandoned; no further retries or status callbacks will occur for this seqNum.
+    /// Signal emitted when a message is permanently abandoned: either a synchronous
+    /// send attempt failed immediately (TransportMonitor::Add() or ITransport::Send()
+    /// itself failed, before any retry could be attempted) or the message exhausted
+    /// its retry budget without being ACKed. Subscribers receive: (remoteId, seqNum);
+    /// no further retries or status callbacks will occur for this seqNum.
     /// Fired outside the internal lock so subscribers may call back into RetryMonitor safely.
     dmq::Signal<void(dmq::DelegateRemoteId, uint16_t)> OnDeliveryFailed;
 
@@ -111,20 +113,32 @@ public:
             added = m_monitor->Add(header.GetSeqNum(), header.GetId());
 
         if (!added) {
-            dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
-            m_retryStore.erase(key);
+            {
+                dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
+                m_retryStore.erase(key);
+            }
+            LOG_ERROR("RetryMonitor: TransportMonitor::Add() failed for seq {}", header.GetSeqNum());
+            OnDeliveryFailed(header.GetId(), header.GetSeqNum());
             return -1;
         }
 
         int result = m_transport->Send(os, header);
 
-        // If the send failed, TransportMonitor::Add() was never called so
-        // OnStatusChanged() will never fire for this seqNum. Remove the entry
-        // now to prevent it from leaking in m_retryStore indefinitely.
+        // If the send failed, TransportMonitor::Add() already succeeded above, so
+        // this entry is sitting in TransportMonitor's pending map. Cancel() frees
+        // that slot immediately (silently -- no false SUCCESS/TIMEOUT signal) instead
+        // of leaving it to occupy a slot until TRANSPORT_TIMEOUT expires naturally.
+        // Report the failure now so it isn't silently lost.
         if (result != 0)
         {
-            dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
-            m_retryStore.erase(key);
+            if (m_monitor)
+                m_monitor->Cancel(header.GetSeqNum(), header.GetId());
+            {
+                dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
+                m_retryStore.erase(key);
+            }
+            LOG_ERROR("RetryMonitor: immediate Send() failure for seq {}", header.GetSeqNum());
+            OnDeliveryFailed(header.GetId(), header.GetSeqNum());
         }
         else
         {
@@ -207,10 +221,27 @@ private:
                 added = m_monitor->Add(retryHeader.GetSeqNum(), retryHeader.GetId());
 
             if (added) {
-                m_transport->Send(os, retryHeader);
+                int result = m_transport->Send(os, retryHeader);
+                if (result != 0) {
+                    // Same reasoning as SendWithRetry's immediate-failure path: Add()
+                    // already succeeded, so cancel it silently rather than leaving the
+                    // slot occupied until TRANSPORT_TIMEOUT expires naturally.
+                    if (m_monitor)
+                        m_monitor->Cancel(retryHeader.GetSeqNum(), retryHeader.GetId());
+                    {
+                        dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
+                        m_retryStore.erase(key);
+                    }
+                    LOG_ERROR("RetryMonitor: immediate Send() failure while retrying seq {}", seqNum);
+                    OnDeliveryFailed(id, seqNum);
+                }
             } else {
-                dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
-                m_retryStore.erase(key);
+                {
+                    dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
+                    m_retryStore.erase(key);
+                }
+                LOG_ERROR("RetryMonitor: TransportMonitor::Add() failed while retrying seq {}", seqNum);
+                OnDeliveryFailed(id, seqNum);
             }
         }
 

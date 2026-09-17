@@ -311,6 +311,11 @@ bool ThreadXThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             DMQ_ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
             printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+            if (m_droppedHandler)
+                m_droppedHandler(GetQueueSize());
+        } else { // DROP
+            if (m_droppedHandler)
+                m_droppedHandler(GetQueueSize());
         }
         delete threadMsg; // Failed to enqueue, prevent leak
         return false;

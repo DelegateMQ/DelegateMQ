@@ -299,7 +299,10 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         {
             if (m_fullPolicy == FullPolicy::DROP)
             {
+                size_t depth = m_queueSize.load();
                 m_mutex.unlock();
+                if (m_droppedHandler)
+                    m_droppedHandler(depth);
                 return false; // silently discard
             }
 
@@ -319,8 +322,11 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
                 {
                     if (!m_cvNotFull.wait(&m_mutex, ms))
                     {
+                        size_t depth = m_queueSize.load();
                         m_mutex.unlock();
                         printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", m_threadName.c_str());
+                        if (m_droppedHandler)
+                            m_droppedHandler(depth);
                         return false;
                     }
                 }

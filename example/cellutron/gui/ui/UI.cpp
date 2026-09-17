@@ -40,6 +40,11 @@ void UI::AddLog(const std::string& msg) {
 }
 
 void UI::Start() {
+    // AddLog() is mutex-protected, so it's safe to call from OnMessageDropped()
+    // even though that callback runs synchronously on the producer's (dropping)
+    // thread, not m_thread.
+    m_thread.SetDroppedHandler(dmq::MakeDelegate(this, &UI::OnMessageDropped));
+
     // 1. Start the DelegateMQ worker thread with Watchdog
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 
@@ -239,6 +244,10 @@ void UI::OnControllerTimeout() {
     m_currentPumpSpeed = 0;
     auto* screen = ScreenInteractive::Active();
     if (screen) screen->PostEvent(Event::Custom);
+}
+
+void UI::OnMessageDropped(size_t queueDepth) {
+    AddLog("WARNING: UI message dropped, queue full (depth=" + std::to_string(queueDepth) + ")");
 }
 
 void UI::Shutdown() {

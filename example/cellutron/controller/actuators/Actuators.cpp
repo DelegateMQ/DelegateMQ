@@ -19,6 +19,7 @@ void Actuators::Initialize() {
     // 1. Start the thread
     ThreadMonitor::Register(&m_thread);
     m_thread.SetThreadPriority(PRIORITY_HARDWARE);
+    m_thread.SetDroppedHandler(dmq::MakeDelegate(this, &Actuators::OnMessageDropped));
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 
     // 2. Initialize Centrifuge
@@ -52,6 +53,12 @@ void Actuators::HandleValveChanged(int id, bool open) {
 
 void Actuators::HandlePumpChanged(int id, int speed) {
     OnPumpChanged(id, speed);
+}
+
+void Actuators::OnMessageDropped(size_t queueDepth) {
+    // A dropped actuator command (valve/pump set) under FullPolicy::TIMEOUT is
+    // safety-relevant: the hardware never received the requested state change.
+    printf("Actuators: WARNING - command dropped, queue timed out full (depth=%zu)\n", queueDepth);
 }
 
 void Actuators::Shutdown() {

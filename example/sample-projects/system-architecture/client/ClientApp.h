@@ -75,6 +75,7 @@ private:
 
         m_onNetworkErrorConn = NetworkMgr::Instance().OnNetworkError.Connect(dmq::MakeDelegate(this, &ClientApp::ErrorHandler, m_thread));
         m_onSendStatusConn = NetworkMgr::Instance().OnSendStatus.Connect(dmq::MakeDelegate(this, &ClientApp::SendStatusHandler, m_thread));
+        m_onDeliveryFailureConn = NetworkMgr::Instance().OnDeliveryFailure.Connect(dmq::MakeDelegate(this, &ClientApp::DeliveryFailureHandler, m_thread));
     }
 
     ~ClientApp()
@@ -130,6 +131,14 @@ private:
             std::cout << "ClientApp Timeout: " << id << " " << seqNum << std::endl;
     }
 
+    // Never actually fires for this ZeroMQ-based sample (NetworkMgr has no
+    // RetryMonitor attached -- ZeroMQ handles its own reliability), but wired
+    // for consistency with the other system-architecture samples.
+    void DeliveryFailureHandler(dmq::DelegateRemoteId id, uint16_t seqNum)
+    {
+        std::cout << "ClientApp Delivery Failed (retries exhausted): " << id << " " << seqNum << std::endl;
+    }
+
     dmq::os::Thread m_thread;
 
     dmq::util::Timer m_pollTimer;
@@ -139,6 +148,7 @@ private:
     dmq::ScopedConnection m_actuatorTimerConn;
     dmq::ScopedConnection m_onNetworkErrorConn;
     dmq::ScopedConnection m_onSendStatusConn;
+    dmq::ScopedConnection m_onDeliveryFailureConn;
 
     Actuator m_actuator3;
     Actuator m_actuator4;

@@ -50,6 +50,10 @@ private:
     bool OnRunStatusFilter(const RunStatusMsg& msg);
     bool CanOverrideActiveAlarm(uint32_t code);
 
+    // Called when the alarm queue is full under FullPolicy::DROP and a message
+    // is discarded. See dmq::os::Thread::SetDroppedHandler().
+    void OnMessageDropped(size_t queueDepth);
+
     // Standardized thread name for Active Object subsystem
     dmq::os::Thread m_thread{"AlarmsThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::DROP, dmq::DEFAULT_DISPATCH_TIMEOUT, "GUI"};
 

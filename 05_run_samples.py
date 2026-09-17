@@ -19,6 +19,7 @@ Key Features:
 Skip List (always excluded):
     - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
     - bare-metal-arm          Embedded ARM target, cannot run on host
+    - bare-metal-riscv        Embedded RISC-V target, cannot run on host (needs qemu-system-riscv32)
     - stm32-freertos          Embedded STM32 target, cannot run on host
     - mqtt-rapidjson          Requires an external MQTT broker
     - serialport-serializer   Requires physical serial port hardware
@@ -62,6 +63,7 @@ APP_TIMEOUT = APP_DURATION + 15
 SKIP_ALWAYS = {
     "atfe-armv7m-bare-metal",
     "bare-metal-arm",
+    "bare-metal-riscv",
     "stm32-freertos",
     "mqtt-rapidjson",
     "serialport-serializer",

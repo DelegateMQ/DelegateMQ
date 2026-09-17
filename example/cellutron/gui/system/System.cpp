@@ -87,6 +87,17 @@ void System::OnPeerPendingExceeded(const dmq::xstring& peerName, size_t remainin
     printf("GUI: WARNING - retry backlog not draining fast enough for %s (%zu remaining)\n", peerName.c_str(), remaining);
 }
 
+void System::OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum,
+                               dmq::util::TransportMonitor::Status status) {
+    // TIMEOUT means a retry is in flight -- distinct from OnDeliveryFailed, which
+    // fires once, only after the retry budget is exhausted. SUCCESS (every acked
+    // RELIABLE message) is intentionally not logged here to avoid flooding output.
+    if (status == dmq::util::TransportMonitor::Status::TIMEOUT) {
+        printf("GUI: NOTICE - still retrying delivery to %s (id=%u seq=%u)\n",
+               peerName.c_str(), id, seqNum);
+    }
+}
+
 void System::SetupNetwork() {
     SpyBridge::Start("127.0.0.1", 9999, "GUI");
     NodeBridge::StartMulticast("GUI", "239.1.1.1", 9998);
@@ -98,6 +109,7 @@ void System::SetupNetwork() {
     m_deliveryFailedConn = m_network.OnDeliveryFailed.Connect(dmq::MakeDelegate(this, &System::OnDeliveryFailed));
     m_capExceededConn = m_network.OnPeerCapExceeded.Connect(dmq::MakeDelegate(this, &System::OnPeerCapExceeded));
     m_pendingExceededConn = m_network.OnPeerPendingExceeded.Connect(dmq::MakeDelegate(this, &System::OnPeerPendingExceeded));
+    m_sendStatusConn = m_network.OnPeerSendStatus.Connect(dmq::MakeDelegate(this, &System::OnPeerSendStatus));
 
     // Incoming Topics
     m_network.Receive<RunStatusMsg>      (topics::STATUS_RUN,          RID_RUN_STATUS,       serRun);

@@ -16,9 +16,12 @@
 /// **Key Features:**
 /// * **Priority Queue:** Uses `std::priority_queue` to ensure high-priority delegate
 ///   messages (e.g., system signals) are processed before lower-priority ones.
-/// * **Queue Full Policy:** Configurable `FullPolicy` (DROP, FAULT, or TIMEOUT) when `maxQueueSize > 0`.
-///   TIMEOUT waits up to `dispatchTimeout` for the consumer before logging and dropping;
-///   DROP silently discards immediately. FAULT (the default) triggers a system fault.
+/// * **Queue Full Policy:** Configurable `FullPolicy` (DROP, FAULT, or TIMEOUT), always enforced --
+///   `maxQueueSize == 0` falls back to `dmq::THREAD_DESKTOP_QUEUE_SIZE` rather than disabling
+///   the cap, since this port backs its queue with a plain `std::deque` and would otherwise
+///   grow without bound if the destination thread is dead/stuck. TIMEOUT waits up to
+///   `dispatchTimeout` for the consumer before logging and dropping; DROP silently discards
+///   immediately. FAULT (the default) triggers a system fault.
 /// * **Watchdog Integration:** Includes a built-in heartbeat mechanism. If the thread loop
 ///   stalls (deadlock or infinite loop), the watchdog timer detects the failure.
 /// * **Synchronized Start:** Uses a Win32 manual-reset event to ensure the thread
@@ -27,6 +30,7 @@
 ///   aid debugging in Visual Studio.
 
 #include "delegate/IThread.h"
+#include "delegate/UnicastDelegate.h"
 #include "./extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
 #include <deque>
@@ -76,9 +80,10 @@ public:
     /// Constructor
     /// @param threadName The name of the thread for debugging.
     /// @param maxQueueSize The maximum number of messages allowed in the queue.
-    ///                     0 means unlimited (no back pressure).
+    ///                     0 falls back to dmq::THREAD_DESKTOP_QUEUE_SIZE -- a high-water-mark
+    ///                     safety net, not a throughput limiter, against unbounded growth if
+    ///                     the destination thread is dead/stuck.
     /// @param fullPolicy When the queue is full: FAULT (default), DROP, or TIMEOUT.
-    ///                   Only meaningful when maxQueueSize > 0.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
     Win32Thread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,
@@ -123,6 +128,14 @@ public:
     /// @param[in] msg - Delegate message containing target function
     /// arguments.
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
+
+    /// @brief Register a handler invoked when DispatchDelegate() drops a message:
+    /// under FullPolicy::DROP (queue full, discarded immediately) or
+    /// FullPolicy::TIMEOUT (queue stayed full for dispatchTimeout, discarded).
+    /// Optional; unset by default. Called synchronously on the calling (producer)
+    /// thread, with the queue depth at the time of the drop.
+    void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
+    void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
 
     /// @brief Manually update the watchdog alive timestamp.
     /// @details The Run() loop refreshes the timestamp automatically on every iteration.
@@ -188,6 +201,9 @@ private:
 
     // Timeout duration for TIMEOUT policy
     const dmq::Duration m_dispatchTimeout;
+
+    // Optional handler invoked when a message is dropped (FullPolicy::DROP or TIMEOUT)
+    dmq::UnicastDelegate<void(size_t)> m_droppedHandler;
 
     std::atomic<bool> m_exit;
 

@@ -362,7 +362,10 @@ namespace dmq
 #endif
 
     /// @brief Policy applied when a dmq::os::Thread port's message queue is full.
-    /// @details Only meaningful when the port's maxQueueSize > 0.
+    /// @details Always enforced -- a constructor's maxQueueSize == 0 is a sentinel meaning
+    /// "use this port's default capacity" (dmq::DEFAULT_QUEUE_SIZE for the RTOS ports,
+    /// dmq::THREAD_DESKTOP_QUEUE_SIZE for stdlib/Win32), not "disable the cap." Every port's
+    /// effective queue capacity is therefore always > 0 at runtime.
     ///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
     ///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.
     ///   - TIMEOUT: DispatchDelegate() waits up to dispatchTimeout, then logs and drops.
@@ -389,9 +392,19 @@ namespace dmq
     /// Override via DMQ_SIGNAL_SBO_COUNT in delegatemqconfig.h.
     inline constexpr size_t SIGNAL_SBO_COUNT = DMQ_SIGNAL_SBO_COUNT;
 
-    /// @brief Default internal queue size for all dmq::os::Thread ports.
+    /// @brief Default internal queue size (maxQueueSize == 0) for the RTOS
+    /// dmq::os::Thread ports, where the backing queue primitive requires a
+    /// fixed capacity at creation.
     /// Override via DMQ_DEFAULT_QUEUE_SIZE in delegatemqconfig.h.
     inline constexpr size_t DEFAULT_QUEUE_SIZE = DMQ_DEFAULT_QUEUE_SIZE;
+
+    /// @brief Fallback queue size (maxQueueSize == 0) for the desktop
+    /// stdlib/Win32 Thread ports only, which back their queue with a plain
+    /// std::deque and would otherwise grow without bound if the destination
+    /// thread is dead/stuck. A high-water-mark safety net, not a throughput
+    /// limiter -- large enough to never interfere with normal desktop bursts.
+    /// Override via DMQ_THREAD_DESKTOP_QUEUE_SIZE in delegatemqconfig.h.
+    inline constexpr size_t THREAD_DESKTOP_QUEUE_SIZE = DMQ_THREAD_DESKTOP_QUEUE_SIZE;
 
     /// @brief Max number of threads that can be monitored by the watchdog.
     /// Override via DMQ_MAX_WATCHDOG_THREADS in delegatemqconfig.h.
