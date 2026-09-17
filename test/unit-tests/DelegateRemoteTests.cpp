@@ -32,6 +32,8 @@ namespace Remote
     };
     
     void FreeFuncInt(int i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
+    void FreeFuncIntThrows(int) { throw std::runtime_error("application callback exception"); }
+    void FreeFuncThrows() { throw std::runtime_error("application callback exception"); }
     void FreeFuncIntRef(int& i) { DMQ_ASSERT_TRUE(i == TEST_INT); }
     void FreeFuncIntPtr(int* pi) { 
         DMQ_ASSERT_TRUE(pi); 
@@ -557,6 +559,80 @@ static void DelegateFreeRemoteTests()
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
+}
+
+// An exception thrown by the application's bound target function during Invoke()
+// must propagate to the caller, not be caught and misreported as
+// ERR_DESERIALIZE_EXCEPTION (which is reserved for a corrupt stream / serializer
+// bug during deserialization, a distinct failure from an application bug).
+static void DeserializeExceptionMisattributionTests()
+{
+    MockDispatcher dispatcher;
+    xostringstream os(ios::in | ios::out | ios::binary);
+
+    // Multi-argument case: deserialization succeeds, then the target throws.
+    {
+        bool deserializeExceptionReported = false;
+        std::function<void(DelegateRemoteId, DelegateError, int)> errorHandler =
+            [&](DelegateRemoteId, DelegateError error, DelegateErrorAux) {
+                if (error == DelegateError::ERR_DESERIALIZE_EXCEPTION)
+                    deserializeExceptionReported = true;
+            };
+
+        Remote::Serializer<void(int)> serializer;
+        DelegateFreeRemote<void(int)> delegateRemote(FreeFuncIntThrows, REMOTE_ID);
+        delegateRemote.SetErrorHandler(MakeDelegate(errorHandler));
+        delegateRemote.SetStream(&os);
+        delegateRemote.SetDispatcher(&dispatcher);
+        delegateRemote.SetSerializer(&serializer);
+        delegateRemote(TEST_INT);
+
+        std::istream& recv_stream = dispatcher.GetDispached();
+        recv_stream.seekg(0);
+
+        bool caught = false;
+        try {
+            delegateRemote.Invoke(recv_stream);
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        DMQ_ASSERT_TRUE(caught);
+        DMQ_ASSERT_TRUE(!deserializeExceptionReported);
+    }
+
+    // Zero-argument case: no deserialization occurs at all, then the target throws.
+    {
+        bool deserializeExceptionReported = false;
+        std::function<void(DelegateRemoteId, DelegateError, int)> errorHandler =
+            [&](DelegateRemoteId, DelegateError error, DelegateErrorAux) {
+                if (error == DelegateError::ERR_DESERIALIZE_EXCEPTION)
+                    deserializeExceptionReported = true;
+            };
+
+        Remote::Serializer<void()> serializer;
+        DelegateFreeRemote<void()> delegateRemote(FreeFuncThrows, REMOTE_ID);
+        delegateRemote.SetErrorHandler(MakeDelegate(errorHandler));
+        delegateRemote.SetStream(&os);
+        delegateRemote.SetDispatcher(&dispatcher);
+        delegateRemote.SetSerializer(&serializer);
+        delegateRemote();
+
+        std::istream& recv_stream = dispatcher.GetDispached();
+        recv_stream.seekg(0);
+
+        bool caught = false;
+        try {
+            delegateRemote.Invoke(recv_stream);
+        }
+        catch (const std::runtime_error&) {
+            caught = true;
+        }
+        DMQ_ASSERT_TRUE(caught);
+        DMQ_ASSERT_TRUE(!deserializeExceptionReported);
+    }
+
+    std::cout << "DeserializeExceptionMisattributionTests() complete!" << std::endl;
 }
 
 static void DelegateMemberRemoteTests()
@@ -1259,6 +1335,7 @@ static void DelegateFunctionRemoteTests()
 void DelegateRemoteTests()
 {
     DelegateFreeRemoteTests();
+    DeserializeExceptionMisattributionTests();
     DelegateMemberRemoteTests();
     DelegateMemberSpRemoteTests();
     DelegateFunctionRemoteTests();

@@ -582,21 +582,37 @@ public:
                 }, remoteArgs);
         }
 #else
-        try {
-            if constexpr (ArgCnt::value == 0) {
-                BaseType::operator()();
-            }
-            else {
-                // 1. Create a tuple of RemoteArg<T> to hold the temporary storage
-                std::tuple<RemoteArg<Args>...> remoteArgs;
+        if constexpr (ArgCnt::value == 0) {
+            // No arguments to deserialize, so nothing here can throw a
+            // deserialization exception. Let any exception from the target
+            // function itself propagate uncaught -- it is an application
+            // fault, not a wire-format/serializer fault.
+            BaseType::operator()();
+        }
+        else {
+            // 1. Create a tuple of RemoteArg<T> to hold the temporary storage
+            std::tuple<RemoteArg<Args>...> remoteArgs;
 
-                // 2. Use std::apply to unpack the tuple elements
-                std::apply([this, &is](auto&... rArgs) {
+            // 2. Use std::apply to unpack the tuple elements
+            std::apply([this, &is](auto&... rArgs) {
 
-                    // 3. Deserialize: Expand the pack to call Read(is, arg1, arg2...)
-                    // rArgs.Get() returns the reference/pointer to the internal storage
+                // 3. Deserialize: Expand the pack to call Read(is, arg1, arg2...)
+                // rArgs.Get() returns the reference/pointer to the internal storage.
+                // Only this step is wrapped in try/catch: an exception here reflects
+                // a corrupt stream or serializer bug. The invocation below is
+                // deliberately NOT wrapped -- if the bound target function throws,
+                // that is an application exception and must propagate to the caller,
+                // not be misreported as ERR_DESERIALIZE_EXCEPTION.
+                bool deserializeOk = true;
+                try {
                     m_serializer->Read(is, rArgs.Get()...);
+                }
+                catch (std::exception&) {
+                    this->m_state.RaiseError(DelegateError::ERR_DESERIALIZE_EXCEPTION);
+                    deserializeOk = false;
+                }
 
+                if (deserializeOk) {
                     if (!is.bad() && !is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                         this->BaseType::operator()(rArgs.Get()...);
@@ -604,12 +620,9 @@ public:
                     else {
                         this->m_state.RaiseError(DelegateError::ERR_DESERIALIZE);
                     }
+                }
 
-                    }, remoteArgs);
-            }
-        }
-        catch (std::exception&) {
-            m_state.RaiseError(DelegateError::ERR_DESERIALIZE_EXCEPTION);
+                }, remoteArgs);
         }
 #endif
 
@@ -1010,21 +1023,37 @@ public:
                 }, remoteArgs);
         }
 #else
-        try {
-            if constexpr (ArgCnt::value == 0) {
-                BaseType::operator()();
-            }
-            else {
-                // 1. Create a tuple of RemoteArg<T> to hold the temporary storage
-                std::tuple<RemoteArg<Args>...> remoteArgs;
+        if constexpr (ArgCnt::value == 0) {
+            // No arguments to deserialize, so nothing here can throw a
+            // deserialization exception. Let any exception from the target
+            // function itself propagate uncaught -- it is an application
+            // fault, not a wire-format/serializer fault.
+            BaseType::operator()();
+        }
+        else {
+            // 1. Create a tuple of RemoteArg<T> to hold the temporary storage
+            std::tuple<RemoteArg<Args>...> remoteArgs;
 
-                // 2. Use std::apply to unpack the tuple elements
-                std::apply([this, &is](auto&... rArgs) {
+            // 2. Use std::apply to unpack the tuple elements
+            std::apply([this, &is](auto&... rArgs) {
 
-                    // 3. Deserialize: Expand the pack to call Read(is, arg1, arg2...)
-                    // rArgs.Get() returns the reference/pointer to the internal storage
+                // 3. Deserialize: Expand the pack to call Read(is, arg1, arg2...)
+                // rArgs.Get() returns the reference/pointer to the internal storage.
+                // Only this step is wrapped in try/catch: an exception here reflects
+                // a corrupt stream or serializer bug. The invocation below is
+                // deliberately NOT wrapped -- if the bound target function throws,
+                // that is an application exception and must propagate to the caller,
+                // not be misreported as ERR_DESERIALIZE_EXCEPTION.
+                bool deserializeOk = true;
+                try {
                     m_serializer->Read(is, rArgs.Get()...);
+                }
+                catch (std::exception&) {
+                    this->m_state.RaiseError(DelegateError::ERR_DESERIALIZE_EXCEPTION);
+                    deserializeOk = false;
+                }
 
+                if (deserializeOk) {
                     if (!is.bad() && !is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                         this->BaseType::operator()(rArgs.Get()...);
@@ -1032,12 +1061,9 @@ public:
                     else {
                         this->m_state.RaiseError(DelegateError::ERR_DESERIALIZE);
                     }
+                }
 
-                    }, remoteArgs);
-            }
-        }
-        catch (std::exception&) {
-            m_state.RaiseError(DelegateError::ERR_DESERIALIZE_EXCEPTION);
+                }, remoteArgs);
         }
 #endif
 
@@ -1378,21 +1404,37 @@ public:
                 }, remoteArgs);
         }
 #else
-        try {
-            if constexpr (ArgCnt::value == 0) {
-                BaseType::operator()();
-            }
-            else {
-                // 1. Create a tuple of RemoteArg<T> to hold the temporary storage
-                std::tuple<RemoteArg<Args>...> remoteArgs;
+        if constexpr (ArgCnt::value == 0) {
+            // No arguments to deserialize, so nothing here can throw a
+            // deserialization exception. Let any exception from the target
+            // function itself propagate uncaught -- it is an application
+            // fault, not a wire-format/serializer fault.
+            BaseType::operator()();
+        }
+        else {
+            // 1. Create a tuple of RemoteArg<T> to hold the temporary storage
+            std::tuple<RemoteArg<Args>...> remoteArgs;
 
-                // 2. Use std::apply to unpack the tuple elements
-                std::apply([this, &is](auto&... rArgs) {
+            // 2. Use std::apply to unpack the tuple elements
+            std::apply([this, &is](auto&... rArgs) {
 
-                    // 3. Deserialize: Expand the pack to call Read(is, arg1, arg2...)
-                    // rArgs.Get() returns the reference/pointer to the internal storage
+                // 3. Deserialize: Expand the pack to call Read(is, arg1, arg2...)
+                // rArgs.Get() returns the reference/pointer to the internal storage.
+                // Only this step is wrapped in try/catch: an exception here reflects
+                // a corrupt stream or serializer bug. The invocation below is
+                // deliberately NOT wrapped -- if the bound target function throws,
+                // that is an application exception and must propagate to the caller,
+                // not be misreported as ERR_DESERIALIZE_EXCEPTION.
+                bool deserializeOk = true;
+                try {
                     m_serializer->Read(is, rArgs.Get()...);
+                }
+                catch (std::exception&) {
+                    this->m_state.RaiseError(DelegateError::ERR_DESERIALIZE_EXCEPTION);
+                    deserializeOk = false;
+                }
 
+                if (deserializeOk) {
                     if (!is.bad() && !is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                         this->BaseType::operator()(rArgs.Get()...);
@@ -1400,12 +1442,9 @@ public:
                     else {
                         this->m_state.RaiseError(DelegateError::ERR_DESERIALIZE);
                     }
+                }
 
-                    }, remoteArgs);
-            }
-        }
-        catch (std::exception&) {
-            m_state.RaiseError(DelegateError::ERR_DESERIALIZE_EXCEPTION);
+                }, remoteArgs);
         }
 #endif
 
