@@ -20,8 +20,16 @@
 /// Signals with <= this many subscribers are invoked without heap allocation.
 #define DMQ_SIGNAL_SBO_COUNT            8
 
-/// Default internal message queue depth for all dmq::os::Thread ports.
+/// Default internal message queue depth (maxQueueSize == 0) for the RTOS
+/// dmq::os::Thread ports (FreeRTOS, Zephyr, ThreadX, CMSIS-RTOS2, NuttX), where
+/// the backing queue primitive requires a fixed capacity at creation.
 #define DMQ_DEFAULT_QUEUE_SIZE          20
+
+/// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32 Thread
+/// ports only. A high-water-mark safety net (not a throughput limiter) against
+/// unbounded growth if the destination thread is dead/stuck -- large enough to
+/// never interfere with normal desktop bursts.
+#define DMQ_THREAD_DESKTOP_QUEUE_SIZE   1000
 
 /// Max number of threads that can be registered with the watchdog.
 #define DMQ_MAX_WATCHDOG_THREADS        16

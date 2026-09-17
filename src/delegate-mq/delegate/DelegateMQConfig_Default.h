@@ -25,6 +25,17 @@
     #define DMQ_DEFAULT_QUEUE_SIZE          20
 #endif
 
+// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32 Thread ports
+// only. Unlike DMQ_DEFAULT_QUEUE_SIZE (sized for real RTOS RAM constraints), these
+// ports back their queue with a plain std::deque, so maxQueueSize == 0 otherwise
+// means genuinely unbounded growth if the destination thread is dead/stuck. This
+// is a high-water-mark safety net, not a throughput limiter -- large enough to
+// never interfere with normal desktop bursts, but bounded so a truly dead consumer
+// hits a clear FullPolicy::FAULT instead of growing the heap without limit.
+#ifndef DMQ_THREAD_DESKTOP_QUEUE_SIZE
+    #define DMQ_THREAD_DESKTOP_QUEUE_SIZE   1000
+#endif
+
 #ifndef DMQ_MAX_WATCHDOG_THREADS
     #define DMQ_MAX_WATCHDOG_THREADS        16
 #endif

@@ -480,26 +480,60 @@ static void FullPolicy_Timeout_NotifiesDroppedHandler()
     std::cout << "FullPolicy_Timeout_NotifiesDroppedHandler() complete!" << std::endl;
 }
 
-// Unlimited queue (maxQueueSize=0): FullPolicy has no effect; all messages delivered.
-static void FullPolicy_UnlimitedQueue_DeliversAll()
+// maxQueueSize=0 falls back to dmq::THREAD_DESKTOP_QUEUE_SIZE on this port (a
+// high-water-mark safety net, not literal "unlimited" -- see DispatchDelegate()'s
+// FullPolicy comment). A burst well under that cap must still all be delivered.
+static void FullPolicy_DefaultQueueSize_DeliversAll()
 {
-    Thread unlimitedThread("UnlimitedThread", 0, FullPolicy::DROP);
-    unlimitedThread.CreateThread();
+    Thread defaultSizeThread("DefaultQueueSizeThread", 0, FullPolicy::DROP);
+    defaultSizeThread.CreateThread();
 
     std::atomic<int> deliveredCount{ 0 };
     const int SEND_COUNT = 50;
 
     for (int i = 0; i < SEND_COUNT; i++)
-        MakeDelegate([&deliveredCount]() { deliveredCount++; }, unlimitedThread)();
+        MakeDelegate([&deliveredCount]() { deliveredCount++; }, defaultSizeThread)();
 
-    while (unlimitedThread.GetQueueSize() != 0)
+    while (defaultSizeThread.GetQueueSize() != 0)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     DMQ_ASSERT_TRUE(deliveredCount == SEND_COUNT);
 
-    unlimitedThread.ExitThread();
-    std::cout << "FullPolicy_UnlimitedQueue_DeliversAll() complete!" << std::endl;
+    defaultSizeThread.ExitThread();
+    std::cout << "FullPolicy_DefaultQueueSize_DeliversAll() complete!" << std::endl;
+}
+
+// maxQueueSize=0's fallback must actually cap the queue, not disable backpressure --
+// flooding well past dmq::THREAD_DESKTOP_QUEUE_SIZE must still drop under DROP.
+static void FullPolicy_DefaultQueueSize_StillCapsUnderFlood()
+{
+    Thread floodThread("FloodDefaultQueueSizeThread", 0, FullPolicy::DROP);
+
+    std::atomic<int> droppedCount{ 0 };
+    floodThread.SetDroppedHandler(MakeDelegate([&](size_t) {
+        droppedCount++;
+        }));
+
+    floodThread.CreateThread();
+
+    // Consumer sleeps so the queue can't drain during the flood below. Kept short
+    // since ExitThread() drains the full queue before returning, and this test
+    // must flood past dmq::THREAD_DESKTOP_QUEUE_SIZE to prove it (not just the
+    // old RTOS-style default of 20) is the effective cap.
+    auto slowConsumer = []() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        };
+
+    const int SEND_COUNT = static_cast<int>(dmq::THREAD_DESKTOP_QUEUE_SIZE) + 100;
+    for (int i = 0; i < SEND_COUNT; i++)
+        MakeDelegate(slowConsumer, floodThread)();
+
+    DMQ_ASSERT_TRUE(droppedCount > 0);
+
+    floodThread.ExitThread();
+    std::cout << "FullPolicy_DefaultQueueSize_StillCapsUnderFlood() complete! (dropped "
+              << droppedCount << "/" << SEND_COUNT << ")" << std::endl;
 }
 
 static void ThreadFullPolicyTests()
@@ -511,7 +545,8 @@ static void ThreadFullPolicyTests()
     FullPolicy_Timeout_NotifiesDroppedHandler();
     FullPolicy_DefaultIsFault();
     FullPolicy_Fault_WorksWhenNotFull();
-    FullPolicy_UnlimitedQueue_DeliversAll();
+    FullPolicy_DefaultQueueSize_DeliversAll();
+    FullPolicy_DefaultQueueSize_StillCapsUnderFlood();
 }
 
 void DelegateThreadsTests()

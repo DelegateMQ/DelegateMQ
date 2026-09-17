@@ -23,7 +23,7 @@ static thread_local bool* t_self_exit = nullptr;
 Win32Thread::Win32Thread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
     : THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
-    , MAX_QUEUE_SIZE(maxQueueSize)
+    , MAX_QUEUE_SIZE(maxQueueSize == 0 ? dmq::THREAD_DESKTOP_QUEUE_SIZE : maxQueueSize)
     , FULL_POLICY(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)

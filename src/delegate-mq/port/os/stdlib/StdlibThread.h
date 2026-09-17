@@ -16,9 +16,12 @@
 /// **Key Features:**
 /// * **Priority Queue:** Uses `std::priority_queue` to ensure high-priority delegate 
 ///   messages (e.g., system signals) are processed before lower-priority ones.
-/// * **Queue Full Policy:** Configurable `FullPolicy` (DROP or TIMEOUT) when `maxQueueSize > 0`.
-///   TIMEOUT waits up to `dispatchTimeout` for the consumer before logging and dropping;
-///   DROP silently discards immediately. FAULT (the default) triggers a system fault.
+/// * **Queue Full Policy:** Configurable `FullPolicy` (DROP or TIMEOUT), always enforced --
+///   `maxQueueSize == 0` falls back to `dmq::THREAD_DESKTOP_QUEUE_SIZE` rather than disabling
+///   the cap, since this port backs its queue with a plain `std::deque` and would otherwise
+///   grow without bound if the destination thread is dead/stuck. TIMEOUT waits up to
+///   `dispatchTimeout` for the consumer before logging and dropping; DROP silently discards
+///   immediately. FAULT (the default) triggers a system fault.
 /// * **Watchdog Integration:** Includes a built-in heartbeat mechanism. If the thread loop 
 ///   stalls (deadlock or infinite loop), the watchdog timer detects the failure.
 /// * **Synchronized Start:** Uses `std::promise` and `std::future` to ensure the thread 
@@ -72,9 +75,10 @@ public:
     /// Constructor
     /// @param threadName The name of the thread for debugging.
     /// @param maxQueueSize The maximum number of messages allowed in the queue.
-    ///                     0 means unlimited (no back pressure).
+    ///                     0 falls back to dmq::THREAD_DESKTOP_QUEUE_SIZE -- a high-water-mark
+    ///                     safety net, not a throughput limiter, against unbounded growth if
+    ///                     the destination thread is dead/stuck.
     /// @param fullPolicy When the queue is full: FAULT (default), DROP, or TIMEOUT.
-    ///                   Only meaningful when maxQueueSize > 0.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
     StdlibThread(const char* threadName, size_t maxQueueSize = 0, FullPolicy fullPolicy = FullPolicy::FAULT,

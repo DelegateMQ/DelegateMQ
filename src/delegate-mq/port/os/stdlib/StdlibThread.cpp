@@ -29,7 +29,7 @@ StdlibThread::StdlibThread(const char* threadName, size_t maxQueueSize, FullPoli
     , m_exit(false)
     , THREAD_NAME(threadName)
     , CPU_NAME(cpuName)
-    , MAX_QUEUE_SIZE(maxQueueSize)
+    , MAX_QUEUE_SIZE(maxQueueSize == 0 ? dmq::THREAD_DESKTOP_QUEUE_SIZE : maxQueueSize)
     , FULL_POLICY(fullPolicy)
     , m_dispatchTimeout(dispatchTimeout)
 {
