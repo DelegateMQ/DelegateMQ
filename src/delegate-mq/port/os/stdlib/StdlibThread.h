@@ -27,6 +27,7 @@
 ///   aid debugging in IDEs.
 
 #include "delegate/IThread.h"
+#include "delegate/UnicastDelegate.h"
 #include "./extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
 #include <thread>
@@ -114,9 +115,17 @@ public:
     static void Sleep(dmq::Duration timeout);
 
     /// Dispatch and invoke a delegate target on the destination thread.
-    /// @param[in] msg - Delegate message containing target function 
+    /// @param[in] msg - Delegate message containing target function
     /// arguments.
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
+
+    /// @brief Register a handler invoked when DispatchDelegate() drops a message:
+    /// under FullPolicy::DROP (queue full, discarded immediately) or
+    /// FullPolicy::TIMEOUT (queue stayed full for dispatchTimeout, discarded).
+    /// Optional; unset by default. Called synchronously on the calling (producer)
+    /// thread, with the queue depth at the time of the drop.
+    void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
+    void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
 
     /// @brief Manually update the watchdog alive timestamp.
     /// @details The Process() loop refreshes the timestamp automatically on every iteration.
@@ -180,6 +189,9 @@ private:
 
     // Timeout duration for TIMEOUT policy
     const dmq::Duration m_dispatchTimeout;
+
+    // Optional handler invoked when a message is dropped (FullPolicy::DROP or TIMEOUT)
+    dmq::UnicastDelegate<void(size_t)> m_droppedHandler;
 
     // Promise and future to synchronize thread start (constructed lazily in CreateThread)
     std::optional<std::promise<void>> m_threadStartPromise;

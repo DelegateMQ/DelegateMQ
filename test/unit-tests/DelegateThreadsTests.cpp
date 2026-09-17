@@ -418,6 +418,68 @@ static void FullPolicy_Fault_WorksWhenNotFull()
     std::cout << "FullPolicy_Fault_WorksWhenNotFull() complete!" << std::endl;
 }
 
+// DROP policy: SetDroppedHandler() must fire once per dropped message, since
+// nothing else notifies the application that DROP silently discarded a message.
+static void FullPolicy_Drop_NotifiesDroppedHandler()
+{
+    Thread dropThread("DropNotifyThread", 3, FullPolicy::DROP);
+
+    std::atomic<int> droppedCount{ 0 };
+    std::atomic<size_t> lastDroppedDepth{ 0 };
+    dropThread.SetDroppedHandler(MakeDelegate([&](size_t depth) {
+        droppedCount++;
+        lastDroppedDepth = depth;
+        }));
+
+    dropThread.CreateThread();
+
+    auto slowConsumer = []() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        };
+
+    for (int i = 0; i < 10; i++)
+        MakeDelegate(slowConsumer, dropThread)();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    // Same invariant as FullPolicy_Drop_DropsWhenFull: at least one, but not all
+    // 10, were dropped -- and the handler must have fired exactly that many times.
+    DMQ_ASSERT_TRUE(droppedCount > 0);
+    DMQ_ASSERT_TRUE(droppedCount < 10);
+    DMQ_ASSERT_TRUE(lastDroppedDepth == 3);
+
+    dropThread.ExitThread();
+    std::cout << "FullPolicy_Drop_NotifiesDroppedHandler() complete! (dropped " << droppedCount << "/10)" << std::endl;
+}
+
+// TIMEOUT policy: SetDroppedHandler() must fire when a message is dropped after
+// waiting the full dispatchTimeout with no space freed.
+static void FullPolicy_Timeout_NotifiesDroppedHandler()
+{
+    Thread timeoutThread("TimeoutNotifyThread", 1, FullPolicy::TIMEOUT, std::chrono::milliseconds(50));
+
+    std::atomic<int> droppedCount{ 0 };
+    timeoutThread.SetDroppedHandler(MakeDelegate([&](size_t) {
+        droppedCount++;
+        }));
+
+    timeoutThread.CreateThread();
+
+    // Block the single consumer slot for longer than dispatchTimeout so the
+    // second send below must time out and be dropped.
+    MakeDelegate([]() { std::this_thread::sleep_for(std::chrono::milliseconds(500)); }, timeoutThread)();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20)); // ensure it's running
+    MakeDelegate([]() {}, timeoutThread)(); // queue full while consumer is busy
+    MakeDelegate([]() {}, timeoutThread)(); // must time out and be dropped
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(600));
+
+    DMQ_ASSERT_TRUE(droppedCount == 1);
+
+    timeoutThread.ExitThread();
+    std::cout << "FullPolicy_Timeout_NotifiesDroppedHandler() complete!" << std::endl;
+}
+
 // Unlimited queue (maxQueueSize=0): FullPolicy has no effect; all messages delivered.
 static void FullPolicy_UnlimitedQueue_DeliversAll()
 {
@@ -443,8 +505,10 @@ static void FullPolicy_UnlimitedQueue_DeliversAll()
 static void ThreadFullPolicyTests()
 {
     FullPolicy_Drop_DropsWhenFull();
+    FullPolicy_Drop_NotifiesDroppedHandler();
     FullPolicy_Drop_DeliversAllWhenBelowLimit();
     FullPolicy_Timeout_DeliversAll();
+    FullPolicy_Timeout_NotifiesDroppedHandler();
     FullPolicy_DefaultIsFault();
     FullPolicy_Fault_WorksWhenNotFull();
     FullPolicy_UnlimitedQueue_DeliversAll();

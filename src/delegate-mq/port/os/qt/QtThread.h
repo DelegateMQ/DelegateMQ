@@ -23,6 +23,7 @@
 ///
 
 #include "delegate/IThread.h"
+#include "delegate/UnicastDelegate.h"
 #include <QThread>
 #include <QObject>
 #include <QMutex>
@@ -132,6 +133,14 @@ public:
     // IThread Interface Implementation
     virtual bool DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg) override;
 
+    /// @brief Register a handler invoked when DispatchDelegate() drops a message:
+    /// under FullPolicy::DROP (queue full, discarded immediately) or
+    /// FullPolicy::TIMEOUT (queue stayed full for dispatchTimeout, discarded).
+    /// Optional; unset by default. Called synchronously on the calling (producer)
+    /// thread, with the queue depth at the time of the drop.
+    void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
+    void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
+
     /// @brief Manually update the watchdog alive timestamp.
     /// @details The Run() loop refreshes the timestamp automatically on every iteration.
     /// Call this from inside long-running message handlers to prevent a false watchdog
@@ -182,6 +191,9 @@ private:
     std::atomic<size_t> m_queueSize{0};
     QMutex m_mutex;
     QWaitCondition m_cvNotFull;
+
+    // Optional handler invoked when a message is dropped (FullPolicy::DROP or TIMEOUT)
+    dmq::UnicastDelegate<void(size_t)> m_droppedHandler;
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;
