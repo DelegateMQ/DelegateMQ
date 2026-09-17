@@ -43,6 +43,8 @@ private:
     void OnDeliveryFailed(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum);
     void OnPeerCapExceeded(const dmq::xstring& peerName, size_t count);
     void OnPeerPendingExceeded(const dmq::xstring& peerName, size_t remaining);
+    void OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum,
+                           dmq::util::TransportMonitor::Status status);
 
     dmq::os::Thread m_thread;
 
@@ -56,6 +58,7 @@ private:
     dmq::ScopedConnection m_deliveryFailedConn;
     dmq::ScopedConnection m_capExceededConn;
     dmq::ScopedConnection m_pendingExceededConn;
+    dmq::ScopedConnection m_sendStatusConn;
 
     MessageGuard m_speedGuard;
 

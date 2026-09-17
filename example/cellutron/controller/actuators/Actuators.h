@@ -56,6 +56,10 @@ private:
     void HandleValveChanged(int id, bool open);
     void HandlePumpChanged(int id, int speed);
 
+    // Called when the actuator command queue times out under FullPolicy::TIMEOUT
+    // and a command is dropped. See dmq::os::Thread::SetDroppedHandler().
+    void OnMessageDropped(size_t queueDepth);
+
     // Use standardized thread name for Active Object subsystem
     dmq::os::Thread m_thread{"ActuatorsThread", dmq::DEFAULT_QUEUE_SIZE, dmq::os::FullPolicy::TIMEOUT, dmq::DEFAULT_DISPATCH_TIMEOUT, "Controller"};
     Centrifuge m_centrifuge;

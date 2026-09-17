@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <sstream>
 #include <chrono>
+#include <cstdio>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -25,6 +26,8 @@ Logs::~Logs() {
 }
 
 void Logs::Initialize() {
+    m_thread.SetDroppedHandler(dmq::MakeDelegate(this, &Logs::OnMessageDropped));
+
     // Enable DelegateMQ Watchdog (20 second timeout for logging)
     m_thread.CreateThread(std::chrono::seconds(20));
 
@@ -125,6 +128,13 @@ void Logs::OnSensor(SensorStatusMsg msg) {
 
 void Logs::LogHeartbeat() {
     WriteToFile("[DIAG] LogsThread Heartbeat - Dispatcher OK");
+}
+
+void Logs::OnMessageDropped(size_t queueDepth) {
+    // Called synchronously on the producer's (dropping) thread, not m_thread --
+    // must not touch m_file here (only ever opened/written from m_thread).
+    // Print directly to the console instead.
+    printf("Logs: WARNING - message dropped, queue full (depth=%zu)\n", queueDepth);
 }
 
 void Logs::Shutdown() {

@@ -52,6 +52,10 @@ private:
     void OnActuator(ActuatorStatusMsg msg);
     void OnSensor(SensorStatusMsg msg);
 
+    // Called when the logging queue is full under FullPolicy::DROP and a
+    // log message is discarded. See dmq::os::Thread::SetDroppedHandler().
+    void OnMessageDropped(size_t queueDepth);
+
     std::ofstream m_file;
     size_t m_writeCount = 0;
     

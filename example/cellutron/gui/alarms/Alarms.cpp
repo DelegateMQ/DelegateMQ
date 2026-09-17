@@ -13,6 +13,7 @@ namespace util {
 
 void Alarms::Initialize() {
     dmq::util::ThreadMonitor::Register(&m_thread);
+    m_thread.SetDroppedHandler(dmq::MakeDelegate(this, &Alarms::OnMessageDropped));
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
     m_ticksWaited = 0;
 
@@ -106,6 +107,12 @@ void Alarms::OnControllerWatchdogTimeout() {
     if (!m_alarmActive && m_ticksWaited >= HEARTBEAT_WARMUP.count()) {
         SetAlarm("ALARM: Controller Node Heartbeat Lost", true);
     }
+}
+
+void Alarms::OnMessageDropped(size_t queueDepth) {
+    // FullPolicy::DROP silently discards under load; log it so a flood of
+    // alarm-relevant events isn't lost without any trace.
+    std::cout << "Alarms: WARNING - message dropped, queue full (depth=" << queueDepth << ")" << std::endl;
 }
 
 void Alarms::Shutdown() {

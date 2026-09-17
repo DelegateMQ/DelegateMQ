@@ -50,6 +50,10 @@ private:
     void OnHeartbeat(const HeartbeatMsg& msg);
     void OnControllerTimeout();
 
+    // Called when the UI update queue is full under FullPolicy::DROP and a
+    // message is discarded. See dmq::os::Thread::SetDroppedHandler().
+    void OnMessageDropped(size_t queueDepth);
+
     // --- State Members ---
     std::atomic<uint16_t> m_currentRpm{0};
     std::atomic<int16_t> m_currentPumpSpeed{0};
