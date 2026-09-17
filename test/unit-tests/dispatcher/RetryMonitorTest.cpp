@@ -23,6 +23,18 @@ namespace {
         }
         int Receive(xstringstream&, DmqHeader&) override { return -1; }
     };
+
+    // Transport whose Send() fails synchronously every time — simulates a
+    // peer that is down at send time (connection refused, socket error).
+    class AlwaysFailTransport : public ITransport {
+    public:
+        int sendCount = 0;
+        int Send(xostringstream&, const DmqHeader&) override {
+            sendCount++;
+            return -1;
+        }
+        int Receive(xstringstream&, DmqHeader&) override { return -1; }
+    };
 }
 
 void RetryMonitorTests()
@@ -100,5 +112,43 @@ void RetryMonitorTests()
         monitor.Process();
         DMQ_ASSERT_TRUE(transport.sendCount == 1); // no retry
         DMQ_ASSERT_TRUE(failedCount == 0);
+    }
+
+    // A synchronous Send() failure on the very first attempt must report
+    // OnDeliveryFailed immediately, not vanish silently — this is the
+    // fast/common failure path (peer already down at send time), distinct
+    // from the retry-exhaustion path exercised above.
+    {
+        AlwaysFailTransport transport;
+        TransportMonitor monitor(std::chrono::milliseconds(20));
+        RetryMonitor retry(transport, monitor, /*maxRetries=*/2);
+
+        int failedCount = 0;
+        DelegateRemoteId failedId = 0;
+        uint16_t failedSeq = 0;
+        auto conn = retry.OnDeliveryFailed.Connect(dmq::MakeDelegate(
+            [&](DelegateRemoteId id, uint16_t seq) {
+                failedCount++;
+                failedId = id;
+                failedSeq = seq;
+            }));
+
+        xostringstream os;
+        os << "payload";
+        DmqHeader header(/*id=*/55, /*seqNum=*/11);
+
+        int err = retry.SendWithRetry(os, header);
+        DMQ_ASSERT_TRUE(err != 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 1);
+        DMQ_ASSERT_TRUE(failedCount == 1);
+        DMQ_ASSERT_TRUE(failedId == 55);
+        DMQ_ASSERT_TRUE(failedSeq == 11);
+
+        // No timeout-driven retry follows an immediate failure — the entry
+        // was never registered with TransportMonitor.
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        monitor.Process();
+        DMQ_ASSERT_TRUE(transport.sendCount == 1);
+        DMQ_ASSERT_TRUE(failedCount == 1);
     }
 }
