@@ -333,6 +333,7 @@ DelegateMQ at a glance.
 | [**Interop**](docs/INTEROP.md) | Multi-language integration | C# & Python |
 | [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards | Spy & Monitor |
 | [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
+| [**Safety Notes**](docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
 
 # Other Projects Using DelegateMQ
 
