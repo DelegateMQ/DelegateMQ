@@ -237,8 +237,10 @@ public:
         DMQ_ASSERT_TRUE(m_peerCount < MaxPeers);
 
         RemoteNode& node = m_peers[m_peerCount];
-        strncpy(node.name, name, sizeof(node.name) - 1);
-        node.name[sizeof(node.name) - 1] = '\0';
+        size_t nameLen = strlen(name);
+        if (nameLen >= sizeof(node.name)) nameLen = sizeof(node.name) - 1;
+        memcpy(node.name, name, nameLen);
+        node.name[nameLen] = '\0';
 
         if (node.rawTransport.Create(Transport::Type::PUB, addr, port) != 0) {
             printf("NetworkNode: ERROR - failed to connect to peer '%s' at %s:%u\n", name, addr, port);
