@@ -32,7 +32,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 1.  **Instrumentation**: The `dmq::os::Thread` class tracks queue stats and message timestamps during normal operation.
 2.  **Telemetry Service** (`ThreadMonitor`): A service within the application that polls registered threads and publishes `ThreadStatsPacket` to the local DataBus.
 3.  **The Node Bridge** (`bridge/NodeBridge.cpp/.h`): Reuses the existing node bridge to automatically pick up `ThreadStatsPacket` topics and broadcast them over UDP.
-4.  **The Thread Monitor Console** (`thread/thread_main.cpp`): The standalone `dmq-thread` application that receives and visualizes the aggregated telemetry.
+4.  **The Thread Monitor Console** (`apps/thread.cpp`): The standalone `dmq-thread` application that receives and visualizes the aggregated telemetry.
 
 ### Integrating Thread Monitoring into Your App
 
@@ -104,7 +104,7 @@ You may occasionally see negative values in the Delta columns (e.g., `-0.015` ms
 
 ### How it Works
 
-1.  **The Spy Console** (`spy/main.cpp`): The standalone `dmq-spy` application that displays the data in an aligned table layout.
+1.  **The Spy Console** (`apps/spy.cpp`): The standalone `dmq-spy` application that displays the data in an aligned table layout.
 2.  **The Spy Bridge** (`bridge/SpyBridge.cpp/.h`): A small component you add to your own application to export its internal bus traffic over UDP.
 
 ### Integrating SpyBridge into Your App
@@ -184,7 +184,7 @@ These "reflections" indicate that the data has successfully traversed the networ
 
 ### How it Works
 
-1.  **The Node Monitor Console** (`monitor/monitor_main.cpp`): The standalone `dmq-monitor` application that displays the topology table.
+1.  **The Node Monitor Console** (`apps/monitor.cpp`): The standalone `dmq-monitor` application that displays the topology table.
 2.  **The Node Bridge** (`bridge/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second.
 
 ### Integrating NodeBridge into Your App
@@ -248,7 +248,7 @@ cmake -DDMQ_TOOLS=ON ..
 cmake --build . --config Release
 ```
 
-This produces three executables: `dmq-spy`, `dmq-monitor`, and `dmq-target` (a test application that exercises both bridges).
+This produces four executables: `dmq-spy`, `dmq-monitor`, `dmq-thread`, and `dmq-target` (a test application that exercises both bridges).
 
 ---
 

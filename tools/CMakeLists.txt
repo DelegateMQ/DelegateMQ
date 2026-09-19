@@ -40,12 +40,12 @@ endif()
 set(COMMON_INCLUDES
     ${DMQ_INCLUDE_DIR}
     "${SPDLOG_DIR}/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/net"
 )
 
 # --- dmq-spy ---
 add_executable(dmq-spy
-    spy/main.cpp
+    apps/spy.cpp
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
 )
@@ -59,7 +59,7 @@ target_link_libraries(dmq-spy PRIVATE
 
 # --- dmq-monitor ---
 add_executable(dmq-monitor
-    monitor/monitor_main.cpp
+    apps/monitor.cpp
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
 )
@@ -75,7 +75,7 @@ target_link_libraries(dmq-monitor PRIVATE
 
 # --- dmq-thread ---
 add_executable(dmq-thread
-    thread/thread_main.cpp
+    apps/thread.cpp
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
 )
@@ -91,7 +91,7 @@ target_link_libraries(dmq-thread PRIVATE
 
 # --- dmq-target (test source app) ---
 add_executable(dmq-target
-    target/TargetApp.cpp
+    apps/target.cpp
     bridge/SpyBridge.cpp
     bridge/NodeBridge.cpp
     ${DMQ_LIB_SOURCES}

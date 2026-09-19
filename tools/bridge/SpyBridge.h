@@ -6,7 +6,7 @@
 #define SPY_BRIDGE_H
 
 #include "DelegateMQ.h"
-#include "../src/UdpSocket.h"
+#include "../net/UdpSocket.h"
 #include <string>
 #include <memory>
 

@@ -18,7 +18,7 @@
 
 #include "DelegateMQ.h"
 #include "NodeInfoPacket.h"
-#include "../src/UdpSocket.h"
+#include "../net/UdpSocket.h"
 #include <string>
 #include <memory>
 #include <atomic>
