@@ -45,7 +45,7 @@ public:
     /// Command the pump process to start a sequence.
     void Start(std::shared_ptr<const PumpData> data);
 
-protected:
+private:
     enum States
     {
         ST_IDLE,
@@ -78,7 +78,6 @@ protected:
         STATE_MAP_ENTRY(&Complete)
     END_STATE_MAP
 
-private:
     // Event methods using transition maps
     void ValveOpened();
     void ValveClosed();

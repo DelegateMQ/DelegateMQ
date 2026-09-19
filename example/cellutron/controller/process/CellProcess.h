@@ -58,7 +58,7 @@ public:
     /// Fault event - transitions to ST_FAULT.
     void GenerateFault();
 
-protected:
+private:
     // States
     STATE_DECLARE(CellProcess, Idle, NoEventData)
     STATE_DECLARE(CellProcess, FillSolutionA, NoEventData)
@@ -85,7 +85,6 @@ protected:
         STATE_MAP_ENTRY(&Fault)
     END_STATE_MAP
 
-private:
     // External events
     void CentrifugeAtSpeed();
     void CentrifugeStopped();
