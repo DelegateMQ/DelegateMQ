@@ -251,6 +251,86 @@ static void TimerDelegate_SharedPtr_SkipsDestroyedObject()
 }
 
 // =============================================================================
+// TimerDelegate::Equal() / Empty() / nullptr comparisons
+// =============================================================================
+
+static void FreeFuncForEqualityTests() {}
+
+static void TimerDelegate_Equal_SameUnderlyingAndThread()
+{
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+    auto d2 = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+    DMQ_ASSERT_TRUE(d1.Equal(d2));
+    DMQ_ASSERT_TRUE(d2.Equal(d1));
+    std::cout << "TimerDelegate_Equal_SameUnderlyingAndThread() complete!" << std::endl;
+}
+
+static void TimerDelegate_Equal_DifferentTargetObject()
+{
+    TDTarget target1;
+    TDTarget target2;
+    auto d1 = MakeTimerDelegate(&target1, &TDTarget::OnTick, s_thread);
+    auto d2 = MakeTimerDelegate(&target2, &TDTarget::OnTick, s_thread);
+    DMQ_ASSERT_TRUE(!d1.Equal(d2));
+    std::cout << "TimerDelegate_Equal_DifferentTargetObject() complete!" << std::endl;
+}
+
+static void TimerDelegate_Equal_DifferentThread()
+{
+    static Thread otherThread("TimerDelegateTests_OtherThread");
+    otherThread.CreateThread();
+
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+    auto d2 = MakeTimerDelegate(&target, &TDTarget::OnTick, otherThread);
+    DMQ_ASSERT_TRUE(!d1.Equal(d2));
+
+    otherThread.ExitThread();
+    std::cout << "TimerDelegate_Equal_DifferentThread() complete!" << std::endl;
+}
+
+static void TimerDelegate_Equal_DifferentDelegateType()
+{
+    // rhs isn't a TimerDelegate at all -- exercises dynamic_cast failing
+    // safely and Equal() returning false rather than throwing/crashing.
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+    auto other = dmq::MakeDelegate(&FreeFuncForEqualityTests);
+    DMQ_ASSERT_TRUE(!d1.Equal(other));
+    std::cout << "TimerDelegate_Equal_DifferentDelegateType() complete!" << std::endl;
+}
+
+static void TimerDelegate_Equal_BothEmpty()
+{
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+    auto d2 = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+    d1.Clear();
+    d2.Clear();
+    DMQ_ASSERT_TRUE(d1.Empty());
+    DMQ_ASSERT_TRUE(d2.Empty());
+    DMQ_ASSERT_TRUE(d1.Equal(d2));
+    std::cout << "TimerDelegate_Equal_BothEmpty() complete!" << std::endl;
+}
+
+static void TimerDelegate_EmptyAndNullptrComparisons()
+{
+    TDTarget target;
+    auto d = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+    DMQ_ASSERT_TRUE(!d.Empty());
+    DMQ_ASSERT_TRUE(d != nullptr);
+    DMQ_ASSERT_TRUE(!(d == nullptr));
+
+    d.Clear();
+    DMQ_ASSERT_TRUE(d.Empty());
+    DMQ_ASSERT_TRUE(d == nullptr);
+    DMQ_ASSERT_TRUE(!(d != nullptr));
+
+    std::cout << "TimerDelegate_EmptyAndNullptrComparisons() complete!" << std::endl;
+}
+
+// =============================================================================
 // Integration: TimerDelegate wired to a real Timer
 // =============================================================================
 
@@ -333,6 +413,14 @@ void TimerDelegateTests()
     TimerDelegate_FiresAgainAfterCompletion();
     TimerDelegate_SharedPtr_Dispatches();
     TimerDelegate_SharedPtr_SkipsDestroyedObject();
+
+    TimerDelegate_Equal_SameUnderlyingAndThread();
+    TimerDelegate_Equal_DifferentTargetObject();
+    TimerDelegate_Equal_DifferentThread();
+    TimerDelegate_Equal_DifferentDelegateType();
+    TimerDelegate_Equal_BothEmpty();
+    TimerDelegate_EmptyAndNullptrComparisons();
+
     TimerDelegate_WithTimer_DispatchesToThread();
     Timer_ProcessTimers_DrainsMultiplePasses();
 
