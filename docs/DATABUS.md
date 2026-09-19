@@ -24,6 +24,7 @@
   - [Remote Integration](#remote-integration)
     - [Setup Checklist](#setup-checklist)
     - [Relay Loop Hazard](#relay-loop-hazard)
+  - [Topologies](#topologies)
   - [Error & Status Reporting](#error--status-reporting)
     - [Errors — DataBus::SubscribeError](#errors--databussubscribeerror)
     - [Status — NetworkNode signals](#status--networknode-signals)
@@ -155,6 +156,10 @@ Remote distribution requires these specific calls (silent failure if missed):
 ### Relay Loop Hazard
 A relay loop occurs when a node re-broadcasts a message back to its originator.
 - **Prevention**: Use `AddIncomingTopic` (local dispatch only) for standard nodes. Use `AddRelayTopic` only on dedicated bridge/relay nodes that have no return path to the originator.
+
+## Topologies
+
+`NetworkNode` doesn't impose a shape: a topology is just which nodes `AddPeer()` which other nodes, over any `ITransport`. Point-to-point, star, mesh, broadcast/multicast, bridging between different transports (e.g. UART ↔ Ethernet), same-box IPC, and broker-mediated setups are all just different `AddPeer()` wiring and transport choices, not distinct library features — including mixed reliability, since `Reliability::RELIABLE`/`UNRELIABLE` is a per-`Send()`-call choice, not a per-topology one. `example/cellutron`'s three-node mesh (see [`CELLUTRON.md`](../example/cellutron/CELLUTRON.md#hardware-topology)) is one concrete instance. The only hard constraint is that each node's peer/topic capacity (`MaxPeers`/`MaxTopics`, see [Template parameters](../src/delegate-mq/extras/databus/README.md#template-parameters)) is fixed at compile time, not grown dynamically as peers join.
 
 ## Error & Status Reporting
 

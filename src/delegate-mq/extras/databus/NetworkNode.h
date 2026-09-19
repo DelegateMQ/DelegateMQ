@@ -186,7 +186,6 @@ public:
             m_running = false;
 
             m_recvTimer.Stop();
-            m_recvConn.Disconnect();
             m_recvTransport.Close();
         }
 
@@ -198,6 +197,13 @@ public:
         // m_mutex too, so holding it here while blocked in join() would deadlock.
         if (m_thread)
             m_thread->ExitThread();
+
+        // Only safe to disconnect (and thereby free) the TimerDelegate now that
+        // ExitThread() above has fully drained m_thread's queue. m_recvTimer.Stop()
+        // only prevents NEW ticks -- a tick Timer::ProcessTimers() already fired on
+        // another thread just before Stop() ran may still be queued on m_thread,
+        // referencing this same TimerDelegate.
+        m_recvConn.Disconnect();
 
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         for (size_t i = m_peerCount; i > 0; --i) {

@@ -189,6 +189,10 @@ class NetworkNode;
 
 ---
 
+For the range of network topologies `NetworkNode` supports (star, mesh, broadcast/multicast, heterogeneous-transport gateways, broker-mediated, etc.), see [Topologies](../../../../docs/DATABUS.md#topologies) in the full DataBus doc.
+
+---
+
 ## Internal Mechanics
 
 The `dmq::databus::DataBus` utilizes DelegateMQ's `dmq::MulticastDelegate` system internally. When you `Publish`, the bus identifies all local and remote subscribers for that topic and invokes them. Remote subscribers are handled via `dmq::IDispatcher` and `dmq::transport::ITransport` layers, making the network boundary transparent to the application logic.
