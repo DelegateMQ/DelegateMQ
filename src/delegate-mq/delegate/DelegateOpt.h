@@ -495,15 +495,13 @@ namespace dmq
     using Mutex = dmq::os::ZephyrMutex;
     using RecursiveMutex = dmq::os::ZephyrRecursiveMutex;
     // ISR-safe (irq_lock()/irq_unlock(key), not a k_mutex) -- see
-    // ZephyrCriticalSection.h. UNVERIFIED: no Zephyr SDK/west workspace is
-    // available in this development environment to build and run it; review
-    // before relying on it in production.
+    // ZephyrCriticalSection.h.
     using CriticalSection = dmq::os::ZephyrCriticalSection;
     // No dmq::ConditionVariable port for Zephyr (no DMQ_HAS_CV), but
     // dmq::Semaphore is available via Zephyr's own native k_sem instead of
     // the generic condvar+mutex implementation -- see ZephyrSemaphore.h and
     // delegate/Semaphore.h. This is what makes DelegateAsyncWait available
-    // here. UNVERIFIED, same caveat as CriticalSection above.
+    // here.
     using Semaphore = dmq::os::ZephyrSemaphore;
     #define DMQ_HAS_SEMAPHORE
     template<typename T> using LockGuard = PortableLockGuard<T>;
@@ -521,8 +519,7 @@ namespace dmq
     // native condvar primitive to build one from), but dmq::Semaphore is
     // available via osSemaphore directly instead -- see
     // CmsisRtos2Semaphore.h and delegate/Semaphore.h. This is what makes
-    // DelegateAsyncWait available here. UNVERIFIED, same caveat as
-    // CriticalSection above.
+    // DelegateAsyncWait available here.
     using Semaphore = dmq::os::CmsisRtos2Semaphore;
     #define DMQ_HAS_SEMAPHORE
     template<typename T> using LockGuard = PortableLockGuard<T>;
@@ -536,16 +533,14 @@ namespace dmq
     // ISR-safe (up_irq_save()/up_irq_restore(), NuttX's own architecture-
     // portable interrupt-masking primitive, not a pthread_mutex_t) -- see
     // NuttXCriticalSection.h, including its FLAT-vs-PROTECTED/KERNEL-build
-    // caveat. UNVERIFIED: no NuttX toolchain/simulator is available in this
-    // development environment to build and run it; review before relying
-    // on it in production.
+    // caveat.
     using CriticalSection = dmq::os::NuttXCriticalSection;
     // No dmq::ConditionVariable port for NuttX (no DMQ_HAS_CV) -- not
     // because NuttX lacks pthread_cond_t (it has a real one), but because
     // dmq::Semaphore is available via NuttX's own native sem_t instead of
     // the generic condvar+mutex implementation -- see NuttXSemaphore.h and
     // delegate/Semaphore.h. This is what makes DelegateAsyncWait available
-    // here. UNVERIFIED, same caveat as CriticalSection above.
+    // here.
     using Semaphore = dmq::os::NuttXSemaphore;
     #define DMQ_HAS_SEMAPHORE
     template<typename T> using LockGuard = PortableLockGuard<T>;

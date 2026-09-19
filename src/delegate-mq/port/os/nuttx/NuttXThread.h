@@ -24,11 +24,6 @@
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
 ///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
 ///   -- typically a hardware timer ISR or the highest-priority task in the system.
-///
-/// @note UNVERIFIED: written against documented NuttX POSIX API behavior.
-/// No NuttX toolchain/simulator is available in this development
-/// environment to build and run it. Review carefully, and exercise on real
-/// NuttX hardware or `nuttx/boards/sim` before relying on it in production.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"

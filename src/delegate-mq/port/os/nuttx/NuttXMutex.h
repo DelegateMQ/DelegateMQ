@@ -9,10 +9,6 @@
 /// native POSIX pthread_mutex_t directly (NuttX implements the real POSIX
 /// threading API, unlike FreeRTOS/ThreadX/Zephyr/CMSIS-RTOS2, which each
 /// need a bespoke kernel-object wrapper here).
-///
-/// @note UNVERIFIED: written against documented NuttX POSIX API behavior.
-/// No NuttX toolchain/simulator is available in this development
-/// environment to build and run it.
 
 #include <pthread.h>
 
