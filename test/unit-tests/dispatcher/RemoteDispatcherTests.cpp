@@ -152,8 +152,14 @@ static void RemoteDispatcher_TransportError_FiresOnError()
     dmq::DelegateError lastError{};
     auto conn = dispatcher.OnError.Connect(dmq::MakeDelegate(
         [&](dmq::DelegateRemoteId, dmq::DelegateError err, dmq::DelegateErrorAux) {
-            errorCount++;
+            // Write the payload BEFORE the atomic signal, not after: the main
+            // thread's WaitFor() below only synchronizes-with writes that are
+            // sequenced-before errorCount's increment on this thread. Writing
+            // lastError afterward gave the reader no guarantee it would see
+            // this write once errorCount.load() >= 1 became visible -- a real
+            // data race TSan caught (lastError is plain, not atomic).
             lastError = err;
+            errorCount++;
         }));
 
     transport.errorOnce = 1;
