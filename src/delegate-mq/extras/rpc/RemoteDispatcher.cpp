@@ -47,8 +47,15 @@ dmq::transport::ITransport& RemoteDispatcher::GetSendTransport()
 
 void RemoteDispatcher::Start()
 {
+    // Blocking marshal (matches Stop()'s own self-marshal below): a caller on
+    // another thread must see m_recvThread fully created before Start()
+    // returns, or a Start()-then-Stop() sequence from that same thread races
+    // Stop()'s direct (non-marshaled) m_recvThread.ExitThread() call against
+    // this method's own CreateThread() still running asynchronously on
+    // m_thread -- caught by ThreadSanitizer as a data race on StdlibThread's
+    // internal std::optional<std::thread>.
     if (!m_thread.IsCurrentThread())
-        return dmq::MakeDelegate(this, &RemoteDispatcher::Start, m_thread)();
+        return dmq::MakeDelegate(this, &RemoteDispatcher::Start, m_thread, dmq::WAIT_INFINITE)();
 
     DMQ_ASSERT_TRUE(m_txTransport != nullptr && m_rxTransport != nullptr); // Attach() must be called first
 
