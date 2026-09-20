@@ -634,7 +634,7 @@ public:
     DelegateRemoteId GetRemoteId() noexcept { return m_state.GetRemoteId(); }
 
     ///@brief Set the remote identifier.
-    // @param[in] id The remote identifier.
+    /// @param[in] id The remote identifier.
     void SetRemoteId(DelegateRemoteId id) noexcept { m_state.SetRemoteId(id); }
 
     /// @brief Set the dispatcher instance used to send to remote
@@ -1075,7 +1075,7 @@ public:
     DelegateRemoteId GetRemoteId() noexcept { return m_state.GetRemoteId(); }
 
     ///@brief Set the remote identifier.
-    // @param[in] id The remote identifier.
+    /// @param[in] id The remote identifier.
     void SetRemoteId(DelegateRemoteId id) noexcept { m_state.SetRemoteId(id); }
 
     /// @brief Set the dispatcher instance used to send to remote
@@ -1456,7 +1456,7 @@ public:
     DelegateRemoteId GetRemoteId() noexcept { return m_state.GetRemoteId(); }
 
     ///@brief Set the remote identifier.
-    // @param[in] id The remote identifier.
+    /// @param[in] id The remote identifier.
     void SetRemoteId(DelegateRemoteId id) noexcept { m_state.SetRemoteId(id); }
 
     /// @brief Set the dispatcher instance used to send to remote

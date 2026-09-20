@@ -60,11 +60,15 @@ using dmq::util::Timer;
 /// fixed list, and keeps this class itself free of per-transport branching.
 ///
 /// **Key Responsibilities:**
-/// * **Lifecycle Management:** Controls the startup and shutdown of the receiver thread.
-/// * **Thread Synchronization:** Marshals all outgoing network calls to a dedicated network thread to ensure
-///   thread safety and prevent blocking the caller's UI or logic threads.
-/// * **Message Routing:** Maps incoming data (by ID) to specific `DelegateMemberRemote` instances via `RegisterEndpoint`.
-/// * **Reliability:** Integrates with `TransportMonitor` to handle Acknowledgments (ACKs) and retransmissions/timeouts.
+/// * **Lifecycle Management:** Controls the startup and shutdown of the
+///   receiver thread.
+/// * **Thread Synchronization:** Marshals all outgoing network calls to a
+///   dedicated network thread to ensure thread safety and prevent blocking
+///   the caller's UI or logic threads.
+/// * **Message Routing:** Maps incoming data (by ID) to specific
+///   `DelegateMemberRemote` instances via `RegisterEndpoint`.
+/// * **Reliability:** Integrates with `TransportMonitor` to handle
+///   Acknowledgments (ACKs) and retransmissions/timeouts.
 ///
 /// @note Designed to be held as a member (composition), not inherited from --
 /// matching `extras/databus`'s Participant/NetworkNode shape. Status is
@@ -102,34 +106,38 @@ public:
     /// member(s) are constructed and before Start()/any send -- e.g. from the
     /// owning class's constructor body or a separate Create()-style init
     /// method. The owning class retains ownership; sendTransport/recvTransport
-    /// must outlive this object. Pass a decorator
-    /// (e.g. a ReliableTransport wrapping a raw one) as sendTransport to add
-    /// ACK/retry reliability on top of an unreliable transport -- RemoteDispatcher
-    /// only ever sees the ITransport interface, so it neither knows nor cares.
-    /// @param[in] sendTransport Transport used for outgoing sends; also the
-    /// transport GetSendTransport() returns for constructing RemoteChannel
-    /// instances against.
-    /// @param[in] recvTransport Transport used for the blocking receive loop.
+    /// must outlive this object. Pass a decorator (e.g. a ReliableTransport
+    /// wrapping a raw one) as sendTransport to add ACK/retry reliability on
+    /// top of an unreliable transport -- RemoteDispatcher only ever sees the
+    /// ITransport interface, so it neither knows nor cares.
+    /// @param sendTransport  Transport used for outgoing sends; also the
+    ///                       transport GetSendTransport() returns for
+    ///                       constructing RemoteChannel instances against.
+    /// @param recvTransport  Transport used for the blocking receive loop.
     void Attach(dmq::transport::ITransport& sendTransport, dmq::transport::ITransport& recvTransport);
 
-    /// @brief Optionally wire a RetryMonitor's delivery-failure signal to this
-    /// engine's own OnDeliveryFailed signal.
+    /// @brief Optionally wire a RetryMonitor's delivery-failure signal to
+    /// this engine's own OnDeliveryFailed signal.
     /// @details Call once, after Attach(), only if the owning class layered
     /// RetryMonitor/ReliableTransport on top of its transport for ACK/retry
-    /// reliability. Skip this call for a self-reliable transport (e.g. ZeroMQ)
-    /// that has no RetryMonitor.
+    /// reliability. Skip this call for a self-reliable transport (e.g.
+    /// ZeroMQ) that has no RetryMonitor.
+    /// @param retryMonitor  The independently-owned RetryMonitor whose
+    ///                      OnDeliveryFailed signal should forward here.
     void AttachRetryMonitor(RetryMonitor& retryMonitor);
 
-    /// @brief Set the handler Stop() calls to close the underlying transport(s).
+    /// @brief Set the handler Stop() calls to close the underlying
+    /// transport(s).
     /// @details Call once, any time before Stop() (typically right after
     /// Attach()). Necessary because some transports (sockets, serial ports)
     /// are blocking and won't return from Receive() until a message arrives
     /// or the resource is closed -- ITransport itself has no Close() (its
     /// concrete transports each expose their own), so Stop() calls this
     /// handler at the exact point closing needs to happen: after the exit
-    /// flag is set, before the receive thread is joined. Optional -- if never
-    /// set, Stop() simply skips this step, same as the old CloseTransports()
-    /// hook's no-op default.
+    /// flag is set, before the receive thread is joined.
+    /// @param handler  Called by Stop() to close the transport(s). Optional
+    ///                 -- if never set, Stop() simply skips this step, same
+    ///                 as the old CloseTransports() hook's no-op default.
     void SetCloseHandler(dmq::UnicastDelegate<void()> handler) { m_closeHandler = std::move(handler); }
 
     /// @brief Returns the network thread this engine dispatches on.
@@ -174,51 +182,60 @@ public:
 
     /// @brief Registers a remote endpoint with the network engine.
     ///
-    /// @details This function maps a unique `DelegateRemoteId` to a specific `DelegateMemberRemote`
-    /// instance (via the `IRemoteInvoker` interface). When the `RemoteDispatcher` receives
-    /// data from the transport layer, it uses the message ID to look up the registered
-    /// endpoint in this map and invokes it to deserialize and handle the payload.
+    /// @details This function maps a unique `DelegateRemoteId` to a specific
+    /// `DelegateMemberRemote` instance (via the `IRemoteInvoker` interface).
+    /// When the `RemoteDispatcher` receives data from the transport layer, it
+    /// uses the message ID to look up the registered endpoint in this map and
+    /// invokes it to deserialize and handle the payload.
     ///
-    /// @param[in] id The unique identifier for the remote message type.
-    /// @param[in] endpoint Pointer to the endpoint instance responsible for handling this ID.
+    /// @param id        The unique identifier for the remote message type.
+    /// @param endpoint  Pointer to the endpoint instance responsible for
+    ///                  handling this ID.
     void RegisterEndpoint(dmq::DelegateRemoteId id, dmq::IRemoteInvoker* endpoint);
 
-    /// @brief Registers a RemoteChannel endpoint and automatically wires its error
-    /// handler to fire this RemoteDispatcher's OnError signal.
-    /// @details Equivalent to calling `channel.SetErrorHandler(...)` followed by
-    /// `RegisterEndpoint(id, channel.GetEndpoint())`. Prefer this overload so a new
-    /// channel's send and receive errors are never left unreported. Call
-    /// `channel.SetErrorHandler(...)` again afterward to override with a custom
-    /// per-channel handler.
-    /// @param[in] id The unique identifier for the remote message type.
-    /// @param[in] channel The RemoteChannel instance responsible for handling this ID.
+    /// @brief Registers a RemoteChannel endpoint and automatically wires its
+    /// error handler to fire this RemoteDispatcher's OnError signal.
+    /// @details Equivalent to calling `channel.SetErrorHandler(...)` followed
+    /// by `RegisterEndpoint(id, channel.GetEndpoint())`. Prefer this overload
+    /// so a new channel's send and receive errors are never left unreported.
+    /// Call `channel.SetErrorHandler(...)` again afterward to override with a
+    /// custom per-channel handler.
+    /// @param id       The unique identifier for the remote message type.
+    /// @param channel  The RemoteChannel instance responsible for handling
+    ///                 this ID.
     template <class Sig>
     void RegisterEndpoint(dmq::DelegateRemoteId id, dmq::RemoteChannel<Sig>& channel) {
         channel.SetErrorHandler(dmq::MakeDelegate(this, &RemoteDispatcher::InternalErrorHandler));
         RegisterEndpoint(id, channel.GetEndpoint());
     }
 
-    /// @brief Generic helper function to synchronously invoke a remote delegate.
+    /// @brief Generic helper function to synchronously invoke a remote
+    /// delegate.
     ///
-    /// @details This function blocks the calling thread until one of two conditions is met:
+    /// @details This function blocks the calling thread until one of two
+    /// conditions is met:
     /// 1. The remote endpoint acknowledges receipt of the message (ACK).
     /// 2. The operation times out (as defined by `RECV_TIMEOUT`).
     ///
     /// **Thread Synchronization Logic:**
-    /// * **If called from the Network Thread:** The send operation executes immediately
-    ///     and returns the result of the transport send call. No blocking wait occurs
-    ///     because we are already on the thread responsible for I/O.
-    /// * **If called from any other thread:** The call is marshaled to the Network Thread.
-    ///     The calling thread blocks on a condition variable. When the Network Thread
-    ///     receives an ACK (or timeout), it signals the condition variable to wake up
-    ///     the caller.
+    /// * **If called from the Network Thread:** The send operation executes
+    ///   immediately and returns the result of the transport send call. No
+    ///   blocking wait occurs because we are already on the thread
+    ///   responsible for I/O.
+    /// * **If called from any other thread:** The call is marshaled to the
+    ///   Network Thread. The calling thread blocks on a condition variable.
+    ///   When the Network Thread receives an ACK (or timeout), it signals the
+    ///   condition variable to wake up the caller.
     ///
-    /// @tparam TClass The class type of the remote endpoint (usually inferred).
-    /// @tparam RetType The return type of the function signature (usually void).
-    /// @tparam Args The argument types of the function signature.
-    /// @param[in] endpoint The specific `RemoteEndpoint` instance to invoke.
-    /// @param[in] args The arguments to forward to the remote function.
-    /// @return `true` if the remote acknowledged the message; `false` on timeout or transport failure.
+    /// @tparam TClass   The class type of the remote endpoint (usually
+    ///                  inferred).
+    /// @tparam RetType  The return type of the function signature (usually
+    ///                  void).
+    /// @tparam Args     The argument types of the function signature.
+    /// @param endpoint  The specific `RemoteEndpoint` instance to invoke.
+    /// @param args      The arguments to forward to the remote function.
+    /// @return `true` if the remote acknowledged the message; `false` on
+    ///         timeout or transport failure.
     template <class TClass, class RetType, class... Args>
     bool RemoteInvokeWait(dmq::DelegateMemberRemote<TClass, RetType(Args...)>& endpoint, Args&&... args)
     {
@@ -226,10 +243,19 @@ public:
             endpoint, std::forward<Args>(args)...);
     }
 
-    /// @brief Overload of RemoteInvokeWait that accepts a RemoteChannel directly.
-    /// @details Equivalent to the DelegateMemberRemote overload; routes through the
-    /// channel's internal delegate. Prefer this when the endpoint is managed by a
-    /// RemoteChannel (i.e. configured via `channel.Bind()`).
+    /// @brief Overload of RemoteInvokeWait that accepts a RemoteChannel
+    /// directly.
+    /// @details Equivalent to the DelegateMemberRemote overload; routes
+    /// through the channel's internal delegate. Prefer this when the
+    /// endpoint is managed by a RemoteChannel (i.e. configured via
+    /// `channel.Bind()`).
+    /// @tparam RetType  The return type of the function signature (usually
+    ///                  void).
+    /// @tparam Args     The argument types of the function signature.
+    /// @param channel   The RemoteChannel instance to invoke.
+    /// @param args      The arguments to forward to the remote function.
+    /// @return `true` if the remote acknowledged the message; `false` on
+    ///         timeout or transport failure.
     template <class RetType, class... Args>
     bool RemoteInvokeWait(dmq::RemoteChannel<RetType(Args...)>& channel, Args&&... args)
     {
@@ -267,8 +293,9 @@ private:
     };
 
     /// @brief Shared implementation for both RemoteInvokeWait() overloads.
-    /// @tparam Target A sender exposing operator()(Args...), GetRemoteId(),
-    /// GetError(), and GetLastSeqNum() — i.e. DelegateMemberRemote or RemoteChannel.
+    /// @tparam Target  A sender exposing operator()(Args...), GetRemoteId(),
+    ///                 GetError(), and GetLastSeqNum() -- i.e.
+    ///                 DelegateMemberRemote or RemoteChannel.
     template <class Target, class... Args>
     bool RemoteInvokeWaitInternal(Target& target, Args&&... args)
     {

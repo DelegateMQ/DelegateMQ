@@ -5,6 +5,24 @@
 /// @brief Publish/subscribe message bus built on top of DelegateMQ's Signal
 /// and remote delegate infrastructure. Routes typed topics to local
 /// subscribers and, via Participant, to remote nodes.
+///
+/// @details
+/// `DataBus` is a process-wide singleton: components publish and subscribe by
+/// topic string rather than holding direct references to each other. A topic's
+/// C++ type is fixed by its first use and enforced afterward (see
+/// `DataBus::SubscribeError`'s `ERR_TYPE_MISMATCH`).
+///
+/// @code
+///   auto conn = dmq::databus::DataBus::Subscribe<TemperatureMsg>(
+///       "sensor/temperature",
+///       [](const TemperatureMsg& msg) { /* handle it */ });
+///
+///   dmq::databus::DataBus::Publish("sensor/temperature", msg);
+/// @endcode
+///
+/// To span multiple processes/machines, see `NetworkNode` (this directory)
+/// or manually wire a `Participant` — either way, see `docs/DATABUS.md` for
+/// the full guide and `extras/databus/README.md` for a quickstart.
 
 #include "delegate/Signal.h"
 #include "delegate/DelegateRemote.h"
@@ -82,9 +100,27 @@ namespace detail {
 // the DataBus instance or its Reset() calls.
 class DataBus {
 public:
-    // Subscribe to a topic with optional QoS and thread dispatching.
-    // NOTE: Signal connection is established before LVC delivery to ensure 
-    // no messages are missed.
+    /// @brief Subscribe to a topic, with optional thread dispatch and QoS.
+    /// @tparam T     Message type published to this topic. Must match the type
+    ///               used by every other Publish/Subscribe/RegisterSerializer
+    ///               call on the same topic string, or DataBus::SubscribeError
+    ///               reports ERR_TYPE_MISMATCH.
+    /// @tparam F     Callable type — a lambda, function pointer, member delegate,
+    ///               or UnicastDelegate<void(const T&)>. Deduced from `func`.
+    /// @param topic  Topic string to subscribe to.
+    /// @param func   Called with each delivered T. Accepts any callable matching
+    ///               void(const T&).
+    /// @param thread Optional. If non-null, `func` is dispatched asynchronously
+    ///               on this thread instead of firing synchronously on the
+    ///               publisher's thread.
+    /// @param qos    Optional quality-of-service settings (e.g. last-value
+    ///               cache, rate limiting). Defaults to no special behavior.
+    /// @return A ScopedConnection owning the subscription. [[nodiscard]] —
+    ///         letting it go out of scope immediately unsubscribes with no
+    ///         callbacks ever firing. Store it in a member variable or
+    ///         container for as long as the subscription should stay active.
+    /// @note Signal connection is established before LVC delivery to ensure
+    /// no messages are missed.
     template <typename T, typename F>
     [[nodiscard]] static dmq::ScopedConnection Subscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread = nullptr, QoS qos = {}) {
         dmq::UnicastDelegate<void(const T&)> typedFunc;
@@ -95,7 +131,39 @@ public:
         return GetInstance().InternalSubscribe<T>(topic, std::move(typedFunc), thread, qos);
     }
 
-    // Subscribe to a topic with a filter.
+    /// @brief Subscribe to a topic, but only receive deliveries for which
+    /// `predicate` returns true — messages that fail the predicate are
+    /// dropped before reaching `func`, without disconnecting the subscription.
+    /// @tparam T         Message type published to this topic. Must match the
+    ///                   type used by every other Publish/Subscribe/
+    ///                   RegisterSerializer call on the same topic string, or
+    ///                   DataBus::SubscribeError reports ERR_TYPE_MISMATCH.
+    /// @tparam F         Callable type for `func` — a lambda, function pointer,
+    ///                   member delegate, or UnicastDelegate<void(const T&)>.
+    ///                   Deduced from `func`.
+    /// @tparam P         Callable type for `predicate` — a lambda, function
+    ///                   pointer, member delegate, or
+    ///                   UnicastDelegate<bool(const T&)>. Deduced from
+    ///                   `predicate`.
+    /// @param topic      Topic string to subscribe to.
+    /// @param func       Called with each delivered T for which `predicate`
+    ///                   returned true. Accepts any callable matching
+    ///                   void(const T&).
+    /// @param predicate  Evaluated for every delivery on this topic, before
+    ///                   `func`. Accepts any callable matching
+    ///                   bool(const T&); returning false silently skips that
+    ///                   delivery.
+    /// @param thread     Optional. `predicate` and `func` are evaluated
+    ///                   together as one unit: with no `thread`, both run
+    ///                   synchronously on the publisher's thread; with a
+    ///                   `thread`, both are dispatched there together instead.
+    /// @param qos        Optional quality-of-service settings (e.g. last-value
+    ///                   cache, rate limiting). Defaults to no special
+    ///                   behavior.
+    /// @return A ScopedConnection owning the subscription. [[nodiscard]] —
+    ///         letting it go out of scope immediately unsubscribes with no
+    ///         callbacks ever firing. Store it in a member variable or
+    ///         container for as long as the subscription should stay active.
     template <typename T, typename F, typename P>
     [[nodiscard]] static dmq::ScopedConnection SubscribeFilter(const dmq::xstring& topic, F&& func, P&& predicate, dmq::IThread* thread = nullptr, QoS qos = {}) {
         dmq::UnicastDelegate<void(const T&)> funcUD;
@@ -115,15 +183,26 @@ public:
         return GetInstance().InternalSubscribe<T>(topic, dmq::DelegateFunction<void(const T&)>([filter](const T& data) { filter->Invoke(data); }), thread, qos);
     }
 
-    // Publish data to a topic.
+    /// @brief Publish data to a topic — delivered to every local subscriber
+    /// (synchronously, or asynchronously if they registered with a thread),
+    /// then forwarded to any remote participants interested in this topic.
+    /// @tparam T     Message type. Must match every other Publish/Subscribe/
+    ///               RegisterSerializer call on this topic string.
+    /// @param topic  Topic string to publish to.
+    /// @param data   The message payload, copied to each subscriber/participant.
     template <typename T>
     static void Publish(const dmq::xstring& topic, const T& data) {
         GetInstance().InternalPublish<T>(topic, data, false);
     }
 
-    // Publish data to local subscribers only — does NOT forward to remote participants.
-    // Used by AddIncomingTopic to prevent relay loops when a topic is both incoming
-    // and outgoing on the same node.
+    /// @brief Publish data to local subscribers only — does NOT forward to
+    /// remote participants.
+    /// @tparam T     Message type. Must match every other Publish/Subscribe/
+    ///               RegisterSerializer call on this topic string.
+    /// @param topic  Topic string to publish to.
+    /// @param data   The message payload, copied to each local subscriber.
+    /// @note Used by AddIncomingTopic to prevent relay loops when a topic is
+    /// both incoming and outgoing on the same node.
     template <typename T>
     static void PublishLocal(const dmq::xstring& topic, const T& data) {
         GetInstance().InternalPublish<T>(topic, data, true);
