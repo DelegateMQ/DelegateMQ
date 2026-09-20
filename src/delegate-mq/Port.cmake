@@ -9,8 +9,14 @@ if (DMQ_THREAD STREQUAL "DMQ_THREAD_STDLIB")
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_WIN32")
     add_compile_definitions(DMQ_THREAD_WIN32)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
-        "${DMQ_ROOT_DIR}/port/os/win32/*.c*" 
-        "${DMQ_ROOT_DIR}/port/os/win32/*.h" 
+        "${DMQ_ROOT_DIR}/port/os/win32/*.c*"
+        "${DMQ_ROOT_DIR}/port/os/win32/*.h"
+    )
+elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_POSIX")
+    add_compile_definitions(DMQ_THREAD_POSIX)
+    file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
+        "${DMQ_ROOT_DIR}/port/os/posix/*.c*"
+        "${DMQ_ROOT_DIR}/port/os/posix/*.h"
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
     add_compile_definitions(DMQ_THREAD_FREERTOS)

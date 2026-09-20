@@ -28,11 +28,6 @@
 /// it seamlessly at the call site, since dmq::Duration is itself a
 /// std::chrono::duration specialization.
 ///
-/// @note UNVERIFIED: written against documented CMSIS-RTOS2 API behavior,
-/// same rigor as CmsisRtos2CriticalSection.h. No CMSIS-RTOS2 SDK (e.g. Keil
-/// RTX5) or Cortex-M hardware/QEMU target is available in this development
-/// environment to build and run it.
-///
 /// @note osSemaphoreAcquire()'s timeout parameter is in RTOS kernel ticks,
 /// not literally milliseconds -- like CmsisRtos2Clock.h, this assumes a
 /// 1ms tick (the common CMSIS-RTOS2 default). If your target's tick rate

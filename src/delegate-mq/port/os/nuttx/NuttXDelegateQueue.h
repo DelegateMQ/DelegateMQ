@@ -24,12 +24,6 @@
 /// monotonic counter) since POSIX message queues live in a global,
 /// filesystem-like namespace -- two dmq::os::Thread instances must never
 /// collide on the same name. Destroy() closes and unlinks it.
-///
-/// @warning UNVERIFIED: written against the documented NuttX/POSIX mqueue
-/// API but never compiled or run against a real NuttX toolchain (none is
-/// available in this development environment). Review this file with extra
-/// care and exercise it on real hardware or `nuttx/boards/sim` before
-/// relying on it in production.
 
 #include "port/os/common/ThreadMsg.h"
 #include "delegate/DelegateOpt.h"

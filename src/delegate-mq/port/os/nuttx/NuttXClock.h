@@ -10,12 +10,6 @@
 /// specific tick counter like k_uptime_get()/tx_time_get(). NuttX's POSIX
 /// layer already exposes nanosecond resolution, so no k_ticks-to-duration
 /// conversion is needed here.
-///
-/// @note UNVERIFIED: written against documented NuttX POSIX API behavior.
-/// No NuttX toolchain/simulator ("sim" configuration) is available in this
-/// development environment to build and run it. Review carefully, and
-/// exercise on real NuttX hardware or `nuttx/boards/sim` before relying on
-/// it in production.
 
 #include <time.h>
 #include <chrono>

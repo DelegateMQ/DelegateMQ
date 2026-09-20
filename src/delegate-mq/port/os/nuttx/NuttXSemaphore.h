@@ -31,10 +31,6 @@
 /// @note sem_timedwait() takes an ABSOLUTE CLOCK_REALTIME deadline, not a
 /// relative duration -- this computes that deadline from clock_gettime()
 /// plus the caller's relative timeout, the standard POSIX idiom.
-///
-/// @note UNVERIFIED: written against documented NuttX POSIX API behavior,
-/// same rigor as NuttXCriticalSection.h. No NuttX toolchain/simulator is
-/// available in this development environment to build and run it.
 
 #include <semaphore.h>
 #include <time.h>

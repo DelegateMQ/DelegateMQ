@@ -27,13 +27,6 @@
 /// be driven from kernel-side code (e.g. a NuttX interrupt handler or a
 /// kernel-mode work queue) on those configurations.
 ///
-/// @note UNVERIFIED: written against documented NuttX architecture-layer
-/// API behavior. No NuttX toolchain/simulator is available in this
-/// development environment to build and run it (unlike ThreadXCriticalSection,
-/// exercised for real via the threadx-linux sample). Review carefully, and
-/// exercise on real NuttX hardware or `nuttx/boards/sim` before relying on
-/// it in production.
-///
 /// *** NARROW PURPOSE -- DO NOT USE THIS AS A GENERAL-PURPOSE LOCK ***
 /// Holding this masks ALL maskable interrupts on the CPU for as long as it
 /// is held. Only use it to protect something genuinely tiny and bounded

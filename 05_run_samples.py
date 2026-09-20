@@ -100,6 +100,7 @@ WINDOWS_ONLY = {
 LINUX_ONLY = {
     "linux-tcp-serializer",
     "linux-udp-serializer",
+    "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
 }
 
 # Projects that cannot exit on their own (e.g. FreeRTOS scheduler never returns).

@@ -45,7 +45,7 @@ Numerous platform, serialization, and transport integrations are available out o
 
 | Category | Supported |
 | :--- | :--- |
-| **Operating Systems** | Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
+| **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer |
 
@@ -333,6 +333,7 @@ DelegateMQ at a glance.
 | [**Interop**](docs/INTEROP.md) | Multi-language integration | C# & Python |
 | [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards | Spy & Monitor |
 | [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
+| [**Safety Notes**](docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
 
 # Other Projects Using DelegateMQ
 

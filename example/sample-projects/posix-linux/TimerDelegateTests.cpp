@@ -1,5 +1,12 @@
+/// @file TimerDelegateTests.cpp
+/// @see https://github.com/DelegateMQ/DelegateMQ
+///
+/// @brief PacedDispatch and TimerDelegate tests, ported unchanged from
+/// test/unit-tests/TimerDelegateTests.cpp to exercise dmq::util::Timer +
+/// dmq::util::TimerDelegate dispatching to the real POSIX (DMQ_THREAD_POSIX)
+/// Thread port instead of the desktop stdlib port.
+
 #include "DelegateMQ.h"
-#include "UnitTestCommon.h"
 #include "extras/util/TimerDelegate.h"
 #include <iostream>
 #include <atomic>

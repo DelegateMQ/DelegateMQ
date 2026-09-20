@@ -103,10 +103,10 @@ This is a bug in vendored ThreadX's own Linux-simulation port, not in DelegateMQ
 ### Hardware Topology
 ![Cellutron Architecture](cellutron_architecture.svg)
 
-The system is distributed across three independent processors (CPUs) communicating over a **Hybrid TCP/UDP** distributed **DataBus**. 
+The system is distributed across three independent processors (CPUs) communicating over a single UDP-based distributed **DataBus** (`NetworkNode<Win32UdpTransport>`/`NetworkNode<LinuxUdpTransport>`, see `NetworkTypes.h`) with per-topic reliability tiers — not two separate transports.
 
-- **TCP (Guaranteed)**: Used for critical control commands (Start, Abort) and Fault events to ensure zero data loss.
-- **UDP (Low Latency)**: Used for high-frequency telemetry (RPM, Sensors) and Heartbeats where speed is prioritized over reliability.
+- **RELIABLE (Guaranteed)**: Used for critical control commands (Start, Abort) and Fault events to ensure zero data loss — `NetworkNode::Send()` passed `Rel::RELIABLE`, which adds ACK + automatic retry via `RetryMonitor` on top of UDP.
+- **UNRELIABLE (Low Latency)**: Used for high-frequency telemetry (RPM, Sensors) and Heartbeats where speed is prioritized over reliability — plain fire-and-forget UDP, the `Send()` default.
 
 | CPU Node | Operating System | Primary Responsibility |
 |:---|:---|:---|
@@ -128,7 +128,7 @@ Every CPU uses a standardized thread architecture for network I/O and Active Obj
 | **Watchdog** | Watchdog Loop | Calls `Thread::WatchdogCheckAll()` every 100 ms to detect and report deadlocks. |
 | **GUI_SystemThread** | Active Object SM | Runs system-level logic, coordinates heartbeat, and dispatches DataBus callbacks. |
 | **GUI_TimerThread** | Timer Dispatch | Drives `Timer::ProcessTimers()` and the 100 ms system tick. No watchdog. |
-| **GUI_NetworkThread** | Multi-Protocol Poller | Polls UDP telemetry and TCP command links; owned by the `Network` singleton. |
+| **GUI_NetworkThread** | Network Poller | Polls the UDP `Network` socket, carrying both UNRELIABLE telemetry and RELIABLE (ACK + retry) command/fault topics; owned by the `Network` singleton. |
 | **UIThread** | DataBus Callbacks | Receives DataBus subscription callbacks and posts FTXUI screen refresh events. |
 | **AlarmsThread** | Alarm Monitor | Processes fault events and `DeadlineSubscription` watchdog callbacks. |
 | **LogsThread** | File I/O | Writes the `logs.txt` audit trail. Uses a 20-second watchdog timeout. |
@@ -140,7 +140,7 @@ Every CPU uses a standardized thread architecture for network I/O and Active Obj
 | **SysTimer** | Timer Dispatch | FreeRTOS software timer, or ThreadX `TX_TIMER` (10 ms period either way); calls `Timer::ProcessTimers()`. |
 | **Watchdog Task** | OS Watchdog | FreeRTOS task `vWatchdogTask`, or ThreadX thread `WatchdogThreadEntry`; calls `Thread::WatchdogCheckAll()` every 100 ms. |
 | **Controller_SystemThread** | Active Object SM | Runs system-level logic and dispatches DataBus callbacks (start/stop/fault). |
-| **Controller_NetworkThread** | Multi-Protocol Poller | Listens for TCP commands and broadcasts UDP telemetry; owned by `Network` singleton. |
+| **Controller_NetworkThread** | Network Poller | Listens for RELIABLE (ACK + retry) commands and broadcasts UNRELIABLE telemetry, both over the same UDP socket; owned by `Network` singleton. |
 | **ProcessThread** | Process State Machine | Runs `CellProcess` and `PumpProcess` state machines for instrument sequencing. |
 | **ActuatorsThread** | Hardware Output | Executes valve and pump commands via blocking synchronous calls. |
 | **SensorsThread** | Hardware Input | Queries pressure and air-in-line sensors. |
@@ -151,8 +151,8 @@ Every CPU uses a standardized thread architecture for network I/O and Active Obj
 | **Safety Task** | OS Orchestration | FreeRTOS task `vSafetyTask` (`main.cpp`), or ThreadX thread `SafetyThreadEntry` (`main_threadx.cpp`); calls `System::Initialize()` then ticks at 100 ms. |
 | **SysTimer** | Timer Dispatch | FreeRTOS software timer, or ThreadX `TX_TIMER` (10 ms period either way); calls `Timer::ProcessTimers()`. |
 | **Watchdog Task** | OS Watchdog | FreeRTOS task `vWatchdogTask`, or ThreadX thread `WatchdogThreadEntry`; calls `Thread::WatchdogCheckAll()` every 100 ms. |
-| **Safety_SystemThread** | Active Object SM | Monitors centrifuge speed and publishes fault events over TCP when limits are exceeded. |
-| **Safety_NetworkThread** | Multi-Protocol Poller | Listens for real-time RPM/command updates via UDP and TCP; owned by `Network` singleton. |
+| **Safety_SystemThread** | Active Object SM | Monitors centrifuge speed and publishes fault events RELIABLE (ACK + retry) when limits are exceeded. |
+| **Safety_NetworkThread** | Network Poller | Listens for RPM telemetry (UNRELIABLE) and command updates (RELIABLE), both over the same UDP socket; owned by `Network` singleton. |
 
 ### Pneumatics System
 ![Cellutron Pneumatics](pneumatics.svg)

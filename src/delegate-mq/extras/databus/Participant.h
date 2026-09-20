@@ -38,8 +38,16 @@ public:
     // are a data race on the channel's internal stream buffer.
     void SetSendThread(dmq::IThread* thread) { m_sendThread = thread; }
 
-    // Add a remote topic mapping.
-    // When local DataBus publishes to 'topic', it will be sent to this participant using 'remoteId'.
+    /// @brief Map a topic string to a remote ID for outbound sends to this
+    /// participant.
+    /// @details When local `DataBus::Publish()` sends to `topic`, it is
+    /// serialized and sent to this participant using `remoteId` on the wire.
+    /// Required for the sending side of remote distribution — see
+    /// `docs/DATABUS.md`'s "Setup Checklist".
+    /// @param topic     Topic string to map.
+    /// @param remoteId  Wire identifier this topic is sent as. Must match the
+    ///                  ID the receiving node registers via
+    ///                  `DataBus::AddIncomingTopic<T>()` for the same topic.
     void AddRemoteTopic(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId) {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         m_topicToRemoteId[topic] = remoteId;
@@ -162,7 +170,19 @@ public:
         }
     }
 
-    // Register a local handler for a remote topic using a `std::function`.
+    /// @brief Register a local handler invoked when data arrives from this
+    /// participant for `remoteId`, using a `std::function`.
+    /// @details Required for the receiving side of remote distribution — see
+    /// `docs/DATABUS.md`'s "Setup Checklist". Creates the participant's
+    /// `RemoteChannel<void(T)>` for `remoteId` if one doesn't already exist.
+    /// @tparam T          Message type this handler expects. Must match the
+    ///                    type the sending node publishes as `remoteId`, or
+    ///                    this reports ERR_TYPE_MISMATCH via
+    ///                    `Participant::SubscribeError`/`DataBus::SubscribeError`
+    ///                    and asserts.
+    /// @param remoteId    Wire identifier to handle incoming data for.
+    /// @param serializer  Deserializes the incoming wire bytes into a `T`.
+    /// @param func        Called with each deserialized `T`.
     template <typename T>
     void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, std::function<void(T)> func) {
         bool typeMismatch = false;
@@ -180,7 +200,20 @@ public:
         }
     }
 
-    // Register a local handler for a remote topic using a raw lambda or functor.
+    /// @brief Register a local handler invoked when data arrives from this
+    /// participant for `remoteId`, using a raw lambda or functor.
+    /// @details Same behavior as the `std::function` overload above, just
+    /// without the `std::function` wrapping overhead for a plain callable.
+    /// @tparam T          Message type this handler expects. Must match the
+    ///                    type the sending node publishes as `remoteId`, or
+    ///                    this reports ERR_TYPE_MISMATCH via
+    ///                    `Participant::SubscribeError`/`DataBus::SubscribeError`
+    ///                    and asserts.
+    /// @tparam F          Callable type, deduced from `func`. Must be invocable
+    ///                    as `void(T)`.
+    /// @param remoteId    Wire identifier to handle incoming data for.
+    /// @param serializer  Deserializes the incoming wire bytes into a `T`.
+    /// @param func        Called with each deserialized `T`.
     template <typename T, typename F, typename = std::enable_if_t<dmq::trait::is_callable<F>::value>>
     void RegisterHandler(dmq::DelegateRemoteId remoteId, dmq::ISerializer<void(T)>& serializer, F&& func) {
         bool typeMismatch = false;

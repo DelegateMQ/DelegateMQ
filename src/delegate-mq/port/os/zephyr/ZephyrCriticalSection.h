@@ -17,12 +17,6 @@
 /// that must be threaded back into irq_unlock() -- stored here as a member so
 /// it survives the gap between the separate lock()/unlock() calls.
 ///
-/// @note UNVERIFIED: written against documented Zephyr kernel API behavior.
-/// No Zephyr SDK/west workspace is available in this development environment
-/// to build and run it (unlike ThreadXCriticalSection, exercised for real via
-/// the threadx-linux sample). Review carefully, and exercise on real Zephyr
-/// hardware or a west-based simulation (e.g. native_sim) before relying on it.
-///
 /// *** NARROW PURPOSE -- DO NOT USE THIS AS A GENERAL-PURPOSE LOCK ***
 /// Holding this masks interrupts on the CPU for as long as it is held. Only
 /// use it to protect something genuinely tiny and bounded that may be

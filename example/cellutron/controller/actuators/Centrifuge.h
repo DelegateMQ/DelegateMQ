@@ -33,7 +33,7 @@ public:
     /// Command an immediate stop (ramp to 0).
     void StopRamp(std::shared_ptr<const RampData> data);
 
-protected:
+private:
     enum States
     {
         ST_IDLE,
@@ -67,7 +67,6 @@ protected:
         STATE_MAP_ENTRY(&StopStep)
     END_STATE_MAP
 
-private:
     void Poll();
     void StartPoll() { m_pollTimer.Start(std::chrono::milliseconds(100)); }
     void StopPoll() { m_pollTimer.Stop(); }

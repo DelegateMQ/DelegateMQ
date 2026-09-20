@@ -11,6 +11,18 @@ The subdirectories contain the platform-specific thread wrappers:
 * **`stdlib`**: Standard C++11 implementation.
     * *Target:* Windows, Linux, macOS, or any OS with a compliant C++ Standard Library.
     * *Implementation:* Uses `std::thread`, `std::mutex`, `std::condition_variable`, and `std::promise`.
+* **`posix`**: Raw POSIX implementation.
+    * *Target:* Linux (verified). Written against the POSIX API rather than any Linux-specific
+      syscall, but `pthread_condattr_setclock(CLOCK_MONOTONIC)` -- used here so timed waits are
+      immune to wall-clock jumps -- is a common POSIX extension present on Linux (glibc, musl) and
+      not guaranteed elsewhere (e.g. not implemented on Darwin/macOS), so treat portability beyond
+      Linux as untested rather than assumed.
+    * *Implementation:* Uses native POSIX primitives directly -- `pthread_create`, `pthread_mutex_t`,
+      `pthread_cond_t` (with `CLOCK_MONOTONIC` via `pthread_condattr_setclock`) -- rather than going
+      through `std::thread`. Mutex/ConditionVariable/Clock/ThisThread still reuse the same `std::`
+      types as `stdlib` (already thin wrappers over these same primitives under glibc/libstdc++);
+      only the `Thread` class itself is native, mirroring `win32`'s relationship to `stdlib` but for
+      POSIX. See `example/sample-projects/posix-linux/`.
 * **`freertos`**: Real-Time OS implementation.
     * *Target:* Embedded ARM Cortex-M (STM32, NXP, etc.), ESP32, and others running FreeRTOS.
     * *Implementation:* Uses native FreeRTOS primitives: `xTaskCreate`, `xQueueSend/Receive`, and `vTaskDelay`.
@@ -37,6 +49,7 @@ To select the appropriate threading model, set the `DMQ_THREAD` variable in your
 ```cmake
 # Options:
 # DMQ_THREAD_STDLIB        (Default for PC/Linux)
+# DMQ_THREAD_POSIX         (Raw POSIX pthreads -- Linux, verified)
 # DMQ_THREAD_FREERTOS      (FreeRTOS)
 # DMQ_THREAD_THREADX       (Azure RTOS ThreadX)
 # DMQ_THREAD_ZEPHYR        (Zephyr RTOS)

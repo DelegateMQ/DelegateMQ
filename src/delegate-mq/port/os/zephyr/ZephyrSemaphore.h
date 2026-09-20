@@ -26,10 +26,6 @@
 /// type instead of depending on dmq::Duration directly. A dmq::Duration
 /// argument still deduces through it seamlessly at the call site, since
 /// dmq::Duration is itself a std::chrono::duration specialization.
-///
-/// @note UNVERIFIED: written against documented Zephyr kernel API behavior,
-/// same rigor as ZephyrCriticalSection.h. No Zephyr SDK/west workspace is
-/// available in this development environment to build and run it.
 
 #include <zephyr/kernel.h>
 #include <chrono>

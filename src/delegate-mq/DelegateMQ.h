@@ -84,6 +84,7 @@
 // Valid for any platform where a Mutex is defined in DelegateOpt.h
 #if defined(DMQ_THREAD_STDLIB) || \
     defined(DMQ_THREAD_WIN32) || \
+    defined(DMQ_THREAD_POSIX) || \
     defined(DMQ_THREAD_FREERTOS) || \
     defined(DMQ_THREAD_THREADX) || \
     defined(DMQ_THREAD_ZEPHYR) || \
@@ -104,6 +105,7 @@
 // Valid for any platform that implements the IThread interface
 #if defined(DMQ_THREAD_STDLIB) || \
     defined(DMQ_THREAD_WIN32) || \
+    defined(DMQ_THREAD_POSIX) || \
     defined(DMQ_THREAD_FREERTOS) || \
     defined(DMQ_THREAD_THREADX) || \
     defined(DMQ_THREAD_ZEPHYR) || \
@@ -132,6 +134,9 @@
     #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_WIN32)
     #include "port/os/win32/Win32Thread.h"
+    #include "port/os/common/ThreadMsg.h"
+#elif defined(DMQ_THREAD_POSIX)
+    #include "port/os/posix/PosixThread.h"
     #include "port/os/common/ThreadMsg.h"
 #elif defined(DMQ_THREAD_FREERTOS)
     #include "port/os/freertos/FreeRTOSThread.h"
