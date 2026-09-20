@@ -29,7 +29,7 @@
 
 // --- PLATFORM AUTO-DETECTION ---
 // If no threading model is defined, attempt to auto-select a default
-#if !defined(DMQ_THREAD_STDLIB) && !defined(DMQ_THREAD_WIN32) && \
+#if !defined(DMQ_THREAD_STDLIB) && !defined(DMQ_THREAD_WIN32) && !defined(DMQ_THREAD_POSIX) && \
     !defined(DMQ_THREAD_FREERTOS) && !defined(DMQ_THREAD_THREADX) && \
     !defined(DMQ_THREAD_ZEPHYR) && !defined(DMQ_THREAD_CMSIS_RTOS2) && \
     !defined(DMQ_THREAD_NUTTX) && \
@@ -72,9 +72,10 @@
 // True when a real thread model is configured (desktop or embedded RTOS),
 // as opposed to DMQ_THREAD_NONE or no thread model at all (bare metal,
 // single-threaded). Named once here instead of hand-copying this same
-// 7-macro list at every call site that needs to know whether Mutex/
+// 8-macro list at every call site that needs to know whether Mutex/
 // ConditionVariable/std::thread-equivalent support exists.
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || \
+    defined(DMQ_THREAD_POSIX) || \
     defined(DMQ_THREAD_FREERTOS) || defined(DMQ_THREAD_THREADX) || \
     defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2) || \
     defined(DMQ_THREAD_NUTTX)
@@ -168,8 +169,10 @@
 // later #include "extras/util/Fault.h" below is a harmless no-op.
 #include "extras/util/Fault.h"
 
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
-    // Windows / Linux / macOS / Qt (Standard Library)
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    // Windows / Linux / macOS / Qt (Standard Library) / POSIX (raw pthreads,
+    // but Mutex/ConditionVariable/Clock/ThisThread still reuse std:: here --
+    // see port/os/posix/PosixThread.h, the only file this port adds)
     #include <condition_variable>
     #include <thread>
 #elif defined(DMQ_THREAD_FREERTOS)
@@ -249,8 +252,8 @@ namespace dmq
     // @TODO: Change aliases to switch clock type globally if necessary
 
     // --- CLOCK SELECTION ---
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
-    // Windows / Linux / macOS / Qt
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    // Windows / Linux / macOS / Qt / POSIX
     using Clock = std::chrono::steady_clock;
 
 #elif defined(DMQ_THREAD_FREERTOS)
@@ -296,8 +299,8 @@ namespace dmq
     // std;` together, and a same-named nested namespace would make unqualified
     // this_thread::sleep_for() calls in that code ambiguous against
     // std::this_thread.
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
-    // Windows / Linux / macOS / Qt -- std::this_thread is already portable here.
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    // Windows / Linux / macOS / Qt / POSIX -- std::this_thread is already portable here.
     struct ThisThread {
         template<typename Rep, typename Period>
         static void sleep_for(std::chrono::duration<Rep, Period> d) { std::this_thread::sleep_for(d); }
@@ -443,8 +446,8 @@ namespace dmq
     inline constexpr size_t MAX_TRANSPORT_MONITOR_PENDING = DMQ_TRANSPORT_MONITOR_MAX_PENDING;
 
     // --- MUTEX / LOCK SELECTION ---
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT)
-    // Windows / Linux / macOS / Qt
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    // Windows / Linux / macOS / Qt / POSIX
     using Mutex = std::mutex;
     using RecursiveMutex = std::recursive_mutex;
     // No ISR concept reachable from userspace on desktop OSes, and

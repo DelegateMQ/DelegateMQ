@@ -25,6 +25,8 @@
     #include "port/os/stdlib/StdlibThread.h"
 #elif defined(DMQ_THREAD_WIN32)
     #include "port/os/win32/Win32Thread.h"
+#elif defined(DMQ_THREAD_POSIX)
+    #include "port/os/posix/PosixThread.h"
 #elif defined(DMQ_THREAD_FREERTOS)
     #include "port/os/freertos/FreeRTOSThread.h"
 #elif defined(DMQ_THREAD_THREADX)

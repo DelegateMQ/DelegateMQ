@@ -77,6 +77,7 @@ LINUX_ONLY = {
     "linux-udp-serializer",
     "threadx-linux",           # ThreadX Linux/GNU simulation port; scheduling requires POSIX threads/signals
     "freertos-linux",          # FreeRTOS POSIX simulator port; each task is a real pthread
+    "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
 }
 
 # Projects that contain dotnet sub-projects requiring 'dotnet build' in addition
