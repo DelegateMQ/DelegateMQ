@@ -335,9 +335,11 @@ int stress_test_databus()
     // -----------------------------------------------------------------------
     // Chaos Monkey — rapidly connects/disconnects a volatile async subscriber
     //   on "db/async" to stress container thread-safety. Counts NOT tracked
-    //   in integrity totals.
+    //   in integrity totals. FullPolicy::DROP because its messages are
+    //   best-effort by design -- losing one under overload is harmless,
+    //   unlike the tracked asyncSubThreads which use FullPolicy::TIMEOUT.
     // -----------------------------------------------------------------------
-    Thread chaosWorker("DbChaosWorker");
+    Thread chaosWorker("DbChaosWorker", DB_MAX_QUEUE, FullPolicy::DROP);
     chaosWorker.CreateThread();
 
     std::thread chaosControl([&chaosWorker]() {
