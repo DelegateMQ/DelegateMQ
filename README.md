@@ -38,6 +38,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 | Application owns every thread | The library creates no internal threads — scheduling, stack sizes, and watchdogs stay explicit and auditable. |
 | Off-target development | Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport. |
 | Location transparency | DataBus subscribers receive data identically whether the publisher is in the same thread, another process, or a remote processor. |
+| Less application code | The library moves data to its destination — including across threads and processors — with type-safe delivery, eliminating hand-coded message queues, mutexes, and transport plumbing at the call and receive handler sites. |
 
 # Supported Integrations
 
