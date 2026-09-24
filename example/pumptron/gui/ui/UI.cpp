@@ -5,6 +5,8 @@
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/dom/node.hpp>
+#include <ftxui/screen/screen.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -97,20 +99,52 @@ Color StateColor(PumpState s) {
     return Color::White;
 }
 
-/// Sparkline of `history`, scaled to [0, maxValue].
-Element Sparkline(const std::deque<float>& history, float maxValue, Color lineColor) {
-    std::vector<float> data(history.begin(), history.end());
-    return graph([data, maxValue](int width, int height) {
-        std::vector<int> out(static_cast<size_t>(width), 0);
-        const int n = static_cast<int>(data.size());
-        const int offset = std::max(0, n - width);    // show the newest `width` samples
-        for (int x = 0; x < width && offset + x < n; ++x) {
-            const float v = data[static_cast<size_t>(offset + x)];
-            const float r = std::clamp(v / maxValue, 0.0f, 1.0f);
-            out[static_cast<size_t>(x)] = static_cast<int>(r * static_cast<float>(height - 1));
+/// Single-row sparkline: one column per sample, height from the eight
+/// lower-block glyphs, newest sample at the right edge. (FTXUI's graph()
+/// splits every cell into two half-height columns, which reads as a
+/// double bar; this draws exactly one bar per column.)
+class SparklineNode : public Node {
+public:
+    SparklineNode(std::vector<float> data, float maxValue)
+        : m_data(std::move(data)), m_max(maxValue) {}
+
+    void ComputeRequirement() override {
+        requirement_.min_x = 1;
+        requirement_.min_y = 1;
+        requirement_.flex_grow_x = 1;
+        requirement_.flex_shrink_x = 1;
+    }
+
+    void Render(Screen& screen) override {
+        // U+2581..U+2588 lower block elements, UTF-8 encoded
+        static const char* const LEVELS[] = { " ",
+            "\xE2\x96\x81", "\xE2\x96\x82", "\xE2\x96\x83", "\xE2\x96\x84",
+            "\xE2\x96\x85", "\xE2\x96\x86", "\xE2\x96\x87", "\xE2\x96\x88" };
+        const int width = box_.x_max - box_.x_min + 1;
+        const int n = static_cast<int>(m_data.size());
+        const int y = box_.y_min;
+        for (int col = 0; col < width; ++col) {
+            // Right-align: the last column shows the newest sample.
+            const int i = n - width + col;
+            int level = 0;
+            if (i >= 0) {
+                const float r = std::clamp(m_data[static_cast<size_t>(i)] / m_max, 0.0f, 1.0f);
+                // Any non-zero value shows at least the lowest bar.
+                level = r <= 0.0f ? 0 : 1 + static_cast<int>(r * 7.0f + 0.5f);
+                if (level > 8) level = 8;
+            }
+            screen.at(box_.x_min + col, y) = LEVELS[level];
         }
-        return out;
-    }) | color(lineColor);
+    }
+
+private:
+    std::vector<float> m_data;
+    float m_max;
+};
+
+Element Sparkline(const std::deque<float>& history, float maxValue, Color lineColor) {
+    return std::make_shared<SparklineNode>(std::vector<float>(history.begin(), history.end()), maxValue)
+           | color(lineColor);
 }
 
 void Push(std::deque<float>& d, float v, size_t max) {
@@ -287,9 +321,14 @@ void UI::Run(const std::string& linkDescription)
     auto btnStop  = Button(" STOP ",  [this] { SendCommand(PumpCommand::STOP); },  ButtonOption::Ascii());
     auto btnEstop = Button(" E-STOP ", [this] { SendCommand(PumpCommand::ESTOP); }, ButtonOption::Ascii());
     auto btnReset = Button(" RESET ", [this] { SendCommand(PumpCommand::RESET); }, ButtonOption::Ascii());
-    auto slider = Slider("", &m_sliderRpm,
-                         static_cast<int>(MIN_SETPOINT_RPM), static_cast<int>(MAX_SETPOINT_RPM),
-                         static_cast<int>(SETPOINT_STEP_RPM));
+    SliderOption<int> sliderOpt;
+    sliderOpt.value = &m_sliderRpm;
+    sliderOpt.min = static_cast<int>(MIN_SETPOINT_RPM);
+    sliderOpt.max = static_cast<int>(MAX_SETPOINT_RPM);
+    sliderOpt.increment = static_cast<int>(SETPOINT_STEP_RPM);
+    sliderOpt.color_active = Color::Blue;         // default White is glaring when focused
+    sliderOpt.color_inactive = Color::GrayDark;
+    auto slider = Slider(sliderOpt);
 
     auto controls = Container::Horizontal({ btnStart, btnStop, btnEstop, btnReset, slider });
 
@@ -369,9 +408,9 @@ void UI::Run(const std::string& linkDescription)
             row(" Vibration", value(Fixed(t.vibrationG, 2) + " g"),
                 gauge(live ? t.vibrationG / (VIB_TRIP_G * 1.25f) : 0.0f) | color(vibColor)),
             separator(),
-            hbox({ text(" RPM  ") | dim, Sparkline(m_rpmHistory, MAX_SETPOINT_RPM, Color::Blue) | flex }) | size(HEIGHT, EQUAL, 3),
-            hbox({ text(" Temp ") | dim, Sparkline(m_tempHistory, 100.0f, tempColor) | flex }) | size(HEIGHT, EQUAL, 3),
-            hbox({ text(" Vib  ") | dim, Sparkline(m_vibHistory, VIB_TRIP_G * 1.25f, vibColor) | flex }) | size(HEIGHT, EQUAL, 3),
+            hbox({ text(" RPM  ") | dim, Sparkline(m_rpmHistory, MAX_SETPOINT_RPM, Color::Blue) | flex }),
+            hbox({ text(" Temp ") | dim, Sparkline(m_tempHistory, 100.0f, tempColor) | flex }),
+            hbox({ text(" Vib  ") | dim, Sparkline(m_vibHistory, VIB_TRIP_G * 1.25f, vibColor) | flex }),
         });
 
         // --- Alarms ---
@@ -409,7 +448,7 @@ void UI::Run(const std::string& linkDescription)
                 }) | flex,
             }) | flex,
             window(text(" Bus Monitor (telemetry sampled 1 Hz) "),
-                   vbox(std::move(busLines)) | focusPositionRelative(0, 1) | yframe) | size(HEIGHT, EQUAL, 8),
+                   vbox(std::move(busLines)) | focusPositionRelative(0, 1) | yframe) | size(HEIGHT, EQUAL, 6),
             text(" [s]tart  s[t]op  [e]-stop  [r]eset  [+/-] setpoint  [q]uit   |   Tab/arrows + Enter also work") | dim,
         });
     });

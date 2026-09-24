@@ -22,6 +22,9 @@ if(NOT EXISTS "${FTXUI_DIR}/CMakeLists.txt")
     message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
 endif()
 if(NOT TARGET ftxui::component)
+    # FTXUI defaults to a block-only glyph fallback on Windows, which halves
+    # graph resolution. Windows Terminal renders the quarter-block glyphs fine.
+    set(FTXUI_MICROSOFT_TERMINAL_FALLBACK OFF CACHE BOOL "Pumptron: use full graph glyphs" FORCE)
     add_subdirectory("${FTXUI_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ftxui" EXCLUDE_FROM_ALL)
 endif()
 
