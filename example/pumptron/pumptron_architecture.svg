@@ -108,7 +108,7 @@
 
   <!-- ===================== Physical cable ===================== -->
   <line x1="360" y1="400" x2="640" y2="400" stroke="#333" stroke-width="5"/>
-  <text x="500" y="422" text-anchor="middle" class="cable">RS-232 null modem · 115200 8N1</text>
+  <text x="500" y="422" text-anchor="middle" class="cable">serial link · USART6 · 115200 8N1</text>
 
   <!-- ===================== Legend ===================== -->
   <line x1="40" y1="470" x2="80" y2="470" stroke="#555" stroke-width="2"/>

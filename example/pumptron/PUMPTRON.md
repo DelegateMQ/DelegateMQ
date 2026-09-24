@@ -1,10 +1,10 @@
 # Pumptron — Pump Controller on Real Hardware
 
-**Pumptron** is a two-CPU DelegateMQ demo: an **STM32F4 Discovery** board runs a simulated industrial pump controller on FreeRTOS, and a **Windows/Linux** operator console (FTXUI) monitors and commands it over **RS-232**. Both sides communicate only through the **DataBus**.
+**Pumptron** is a two-CPU DelegateMQ demo: an **STM32F4 Discovery** board runs a simulated industrial pump controller on FreeRTOS, and a **Windows/Linux** operator console (FTXUI) monitors and commands it over a **serial link** (USART6: a 3.3 V USB-UART adapter, or RS-232 via a base board). Both sides communicate only through the **DataBus**.
 
 It is Cellutron's hardware sibling. Cellutron simulates three CPUs on one PC; Pumptron runs the controller on a real microcontroller. The exact same controller code also runs on the FreeRTOS simulator over UDP, so you can develop without the board.
 
-<img src="pumptron_gui.png" width="1000" alt="Pumptron operator console connected to the STM32F4 board over RS-232">
+<img src="pumptron_gui.png" width="1000" alt="Pumptron operator console connected to the STM32F4 board over a serial link">
 
 *Operator console connected to the STM32F4 board over COM3: the pump running at 2000 RPM, live sparklines, alarm events from shaking the board, and the bus monitor.*
 
@@ -67,7 +67,7 @@ All of this wiring lives in one place, [`common/util/Topology.h`](common/util/To
 
 ### DelegateMQ Features Shown
 
-- **Location transparency.** `PumpController` and `UI` only call `DataBus::Publish/Subscribe`. Neither knows whether the other end is across RS-232, UDP, or absent.
+- **Location transparency.** `PumpController` and `UI` only call `DataBus::Publish/Subscribe`. Neither knows whether the other end is across a serial link, UDP, or absent.
 - **DataBus over a serial link.** [`common/util/SerialLink.h`](common/util/SerialLink.h) is a point-to-point counterpart to `NetworkNode`. It has the same `Send<T>()`/`Receive<T>()` API and status signals, with RELIABLE and UNRELIABLE tiers sharing one UART.
 - **Active objects.** Every handler (commands, 20 Hz control tick, heartbeat, link-loss deadline) is marshalled onto the pump thread, so the state machine needs no locks.
 - **`DeadlineSubscription` heartbeats**, in both directions.
@@ -94,7 +94,7 @@ What this project would need without it, and what DelegateMQ replaces:
 | State machine locking | Mutexes around shared state | None: every handler runs on the pump thread |
 | Link supervision | Timestamps checked in loops | `DeadlineSubscription` |
 | Off-target development | Separate UDP code path, or develop on hardware only | Same controller code runs on the PC FreeRTOS simulator; only the link and board in `main.cpp` change |
-| Testing | Hardware in the loop, or custom test harnesses | `--selftest` drives the real controller over DataBus. The same test runs against the simulator (no board) and the F4 (over RS-232) |
+| Testing | Hardware in the loop, or custom test harnesses | `--selftest` drives the real controller over DataBus. The same test runs against the simulator (no board) and the F4 (over serial) |
 | Bus inspection | Custom logging | `DataBus::Monitor` → GUI bus monitor |
 
 **Net effect:** application code is domain logic only. Link choice, direction and reliability of every topic live in about 20 lines (`Topology.h`). Adding a subscriber costs one line, not a protocol change.
@@ -186,14 +186,35 @@ Options: `--baud <rate>` (default 115200) and `--config Debug|Release` (default 
 
 ### Hardware
 
-1. Mount the Discovery board on the **STM32F4DIS-BB** base board and connect its RS-232 DB9 (USART6) to the PC with a **null-modem** cable (or USB-RS232 adapter).
-2. Flash `pumptron_f4.elf`. The orange LED turns on and the blue LED starts blinking.
-3. Run `python run_pumptron.py --serial <port>`, or start the GUI directly:
+**What you need**
+
+| Item | Notes |
+|:---|:---|
+| **STM32F407G-DISC1** Discovery kit | ST's current order code (Active); replaces the original STM32F4DISCOVERY. Both work: the BSP detects the LIS3DSH or older LIS302DL accelerometer at startup. |
+| **3.3 V USB-UART adapter** (recommended) | Any FTDI, CP2102 or CH340 type adapter with 3.3 V logic levels. |
+| *or* **STM32F4DIS-BB** base board + null-modem cable | Provides an RS-232 DB9 on USART6. Discontinued (Embest/element14); only use it if you already have one. |
+| Mini-USB cable | Power plus the on-board ST-LINK for flashing and debugging. |
+
+**Wiring (USB-UART adapter)**
+
+| Adapter | Discovery board |
+|:---|:---|
+| TX | **PC7** (USART6 RX) |
+| RX | **PC6** (USART6 TX) |
+| GND | **GND** |
+
+Cross TX to RX, leave the adapter's VCC unconnected (the board is powered over mini-USB), and **never** connect true RS-232 voltage levels directly to the pins. With the base board instead, mount the Discovery on it and connect its DB9 to the PC with a null-modem cable. Either way the link is 115200 8N1 and appears on the PC as a COM or tty port, so no firmware or GUI changes are needed.
+
+**Run**
+
+1. Flash `pumptron_f4.elf` (see *Flashing and Debugging*). The orange LED turns on and the blue LED starts blinking.
+2. Run `python run_pumptron.py --serial <port>`, or start the GUI directly:
    ```bash
    pumptron_gui --serial COM5          # Windows
    pumptron_gui --serial /dev/ttyUSB0  # Linux
    ```
    Run `pumptron_gui` with no arguments to list the serial ports it can see. On Linux, `--serial` needs libserialport (`libserialport-dev`, or a build in the workspace's `libserialport/`); without it the GUI builds UDP-only.
+3. Optionally check the link first with `python run_pumptron.py --serial <port> --selftest`.
 
 ### Simulator (No Board)
 
@@ -226,7 +247,7 @@ python run_pumptron.py --selftest                 # simulator
 python run_pumptron.py --serial COM5 --selftest   # real board
 ```
 
-It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above). On the STM32F4 board over RS-232 it passes every step, with the controller clock at 1.00× real time and no retries.
+It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above). On the STM32F4 board over the serial link it passes every step, with the controller clock at 1.00× real time and no retries.
 
 ---
 
