@@ -268,6 +268,24 @@ public:
         portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
 
+    /// @brief Called by HAL_UART_ErrorCallback. ISR-safe: no OS calls.
+    /// @details A blocking UART error (e.g. overrun) makes the HAL abort the
+    /// interrupt-driven receive, so no further bytes would ever arrive. Clear
+    /// the error flags and re-arm single-byte reception. For non-blocking
+    /// errors (noise/framing/parity) the HAL keeps receiving, RxState stays
+    /// busy, and re-arming is skipped. Any frame the error corrupted is
+    /// rejected by the CRC check in Receive().
+    void OnRxError() {
+        if (!m_huart) return;
+
+        __HAL_UART_CLEAR_OREFLAG(m_huart);
+        __HAL_UART_CLEAR_NEFLAG(m_huart);
+        __HAL_UART_CLEAR_FEFLAG(m_huart);
+
+        if (m_huart->RxState == HAL_UART_STATE_READY)
+            HAL_UART_Receive_IT(m_huart, &m_rxByte, 1);
+    }
+
     void SetTransportMonitor(ITransportMonitor* tm) { m_transportMonitor = tm; }
     void SetSendTransport(ITransport* st) { m_sendTransport = st; }
     void SetRecvTransport(ITransport* rt) { m_recvTransport = rt; }
