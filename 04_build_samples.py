@@ -17,6 +17,9 @@ Key Features:
     5. Cellutron ThreadX variant: Also builds 'build-threadx/' (configured by
        03_generate_samples.py on Linux), proving DelegateMQ isolates app code
        from the RTOS choice.
+    6. Pumptron: builds the desktop build (GUI + FreeRTOS-simulator
+       controller) and, if 03_generate_samples.py configured it, the STM32F4
+       firmware in example/pumptron/build/f4.
 
 Skip List (always excluded):
     - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
@@ -232,6 +235,7 @@ def build_samples(use_clang=False):
         os.path.join(repo_root, "example", "sample-projects"),
         os.path.join(repo_root, "example", "sample-interop"),
         os.path.join(repo_root, "example", "cellutron"),
+        os.path.join(repo_root, "example", "pumptron"),
         os.path.join(repo_root, "test"),
         os.path.join(repo_root, "tools")
     ]
@@ -297,6 +301,12 @@ def build_samples(use_clang=False):
         # app code from the RTOS choice.
         extra_suffixes = ["build-threadx"] if project_name == "cellutron" else None
         targets = collect_build_dirs(target_dir, use_clang=use_clang, extra_suffixes=extra_suffixes)
+        # Pumptron's STM32F4 firmware is a separate cross-compiled build tree
+        # nested under build/ (configured only when the ARM toolchain exists).
+        if project_name == "pumptron":
+            f4_dir = os.path.join(target_dir, "build", "f4")
+            if os.path.isdir(f4_dir):
+                targets.append(("f4", f4_dir))
         if targets:
             project_failed = False
             for label, build_dir in targets:

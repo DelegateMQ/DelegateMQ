@@ -23,6 +23,10 @@ Key Features:
     7. Cellutron ThreadX variant: On Linux, also configures a 'build-threadx'
        directory (-DCELLUTRON_RTOS=THREADX) alongside the default FreeRTOS
        'build' directory, proving DelegateMQ isolates app code from the RTOS.
+    8. Pumptron: configures the desktop build (GUI + FreeRTOS-simulator
+       controller) from example/pumptron only, and -- when Ninja,
+       arm-none-eabi-gcc and the STM32Cube FW_F4 package are available --
+       the STM32F4 firmware cross-build into example/pumptron/build/f4.
 
 Usage:
     Run this script THIRD to generate project files for your IDE.
@@ -31,12 +35,77 @@ Usage:
 """
 
 import argparse
+import glob
 import os
 import platform
 import shutil
 import subprocess
 
 IS_WINDOWS = platform.system() == "Windows"
+
+def find_stm32_f4_repo():
+    """Locate the STM32Cube FW_F4 package (HAL/CMSIS/BSP) for Pumptron's firmware."""
+    candidates = []
+    if os.environ.get("STM32_REPO"):
+        candidates.append(os.environ["STM32_REPO"])
+    home = os.path.expanduser("~")
+    candidates += sorted(glob.glob(os.path.join(home, "STM32Cube", "Repository", "STM32Cube_FW_F4_V*")), reverse=True)
+    for c in candidates:
+        if os.path.isdir(os.path.join(c, "Drivers", "STM32F4xx_HAL_Driver")):
+            return c
+    return None
+
+
+def find_arm_gcc():
+    """arm-none-eabi-gcc from ARM_TOOLCHAIN_DIR, STM32CubeIDE's bundled GCC, or PATH."""
+    exe = "arm-none-eabi-gcc.exe" if IS_WINDOWS else "arm-none-eabi-gcc"
+    if os.environ.get("ARM_TOOLCHAIN_DIR"):
+        p = os.path.join(os.environ["ARM_TOOLCHAIN_DIR"], exe)
+        if os.path.isfile(p):
+            return p
+    patterns = [
+        "C:/ST/STM32CubeIDE_*/STM32CubeIDE/plugins/*gnu-tools-for-stm32*/tools/bin/" + exe,
+        "/opt/st/stm32cubeide_*/plugins/*gnu-tools-for-stm32*/tools/bin/" + exe,
+    ]
+    for pattern in patterns:
+        hits = sorted(glob.glob(pattern), reverse=True)
+        if hits:
+            return hits[0]
+    return shutil.which("arm-none-eabi-gcc")
+
+
+def configure_pumptron_f4(pumptron_dir):
+    """Configure Pumptron's STM32F4 firmware (Ninja, Release) into build/f4, if the
+    cross toolchain and STM32Cube FW_F4 package are available. The toolchain file
+    finds the compiler itself; these checks only decide whether to try."""
+    label = "pumptron (STM32F4 firmware)"
+    missing = []
+    if not shutil.which("ninja"):
+        missing.append("ninja")
+    if not find_arm_gcc():
+        missing.append("arm-none-eabi-gcc (STM32CubeIDE or Arm GNU Toolchain)")
+    stm32_repo = find_stm32_f4_repo()
+    if not stm32_repo:
+        missing.append("STM32Cube FW_F4 package (set STM32_REPO)")
+    if missing:
+        print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+        return
+
+    print(f"[CONFIGURING] {label}")
+    cmd = ["cmake", "-S", os.path.join("controller", "platform", "f4"),
+           "-B", os.path.join("build", "f4"), "-G", "Ninja",
+           "-DCMAKE_BUILD_TYPE=Release", f"-DSTM32_REPO={stm32_repo}"]
+    try:
+        subprocess.run(cmd, cwd=pumptron_dir, check=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print("   Success!")
+    except subprocess.CalledProcessError as e:
+        print("   FAILED (STM32F4 firmware)")
+        for line in (e.stderr or "").splitlines():
+            if "CMake Error" in line or "FATAL_ERROR" in line:
+                print(f"   Reason: {line.strip()}")
+                break
+
 
 def build_samples(use_clang=False, clean=False):
     clang_exe = shutil.which("clang++") if (use_clang and not IS_WINDOWS) else None
@@ -56,6 +125,7 @@ def build_samples(use_clang=False, clean=False):
         os.path.join(repo_root, "example", "sample-projects"),
         os.path.join(repo_root, "example", "sample-interop"),
         os.path.join(repo_root, "example", "cellutron"),
+        os.path.join(repo_root, "example", "pumptron"),
         os.path.join(repo_root, "test"),
         os.path.join(repo_root, "tools")
     ]
@@ -78,6 +148,13 @@ def build_samples(use_clang=False, clean=False):
             skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal", "stm32-freertos", "zephyr-linux", "zephyr-udp-serializer", "databus-zephyr", "cmsis-rtos2-linux"]
             for sd in skip_dirs:
                 if sd in dirnames: dirnames.remove(sd)
+
+            # Pumptron is configured once from its top-level CMakeLists.txt
+            # (gui + simulator controller). Don't descend: its sub-projects are
+            # built by that top level, and controller/platform/f4 is a
+            # cross-compiled firmware configured separately below.
+            if os.path.basename(dirpath) == "pumptron":
+                dirnames.clear()
 
             if "CMakeLists.txt" in files:
                 project_name = os.path.basename(dirpath)
@@ -168,6 +245,10 @@ def build_samples(use_clang=False, clean=False):
                                 # Print a bit of context
                                 if i+1 < len(lines): print(f"          {lines[i+1].strip()}")
                                 break
+
+                # --- PUMPTRON STM32F4 FIRMWARE CONFIGURE ---
+                if project_name == "pumptron":
+                    configure_pumptron_f4(dirpath)
 
                 # --- CELLUTRON THREADX CONFIGURE (Linux only) ---
                 # Cellutron's controller/safety nodes support a CELLUTRON_RTOS
