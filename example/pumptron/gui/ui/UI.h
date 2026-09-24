@@ -49,6 +49,7 @@ private:
     void OnControllerLost();
     void OnBusMonitor(const dmq::databus::SpyPacket& packet);
     void OnMessageDropped(size_t depth);
+    void OnSystemEvent(const std::string& text);
 
     void SendCommand(PumpCommand command, uint16_t setpointRpm = 0);
     void AddEvent(const std::string& text);
@@ -67,8 +68,8 @@ private:
     std::deque<float> m_rpmHistory;
     std::deque<float> m_tempHistory;
     std::deque<float> m_vibHistory;
-    std::array<bool, static_cast<size_t>(AlarmCode::GUI_LINK_LOST) + 1> m_alarmActive{};
-    std::array<AlarmSeverity, static_cast<size_t>(AlarmCode::GUI_LINK_LOST) + 1> m_alarmSeverity{};
+    std::array<bool, ALARM_CODE_COUNT> m_alarmActive{};
+    std::array<AlarmSeverity, ALARM_CODE_COUNT> m_alarmSeverity{};
     std::deque<std::string> m_events;
     std::deque<std::string> m_busLines;
     uint32_t m_telemetryCount = 0;
@@ -86,6 +87,7 @@ private:
     dmq::ScopedConnection m_telemetryConn;
     dmq::ScopedConnection m_alarmConn;
     dmq::ScopedConnection m_monitorConn;
+    dmq::ScopedConnection m_systemEventConn;
     std::unique_ptr<dmq::databus::DeadlineSubscription<HeartbeatMsg>> m_controllerWatch;
 };
 

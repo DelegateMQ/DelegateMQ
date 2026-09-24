@@ -7,6 +7,9 @@ namespace pumptron {
 
 /// @brief Alarm and fault identifiers. Also used as the latched fault code in
 ///        PumpStatusMsg.
+/// @note Values index per-alarm tables (see ALARM_CODE_COUNT): keep them
+///       contiguous from 0 with no explicit values, and add new codes before
+///       COUNT.
 enum class AlarmCode : uint8_t {
     NONE = 0,
     TEMP_HIGH,          ///< Warning: motor temperature above TEMP_WARN_C
@@ -15,8 +18,13 @@ enum class AlarmCode : uint8_t {
     VIBRATION_TRIP,     ///< Fault: vibration above VIB_TRIP_G for VIB_TRIP_TIME
     ESTOP_REMOTE,       ///< Fault: E-STOP pressed on the GUI
     ESTOP_LOCAL,        ///< Fault: user button pressed on the controller board
-    GUI_LINK_LOST       ///< Warning: GUI heartbeat lost; pump safe-stopped
+    GUI_LINK_LOST,      ///< Warning: GUI heartbeat lost; pump safe-stopped
+    LINK_DEGRADED,      ///< Warning: link/DataBus errors (delivery failures, drops, backlog)
+    COUNT               ///< Number of codes -- not an alarm; keep last
 };
+
+/// Size for tables indexed by AlarmCode.
+inline constexpr size_t ALARM_CODE_COUNT = static_cast<size_t>(AlarmCode::COUNT);
 
 enum class AlarmSeverity : uint8_t { INFO, WARNING, FAULT };
 
@@ -60,6 +68,8 @@ inline const char* ToString(AlarmCode c) {
         case AlarmCode::ESTOP_REMOTE:   return "E-STOP (GUI)";
         case AlarmCode::ESTOP_LOCAL:    return "E-STOP (BOARD BUTTON)";
         case AlarmCode::GUI_LINK_LOST:  return "GUI LINK LOST - SAFE STOP";
+        case AlarmCode::LINK_DEGRADED:  return "LINK DEGRADED";
+        case AlarmCode::COUNT:          break;
     }
     return "UNKNOWN";
 }

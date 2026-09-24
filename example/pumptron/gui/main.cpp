@@ -72,11 +72,6 @@ static bool ParseArgs(int argc, char* argv[], System::Options& options, bool& se
     return haveLink;
 }
 
-static void OnDataBusError(const dmq::xstring& topic, dmq::DelegateError error)
-{
-    fprintf(stderr, "GUI: DataBus error topic=%s error=%d\n", topic.c_str(), static_cast<int>(error));
-}
-
 static void OnWatchdog()
 {
     // Runs until process exit; checks every watchdog-enabled dmq thread.
@@ -97,8 +92,6 @@ int main(int argc, char* argv[])
 
     ::InstallCrashHandlers();
     static dmq::util::NetworkContext networkContext;
-
-    static auto errorConn = dmq::databus::DataBus::SubscribeError(dmq::MakeDelegate(&OnDataBusError));
 
     std::string error;
     if (!System::GetInstance().Initialize(options, error)) {

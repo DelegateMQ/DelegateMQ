@@ -94,6 +94,7 @@ set(APP_SOURCES
 set(PLATFORM_SOURCES
     main.cpp
     F4Board.cpp
+    Fault.cpp
     stm32f4xx_it.c
     syscalls.c
     system_stm32f4xx.c
@@ -103,6 +104,8 @@ set(PLATFORM_SOURCES
 # Only the .c/.cpp files from DelegateMQ's source lists need compiling.
 set(DMQ_COMPILED_SOURCES ${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES})
 list(FILTER DMQ_COMPILED_SOURCES INCLUDE REGEX ".*\\.(c|cpp)$")
+# Replace the library's fault handler with Pumptron's LED-signalling one (Fault.cpp here).
+list(FILTER DMQ_COMPILED_SOURCES EXCLUDE REGEX ".*/port/fault/Fault\\.cpp$")
 set(FREERTOS_COMPILED_SOURCES ${FREERTOS_SOURCES})
 list(FILTER FREERTOS_COMPILED_SOURCES INCLUDE REGEX ".*\\.c$")
 

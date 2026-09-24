@@ -29,11 +29,19 @@ public:
     /// the first control tick.
     virtual void Init() = 0;
 
-    /// Ambient temperature in deg C (F4: MCU die temperature sensor).
+    /// Acquire and filter sensor inputs. Called once per control tick.
+    /// @param dtSec Real time since the previous Sample() (0 on the first
+    ///              call). Filters derive their weights from it, so their time
+    ///              constants hold regardless of tick rate or jitter.
+    virtual void Sample(float dtSec) = 0;
+
+    /// Ambient temperature in deg C as of the last Sample()
+    /// (F4: MCU die temperature sensor).
     virtual float ReadAmbientTempC() = 0;
 
-    /// Externally sensed vibration in g, as deviation from rest
-    /// (F4: LIS3DSH accelerometer). Added on top of the modelled pump vibration.
+    /// Externally sensed vibration in g, as deviation from rest, as of the last
+    /// Sample() (F4: LIS3DSH accelerometer). Added on top of the modelled pump
+    /// vibration.
     virtual float ReadVibrationG() = 0;
 
     /// True while the local stop button is held (F4: blue user button).

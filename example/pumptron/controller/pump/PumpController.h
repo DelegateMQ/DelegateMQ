@@ -9,6 +9,7 @@
 #include "messages/AlarmMsg.h"
 #include "messages/HeartbeatMsg.h"
 #include <array>
+#include <atomic>
 #include <optional>
 
 namespace pumptron {
@@ -50,6 +51,20 @@ public:
 
     void Stop();
 
+    /// @brief Report a link or DataBus error (delivery failure, dropped frame,
+    ///        retry backlog, serialization error).
+    /// @details Thread-safe; callable from any thread, e.g. link and DataBus
+    ///          signal handlers. Raises the LINK_DEGRADED warning (cleared after
+    ///          LINK_DEGRADED_HOLD without errors) and blinks the POWER LED.
+    ///          Error storms are coalesced into one pending dispatch.
+    void ReportLinkError(const char* what);
+
+    /// @brief Republish current status and active alarms, rate-limited to
+    ///        RESYNC_MIN_INTERVAL. Call when a RELIABLE status/alarm message
+    ///        was abandoned, so the GUI doesn't keep showing a stale state.
+    ///        Thread-safe; coalesced like ReportLinkError().
+    void RequestResync();
+
 private:
     // --- Dispatched handlers (all run on m_thread) ---
     void Init();
@@ -58,6 +73,8 @@ private:
     void OnHeartbeatTick();
     void OnGuiHeartbeat(const HeartbeatMsg& msg);
     void OnGuiLinkLost();
+    void HandleLinkError();
+    void HandleResync();
 
     // --- State machine helpers ---
     void EnterState(PumpState state, AlarmCode fault = AlarmCode::NONE);
@@ -87,8 +104,15 @@ private:
     bool      m_guiOnline = false;
     uint32_t  m_tickCount = 0;
     uint32_t  m_heartbeatCount = 0;
+    dmq::TimePoint m_lastLinkError{};
+    dmq::TimePoint m_lastResync{};
 
-    static constexpr size_t ALARM_COUNT = static_cast<size_t>(AlarmCode::GUI_LINK_LOST) + 1;
+    // Cross-thread error reporting: set by any thread, consumed on m_thread.
+    std::atomic<bool> m_ready{false};           ///< Init() finished on m_thread
+    std::atomic<bool> m_linkErrorPending{false};
+    std::atomic<bool> m_resyncPending{false};
+
+    static constexpr size_t ALARM_COUNT = ALARM_CODE_COUNT;
     std::array<bool, ALARM_COUNT> m_alarmActive{};
     std::array<AlarmSeverity, ALARM_COUNT> m_alarmSeverity{};
 

@@ -25,6 +25,7 @@ set(APP_SOURCES
     board/IBoard.h
     pump/PumpController.cpp
     pump/PumpController.h
+    pump/LinkErrorReporter.h
     pump/PumpModel.cpp
     pump/PumpModel.h
     util/Logger.cpp

@@ -13,6 +13,7 @@ namespace board {
 class SimBoard : public IBoard {
 public:
     void Init() override {}
+    void Sample(float) override {}
 
     float ReadAmbientTempC() override { return 25.0f; }
     float ReadVibrationG() override { return 0.0f; }

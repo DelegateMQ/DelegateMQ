@@ -23,6 +23,7 @@
 
 #include "DelegateMQ.h"
 #include "pump/PumpController.h"
+#include "pump/LinkErrorReporter.h"
 #include "util/SerialLink.h"
 #include "util/Topology.h"
 #include "F4Board.h"
@@ -97,11 +98,6 @@ static void LinkRxTask(void*)
         s_link->Poll(1);
 }
 
-static void OnDeliveryFailed(const dmq::xstring& peer, dmq::DelegateRemoteId id, uint16_t seq)
-{
-    printf("Controller: delivery to %s failed (id=%u seq=%u)\n", peer.c_str(), id, seq);
-}
-
 /// Builds the application after the scheduler is running (dmq::os::Thread and
 /// the UART transport create FreeRTOS objects), then becomes the watchdog.
 static void StartupTask(void*)
@@ -111,7 +107,10 @@ static void StartupTask(void*)
     static ControllerLink link;
     s_link = &link;
 
-    static auto failConn = link.OnDeliveryFailed.Connect(dmq::MakeDelegate(&OnDeliveryFailed));
+    // DataBus + link errors (incl. send-queue drops) -> LINK_DEGRADED alarm /
+    // status resync. Blinks the orange LED while active.
+    static pump::LinkErrorReporter errorReporter(link, pumpController);
+    errorReporter.WatchSendDropped(link.OnSendDropped);
 
     if (link.GetTransport().Create(&huart6) != 0) {
         printf("Controller: ERROR - USART6 transport init failed\n");
@@ -220,12 +219,10 @@ extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart)
 
 extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart)
 {
-    // An overrun/framing/noise error aborts the HAL's interrupt-driven receive.
-    // Re-arm it (Create() only clears the error flags and restarts RX when the
-    // transport's OS objects already exist); the frame CRC rejects any partial
-    // frame the error corrupted.
+    // An overrun aborts the HAL's interrupt-driven receive; OnRxError() (ISR-safe,
+    // no OS calls) clears the error flags and re-arms it.
     if (g_uartTransportInstance && huart->Instance == USART6)
-        g_uartTransportInstance->Create(huart);
+        g_uartTransportInstance->OnRxError();
 }
 
 // ---------------------------------------------------------------------------

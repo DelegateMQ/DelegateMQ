@@ -42,6 +42,8 @@ namespace pumptron {
     static constexpr dmq::Duration HEARTBEAT_TIMEOUT = 3s;
     static constexpr dmq::Duration WATCHDOG_TIMEOUT  = 10s;
     static constexpr dmq::Duration TIMER_TICK_PERIOD = 10ms;   ///< Timer::ProcessTimers() cadence
+    static constexpr dmq::Duration LINK_DEGRADED_HOLD = 10s;   ///< LINK_DEGRADED clears after this long error-free
+    static constexpr dmq::Duration RESYNC_MIN_INTERVAL = 1s;   ///< Rate limit for status/alarm republish on delivery failure
 
     // -----------------------------------------------------------------------
     // Links

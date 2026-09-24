@@ -43,7 +43,13 @@ public:
         std::atomic<uint32_t> retries{0};         ///< RELIABLE frames that timed out and were resent
         std::atomic<uint32_t> deliveryFailed{0};  ///< RELIABLE frames abandoned after all retries
         std::atomic<uint32_t> sendDropped{0};     ///< Frames dropped by a full send queue
+        std::atomic<uint32_t> busErrors{0};       ///< DataBus errors + unhandled publishes
     };
+
+    /// Human-readable error/status events (DataBus errors, delivery failures,
+    /// link backlog, drops). Fired on the reporting thread; the UI shows them
+    /// in its Events pane.
+    dmq::Signal<void(const std::string&)> OnEvent;
 
     static System& GetInstance() {
         static System instance;
@@ -88,6 +94,11 @@ private:
                       dmq::util::TransportMonitor::Status status);
     void OnDeliveryFailed(const dmq::xstring& peer, dmq::DelegateRemoteId id, uint16_t seq);
     void OnSendDropped(size_t depth);
+    void OnCapExceeded(const dmq::xstring& peer, size_t count);
+    void OnPendingExceeded(const dmq::xstring& peer, size_t remaining);
+    void OnBusError(const dmq::xstring& topic, dmq::DelegateError error);
+    void OnUnhandled(const dmq::xstring& topic);
+    void Emit(const std::string& text);
 
     dmq::os::Thread m_thread;       ///< Heartbeat publisher
     dmq::os::Thread m_timerThread;  ///< Drives Timer::ProcessTimers()
@@ -108,6 +119,10 @@ private:
     dmq::ScopedConnection m_sendStatusConn;
     dmq::ScopedConnection m_deliveryFailedConn;
     dmq::ScopedConnection m_sendDroppedConn;
+    dmq::ScopedConnection m_capExceededConn;
+    dmq::ScopedConnection m_pendingExceededConn;
+    dmq::ScopedConnection m_busErrorConn;
+    dmq::ScopedConnection m_unhandledConn;
 };
 
 } // namespace pumptron

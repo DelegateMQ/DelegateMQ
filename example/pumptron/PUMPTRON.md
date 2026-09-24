@@ -37,7 +37,16 @@ Demo scenarios built into the model:
 - **Press the blue button** → local E-STOP.
 - **Unplug the serial cable** while running → the controller loses the GUI heartbeat and safe-stops the pump (`GUI LINK LOST`), and the GUI shows `OFFLINE`. Plug it back in and both sides resync automatically.
 
-LEDs: **orange** = powered, **green** = priming/running, **red** = fault, **blue** = toggles on every telemetry frame.
+LEDs:
+
+| LED | Meaning |
+|:---|:---|
+| **Orange** solid / blinking | Powered / link degraded (`LINK_DEGRADED`: delivery failures, dropped frames or a retry backlog in the last 10 s) |
+| **Green** | Priming or running |
+| **Blue** | Toggles on every telemetry frame |
+| **Red** solid | Pump fault latched, or a startup/FreeRTOS error (heap, stack overflow, `configASSERT`) |
+| **Red** fast blink (~5 Hz) | DelegateMQ fault (`DMQ_ASSERT`), board halted; details on SWV |
+| **Red** slow blink (~1 Hz) | Thread watchdog expired, board halted; thread name on SWV |
 
 ---
 
@@ -62,6 +71,10 @@ All of this wiring lives in one place, [`common/util/Topology.h`](common/util/To
 - **DataBus over a serial link.** [`common/util/SerialLink.h`](common/util/SerialLink.h) is a point-to-point counterpart to `NetworkNode`. It has the same `Send<T>()`/`Receive<T>()` API and status signals, with RELIABLE and UNRELIABLE tiers sharing one UART.
 - **Active objects.** Every handler (commands, 20 Hz control tick, heartbeat, link-loss deadline) is marshalled onto the pump thread, so the state machine needs no locks.
 - **`DeadlineSubscription` heartbeats**, in both directions.
+- **Every error channel is handled.** DataBus errors and unhandled topics, link delivery failures, retry backlogs and send-queue drops are all connected (`controller/pump/LinkErrorReporter.h`, `gui/system/System.cpp`).
+  - On the controller they raise a `LINK_DEGRADED` warning alarm, and a failed status/alarm delivery triggers a rate-limited resync.
+  - On the GUI they appear in the Events pane, e.g. "command NOT delivered".
+  - The self-test fails if any of them fire during a normal run.
 - **Explicit queue policies.** The link send thread uses `DROP`: a stalled cable drops frames instead of faulting the node, and drops are counted and shown in the GUI header. The pump thread uses `FAULT`, and the UI thread uses `DROP`.
 - **Embedded-friendly build.** Static task stacks, a 64 KB FreeRTOS `heap_4` in CCM RAM, `DMQ_ALLOCATOR` fixed-block allocation, `DMQ_ASSERTS`, and no exceptions. The build uses about 333 KB of flash and 41 KB of SRAM.
 - **Off-target development.** The controller's application code (`pump/`, `board/IBoard.h`, `common/`) is identical on the F4 and on the FreeRTOS simulator. Only `platform/f4/` or `platform/sim/` differs.

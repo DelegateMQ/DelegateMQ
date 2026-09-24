@@ -28,7 +28,8 @@ std::atomic<AlarmCode> g_fault{AlarmCode::NONE};
 std::atomic<uint16_t>  g_setpoint{0};
 std::atomic<float>     g_rpm{0.0f};
 std::atomic<uint32_t>  g_telemetryCount{0};
-std::atomic<bool>      g_alarmActive[static_cast<size_t>(AlarmCode::GUI_LINK_LOST) + 1];
+std::atomic<bool>      g_alarmActive[ALARM_CODE_COUNT];
+std::atomic<bool>      g_linkDegradedSeen{false};
 
 int g_failures = 0;
 
@@ -83,6 +84,7 @@ int RunSelfTest()
         [](const AlarmMsg& m) {
             const auto i = static_cast<size_t>(m.code);
             if (i < std::size(g_alarmActive)) g_alarmActive[i] = m.active;
+            if (m.code == AlarmCode::LINK_DEGRADED && m.active) g_linkDegradedSeen = true;
         });
 
     printf("Pumptron self-test over %s\n", System::GetInstance().GetLinkDescription().c_str());
@@ -182,6 +184,13 @@ int RunSelfTest()
         printf("  FAIL  RELIABLE delivery failures reported\n");
         g_failures++;
     }
+
+    // 6. Error channels must stay quiet on a healthy link.
+    const bool quiet = stats.busErrors == 0 && stats.sendDropped == 0 && !g_linkDegradedSeen;
+    printf("  %s  error channels quiet (DataBus errors=%u, send drops=%u, controller LINK_DEGRADED %s)\n",
+           quiet ? "PASS" : "FAIL", stats.busErrors.load(), stats.sendDropped.load(),
+           g_linkDegradedSeen ? "raised" : "never raised");
+    if (!quiet) g_failures++;
 
     printf("Self-test %s (%d failure%s)\n", g_failures ? "FAILED" : "PASSED", g_failures, g_failures == 1 ? "" : "s");
     return g_failures ? 1 : 0;

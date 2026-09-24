@@ -15,6 +15,9 @@ System::System()
 
 bool System::Initialize(const Options& options, std::string& error)
 {
+    m_busErrorConn = DataBus::SubscribeError(MakeDelegate(this, &System::OnBusError));
+    m_unhandledConn = DataBus::SubscribeUnhandled(MakeDelegate(this, &System::OnUnhandled));
+
     if (!m_thread.CreateThread(WATCHDOG_TIMEOUT)) {
         error = "failed to create system thread";
         return false;
@@ -85,6 +88,36 @@ void System::ConnectLinkSignals(Link& link)
 {
     m_sendStatusConn = link.OnPeerSendStatus.Connect(MakeDelegate(this, &System::OnSendStatus));
     m_deliveryFailedConn = link.OnDeliveryFailed.Connect(MakeDelegate(this, &System::OnDeliveryFailed));
+    m_capExceededConn = link.OnPeerCapExceeded.Connect(MakeDelegate(this, &System::OnCapExceeded));
+    m_pendingExceededConn = link.OnPeerPendingExceeded.Connect(MakeDelegate(this, &System::OnPendingExceeded));
+}
+
+void System::Emit(const std::string& text)
+{
+    OnEvent(text);
+}
+
+void System::OnBusError(const dmq::xstring& topic, dmq::DelegateError error)
+{
+    m_stats.busErrors++;
+    Emit("ERROR  DataBus error on " + std::string(topic.c_str()) +
+         " (code " + std::to_string(static_cast<int>(error)) + ")");
+}
+
+void System::OnUnhandled(const dmq::xstring& topic)
+{
+    m_stats.busErrors++;
+    Emit("ERROR  published with no subscriber: " + std::string(topic.c_str()));
+}
+
+void System::OnCapExceeded(const dmq::xstring&, size_t count)
+{
+    Emit("WARN   link backlog: " + std::to_string(count) + " unacknowledged messages");
+}
+
+void System::OnPendingExceeded(const dmq::xstring&, size_t remaining)
+{
+    Emit("WARN   link retries not draining (" + std::to_string(remaining) + " pending)");
 }
 
 void System::TimerLoop()
@@ -111,14 +144,19 @@ void System::OnSendStatus(const dmq::xstring&, dmq::DelegateRemoteId, uint16_t,
         m_stats.retries++;
 }
 
-void System::OnDeliveryFailed(const dmq::xstring&, dmq::DelegateRemoteId, uint16_t)
+void System::OnDeliveryFailed(const dmq::xstring&, dmq::DelegateRemoteId id, uint16_t)
 {
     m_stats.deliveryFailed++;
+    // Commands are the only RELIABLE GUI -> controller topic.
+    Emit(id == RID_CMD ? "ERROR  command NOT delivered to controller (retries exhausted)"
+                       : "ERROR  delivery failed, id " + std::to_string(id));
 }
 
 void System::OnSendDropped(size_t)
 {
-    m_stats.sendDropped++;
+    // Rate-limit the event; the header counter shows every drop.
+    if (m_stats.sendDropped++ % 50 == 0)
+        Emit("WARN   send queue full, frames dropped (" + std::to_string(m_stats.sendDropped.load()) + " total)");
 }
 
 } // namespace pumptron

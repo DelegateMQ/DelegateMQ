@@ -276,6 +276,13 @@ void UI::OnMessageDropped(size_t depth)
     AddEvent("UI queue full, update dropped (depth " + std::to_string(depth) + ")");
 }
 
+void UI::OnSystemEvent(const std::string& text)
+{
+    // Runs on the reporting thread; AddEvent is mutex-protected.
+    AddEvent(text);
+    Refresh();
+}
+
 void UI::AddEvent(const std::string& text)
 {
     LockGuard<Mutex> lock(m_mutex);
@@ -304,6 +311,8 @@ void UI::Run(const std::string& linkDescription)
     m_telemetryConn = DataBus::Subscribe<TelemetryMsg>(topics::TELEMETRY, MakeDelegate(this, &UI::OnTelemetry), &m_thread);
     m_alarmConn = DataBus::Subscribe<AlarmMsg>(topics::ALARM, MakeDelegate(this, &UI::OnAlarm), &m_thread);
     m_monitorConn = DataBus::Monitor(MakeDelegate(this, &UI::OnBusMonitor), &m_thread);
+    // Link/DataBus errors and warnings from System -> Events pane.
+    m_systemEventConn = System::GetInstance().OnEvent.Connect(MakeDelegate(this, &UI::OnSystemEvent));
 
     m_controllerWatch.reset(new DeadlineSubscription<HeartbeatMsg>(
         topics::HB_CONTROLLER,
@@ -481,6 +490,7 @@ void UI::Shutdown()
     m_telemetryConn.Disconnect();
     m_alarmConn.Disconnect();
     m_monitorConn.Disconnect();
+    m_systemEventConn.Disconnect();
     m_thread.ExitThread();
 }
 

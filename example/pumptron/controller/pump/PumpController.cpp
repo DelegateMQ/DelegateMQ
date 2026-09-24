@@ -48,6 +48,7 @@ void PumpController::Stop()
 void PumpController::Init()
 {
     m_board.Init();
+    m_board.Sample(0.0f);   // seed the filters
     m_model.Reset(m_board.ReadAmbientTempC());
     m_board.SetIndicator(Indicator::POWER, true);
 
@@ -76,6 +77,7 @@ void PumpController::Init()
     m_heartbeatTimer.Start(HEARTBEAT_PERIOD);
 
     EnterState(PumpState::IDLE);
+    m_ready = true;
     printf("PumpController: ready on %s board\n", m_board.Name());
 }
 
@@ -136,6 +138,7 @@ void PumpController::OnControlTick()
     m_lastTick = now;
     if (dt < 0.0f || dt > 0.25f) dt = 0.05f;   // guard against first tick / debugger halt
 
+    m_board.Sample(dt);
     const float ambientC = m_board.ReadAmbientTempC();
     const float extVibG = m_board.ReadVibrationG();
 
@@ -280,6 +283,58 @@ void PumpController::TryReset()
 void PumpController::OnHeartbeatTick()
 {
     DataBus::Publish<HeartbeatMsg>(topics::HB_CONTROLLER, HeartbeatMsg(++m_heartbeatCount));
+
+    // LINK_DEGRADED: blink POWER while active, clear once error-free for a while.
+    const size_t linkIdx = static_cast<size_t>(AlarmCode::LINK_DEGRADED);
+    if (m_alarmActive[linkIdx]) {
+        if (Clock::now() - m_lastLinkError >= LINK_DEGRADED_HOLD) {
+            SetAlarm(AlarmCode::LINK_DEGRADED, AlarmSeverity::WARNING, false);
+            m_board.SetIndicator(Indicator::POWER, true);
+        } else {
+            m_board.ToggleIndicator(Indicator::POWER);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Link / DataBus error reporting (callable from any thread)
+// ---------------------------------------------------------------------------
+
+void PumpController::ReportLinkError(const char* what)
+{
+    printf("PumpController: link error: %s\n", what);
+    if (!m_ready)
+        return;     // before Init(): nothing to raise yet, log only
+    if (!m_linkErrorPending.exchange(true))
+        (void)MakeDelegate(this, &PumpController::HandleLinkError, m_thread).AsyncInvoke();
+}
+
+void PumpController::RequestResync()
+{
+    if (!m_ready)
+        return;
+    if (!m_resyncPending.exchange(true))
+        (void)MakeDelegate(this, &PumpController::HandleResync, m_thread).AsyncInvoke();
+}
+
+void PumpController::HandleLinkError()
+{
+    m_linkErrorPending = false;
+    m_lastLinkError = Clock::now();
+    SetAlarm(AlarmCode::LINK_DEGRADED, AlarmSeverity::WARNING, true);
+}
+
+void PumpController::HandleResync()
+{
+    m_resyncPending = false;
+    const TimePoint now = Clock::now();
+    // No GUI -> nothing to resync (it resyncs itself on reconnect via QUERY).
+    if (!m_guiOnline || now - m_lastResync < RESYNC_MIN_INTERVAL)
+        return;
+    m_lastResync = now;
+    printf("PumpController: resyncing status/alarms after delivery failure\n");
+    PublishStatus();
+    RepublishActiveAlarms();
 }
 
 void PumpController::OnGuiHeartbeat(const HeartbeatMsg&)

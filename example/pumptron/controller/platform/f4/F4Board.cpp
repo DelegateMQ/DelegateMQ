@@ -14,9 +14,19 @@ namespace {
     constexpr float TS_V25          = 0.76f;
     constexpr float TS_SLOPE_V_PER_C = 0.0025f;
 
-    constexpr float TEMP_FILTER     = 0.05f;   // EMA weight per sample
-    constexpr float BASELINE_FILTER = 0.01f;   // slow tracking of |a| at rest
-    constexpr float VIB_DECAY       = 0.85f;   // peak-hold decay per sample
+    // Filter time constants (seconds). Weights are derived from the real
+    // elapsed time each Sample(), so behaviour doesn't depend on the control
+    // tick rate or its jitter.
+    constexpr float TEMP_TAU_S      = 1.0f;    // die temperature smoothing
+    constexpr float BASELINE_TAU_S  = 5.0f;    // slow tracking of |a| at rest
+    constexpr float VIB_DECAY_TAU_S = 0.3f;    // peak-hold decay: a shake stays visible
+                                               // across the 300 ms VIB_TRIP_TIME window
+
+    /// Exponential-smoothing weight for a first-order filter with time
+    /// constant tau after dt seconds: 1 - e^(-dt/tau).
+    float Alpha(float dtSec, float tauSec) {
+        return dtSec <= 0.0f ? 0.0f : 1.0f - std::exp(-dtSec / tauSec);
+    }
 
     Led_TypeDef ToLed(Indicator indicator) {
         switch (indicator) {
@@ -68,41 +78,48 @@ void F4Board::Init()
         m_ambientC = -1000.0f;   // seed from first sample
 }
 
+void F4Board::Sample(float dtSec)
+{
+    // Polled ADC conversion and a 6-byte SPI read: tens of microseconds in
+    // total, negligible against the 50 ms control period. Move to DMA or a
+    // separate task only if the loop ever needs tighter timing.
+    if (m_adcOk) {
+        HAL_ADC_Start(&m_adc);
+        if (HAL_ADC_PollForConversion(&m_adc, 2) == HAL_OK) {
+            const float volts = static_cast<float>(HAL_ADC_GetValue(&m_adc)) * VREF_V / 4095.0f;
+            const float c = (volts - TS_V25) / TS_SLOPE_V_PER_C + 25.0f;
+            m_ambientC = (m_ambientC < -500.0f) ? c : m_ambientC + Alpha(dtSec, TEMP_TAU_S) * (c - m_ambientC);
+        }
+        HAL_ADC_Stop(&m_adc);
+    }
+
+    if (m_accelOk) {
+        int16_t xyz[3] = { 0, 0, 0 };   // milli-g
+        BSP_ACCELERO_GetXYZ(xyz);
+        const float x = xyz[0], y = xyz[1], z = xyz[2];
+        const float magnitudeMg = std::sqrt(x * x + y * y + z * z);
+
+        if (!m_baselineSeeded) {
+            m_accelBaselineMg = magnitudeMg;
+            m_baselineSeeded = true;
+        }
+        const float deviationG = std::fabs(magnitudeMg - m_accelBaselineMg) / 1000.0f;
+        m_accelBaselineMg += Alpha(dtSec, BASELINE_TAU_S) * (magnitudeMg - m_accelBaselineMg);
+
+        // Peak-hold so a shake stays visible across several control ticks.
+        const float decay = dtSec <= 0.0f ? 1.0f : std::exp(-dtSec / VIB_DECAY_TAU_S);
+        m_vibrationG = std::fmax(deviationG, m_vibrationG * decay);
+    }
+}
+
 float F4Board::ReadAmbientTempC()
 {
-    if (!m_adcOk)
-        return m_ambientC;
-
-    HAL_ADC_Start(&m_adc);
-    if (HAL_ADC_PollForConversion(&m_adc, 2) == HAL_OK) {
-        const float volts = static_cast<float>(HAL_ADC_GetValue(&m_adc)) * VREF_V / 4095.0f;
-        const float c = (volts - TS_V25) / TS_SLOPE_V_PER_C + 25.0f;
-        m_ambientC = (m_ambientC < -500.0f) ? c : m_ambientC + TEMP_FILTER * (c - m_ambientC);
-    }
-    HAL_ADC_Stop(&m_adc);
     return m_ambientC;
 }
 
 float F4Board::ReadVibrationG()
 {
-    if (!m_accelOk)
-        return 0.0f;
-
-    int16_t xyz[3] = { 0, 0, 0 };   // milli-g
-    BSP_ACCELERO_GetXYZ(xyz);
-    const float x = xyz[0], y = xyz[1], z = xyz[2];
-    const float magnitudeMg = std::sqrt(x * x + y * y + z * z);
-
-    if (!m_baselineSeeded) {
-        m_accelBaselineMg = magnitudeMg;
-        m_baselineSeeded = true;
-    }
-    const float deviationG = std::fabs(magnitudeMg - m_accelBaselineMg) / 1000.0f;
-    m_accelBaselineMg += BASELINE_FILTER * (magnitudeMg - m_accelBaselineMg);
-
-    // Peak-hold so a shake stays visible across several control ticks.
-    m_vibrationG = std::fmax(deviationG, m_vibrationG * VIB_DECAY);
-    return m_vibrationG;
+    return m_accelOk ? m_vibrationG : 0.0f;
 }
 
 bool F4Board::IsLocalStopPressed()

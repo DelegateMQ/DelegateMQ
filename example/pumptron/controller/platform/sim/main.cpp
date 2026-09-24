@@ -15,6 +15,7 @@
 #include "extras/util/NetworkConnect.h"
 #include "extras/databus/NetworkNode.h"
 #include "pump/PumpController.h"
+#include "pump/LinkErrorReporter.h"
 #include "util/Topology.h"
 #include "SimBoard.h"
 #include <cstdio>
@@ -98,14 +99,6 @@ static board::SimBoard s_board;
 static pump::PumpController* s_pump = nullptr;
 static UdpLink* s_link = nullptr;
 
-static void OnDeliveryFailed(const dmq::xstring& peer, dmq::DelegateRemoteId id, uint16_t seq) {
-    printf("Controller: delivery to %s failed (id=%u seq=%u)\n", peer.c_str(), id, seq);
-}
-
-static void OnDataBusError(const dmq::xstring& topic, dmq::DelegateError error) {
-    printf("Controller: DataBus error topic=%s error=%d\n", topic.c_str(), static_cast<int>(error));
-}
-
 static void MainTask(void*)
 {
     // Objects that own dmq::os::Thread must be constructed after the scheduler starts.
@@ -114,8 +107,8 @@ static void MainTask(void*)
     s_pump = &pumpController;
     s_link = &link;
 
-    static auto errorConn = dmq::databus::DataBus::SubscribeError(dmq::MakeDelegate(&OnDataBusError));
-    static auto failConn = link.OnDeliveryFailed.Connect(dmq::MakeDelegate(&OnDeliveryFailed));
+    // DataBus + link errors -> LINK_DEGRADED alarm / status resync.
+    static pump::LinkErrorReporter errorReporter(link, pumpController);
 
     ConfigureControllerLink(link);
     link.Start("Controller", CONTROLLER_UDP_PORT);

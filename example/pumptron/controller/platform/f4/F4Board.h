@@ -21,6 +21,7 @@ namespace board {
 class F4Board : public IBoard {
 public:
     void Init() override;
+    void Sample(float dtSec) override;
     float ReadAmbientTempC() override;
     float ReadVibrationG() override;
     bool IsLocalStopPressed() override;

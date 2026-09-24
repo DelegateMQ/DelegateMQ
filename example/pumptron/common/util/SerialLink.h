@@ -39,6 +39,8 @@
 #include "extras/util/TransportMonitor.h"
 #include <array>
 #include <cstring>
+#include <memory>
+#include <optional>
 
 namespace pumptron {
 
@@ -85,11 +87,17 @@ public:
     /// @param peerName  Name of the remote end, used in status signals.
     /// @param mode      Who drives the receive side (see class notes).
     /// @param watchdog  Optional watchdog timeout for the link threads.
+    /// @return true if the link is running.
+    /// @note One-shot: a SerialLink starts at most once. Calling Start() again
+    ///       while running returns true; calling it during or after Stop()
+    ///       returns false instead of re-initializing a link that is being (or
+    ///       has been) torn down. Create a new SerialLink to reconnect.
     bool Start(const char* peerName, RecvMode mode,
                std::optional<dmq::Duration> watchdog = std::nullopt)
     {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        if (m_running) return true;
+        if (m_started) return m_running;
+        m_started = true;
 
         m_peerName = peerName;
 
@@ -289,6 +297,7 @@ private:
     dmq::ScopedConnection   m_deliveryFailedConn;
 
     dmq::xstring            m_peerName;
+    bool                    m_started = false;  ///< Set once by Start(); never cleared
     bool                    m_running = false;
     dmq::RecursiveMutex     m_mutex;
 };
