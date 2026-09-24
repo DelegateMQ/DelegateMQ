@@ -1,7 +1,10 @@
 #include "ThreadMonitor.h"
 #include "DelegateMQ.h"
 
-#if defined(DMQ_DATABUS)
+// ThreadMonitor publishes per-thread stats gathered by Thread::SnapshotStats(),
+// which only exists when DMQ_DATABUS_TOOLS is enabled (desktop default; off on
+// embedded DataBus builds -- see DelegateOpt.h).
+#if defined(DMQ_DATABUS) && defined(DMQ_DATABUS_TOOLS)
 
 #include <array>
 #include <chrono>
@@ -115,4 +118,4 @@ void ThreadMonitor::MonitorLoop() {
 
 } // namespace dmq::util
 
-#endif // DMQ_DATABUS
+#endif // DMQ_DATABUS && DMQ_DATABUS_TOOLS

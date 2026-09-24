@@ -200,23 +200,32 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
         "${FREERTOS_ROOT_DIR}/include/*.h"
     )
     
-    if(WIN32)
+    # A cross-compiled hardware target selects its own port (e.g.
+    # set(FREERTOS_PORT_DIR "GCC/ARM_CM4F")) before including DelegateMQ.cmake;
+    # otherwise the host simulator port is chosen.
+    if(DEFINED FREERTOS_PORT_DIR)
+        # Caller-selected port
+    elseif(WIN32)
         set(FREERTOS_PORT_DIR "MSVC-MingW")
     elseif(APPLE)
         set(FREERTOS_PORT_DIR "ThirdParty/GCC/Posix")
     elseif(UNIX)
         set(FREERTOS_PORT_DIR "ThirdParty/GCC/Posix")
     else()
-        message(FATAL_ERROR "DelegateMQ: Unsupported OS for FreeRTOS simulation.")
+        message(FATAL_ERROR "DelegateMQ: Unsupported OS for FreeRTOS simulation. "
+                            "For a hardware target, set FREERTOS_PORT_DIR (e.g. GCC/ARM_CM4F).")
     endif()
 
+    if(NOT DEFINED FREERTOS_HEAP)
+        set(FREERTOS_HEAP "heap_5")
+    endif()
 
     list(APPEND FREERTOS_SOURCES
         "${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}/port.c"
-        "${FREERTOS_ROOT_DIR}/portable/MemMang/heap_5.c"
+        "${FREERTOS_ROOT_DIR}/portable/MemMang/${FREERTOS_HEAP}.c"
     )
-    
-    if(UNIX AND NOT APPLE)
+
+    if(UNIX AND NOT APPLE AND FREERTOS_PORT_DIR STREQUAL "ThirdParty/GCC/Posix")
         file(GLOB POSIX_UTILS "${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}/utils/*.c")
         list(APPEND FREERTOS_SOURCES ${POSIX_UTILS})
         set(FREERTOS_LIBRARIES pthread rt)
