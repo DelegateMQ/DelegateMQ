@@ -89,6 +89,11 @@ def configure_pumptron_f4(pumptron_dir):
         missing.append("STM32Cube FW_F4 package (set STM32_REPO)")
     if missing:
         print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+        # Drop a stale firmware tree from an earlier configure so
+        # 04_build_samples.py (which builds build/f4 if present) skips it too.
+        stale = os.path.join(pumptron_dir, "build", "f4")
+        if os.path.isdir(stale):
+            shutil.rmtree(stale, ignore_errors=True)
         return
 
     print(f"[CONFIGURING] {label}")

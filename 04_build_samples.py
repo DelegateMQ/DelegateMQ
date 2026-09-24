@@ -182,6 +182,21 @@ def build_dotnet(project_subdir, label):
         return False, str(exc)
 
 
+def pumptron_f4_toolchain_present(f4_build_dir):
+    """True if Pumptron's configured STM32F4 firmware tree can still be built:
+    its CMakeCache.txt exists and the cross toolchain it recorded is present.
+    (The toolchain file sets CMAKE_CXX_COMPILER as a normal variable, so it is
+    not cached; CMAKE_CXX_COMPILER_AR is, and lives in the same bin directory.)"""
+    cache = os.path.join(f4_build_dir, "CMakeCache.txt")
+    if not os.path.isfile(cache):
+        return False
+    with open(cache, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith("CMAKE_CXX_COMPILER_AR:"):
+                return os.path.isfile(line.split("=", 1)[1].strip())
+    return False
+
+
 def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
     """
     Return a list of (label, build_dir) tuples for a project.
@@ -306,7 +321,11 @@ def build_samples(use_clang=False):
         if project_name == "pumptron":
             f4_dir = os.path.join(target_dir, "build", "f4")
             if os.path.isdir(f4_dir):
-                targets.append(("f4", f4_dir))
+                if pumptron_f4_toolchain_present(f4_dir):
+                    targets.append(("f4", f4_dir))
+                else:
+                    print("[SKIPPED] pumptron/f4 -- ARM toolchain from its configure is no longer available")
+                    skipped.append(("pumptron/f4", "ARM toolchain not found"))
         if targets:
             project_failed = False
             for label, build_dir in targets:
