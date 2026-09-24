@@ -1,0 +1,127 @@
+<svg width="1000" height="560" viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#f8f9fa"/>
+
+  <style>
+    .title { font: bold 16px sans-serif; fill: #333; }
+    .node  { font: bold 14px sans-serif; fill: #333; }
+    .sub   { font: 12px sans-serif; fill: #555; }
+    .mono  { font: bold 13px monospace; fill: #333; }
+    .topic { font: 12px monospace; fill: #333; }
+    .rel   { font: italic 11px sans-serif; fill: #666; }
+    .note  { font: 13px sans-serif; fill: #444; }
+    .cable { font: bold 12px sans-serif; fill: #333; }
+  </style>
+
+  <defs>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#fd7e14"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#007bff"/>
+    </marker>
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#888"/>
+    </marker>
+  </defs>
+
+  <!-- ===================== STM32F4 node ===================== -->
+  <rect x="20" y="40" width="360" height="405" rx="12" fill="#fff4e5" stroke="#fd7e14" stroke-width="2"/>
+  <text x="200" y="68" text-anchor="middle" class="title">STM32F4 Discovery · FreeRTOS</text>
+
+  <!-- vertical data path (drawn under the boxes) -->
+  <line x1="200" y1="155" x2="200" y2="175" stroke="#888" stroke-width="1.5" marker-start="url(#arrow-grey)" marker-end="url(#arrow-grey)"/>
+  <line x1="200" y1="215" x2="200" y2="235" stroke="#888" stroke-width="1.5" marker-start="url(#arrow-grey)" marker-end="url(#arrow-grey)"/>
+  <line x1="200" y1="295" x2="200" y2="315" stroke="#888" stroke-width="1.5" marker-start="url(#arrow-grey)" marker-end="url(#arrow-grey)"/>
+  <line x1="200" y1="351" x2="200" y2="371" stroke="#888" stroke-width="1.5" marker-start="url(#arrow-grey)" marker-end="url(#arrow-grey)"/>
+
+  <rect x="40" y="90" width="320" height="65" rx="8" fill="#ffffff" stroke="#fd7e14" stroke-width="1.5"/>
+  <text x="200" y="115" text-anchor="middle" class="node">Board peripherals</text>
+  <text x="200" y="138" text-anchor="middle" class="sub">LIS3DSH · die temp ADC · button · LEDs</text>
+
+  <rect x="40" y="175" width="320" height="40" rx="8" fill="#ffffff" stroke="#fd7e14" stroke-width="1.5"/>
+  <text x="200" y="200" text-anchor="middle" class="mono">F4Board : IBoard</text>
+
+  <rect x="40" y="235" width="320" height="60" rx="8" fill="#ffffff" stroke="#fd7e14" stroke-width="1.5"/>
+  <text x="200" y="259" text-anchor="middle" class="node">PumpController (active object)</text>
+  <text x="200" y="281" text-anchor="middle" class="sub">state machine + PumpModel · 20 Hz loop</text>
+
+  <rect x="90" y="315" width="220" height="36" rx="18" fill="#e9ecef" stroke="#6c757d" stroke-width="1.5"/>
+  <text x="200" y="338" text-anchor="middle" class="node">DataBus</text>
+
+  <rect x="40" y="371" width="320" height="58" rx="8" fill="#ffffff" stroke="#fd7e14" stroke-width="1.5"/>
+  <text x="200" y="394" text-anchor="middle" class="mono">SerialLink&lt;Stm32UartTransport&gt;</text>
+  <text x="200" y="416" text-anchor="middle" class="sub">USART6 · LinkTx thread + LinkRx task</text>
+
+  <!-- ===================== PC node ===================== -->
+  <rect x="620" y="40" width="360" height="405" rx="12" fill="#e7f3ff" stroke="#007bff" stroke-width="2"/>
+  <text x="800" y="68" text-anchor="middle" class="title">PC · Windows / Linux</text>
+
+  <line x1="800" y1="155" x2="800" y2="175" stroke="#888" stroke-width="1.5" marker-start="url(#arrow-grey)" marker-end="url(#arrow-grey)"/>
+  <line x1="800" y1="215" x2="800" y2="315" stroke="#888" stroke-width="1.5" marker-start="url(#arrow-grey)" marker-end="url(#arrow-grey)"/>
+  <line x1="800" y1="351" x2="800" y2="371" stroke="#888" stroke-width="1.5" marker-start="url(#arrow-grey)" marker-end="url(#arrow-grey)"/>
+
+  <rect x="640" y="90" width="320" height="65" rx="8" fill="#ffffff" stroke="#007bff" stroke-width="1.5"/>
+  <text x="800" y="115" text-anchor="middle" class="node">UI · FTXUI operator console</text>
+  <text x="800" y="138" text-anchor="middle" class="sub">controls · telemetry · alarms · bus monitor</text>
+
+  <rect x="640" y="175" width="320" height="40" rx="8" fill="#ffffff" stroke="#007bff" stroke-width="1.5"/>
+  <text x="800" y="200" text-anchor="middle" class="sub"><tspan class="node">System</tspan>  link select · GUI heartbeat · stats</text>
+
+  <rect x="660" y="245" width="280" height="40" rx="8" fill="#ffffff" stroke="#007bff" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="800" y="270" text-anchor="middle" class="sub">--selftest: headless end-to-end check</text>
+
+  <rect x="690" y="315" width="220" height="36" rx="18" fill="#e9ecef" stroke="#6c757d" stroke-width="1.5"/>
+  <text x="800" y="338" text-anchor="middle" class="node">DataBus</text>
+
+  <rect x="640" y="371" width="320" height="58" rx="8" fill="#ffffff" stroke="#007bff" stroke-width="1.5"/>
+  <text x="800" y="394" text-anchor="middle" class="mono">SerialLink&lt;SerialTransport&gt;</text>
+  <text x="800" y="416" text-anchor="middle" class="sub">libserialport · COM / tty port</text>
+
+  <!-- ===================== Topics over the link ===================== -->
+  <text x="500" y="98" text-anchor="middle" class="rel">topics carried over the link</text>
+
+  <!-- F4 -> PC -->
+  <text x="500" y="124" text-anchor="middle" class="topic">pump/status</text>
+  <line x1="395" y1="132" x2="605" y2="132" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrow-orange)"/>
+  <text x="500" y="146" text-anchor="middle" class="rel">RELIABLE</text>
+
+  <text x="500" y="170" text-anchor="middle" class="topic">pump/alarm</text>
+  <line x1="395" y1="178" x2="605" y2="178" stroke="#fd7e14" stroke-width="2" marker-end="url(#arrow-orange)"/>
+  <text x="500" y="192" text-anchor="middle" class="rel">RELIABLE</text>
+
+  <text x="500" y="216" text-anchor="middle" class="topic">pump/telemetry</text>
+  <line x1="395" y1="224" x2="605" y2="224" stroke="#fd7e14" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-orange)"/>
+  <text x="500" y="238" text-anchor="middle" class="rel">10 Hz</text>
+
+  <text x="500" y="262" text-anchor="middle" class="topic">sys/heartbeat/controller</text>
+  <line x1="395" y1="270" x2="605" y2="270" stroke="#fd7e14" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-orange)"/>
+  <text x="500" y="284" text-anchor="middle" class="rel">2 Hz</text>
+
+  <!-- PC -> F4 -->
+  <text x="500" y="308" text-anchor="middle" class="topic">pump/cmd</text>
+  <line x1="605" y1="316" x2="395" y2="316" stroke="#007bff" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <text x="500" y="330" text-anchor="middle" class="rel">RELIABLE</text>
+
+  <text x="500" y="354" text-anchor="middle" class="topic">sys/heartbeat/gui</text>
+  <line x1="605" y1="362" x2="395" y2="362" stroke="#007bff" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-blue)"/>
+  <text x="500" y="376" text-anchor="middle" class="rel">2 Hz</text>
+
+  <!-- ===================== Physical cable ===================== -->
+  <line x1="360" y1="400" x2="640" y2="400" stroke="#333" stroke-width="5"/>
+  <text x="500" y="422" text-anchor="middle" class="cable">RS-232 null modem · 115200 8N1</text>
+
+  <!-- ===================== Legend ===================== -->
+  <line x1="40" y1="470" x2="80" y2="470" stroke="#555" stroke-width="2"/>
+  <text x="88" y="474" class="note">RELIABLE: ACK + retry</text>
+  <line x1="250" y1="470" x2="290" y2="470" stroke="#555" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="298" y="474" class="note">UNRELIABLE: fire-and-forget</text>
+  <line x1="520" y1="470" x2="560" y2="470" stroke="#fd7e14" stroke-width="2"/>
+  <text x="568" y="474" class="note">F4 → PC</text>
+  <line x1="660" y1="470" x2="700" y2="470" stroke="#007bff" stroke-width="2"/>
+  <text x="708" y="474" class="note">PC → F4</text>
+
+  <!-- ===================== Simulator note ===================== -->
+  <rect x="20" y="492" width="960" height="54" rx="8" fill="#ffffff" stroke="#adb5bd" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="500" y="514" text-anchor="middle" class="note"><tspan font-weight="bold">Simulator mode (no board):</tspan> the same PumpController runs on the FreeRTOS simulator with SimBoard + NetworkNode&lt;UDP&gt;;</text>
+  <text x="500" y="534" text-anchor="middle" class="note">the GUI runs with --udp. Topology.h wires the same topics onto either link.</text>
+</svg>

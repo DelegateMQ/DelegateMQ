@@ -4,6 +4,10 @@
 
 It is Cellutron's hardware sibling. Cellutron simulates three CPUs on one PC; Pumptron runs the controller on a real microcontroller. The exact same controller code also runs on the FreeRTOS simulator over UDP, so you can develop without the board.
 
+<img src="pumptron_gui.png" width="1000" alt="Pumptron operator console connected to the STM32F4 board over RS-232">
+
+*Operator console connected to the STM32F4 board over COM3: the pump running at 2000 RPM, live sparklines, alarm events from shaking the board, and the bus monitor.*
+
 ---
 
 ## What It Does
@@ -39,15 +43,7 @@ LEDs: **orange** = powered, **green** = priming/running, **red** = fault, **blue
 
 ## Architecture
 
-```
- ┌──────────────────────── STM32F4 Discovery (FreeRTOS) ───────────────────────┐        ┌──────────── PC (Windows/Linux) ────────────┐
- │  PumpController (active object, 1 thread)                                   │        │  UI (FTXUI)        System                  │
- │    ├─ PumpModel         ├─ IBoard → F4Board (LIS3DSH, ADC, button, LEDs)   │        │    │                 └─ GUI heartbeat      │
- │    └─ DataBus Publish/Subscribe only                                        │        │    └─ DataBus Publish/Subscribe only       │
- │                         │                                                   │        │                         │                  │
- │  SerialLink<Stm32UartTransport>  ── USART6 / RS-232, 115200 8N1 ──────────────────────  SerialLink<SerialTransport> (libserialport)│
- └─────────────────────────────────────────────────────────────────────────────┘        └────────────────────────────────────────────┘
-```
+![Pumptron Architecture](pumptron_architecture.svg)
 
 | Topic | Direction | Reliability | Purpose |
 |:---|:---|:---|:---|
@@ -69,6 +65,26 @@ All of this wiring lives in one place, [`common/util/Topology.h`](common/util/To
 - **Explicit queue policies.** The link send thread uses `DROP`: a stalled cable drops frames instead of faulting the node, and drops are counted and shown in the GUI header. The pump thread uses `FAULT`, and the UI thread uses `DROP`.
 - **Embedded-friendly build.** Static task stacks, a 64 KB FreeRTOS `heap_4` in CCM RAM, `DMQ_ALLOCATOR` fixed-block allocation, `DMQ_ASSERTS`, and no exceptions. The build uses about 333 KB of flash and 41 KB of SRAM.
 - **Off-target development.** The controller's application code (`pump/`, `board/IBoard.h`, `common/`) is identical on the F4 and on the FreeRTOS simulator. Only `platform/f4/` or `platform/sim/` differs.
+
+---
+
+## Why DelegateMQ
+
+What this project would need without it, and what DelegateMQ replaces:
+
+| Concern | Hand-written | With DelegateMQ |
+|:---|:---|:---|
+| Message protocol | Type enum, packed structs, `switch` decoder, kept byte-compatible on both sides by hand | Typed topics + registered serializers |
+| Framing, CRC | UART byte state machine | Built into the transports |
+| Reliability | Seq numbers, ACKs, retry timers, give-up path | `Reliability::RELIABLE` in `Topology.h` |
+| Cross-task handoff | Queue-item unions, `xQueueSend`/`switch` per task | `MakeDelegate(obj, &Fn, thread)` |
+| State machine locking | Mutexes around shared state | None: every handler runs on the pump thread |
+| Link supervision | Timestamps checked in loops | `DeadlineSubscription` |
+| Off-target development | Separate UDP code path, or develop on hardware only | Same controller code runs on the PC FreeRTOS simulator; only the link and board in `main.cpp` change |
+| Testing | Hardware in the loop, or custom test harnesses | `--selftest` drives the real controller over DataBus. The same test runs against the simulator (no board) and the F4 (over RS-232) |
+| Bus inspection | Custom logging | `DataBus::Monitor` → GUI bus monitor |
+
+**Net effect:** application code is domain logic only. Link choice, direction and reliability of every topic live in about 20 lines (`Topology.h`). Adding a subscriber costs one line, not a protocol change.
 
 ---
 
@@ -197,7 +213,7 @@ python run_pumptron.py --selftest                 # simulator
 python run_pumptron.py --serial COM5 --selftest   # real board
 ```
 
-It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above).
+It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above). On the STM32F4 board over RS-232 it passes every step, with the controller clock at 1.00× real time and no retries.
 
 ---
 
