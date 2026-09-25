@@ -75,16 +75,6 @@ build\delegate_app\Debug\delegate_app.exe
 ./build/delegate_app/delegate_app
 ```
 
-## Example Projects
-
-The [`example`](example/README.md) directory ranges from single-file snippets to complete multi-node applications. Highlights:
-
-| Example | Description | Docs |
-| :--- | :--- | :--- |
-| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README](example/sample-projects/README.md) |
-| **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
-| **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
-
 # Overview
 
 A delegate is a type-safe wrapper around any callable — function, method, or lambda — that can be stored and invoked later, in a different context or on a different thread. DelegateMQ builds everything on this one primitive: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.
@@ -341,6 +331,16 @@ DelegateMQ at a glance.
 | [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards | Spy & Monitor |
 | [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
 | [**Safety Notes**](docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
+
+# Example Projects
+
+The [`example`](example/README.md) directory ranges from single-file snippets to complete multi-node applications. Highlights:
+
+| Example | Description | Docs |
+| :--- | :--- | :--- |
+| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README](example/sample-projects/README.md) |
+| **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
+| **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
 
 # Other Projects Using DelegateMQ
 
