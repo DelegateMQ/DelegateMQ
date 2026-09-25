@@ -46,6 +46,8 @@ struct Record
     char     where[CoreDumpMsg::WHERE_LEN];
     uint32_t line;
     uint32_t auxCode;
+    uint32_t crashSeq;
+    uint32_t uptimeMs;
     char     task[CoreDumpMsg::TASK_LEN];
     uint32_t regs[CoreDumpMsg::REG_COUNT];
     uint32_t faultRegs[CoreDumpMsg::FAULT_REG_COUNT];
@@ -55,6 +57,20 @@ struct Record
 };
 
 __attribute__((section(".noinit"))) Record s_record;
+
+/// Crashes stored since power-up. Also in .noinit so it counts across resets;
+/// its own key tells a live count from power-on garbage. Together with the
+/// uptime it makes every crash distinct, even a deterministic test crash that
+/// is otherwise byte-identical every time, so the GUI's duplicate check only
+/// ever drops a genuine resend of the same dump.
+struct CrashCounter
+{
+    uint32_t key;
+    uint32_t notKey;
+    uint32_t count;
+};
+
+__attribute__((section(".noinit"))) CrashCounter s_crashCounter;
 
 } // namespace
 
@@ -218,6 +234,17 @@ void ItmWrite(const char* s)
         ITM_SendChar(static_cast<uint32_t>(*s++));
 }
 
+uint32_t NextCrashSeq()
+{
+    CrashCounter& c = s_crashCounter;
+    if (c.key != KEY_STORED || c.notKey != ~KEY_STORED) {
+        c.key = KEY_STORED;
+        c.notKey = ~KEY_STORED;
+        c.count = 0;
+    }
+    return ++c.count;
+}
+
 void Store(uint32_t source, const char* where, uint32_t line, uint32_t aux,
            const uint32_t* frame, uint32_t excReturn)
 {
@@ -230,6 +257,8 @@ void Store(uint32_t source, const char* where, uint32_t line, uint32_t aux,
     r.source = source;
     r.line = line;
     r.auxCode = aux;
+    r.crashSeq = NextCrashSeq();
+    r.uptimeMs = HAL_GetTick();
     CopyTail(r.where, sizeof(r.where), where);
     CopyBuildId(r.buildId, sizeof(r.buildId));
 
@@ -332,6 +361,8 @@ bool CoreDump_ToMsg(CoreDumpMsg& msg)
     memcpy(msg.where, r.where, sizeof(msg.where));
     msg.line = r.line;
     msg.auxCode = r.auxCode;
+    msg.crashSeq = r.crashSeq;
+    msg.uptimeMs = r.uptimeMs;
     memcpy(msg.task, r.task, sizeof(msg.task));
     memcpy(msg.regs, r.regs, sizeof(msg.regs));
     memcpy(msg.faultRegs, r.faultRegs, sizeof(msg.faultRegs));

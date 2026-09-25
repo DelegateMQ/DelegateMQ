@@ -61,6 +61,8 @@ struct CoreDumpMsg : public MessageBase
     char     where[WHERE_LEN] = {};       ///< Source file (tail) or thread/task name
     uint32_t line = 0;                    ///< Source line, 0 if none
     uint32_t auxCode = 0;                 ///< Source-specific (e.g. exception number)
+    uint32_t crashSeq = 0;                ///< Crash number since power-up (1, 2, ...)
+    uint32_t uptimeMs = 0;                ///< Time since boot when the fault occurred
     char     task[TASK_LEN] = {};         ///< Active task or ISR at the time of the fault
     uint32_t regs[REG_COUNT] = {};
     uint32_t faultRegs[FAULT_REG_COUNT] = {};
@@ -76,6 +78,8 @@ struct CoreDumpMsg : public MessageBase
         ms.read(is, where, sizeof(where));
         ms.read(is, line);
         ms.read(is, auxCode);
+        ms.read(is, crashSeq);
+        ms.read(is, uptimeMs);
         ms.read(is, task, sizeof(task));
         for (auto& r : regs)      ms.read(is, r);
         for (auto& r : faultRegs) ms.read(is, r);
@@ -96,6 +100,8 @@ struct CoreDumpMsg : public MessageBase
         ms.write(os, static_cast<const char*>(where));
         ms.write(os, line);
         ms.write(os, auxCode);
+        ms.write(os, crashSeq);
+        ms.write(os, uptimeMs);
         ms.write(os, static_cast<const char*>(task));
         for (auto& r : regs)      ms.write(os, r);
         for (auto& r : faultRegs) ms.write(os, r);

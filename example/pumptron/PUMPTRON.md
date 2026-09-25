@@ -35,7 +35,7 @@ Demo scenarios built into the model:
 - **Run at 3000 RPM** for about a minute → motor temperature climbs past 70 °C (warning), then trips `OVER-TEMP` at 85 °C. `RESET` is refused until it cools below 60 °C.
 - **Sweep through ~2200 RPM** → a mild structural resonance is visible in the vibration trace.
 - **Press the blue button** → local E-STOP.
-- **Hold the blue button for 5 s** → deliberate crash (UsageFault). The board stores a core dump and resets, and the GUI saves the dump to a `dump_<timestamp>.txt` file (see [Crash dumps](#crash-dumps)).
+- **Hold the blue button for 5 s** → deliberate test crash; see [Crash Dumps](#crash-dumps).
 - **Unplug the serial cable** while running → the controller loses the GUI heartbeat and safe-stops the pump (`GUI LINK LOST`), and the GUI shows `OFFLINE`. Plug it back in and both sides resync automatically.
 
 LEDs:
@@ -48,130 +48,6 @@ LEDs:
 | **Red** solid | Pump fault latched, or an initialization error (board halted) |
 | **Red** fast blink for 3 s at startup | The previous run crashed; a core dump is stored and will be sent to the GUI |
 
-### Crash dumps
-
-Any crash on the F4 stores a small core dump in RAM that survives reset, then resets the board immediately. A crash here means any of:
-
-- a `DMQ_ASSERT` or `BAD_ALLOC` (file and line)
-- a hardware exception: HardFault, MemManage, BusFault or UsageFault
-- a thread watchdog timeout (names the thread that stopped responding)
-- a FreeRTOS `configASSERT`, stack overflow (names the task) or heap exhaustion
-
-**What happens next**
-
-1. The fault handler writes the crash record to a `.noinit` RAM section, which the startup code never clears, and calls `NVIC_SystemReset()`. It takes no locks, uses no heap and makes no `printf` calls, so it works even with a corrupted heap or stack.
-2. On the next boot the red LED blinks fast for 3 s: a crash was detected.
-3. Once the GUI connects (its first heartbeat arrives), the controller publishes a `CoreDumpMsg` on `sys/coredump` (RELIABLE).
-4. The GUI writes `dump_YYYYMMDD_HHMMSS.txt` to its working directory and logs the file name in the Events pane. When started with `run_pumptron.py`, that directory is `build/bin/<config>/`.
-5. The controller clears the stored record only after the GUI ACKs the message. If delivery fails, it resends on the next heartbeat.
-
-**What a dump contains**
-
-| Field | Contents |
-|:---|:---|
-| Type | Assertion, hardware exception, thread watchdog or FreeRTOS fault |
-| File / Line, Exception, Unresponsive thread, Task | Depends on the type: where the fault was raised |
-| Active context | What was running at the time of the fault: a task name, `ISR <n>`, or `main` before the scheduler started |
-| Build ID | GNU build ID of the firmware that crashed, so the dump can be matched to the exact `pumptron_f4.elf` |
-| R0–R3, R12, LR, PC, xPSR | Hardware exceptions only: the registers the CPU stacked on entry |
-| CFSR, HFSR, MMFAR, BFAR | Hardware exceptions only: fault status registers, with the set bits named (`UNDEFINSTR`, `PRECISERR`, …). MMFAR/BFAR are shown only when valid |
-| Call stack | Up to 12 addresses, innermost first: the faulting PC (if in flash), then return addresses found by scanning the active stack. A word counts as a return address only if it directly follows a `BL`/`BLX` instruction |
-
-**Try it:** hold the blue button for 5 s. `F4Board::IsLocalStopPressed()` executes an undefined instruction from the Pump thread, which raises a UsageFault.
-
-**Sample dump** (from the button test):
-
-```text
-Pumptron controller core dump
-Received: 2026-09-25 08:36:26
-Type: Hardware exception
-Exception: UsageFault (vector 6)
-Active context: Pump
-Build ID: 19adab3c919fca2dc3ff11
-
-R0: 0x00001388
-R1: 0x00000001
-R2: 0x00000000
-R3: 0x00001387
-R12: 0x00000000
-LR: 0x08015481
-PC: 0x0801543c
-xPSR: 0x21000000
-CFSR: 0x00010000  UNDEFINSTR
-HFSR: 0x00000000  -
-
-Call stack (innermost first):
-  0: 0x0801543d  (PC)
-  1: 0x08015481
-  2: 0x0801c337
-  3: 0x080182eb
-  4: 0x0801830f
-  5: 0x08003aad
-  6: 0x08003ab9
-  7: 0x080073f5
-  8: 0x08007425
-  9: 0x0800f08b
-  10: 0x080146a9
-  11: 0x0801470f
-
-Decode (with the pumptron_f4.elf whose build ID matches):
-  arm-none-eabi-addr2line -f -C -p -e pumptron_f4.elf 0x0801543c 0x0801547f 0x0801c335 0x080182e9 0x0801830d 0x08003aab 0x08003ab7 0x080073f3 0x08007423 0x0800f089 0x080146a7 0x0801470d
-```
-
-**Decoding**
-
-1. Check that the build ID matches the image you are decoding against:
-
-   ```
-   arm-none-eabi-readelf -n build/f4/pumptron_f4.elf
-       Build ID: 19adab3c919fca2dc3ff11853dbff465d1404386
-   ```
-
-   The dump stores the first 22 hex digits. Keep the `.elf` of any firmware you hand out; without the matching image, the addresses cannot be decoded.
-
-2. Run the `addr2line` command from the end of the dump. The GUI has already adjusted each address. The PC is used as is. Each return address becomes `(addr & ~1) - 1`, which clears the Thumb bit and steps back into the call instruction; decoding the address after the call can name the wrong line, or the next function if the callee never returns.
-
-Output for the sample, with paths and template arguments shortened:
-
-```text
-pumptron::board::TriggerTestFault() at controller/platform/f4/F4Board.cpp:129
-pumptron::board::F4Board::IsLocalStopPressed() at controller/platform/f4/F4Board.cpp:142
-pumptron::pump::PumpController::OnControlTick() at controller/pump/PumpController.cpp:146
-std::__invoke_impl<void, void (PumpController::*&)(), ...> at bits/invoke.h:74
-std::__invoke<void (PumpController::*&)(), ...> at bits/invoke.h:96
-dmq::UnicastDelegate<void ()>::operator()() const at delegate/UnicastDelegate.h:77
-dmq::util::TimerDelegate::InvokeTarget(std::shared_ptr<dmq::util::DispatchToken>) at extras/util/TimerDelegate.h:174
-std::__invoke_impl<void, void (TimerDelegate::*&)(...), ...> at bits/invoke.h:74
-std::__invoke<void (TimerDelegate::*&)(...), ...> at bits/invoke.h:96
-dmq::DelegateMemberAsync<TimerDelegate, void (std::shared_ptr<DispatchToken>)>::operator()(...) at delegate/DelegateAsync.h:633
-std::__invoke_impl<void, void (DelegateMember<TimerDelegate, ...>::*)(...), ...> at bits/invoke.h:74
-std::__invoke<void (DelegateMember<TimerDelegate, ...>::*)(...), ...> at bits/invoke.h:96
-```
-
-Read it from the bottom up. The Pump thread's control timer fired, and DelegateMQ dispatched it asynchronously to the Pump thread (`DelegateMemberAsync` → `TimerDelegate::InvokeTarget`). The timer called `PumpController::OnControlTick()`, which polled the board button, and `IsLocalStopPressed()` called `TriggerTestFault()`. CFSR `UNDEFINSTR` confirms the cause: an undefined instruction at the PC. The 12-entry limit cut off the outermost frames (the Pump thread's message loop).
-
-**Reading a hardware exception.** CFSR usually names the cause directly. Common ones:
-
-| CFSR bit | Meaning |
-|:---|:---|
-| `PRECISERR` + `BFARVALID` | Bad data address; BFAR holds it (for example a null or dangling pointer) |
-| `DACCVIOL` + `MMARVALID` | MPU/data access violation at MMFAR |
-| `UNDEFINSTR` / `INVSTATE` | Executed garbage or an ARM-mode address: a corrupted function pointer or return address |
-| `DIVBYZERO`, `UNALIGNED` | Only when trapping is enabled; the CubeIDE debug launch can enable it (Startup tab, exception settings) |
-| `STKERR` / `MSTKERR` | Fault while stacking: usually a stack overflow |
-
-HFSR `FORCED` means a lower-priority fault escalated to HardFault; CFSR still has the original cause. HFSR `DEBUGEVT` with a PC in RAM (`0x2000xxxx`) is not an application crash: the debugger's flash loader hit a breakpoint without a debugger attached, typically during an interrupted flash or debug launch.
-
-The implementation is in `controller/platform/f4/CoreDump.cpp`/`CoreDumpReporter.h` and `gui/system/CoreDumpFile.cpp`. It is adapted from [CoreDump](https://github.com/endurodave/CoreDump), which explains the technique in detail.
-
-**Limitations**
-
-- For a thread watchdog timeout, the call stack is the watchdog checker's (the `Startup` task), not the stuck thread's. The dump does name the stuck thread.
-- Only the active thread's stack is captured, not every FreeRTOS task's.
-- The stack scan is heuristic. The `BL`/`BLX` check rejects nearly all non-addresses, but a stale return address left behind by an earlier call can still appear.
-- Only the first crash is kept until it has been delivered; a second crash before then is not recorded.
-- A power cycle loses an undelivered dump. RAM survives a reset, not a power loss.
-- A hang that the thread watchdog does not catch ends in an IWDG reset with no dump. The boot log reports `restarted by hardware watchdog`.
 ---
 
 ## Architecture
@@ -373,6 +249,148 @@ python run_pumptron.py --serial COM5 --selftest   # real board
 ```
 
 It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above). On the STM32F4 board over the serial link it passes every step, with the controller clock at 1.00× real time and no retries.
+
+---
+
+## Crash Dumps
+
+Any crash on the F4 stores a small core dump in RAM that survives reset, then resets the board immediately. A crash here means any of:
+
+- a `DMQ_ASSERT` or `BAD_ALLOC` (file and line)
+- a hardware exception: HardFault, MemManage, BusFault or UsageFault
+- a thread watchdog timeout (names the thread that stopped responding)
+- a FreeRTOS `configASSERT`, stack overflow (names the task) or heap exhaustion
+
+**What happens next**
+
+1. The fault handler writes the crash record to a `.noinit` RAM section, which the startup code never clears, and calls `NVIC_SystemReset()`. It takes no locks, uses no heap and makes no `printf` calls, so it works even with a corrupted heap or stack.
+2. On the next boot the red LED blinks fast for 3 s: a crash was detected.
+3. Once the GUI connects (its first heartbeat arrives), the controller publishes a `CoreDumpMsg` on `sys/coredump` (RELIABLE).
+4. The GUI writes `dump_YYYYMMDD_HHMMSS.txt` to its working directory and logs the file name in the Events pane. When started with `run_pumptron.py`, that directory is `build/bin/<config>/`.
+5. The controller clears the stored record only after the GUI ACKs the message. If delivery fails, it resends on the next heartbeat.
+
+**What a dump contains**
+
+| Field | Contents |
+|:---|:---|
+| Type | Assertion, hardware exception, thread watchdog or FreeRTOS fault |
+| File / Line, Exception, Unresponsive thread, Task | Depends on the type: where the fault was raised |
+| Active context | What was running at the time of the fault: a task name, `ISR <n>`, or `main` before the scheduler started |
+| Uptime at crash, Crash number | Time since boot when the fault hit, and a count of crashes since power-up. They make every crash distinct, so the GUI can tell a resend of the same dump (skipped, with an Events entry) from a new crash that happens to be identical, such as the button test |
+| Build ID | GNU build ID of the firmware that crashed, so the dump can be matched to the exact `pumptron_f4.elf` |
+| R0–R3, R12, LR, PC, xPSR | Hardware exceptions only: the registers the CPU stacked on entry |
+| CFSR, HFSR, MMFAR, BFAR | Hardware exceptions only: fault status registers, with the set bits named (`UNDEFINSTR`, `PRECISERR`, …). MMFAR/BFAR are shown only when valid |
+| Call stack | Up to 12 addresses, innermost first: the faulting PC (if in flash), then return addresses found by scanning the active stack. A word counts as a return address only if it directly follows a `BL`/`BLX` instruction |
+
+**Try it:** hold the blue button for 5 s. `F4Board::IsLocalStopPressed()` executes an undefined instruction from the Pump thread, which raises a UsageFault.
+
+**Sample dump** (from the button test):
+
+```text
+Pumptron controller core dump
+Received: 2026-09-25 08:36:26
+Type: Hardware exception
+Exception: UsageFault (vector 6)
+Active context: Pump
+Build ID: 19adab3c919fca2dc3ff11
+
+R0: 0x00001388
+R1: 0x00000001
+R2: 0x00000000
+R3: 0x00001387
+R12: 0x00000000
+LR: 0x08015481
+PC: 0x0801543c
+xPSR: 0x21000000
+CFSR: 0x00010000  UNDEFINSTR
+HFSR: 0x00000000  -
+
+Call stack (innermost first):
+  0: 0x0801543d  (PC)
+  1: 0x08015481
+  2: 0x0801c337
+  3: 0x080182eb
+  4: 0x0801830f
+  5: 0x08003aad
+  6: 0x08003ab9
+  7: 0x080073f5
+  8: 0x08007425
+  9: 0x0800f08b
+  10: 0x080146a9
+  11: 0x0801470f
+
+Decode (with the pumptron_f4.elf whose build ID matches):
+  arm-none-eabi-addr2line -f -C -p -e pumptron_f4.elf 0x0801543c 0x0801547f 0x0801c335 0x080182e9 0x0801830d 0x08003aab 0x08003ab7 0x080073f3 0x08007423 0x0800f089 0x080146a7 0x0801470d
+```
+
+**Decoding**
+
+1. Check that the build ID matches the image you are decoding against:
+
+   ```
+   arm-none-eabi-readelf -n build/f4/pumptron_f4.elf
+       Build ID: 19adab3c919fca2dc3ff11853dbff465d1404386
+   ```
+
+   The dump stores the first 22 hex digits. Keep the `.elf` of any firmware you hand out; without the matching image, the addresses cannot be decoded.
+
+2. Run the `addr2line` command from the end of the dump. The GUI has already adjusted each address. The PC is used as is. Each return address becomes `(addr & ~1) - 1`, which clears the Thumb bit and steps back into the call instruction; decoding the address after the call can name the wrong line, or the next function if the callee never returns.
+
+Output for the sample, with paths and template arguments shortened:
+
+```text
+pumptron::board::TriggerTestFault() at controller/platform/f4/F4Board.cpp:129
+pumptron::board::F4Board::IsLocalStopPressed() at controller/platform/f4/F4Board.cpp:142
+pumptron::pump::PumpController::OnControlTick() at controller/pump/PumpController.cpp:146
+std::__invoke_impl<void, void (PumpController::*&)(), ...> at bits/invoke.h:74
+std::__invoke<void (PumpController::*&)(), ...> at bits/invoke.h:96
+dmq::UnicastDelegate<void ()>::operator()() const at delegate/UnicastDelegate.h:77
+dmq::util::TimerDelegate::InvokeTarget(std::shared_ptr<dmq::util::DispatchToken>) at extras/util/TimerDelegate.h:174
+std::__invoke_impl<void, void (TimerDelegate::*&)(...), ...> at bits/invoke.h:74
+std::__invoke<void (TimerDelegate::*&)(...), ...> at bits/invoke.h:96
+dmq::DelegateMemberAsync<TimerDelegate, void (std::shared_ptr<DispatchToken>)>::operator()(...) at delegate/DelegateAsync.h:633
+std::__invoke_impl<void, void (DelegateMember<TimerDelegate, ...>::*)(...), ...> at bits/invoke.h:74
+std::__invoke<void (DelegateMember<TimerDelegate, ...>::*)(...), ...> at bits/invoke.h:96
+```
+
+Read it from the bottom up. The Pump thread's control timer fired, and DelegateMQ dispatched it asynchronously to the Pump thread (`DelegateMemberAsync` → `TimerDelegate::InvokeTarget`). The timer called `PumpController::OnControlTick()`, which polled the board button, and `IsLocalStopPressed()` called `TriggerTestFault()`. CFSR `UNDEFINSTR` confirms the cause: an undefined instruction at the PC. The 12-entry limit cut off the outermost frames (the Pump thread's message loop).
+
+**Reading a hardware exception.** CFSR usually names the cause directly. Common ones:
+
+| CFSR bit | Meaning |
+|:---|:---|
+| `PRECISERR` + `BFARVALID` | Bad data address; BFAR holds it (for example a null or dangling pointer) |
+| `DACCVIOL` + `MMARVALID` | MPU/data access violation at MMFAR |
+| `UNDEFINSTR` / `INVSTATE` | Executed garbage or an ARM-mode address: a corrupted function pointer or return address |
+| `DIVBYZERO`, `UNALIGNED` | Only when trapping is enabled; the CubeIDE debug launch can enable it (Startup tab, exception settings) |
+| `STKERR` / `MSTKERR` | Fault while stacking: usually a stack overflow |
+
+HFSR `FORCED` means a lower-priority fault escalated to HardFault; CFSR still has the original cause. HFSR `DEBUGEVT` with a PC in RAM (`0x2000xxxx`) is not an application crash: the debugger's flash loader hit a breakpoint without a debugger attached, typically during an interrupted flash or debug launch.
+
+The implementation is in `controller/platform/f4/CoreDump.cpp`/`CoreDumpReporter.h` and `gui/system/CoreDumpFile.cpp`. It is adapted from [CoreDump](https://github.com/endurodave/CoreDump), which explains the technique in detail.
+
+**Limitations**
+
+- For a thread watchdog timeout, the call stack is the watchdog checker's (the `Startup` task), not the stuck thread's. The dump does name the stuck thread.
+- Only the active thread's stack is captured, not every FreeRTOS task's.
+- The stack scan is heuristic. The `BL`/`BLX` check rejects nearly all non-addresses, but a stale return address left behind by an earlier call can still appear.
+- Only the first crash is kept until it has been delivered; a second crash before then is not recorded.
+- A power cycle loses an undelivered dump. RAM survives a reset, not a power loss.
+- A hang that the thread watchdog does not catch ends in an IWDG reset with no dump. The boot log reports `restarted by hardware watchdog`.
+
+**Future expansion: call stacks for all FreeRTOS tasks**
+
+Today only the active thread's stack is captured. Capturing every task would show the stuck thread's own stack in a thread watchdog dump, and where every other task was blocked at the time of a crash, which is what diagnosing a deadlock or starvation needs. The outline:
+
+1. **Enumerate the tasks from the fault handler.** `uxTaskGetSystemState()`/`vTaskGetInfo()` are not usable there: they suspend the scheduler and enter critical sections, which assert from handler mode on the CM4F port. Instead, set `configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H 1` and add a `freertos_tasks_c_additions.h`. FreeRTOS compiles that header into `tasks.c`, where it can walk the ready, delayed, pending-ready, suspended and waiting-termination lists and read TCB fields at their correct offsets. Set `configRECORD_STACK_HIGH_ADDRESS 1` too, so each TCB records `pxEndOfStack` and each stack scan can stop at that task's exact bounds.
+2. **Recover each blocked task's context.** `pxTopOfStack`, which FreeRTOS guarantees is the first TCB member, points at the context saved by PendSV (`GCC/ARM_CM4F/port.c`): r4–r11 and EXC_RETURN, then s16–s31 if EXC_RETURN bit 4 is clear, then the hardware frame (r0–r3, r12, LR, PC, xPSR, plus the FP words). That gives each task's PC (where it was switched out, usually inside a kernel call such as `xQueueReceive`) and its LR. The rest of its stack, up to `pxEndOfStack`, is scanned with the same `BL`/`BLX` filter.
+3. **Special cases.** The running task keeps today's live capture, since its saved context is stale. For a fault inside an ISR, the interrupted task's live frame is on the PSP and could be captured from there too, closing today's gap where an ISR fault shows only the main stack. Before the scheduler starts there are no tasks.
+4. **Cheap extras per task.** State (Running/Ready/Blocked/Suspended/Deleted, from the list it is on), priority, and the stack high-water mark (untouched `0xA5` fill words from the stack base), which flags a task close to overflowing.
+5. **Size.** There are 6 tasks today (Startup, Pump, LinkTx, LinkRx, Tmr Svc, IDLE). At about 80 bytes per task (name, state, high-water mark, 12 addresses), a cap of 8 tasks is about 640 bytes of `.noinit` RAM and about 1 KB on the wire. That still fits in one `CoreDumpMsg`: the F4 send path has no fixed cap, and the GUI's serial receive buffer is 4096 bytes. One message keeps "clear only after the GUI's ACK" simple.
+6. **Robustness.** Kernel lists may be corrupt after a crash, and a bad pointer read inside the fault handler locks up the CPU. The IWDG then resets the board and the whole dump is lost. So commit the active-thread record first, with a valid CRC, and then append the task section and recompute the CRC. Check every pointer before reading it (in RAM, aligned), cap every list walk, and check that each list item points back to the list being walked.
+7. **Coupling.** The additions header depends on `tasks.c` internals (`pxReadyTasksLists` and so on). Pin it to the kernel version in use (V11.1.0); a kernel upgrade that renames them fails to compile rather than misbehaving.
+
+Changes, all on the F4: `FreeRTOSConfig.h` (the two options), a new `freertos_tasks_c_additions.h` (task walk and context recovery), `CoreDump.cpp` (a tasks section and the two-phase commit), `CoreDumpMsg.h` (a task array), and `gui/system/CoreDumpFile.cpp` (one section and one `addr2line` command per task).
 
 ---
 

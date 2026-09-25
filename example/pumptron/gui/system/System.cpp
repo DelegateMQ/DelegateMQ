@@ -118,9 +118,12 @@ void System::OnUnhandled(const dmq::xstring& topic)
 void System::OnCoreDump(const CoreDumpMsg& msg)
 {
     // A resend after a lost ACK carries the same dump; save it only once.
+    // (Every real crash differs: the dump includes its crash number and uptime.)
     std::string body = FormatCoreDump(msg);
-    if (body == m_lastCoreDump)
+    if (body == m_lastCoreDump) {
+        Emit("INFO   duplicate controller core dump ignored (already saved)");
         return;
+    }
     m_lastCoreDump = body;
 
     std::string path;

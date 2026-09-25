@@ -77,7 +77,12 @@ std::string FormatCoreDump(const CoreDumpMsg& msg)
                 os << "File: " << msg.where << "\n" << "Line: " << msg.line << "\n";
             break;
     }
+    char uptime[32];
+    snprintf(uptime, sizeof(uptime), "%u.%03u s",
+             static_cast<unsigned>(msg.uptimeMs / 1000), static_cast<unsigned>(msg.uptimeMs % 1000));
     os << "Active context: " << msg.task << "\n"
+       << "Uptime at crash: " << uptime << "\n"
+       << "Crash number: " << msg.crashSeq << " since power-up\n"
        << "Build ID: " << msg.buildId << "\n";
 
     if (hardFault) {
