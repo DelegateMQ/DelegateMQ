@@ -4,10 +4,57 @@
 
 It is Cellutron's hardware sibling. Cellutron simulates three CPUs on one PC; Pumptron runs the controller on a real microcontroller. The exact same controller code also runs on the FreeRTOS simulator over UDP, so you can develop without the board.
 
+**What it showcases:**
+
+- **DataBus over a serial link**: the controller and the console share named topics over one UART, with RELIABLE (ACK + retry) and UNRELIABLE tiers.
+- **Real embedded target**: FreeRTOS on a Cortex-M4 with static task stacks, a fixed-block allocator and no exceptions.
+- **Off-target development**: the same controller code runs on the FreeRTOS simulator on Windows/Linux, linked to the console over UDP instead of serial.
+- **Multithreading with active objects**: every handler runs on the pump thread, so the state machine needs no locks.
+- **Signals and error handling**: every DelegateMQ error and link-health signal is handled and reported, from delivery failures to dropped frames.
+- **Heartbeats and safe-stop**: `DeadlineSubscription` in both directions; the pump stops if the operator disappears.
+- **Watchdogs and crash dumps**: per-thread and hardware watchdogs; a crash is captured on the board and delivered to the console, which saves it as a text file ready to decode.
+- **Terminal GUI**: an FTXUI operator console for Windows and Linux.
+
 <img src="pumptron_gui.png" width="1000" alt="Pumptron operator console connected to the STM32F4 board over a serial link">
 
 *Operator console connected to the STM32F4 board over COM3: the pump running at 2000 RPM, live sparklines, alarm events from shaking the board, and the bus monitor.*
 
+---
+
+## Quick Start
+
+Pumptron builds and runs on **Windows** and **Linux**. Steps 1–3 run the whole system on the PC, with the controller on the FreeRTOS simulator. Steps 4–6 are optional: they move the controller onto a real STM32F4 Discovery board.
+
+1.  **Initialize Workspace**: Ensure `DelegateMQ` is placed inside a workspace directory (e.g., `DelegateMQWorkspace`). From the repository root, fetch the dependencies (FreeRTOS, FTXUI, libserialport):
+    ```bash
+    python3 01_fetch_repos.py
+    ```
+2.  **Build Pumptron**: From this directory (`example/pumptron/`), build the GUI and the simulated controller:
+    ```bash
+    cmake -B build .
+    cmake --build build
+    ```
+3.  **Run Pumptron**: Launch the controller and the GUI, each in its own terminal:
+    ```bash
+    python3 run_pumptron.py
+    ```
+    Press `s` to start the pump, `t` to stop it, `q` to quit (see [Controls](#controls)). If the simulated pump looks frozen, see the known issue under [Simulator](#simulator-no-board).
+4.  **Build the firmware** *(optional, STM32F4 hardware)*: Needs `arm-none-eabi-gcc`, Ninja and the STM32Cube FW_F4 package (see [STM32F4 Firmware](#stm32f4-firmware)). From this directory:
+    ```bash
+    cmake -S controller/platform/f4 -B build/f4 -G Ninja
+    cmake --build build/f4
+    ```
+5.  **Flash and wire the board** *(optional, STM32F4 hardware)*: Flash `build/f4/pumptron_f4.elf` with STM32CubeIDE or:
+    ```bash
+    STM32_Programmer_CLI -c port=SWD -w build/f4/pumptron_f4.elf -v -rst
+    ```
+    Connect a 3.3 V USB-UART adapter: adapter TX → **PC7**, RX → **PC6**, GND → **GND** (see [Hardware](#hardware)).
+6.  **Run against the board** *(optional, STM32F4 hardware)*: Launch only the GUI, on the adapter's serial port:
+    ```bash
+    python3 run_pumptron.py --serial COM5          # Windows
+    python3 run_pumptron.py --serial /dev/ttyUSB0  # Linux
+    ```
+    On Linux, `--serial` needs libserialport (see [Hardware](#hardware)).
 ---
 
 ## What It Does
@@ -65,20 +112,6 @@ LEDs:
 
 All of this wiring lives in one place, [`common/util/Topology.h`](common/util/Topology.h). It is written as templates, so the same functions configure the serial link (hardware) and the UDP `NetworkNode` (simulator).
 
-### DelegateMQ Features Shown
-
-- **Location transparency.** `PumpController` and `UI` only call `DataBus::Publish/Subscribe`. Neither knows whether the other end is across a serial link, UDP, or absent.
-- **DataBus over a serial link.** [`common/util/SerialLink.h`](common/util/SerialLink.h) is a point-to-point counterpart to `NetworkNode`. It has the same `Send<T>()`/`Receive<T>()` API and status signals, with RELIABLE and UNRELIABLE tiers sharing one UART.
-- **Active objects.** Every handler (commands, 20 Hz control tick, heartbeat, link-loss deadline) is marshalled onto the pump thread, so the state machine needs no locks.
-- **`DeadlineSubscription` heartbeats**, in both directions.
-- **Every error channel is handled.** DataBus errors and unhandled topics, link delivery failures, retry backlogs and send-queue drops are all connected (`controller/pump/LinkErrorReporter.h`, `gui/system/System.cpp`).
-  - On the controller they raise a `LINK_DEGRADED` warning alarm, and a failed status/alarm delivery triggers a rate-limited resync.
-  - On the GUI they appear in the Events pane, e.g. "command NOT delivered".
-  - The self-test fails if any of them fire during a normal run.
-- **Explicit queue policies.** The link send thread uses `DROP`: a stalled cable drops frames instead of faulting the node, and drops are counted and shown in the GUI header. The pump thread uses `FAULT`, and the UI thread uses `DROP`.
-- **Embedded-friendly build.** Static task stacks, a 64 KB FreeRTOS `heap_4` in CCM RAM, `DMQ_ALLOCATOR` fixed-block allocation, `DMQ_ASSERTS`, and no exceptions. The build uses about 333 KB of flash and 41 KB of SRAM.
-- **Off-target development.** The controller's application code (`pump/`, `board/IBoard.h`, `common/`) is identical on the F4 and on the FreeRTOS simulator. Only `platform/f4/` or `platform/sim/` differs.
-
 ---
 
 ## Why DelegateMQ
@@ -124,35 +157,23 @@ pumptron/
 
 ---
 
-## Building
+## Build Details
 
-Prerequisites: the DelegateMQ workspace with `FreeRTOS`, `ftxui` and `libserialport` fetched next to `DelegateMQ` (`python3 01_fetch_repos.py`).
+The commands are in [Quick Start](#quick-start); this section covers what they produce and how to change them.
 
 ### Desktop: GUI + Simulated Controller
 
-From `example/pumptron`:
+Builds both the GUI and the controller to run on Windows or Linux, with the controller on the FreeRTOS simulator. No embedded hardware needed.
 
-```bash
-cmake -B build .
-cmake --build build --config Release
-```
-
-Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
+Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. `run_pumptron.py` launches the Debug build by default; after a Release build (`cmake --build build --config Release`), pass it `--config Release`. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
 
 ### STM32F4 Firmware
 
 Needs `arm-none-eabi-gcc`, Ninja, and the STM32Cube **FW_F4** package (HAL, CMSIS, Discovery BSP), which STM32CubeIDE/CubeMX install to `~/STM32Cube/Repository/`.
 
-From `example/pumptron`:
-
-```bash
-cmake -S controller/platform/f4 -B build/f4 -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/f4
-```
-
 Output: `build/f4/pumptron_f4.elf`, `.hex`, `.bin`, `.map`.
 
-Options:
+Options, passed to the first `cmake` command as `-D<variable>=<value>`:
 
 | Variable | Default | Purpose |
 |:---|:---|:---|

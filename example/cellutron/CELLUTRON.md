@@ -2,6 +2,16 @@
 
 **Cellutron** (located in `DelegateMQ/example/cellutron`) is a comprehensive demonstration project representing a hypothetical **medical, safety-critical instrument**. It showcases how **DelegateMQ** enables the design of distributed systems that require high reliability, independent hardware interlocks, and rigorous audit trails.
 
+**What it showcases:**
+
+- **Distributed DataBus**: three nodes (GUI, controller and safety CPUs) share named topics, so no node knows where a publisher or subscriber lives.
+- **Remote communication over UDP**: RELIABLE topics (ACK + automatic retry) and UNRELIABLE, low-latency topics share one socket per node.
+- **Multithreading with active objects**: each subsystem owns its thread, and asynchronous delegates pass data between threads, so the state machines need no locks.
+- **Signals and slots**: `dmq::Signal` with RAII `ScopedConnection` for events inside each node.
+- **RTOS portability**: the controller and safety nodes run on the FreeRTOS or ThreadX simulator, the GUI on Windows/Linux, and the application source is identical across them.
+- **Health monitoring**: cross-node heartbeats (`DeadlineSubscription`) trigger a coordinated system-wide fault; a Last Value Cache gives late joiners the current state; bus monitoring feeds audit logs.
+- **Terminal GUI**: an FTXUI operator console.
+
 <img src="cellutron.png" width="1280">
 
 ---
@@ -43,23 +53,6 @@ The Cellutron system is cross-platform and supports both **Windows** and **Linux
 The Cellutron project serves as a "Real-World" demonstration of DelegateMQ in a multi-processor, safety-critical context. It showcases how DelegateMQ middleware runs on top of Windows/Linux, FreeRTOS, and ThreadX using async signals/slots, DataBus, and multithreading to solve the challenges inherent in modern instrument engineering.
 
 It is also a concrete proof point for DelegateMQ's central design claim: **application code is isolated from the underlying OS/RTOS.** The Controller and Safety nodes' `Process`, `System`, `Actuators`, `Sensors`, and state-machine sources are byte-for-byte identical whether the node runs on FreeRTOS or ThreadX — flipping `CELLUTRON_RTOS` changes only a thin, clearly-delimited kernel-init layer (`main.cpp` vs. `main_threadx.cpp`) and one build define (`DMQ_THREAD`). See [RTOS Portability](#rtos-portability-freertos--threadx).
-
----
-
-## DelegateMQ Feature Showcase
-
-Cellutron demonstrates all major DelegateMQ functional areas in a single integrated application.
-
-- **Distributed DataBus**: Many-to-Many communication between three distributed CPUs and dozens of internal threads using location-transparent named topics.
-- **QoS (Last Value Cache)**: Critical status topics use LVC to ensure new subscribers (like a late-starting GUI) immediately receive the current instrument state.
-- **Active Objects**: Every major subsystem (State Machines, UI, Actuators) is an independent Active Object owning its own thread.
-- **Zero-Lock Concurrency**: Asynchronous delegates handle all inter-thread data marshalling, allowing thread-safe state machines without manual mutexes.
-- **Synchronous-over-Asynchronous**: Demonstrates blocking hardware abstractions where a thread blocks until an asynchronous hardware operation confirms completion.
-- **RAII Signal & Slot**: Uses `dmq::Signal` with `dmq::ScopedConnection` for automatic cleanup of internal events when components are destroyed.
-- **Non-Intrusive Monitoring**: Uses the `Monitor()` feature to "spy" on the distributed bus for audit logging without modifying core application logic.
-- **Triangle Heartbeat**: Cross-node health monitoring via `dmq::databus::DeadlineSubscription`. Missed heartbeats trigger a coordinated system-wide `FAULT`.
-- **Multi-OS Portability**: Identical application source code runs on **Standard C++ (GUI CPU)** and, unchanged, on either **FreeRTOS or ThreadX (Controller/Safety CPUs)** — a single `CELLUTRON_RTOS` build switch, not a source fork. See [RTOS Portability](#rtos-portability-freertos--threadx).
-- **Explicit Queue Policy**: Every active object thread declares an explicit `FullPolicy` — `BLOCK` for reliability-critical threads (Controller/Safety system and process threads), `FAULT` for the network receiver, and `DROP` for non-critical display threads (UI, Logs). No thread silently inherits an unintended default.
 
 ---
 
