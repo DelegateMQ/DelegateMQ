@@ -4,70 +4,26 @@
  *
  * The library's bare-metal FaultHandler prints and then spins silently, so a
  * board that faults without a debugger attached simply freezes. This version
- * makes faults visible on the board itself:
+ * stores a core dump (CoreDump.h) and resets immediately:
  *
- *   - Red LED fast blink (~5 Hz) : DelegateMQ fault (DMQ_ASSERT / BAD_ALLOC)
- *   - Red LED slow blink (~1 Hz) : thread watchdog expired
- *   - Red LED solid              : Error_Handler / FreeRTOS hook (main.cpp)
+ *   - DMQ_ASSERT / BAD_ALLOC   : source file and line
+ *   - thread watchdog expired  : name of the thread that stopped responding
  *
- * The message goes straight to SWV ITM, bypassing printf and its FreeRTOS
- * mutex (the fault may have happened while that mutex was held). Interrupts
- * are disabled, so the blink uses a busy-wait rather than any OS delay.
+ * After the reboot the red LED blinks during startup to show that a crash was
+ * detected, and the dump is sent to the GUI.
  *
  * Selected by filtering port/fault/Fault.cpp out of the DelegateMQ sources in
  * platform/f4/CMakeLists.txt (the library's documented override mechanism).
  */
 
 #include "extras/util/Fault.h"
-#include "stm32f4xx_hal.h"
-#include "stm32f4_discovery.h"
-
-namespace {
-
-void ItmWrite(const char* s)
-{
-    while (s && *s)
-        ITM_SendChar(static_cast<uint32_t>(*s++));
-}
-
-void ItmWriteUnsigned(unsigned value)
-{
-    char buf[12];
-    int i = sizeof(buf) - 1;
-    buf[i] = '\0';
-    do { buf[--i] = static_cast<char>('0' + value % 10); value /= 10; } while (value && i > 0);
-    ItmWrite(&buf[i]);
-}
-
-void BusyWaitMs(uint32_t ms)
-{
-    // Roughly calibrated for 168 MHz; interrupts are off, so no SysTick/HAL_Delay.
-    for (volatile uint32_t i = 0; i < ms * 24000u; ++i) {}
-}
-
-[[noreturn]] void HaltBlinking(uint32_t halfPeriodMs)
-{
-    BSP_LED_Init(LED3); BSP_LED_Init(LED4); BSP_LED_Init(LED5); BSP_LED_Init(LED6);
-    BSP_LED_Off(LED3);  BSP_LED_Off(LED4);  BSP_LED_Off(LED6);
-    for (;;) {
-        BSP_LED_Toggle(LED5);
-        BusyWaitMs(halfPeriodMs);
-    }
-}
-
-} // namespace
+#include "CoreDump.h"
 
 namespace dmq::util {
 
 DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 {
-    __disable_irq();
-    ItmWrite("\r\n*** DelegateMQ FAULT: ");
-    ItmWrite(file);
-    ItmWrite(" line ");
-    ItmWriteUnsigned(line);
-    ItmWrite(" ***\r\n");
-    HaltBlinking(100);
+    CoreDump_StoreAndReset(CORE_DUMP_SRC_ASSERT, file, line, 0);
 }
 
 void InstallCrashHandlers() {}
@@ -81,11 +37,9 @@ extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 
 extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
 {
-    __disable_irq();
-    ItmWrite("\r\n*** WATCHDOG EXPIRED: ");
-    ItmWrite(threadName);
-    ItmWrite(" ***\r\n");
-    HaltBlinking(500);
+    // The dump's call stack is the watchdog checker's (the Startup task), not
+    // the stuck thread's; `where` names the stuck thread.
+    CoreDump_StoreAndReset(CORE_DUMP_SRC_WATCHDOG, threadName, 0, 0);
 }
 
 extern "C" void InstallCrashHandlers()

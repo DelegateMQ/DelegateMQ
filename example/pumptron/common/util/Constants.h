@@ -62,6 +62,7 @@ namespace pumptron {
         static const char* const ALARM          = "pump/alarm";
         static const char* const HB_CONTROLLER  = "sys/heartbeat/controller";
         static const char* const HB_GUI         = "sys/heartbeat/gui";
+        static const char* const CORE_DUMP      = "sys/coredump";
     }
 
     // -----------------------------------------------------------------------
@@ -73,6 +74,7 @@ namespace pumptron {
     static constexpr dmq::DelegateRemoteId RID_ALARM         = 203;
     static constexpr dmq::DelegateRemoteId RID_HB_CONTROLLER = 204;
     static constexpr dmq::DelegateRemoteId RID_HB_GUI        = 205;
+    static constexpr dmq::DelegateRemoteId RID_CORE_DUMP     = 206;
 
     // -----------------------------------------------------------------------
     // Controller thread priorities (FreeRTOS: higher number = more urgent).

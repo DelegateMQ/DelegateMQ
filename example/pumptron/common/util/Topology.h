@@ -28,6 +28,7 @@ void ConfigureControllerLink(Link& link)
     // State changes, alarms: must arrive -> ACK + retry.
     link.template Send<PumpStatusMsg>(topics::STATUS,        RID_STATUS,        serStatus,    Rel::RELIABLE);
     link.template Send<AlarmMsg>     (topics::ALARM,         RID_ALARM,         serAlarm,     Rel::RELIABLE);
+    link.template Send<CoreDumpMsg>  (topics::CORE_DUMP,     RID_CORE_DUMP,     serCoreDump,  Rel::RELIABLE);
     // High-rate or self-healing: newest value wins -> fire-and-forget.
     link.template Send<TelemetryMsg> (topics::TELEMETRY,     RID_TELEMETRY,     serTelemetry, Rel::UNRELIABLE);
     link.template Send<HeartbeatMsg> (topics::HB_CONTROLLER, RID_HB_CONTROLLER, serHeartbeat, Rel::UNRELIABLE);
@@ -43,6 +44,7 @@ void ConfigureGuiLink(Link& link)
     link.template Receive<AlarmMsg>     (topics::ALARM,         RID_ALARM,         serAlarm);
     link.template Receive<TelemetryMsg> (topics::TELEMETRY,     RID_TELEMETRY,     serTelemetry);
     link.template Receive<HeartbeatMsg> (topics::HB_CONTROLLER, RID_HB_CONTROLLER, serHeartbeat);
+    link.template Receive<CoreDumpMsg>  (topics::CORE_DUMP,     RID_CORE_DUMP,     serCoreDump);
 
     link.template Send<PumpCommandMsg>(topics::CMD,    RID_CMD,    serCommand,   Rel::RELIABLE);
     link.template Send<HeartbeatMsg>  (topics::HB_GUI, RID_HB_GUI, serHeartbeat, Rel::UNRELIABLE);

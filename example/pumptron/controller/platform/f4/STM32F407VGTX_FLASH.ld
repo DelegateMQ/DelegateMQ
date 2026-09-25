@@ -61,6 +61,15 @@ SECTIONS
     . = ALIGN(4);
   } >ROM
 
+  /* Pumptron: GNU build ID (-Wl,--build-id), read by CoreDump.cpp so a crash
+   * dump names the exact image to decode it against. */
+  .note.gnu.build-id :
+  {
+    . = ALIGN(4);
+    g_build_id_note = .;
+    KEEP(*(.note.gnu.build-id))
+  } >ROM
+
   /* The program code and other data into "ROM" Rom type memory */
   .text :
   {
@@ -183,6 +192,17 @@ SECTIONS
     . = ALIGN(4);
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
+  } >RAM
+
+  /* Pumptron: never zeroed or loaded by the startup code, so it survives a
+   * warm reset (NVIC_SystemReset, IWDG, reset button). Holds the crash
+   * record written by CoreDump.cpp. */
+  .noinit (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.noinit)
+    *(.noinit*)
+    . = ALIGN(4);
   } >RAM
 
   /* User_heap_stack section, used to check that there is enough "RAM" Ram  type memory left */

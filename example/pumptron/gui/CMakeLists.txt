@@ -84,6 +84,7 @@ file(GLOB_RECURSE COMMON_SOURCES CONFIGURE_DEPENDS
 set(GUI_SOURCES
     main.cpp
     system/System.cpp
+    system/CoreDumpFile.cpp
     system/System.h
     ui/UI.cpp
     ui/UI.h

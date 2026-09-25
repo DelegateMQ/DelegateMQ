@@ -2,6 +2,7 @@
 #define PUMPTRON_GUI_SYSTEM_H
 
 #include "DelegateMQ.h"
+#include "messages/CoreDumpMsg.h"
 #include <atomic>
 #include <optional>
 #include <string>
@@ -98,6 +99,7 @@ private:
     void OnPendingExceeded(const dmq::xstring& peer, size_t remaining);
     void OnBusError(const dmq::xstring& topic, dmq::DelegateError error);
     void OnUnhandled(const dmq::xstring& topic);
+    void OnCoreDump(const CoreDumpMsg& msg);
     void Emit(const std::string& text);
 
     dmq::os::Thread m_thread;       ///< Heartbeat publisher
@@ -123,6 +125,8 @@ private:
     dmq::ScopedConnection m_pendingExceededConn;
     dmq::ScopedConnection m_busErrorConn;
     dmq::ScopedConnection m_unhandledConn;
+    dmq::ScopedConnection m_coreDumpConn;
+    std::string           m_lastCoreDump;   ///< Last dump saved, to skip a resend of the same one
 };
 
 } // namespace pumptron

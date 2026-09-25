@@ -95,6 +95,7 @@ set(PLATFORM_SOURCES
     main.cpp
     F4Board.cpp
     Fault.cpp
+    CoreDump.cpp
     stm32f4xx_it.c
     syscalls.c
     system_stm32f4xx.c
@@ -143,6 +144,7 @@ target_link_options(pumptron_f4 PRIVATE
     --specs=nano.specs
     --specs=nosys.specs
     -Wl,--gc-sections
+    -Wl,--build-id=sha1     # read by CoreDump.cpp; placed in ROM by the linker script
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/pumptron_f4.map,--cref
     -Wl,--print-memory-usage
 )

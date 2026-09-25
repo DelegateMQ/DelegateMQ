@@ -122,9 +122,26 @@ float F4Board::ReadVibrationG()
     return m_accelOk ? m_vibrationG : 0.0f;
 }
 
+/// Deliberate crash for testing the core dump: executes an undefined
+/// instruction -> UsageFault. Not inlined, so it shows in the call stack.
+[[noreturn]] __attribute__((noinline)) static void TriggerTestFault()
+{
+    __builtin_trap();
+}
+
 bool F4Board::IsLocalStopPressed()
 {
-    return BSP_PB_GetState(BUTTON_KEY) != 0;
+    const bool pressed = BSP_PB_GetState(BUTTON_KEY) != 0;
+    const uint32_t now = HAL_GetTick();
+    if (!pressed) {
+        m_buttonHeld = false;
+    } else if (!m_buttonHeld) {
+        m_buttonHeld = true;
+        m_buttonDownMs = now;
+    } else if (now - m_buttonDownMs >= TEST_FAULT_HOLD_MS) {
+        TriggerTestFault();
+    }
+    return pressed;
 }
 
 void F4Board::SetIndicator(Indicator indicator, bool on)

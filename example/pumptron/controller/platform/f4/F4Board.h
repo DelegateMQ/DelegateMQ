@@ -13,7 +13,8 @@ namespace board {
 /// - Vibration: LIS3DSH accelerometer over SPI1 (Discovery BSP). The reading is
 ///   the deviation of |acceleration| from a slowly tracking baseline, so the
 ///   board at rest reads ~0 g in any orientation and a shake or tap reads high.
-/// - Local stop: blue USER button (PA0).
+/// - Local stop: blue USER button (PA0). Held for TEST_FAULT_HOLD_MS, it
+///   forces a crash (UsageFault) to exercise the core dump.
 /// - Indicators: LD3 orange / LD4 green / LD5 red / LD6 blue.
 ///
 /// All methods run on the pump controller thread, so the polled SPI/ADC HAL
@@ -30,7 +31,11 @@ public:
     const char* Name() const override { return "STM32F4 Discovery"; }
 
 private:
+    static constexpr uint32_t TEST_FAULT_HOLD_MS = 5000;
+
     ADC_HandleTypeDef m_adc{};
+    bool     m_buttonHeld = false;
+    uint32_t m_buttonDownMs = 0;    ///< HAL tick when the button went down
     bool  m_accelOk = false;
     bool  m_adcOk = false;
     float m_ambientC = 25.0f;       ///< Low-pass filtered die temperature

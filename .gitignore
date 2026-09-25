@@ -364,3 +364,6 @@ org.eclipse.ui.prefs
 
 # Generated Doxygen HTML output (regenerate locally with `doxygen Doxyfile`)
 docs/html/
+
+# Pumptron GUI crash dumps received from the controller
+dump_*.txt

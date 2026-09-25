@@ -13,6 +13,12 @@
  * Memory layout:
  *   - FreeRTOS heap (heap_4, 64 KB) in CCM RAM (no DMA is used, so CCM is fine)
  *   - All task stacks statically allocated in main SRAM
+ *   - Crash record (CoreDump.cpp) in a .noinit RAM section that survives reset
+ *
+ * Crashes: every fault stores a core dump and resets. On the next boot the red
+ * LED blinks for CRASH_BLINK_TIME_MS, then CoreDumpReporter sends the dump to the
+ * GUI once it connects. Hold the blue button for TEST_FAULT_HOLD_MS (F4Board) to
+ * force a test crash.
  */
 
 #include "stm32f4xx_hal.h"
@@ -27,6 +33,8 @@
 #include "util/SerialLink.h"
 #include "util/Topology.h"
 #include "F4Board.h"
+#include "CoreDump.h"
+#include "CoreDumpReporter.h"
 
 #include <cstdio>
 #include <new>
@@ -87,6 +95,10 @@ static constexpr uint32_t IWDG_RELOAD    = 1000;
 
 static IWDG_HandleTypeDef hiwdg;
 
+// Red LED blink at boot when the previous run crashed (a core dump is stored).
+static constexpr uint32_t CRASH_BLINK_TIME_MS   = 3000;
+static constexpr uint32_t CRASH_BLINK_PERIOD_MS = 200;
+
 // ---------------------------------------------------------------------------
 // Forward declarations
 // ---------------------------------------------------------------------------
@@ -121,6 +133,9 @@ static void StartupTask(void*)
     static pump::LinkErrorReporter errorReporter(link, pumpController);
     errorReporter.WatchSendDropped(link.OnSendDropped);
 
+    // Previous run's core dump (if any) -> GUI, once the GUI connects.
+    static CoreDumpReporter coreDumpReporter(link);
+
     if (link.GetTransport().Create(&huart6) != 0) {
         printf("Controller: ERROR - USART6 transport init failed\n");
         Error_Handler();
@@ -142,8 +157,7 @@ static void StartupTask(void*)
 
     // Started last, so a hang anywhere in setup above still shows its fault LED
     // instead of reset-looping. From here on, if this task stops refreshing
-    // (hung, starved, interrupts left off, or a fault/watchdog handler halted
-    // the CPU), the IWDG resets the board.
+    // (hung, starved, or interrupts left off), the IWDG resets the board.
     MX_IWDG_Init();
 
     for (;;) {
@@ -151,6 +165,18 @@ static void StartupTask(void*)
         HAL_IWDG_Refresh(&hiwdg);
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+}
+
+/// Blink the red LED to show the previous run crashed. Uses the HAL tick, so
+/// it must run before the first FreeRTOS call (see main()).
+static void BlinkCrashLed()
+{
+    BSP_LED_Init(LED5);
+    for (uint32_t t = 0; t < CRASH_BLINK_TIME_MS; t += CRASH_BLINK_PERIOD_MS) {
+        BSP_LED_Toggle(LED5);
+        HAL_Delay(CRASH_BLINK_PERIOD_MS);
+    }
+    BSP_LED_Off(LED5);
 }
 
 static void SysTimerCallback(TimerHandle_t)
@@ -163,16 +189,27 @@ static void SysTimerCallback(TimerHandle_t)
 // ---------------------------------------------------------------------------
 int main()
 {
+    CoreDump_EnableFaultHandlers();
     HAL_Init();
     SystemClock_Config();
     HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
     MX_USART6_UART_Init();
+
+    // Must run before the first FreeRTOS call (Logger_Init, printf): until the
+    // scheduler starts, FreeRTOS leaves BASEPRI masking the SysTick interrupt,
+    // so the HAL tick stops and HAL_Delay() would never return.
+    const bool crashed = CoreDump_IsStored();
+    if (crashed)
+        BlinkCrashLed();
+
     Logger_Init();
 
     printf("Pumptron controller starting (STM32F4 Discovery)...\n");
     if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST))
         printf("Controller: WARNING - restarted by hardware watchdog\n");
     __HAL_RCC_CLEAR_RESET_FLAGS();
+    if (crashed)
+        printf("Controller: WARNING - previous run crashed, core dump stored\n");
 
     TimerHandle_t sysTimer = xTimerCreate("SysTimer",
         pdMS_TO_TICKS(std::chrono::duration_cast<std::chrono::milliseconds>(TIMER_TICK_PERIOD).count()),
@@ -295,8 +332,11 @@ static void SystemClock_Config()
 }
 
 // ---------------------------------------------------------------------------
-// Fault handling: red LED on, halt
+// Fault handling
 // ---------------------------------------------------------------------------
+
+/// Initialization failure (clock, UART, IWDG, scheduler start): red LED on,
+/// halt. Not a crash, so no core dump; a reset would only fail again.
 static void Error_Handler()
 {
     __disable_irq();
@@ -305,22 +345,24 @@ static void Error_Handler()
     for (;;) {}
 }
 
+// FreeRTOS faults: core dump + reset. No printf here -- it takes a mutex, and
+// these can run inside the kernel or with a corrupted stack.
 extern "C" void vAssertCalled(const char* pcFile, unsigned long ulLine)
 {
-    printf("ASSERT %s:%lu\n", pcFile, ulLine);
-    Error_Handler();
+    CoreDump_StoreAndReset(CORE_DUMP_SRC_RTOS, pcFile, ulLine,
+                           static_cast<uint32_t>(RtosFault::CONFIG_ASSERT));
 }
 
 extern "C" void vApplicationMallocFailedHook(void)
 {
-    printf("FreeRTOS: heap exhausted (%u bytes free)\n", static_cast<unsigned>(xPortGetFreeHeapSize()));
-    Error_Handler();
+    CoreDump_StoreAndReset(CORE_DUMP_SRC_RTOS, "pvPortMalloc", 0,
+                           static_cast<uint32_t>(RtosFault::HEAP_EXHAUSTED));
 }
 
 extern "C" void vApplicationStackOverflowHook(TaskHandle_t, char* pcTaskName)
 {
-    printf("FreeRTOS: stack overflow in task '%s'\n", pcTaskName);
-    Error_Handler();
+    CoreDump_StoreAndReset(CORE_DUMP_SRC_RTOS, pcTaskName, 0,
+                           static_cast<uint32_t>(RtosFault::STACK_OVERFLOW));
 }
 
 extern "C" void vApplicationGetIdleTaskMemory(StaticTask_t** tcb, StackType_t** stack, configSTACK_DEPTH_TYPE* size)

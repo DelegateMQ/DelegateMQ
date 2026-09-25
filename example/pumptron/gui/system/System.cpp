@@ -1,6 +1,7 @@
 #include "System.h"
 #include "util/Topology.h"
 #include "messages/HeartbeatMsg.h"
+#include "CoreDumpFile.h"
 
 using namespace dmq;
 using namespace dmq::databus;
@@ -17,6 +18,10 @@ bool System::Initialize(const Options& options, std::string& error)
 {
     m_busErrorConn = DataBus::SubscribeError(MakeDelegate(this, &System::OnBusError));
     m_unhandledConn = DataBus::SubscribeUnhandled(MakeDelegate(this, &System::OnUnhandled));
+    // Before the link starts: the controller clears its stored dump as soon as
+    // this node ACKs it, so it must never arrive with no subscriber.
+    m_coreDumpConn = DataBus::Subscribe<CoreDumpMsg>(topics::CORE_DUMP,
+        MakeDelegate(this, &System::OnCoreDump), &m_thread);
 
     if (!m_thread.CreateThread(WATCHDOG_TIMEOUT)) {
         error = "failed to create system thread";
@@ -108,6 +113,22 @@ void System::OnUnhandled(const dmq::xstring& topic)
 {
     m_stats.busErrors++;
     Emit("ERROR  published with no subscriber: " + std::string(topic.c_str()));
+}
+
+void System::OnCoreDump(const CoreDumpMsg& msg)
+{
+    // A resend after a lost ACK carries the same dump; save it only once.
+    std::string body = FormatCoreDump(msg);
+    if (body == m_lastCoreDump)
+        return;
+    m_lastCoreDump = body;
+
+    std::string path;
+    if (WriteCoreDumpFile(body, path))
+        Emit("FAULT  controller crashed last run (" + std::string(ToString(msg.source)) +
+             "), core dump saved to " + path);
+    else
+        Emit("ERROR  controller core dump received but " + path + " could not be written");
 }
 
 void System::OnCapExceeded(const dmq::xstring&, size_t count)

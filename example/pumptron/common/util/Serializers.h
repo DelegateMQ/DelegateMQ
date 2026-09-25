@@ -7,6 +7,7 @@
 #include "messages/TelemetryMsg.h"
 #include "messages/AlarmMsg.h"
 #include "messages/HeartbeatMsg.h"
+#include "messages/CoreDumpMsg.h"
 
 namespace pumptron {
 
@@ -17,6 +18,7 @@ extern dmq::serialization::serializer::Serializer<void(PumpStatusMsg)>  serStatu
 extern dmq::serialization::serializer::Serializer<void(TelemetryMsg)>   serTelemetry;
 extern dmq::serialization::serializer::Serializer<void(AlarmMsg)>       serAlarm;
 extern dmq::serialization::serializer::Serializer<void(HeartbeatMsg)>   serHeartbeat;
+extern dmq::serialization::serializer::Serializer<void(CoreDumpMsg)>    serCoreDump;
 
 } // namespace pumptron
 
