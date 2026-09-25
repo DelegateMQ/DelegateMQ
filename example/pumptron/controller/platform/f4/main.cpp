@@ -79,11 +79,20 @@ static StaticTask_t s_linkRxTcb;
 
 static ControllerLink* s_link = nullptr;
 
+// Hardware watchdog (IWDG): LSI ~32 kHz / 64 = 500 Hz, reload 1000 -> ~2 s.
+// The LSI is not calibrated (17-47 kHz), so the real timeout is ~1.4-3.8 s,
+// still well clear of the 500 ms refresh in StartupTask.
+static constexpr uint32_t IWDG_PRESCALER = IWDG_PRESCALER_64;
+static constexpr uint32_t IWDG_RELOAD    = 1000;
+
+static IWDG_HandleTypeDef hiwdg;
+
 // ---------------------------------------------------------------------------
 // Forward declarations
 // ---------------------------------------------------------------------------
 static void SystemClock_Config();
 static void MX_USART6_UART_Init();
+static void MX_IWDG_Init();
 static void Error_Handler();
 
 // ---------------------------------------------------------------------------
@@ -131,8 +140,15 @@ static void StartupTask(void*)
 
     printf("Pumptron controller (STM32F4 Discovery) running, USART6 %d baud\n", SERIAL_BAUD);
 
+    // Started last, so a hang anywhere in setup above still shows its fault LED
+    // instead of reset-looping. From here on, if this task stops refreshing
+    // (hung, starved, interrupts left off, or a fault/watchdog handler halted
+    // the CPU), the IWDG resets the board.
+    MX_IWDG_Init();
+
     for (;;) {
         dmq::os::Thread::WatchdogCheckAll();
+        HAL_IWDG_Refresh(&hiwdg);
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
@@ -154,6 +170,9 @@ int main()
     Logger_Init();
 
     printf("Pumptron controller starting (STM32F4 Discovery)...\n");
+    if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST))
+        printf("Controller: WARNING - restarted by hardware watchdog\n");
+    __HAL_RCC_CLEAR_RESET_FLAGS();
 
     TimerHandle_t sysTimer = xTimerCreate("SysTimer",
         pdMS_TO_TICKS(std::chrono::duration_cast<std::chrono::milliseconds>(TIMER_TICK_PERIOD).count()),
@@ -181,6 +200,22 @@ static void MX_USART6_UART_Init()
     huart6.Init.HwFlowCtl = UART_HWCONTROL_NONE;
     huart6.Init.OverSampling = UART_OVERSAMPLING_16;
     if (HAL_UART_Init(&huart6) != HAL_OK)
+        Error_Handler();
+}
+
+// ---------------------------------------------------------------------------
+// IWDG (independent hardware watchdog, clocked from LSI)
+// ---------------------------------------------------------------------------
+static void MX_IWDG_Init()
+{
+    // Stop the IWDG while a debugger has the core halted, so breakpoints
+    // don't reset the board.
+    __HAL_DBGMCU_FREEZE_IWDG();
+
+    hiwdg.Instance = IWDG;
+    hiwdg.Init.Prescaler = IWDG_PRESCALER;
+    hiwdg.Init.Reload = IWDG_RELOAD;
+    if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
         Error_Handler();
 }
 
