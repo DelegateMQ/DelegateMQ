@@ -38,9 +38,17 @@ set(PLATFORM_SOURCES
     platform/sim/FreeRTOSConfig.h
 )
 
+# STM32F4 firmware sources -- listed for IDE browsing only. They are built by
+# the separate cross-compiled project in platform/f4/, never by this target.
+file(GLOB F4_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/platform/f4/*"
+)
+set_source_files_properties(${F4_SOURCES} PROPERTIES HEADER_FILE_ONLY TRUE)
+
 add_executable(pumptron_controller
     ${APP_SOURCES}
     ${PLATFORM_SOURCES}
+    ${F4_SOURCES}
     ${COMMON_SOURCES}
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
@@ -72,7 +80,8 @@ target_link_libraries(pumptron_controller PRIVATE ${FREERTOS_LIBRARIES})
 set_target_properties(pumptron_controller PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 source_group("App Files" FILES ${APP_SOURCES})
-source_group("Platform Files" FILES ${PLATFORM_SOURCES})
+source_group("Platform Files/sim" FILES ${PLATFORM_SOURCES})
+source_group("Platform Files/f4" FILES ${F4_SOURCES})
 source_group("Common Files" FILES ${COMMON_SOURCES})
 source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
 source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
