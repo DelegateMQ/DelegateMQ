@@ -208,6 +208,10 @@ Headless alternatives to the TUI for SSH sessions and shell pipelines. Each prin
 
 [PlotJuggler](https://github.com/facontidavide/PlotJuggler) is a free time-series plotting tool. `--plotjuggler` forwards every numeric value Spy receives to PlotJuggler's UDP Server as JSON, alongside whatever else Spy is doing (TUI, `--echo`, `--hz`, `--log`...).
 
+<img src="plot-juggler.png" alt="PlotJuggler plotting live Cellutron telemetry from dmq-spy" style="max-width: 800px; width: 100%;">
+
+*Live Cellutron telemetry in PlotJuggler, started with `run_cellutron.py --plotjuggler`: the centrifuge speed command ramping up and down across two runs, with actuator and outlet pressure alongside. The series tree on the left is built from the `<sender>/<topic>/<name>` series names.*
+
 ```bash
 # Plot everything, and keep the TUI
 ./dmq-spy --plotjuggler
