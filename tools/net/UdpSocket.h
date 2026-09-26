@@ -61,14 +61,27 @@ public:
 #endif
     }
 
-    bool Bind(uint16_t port, const std::string& localInterface = "0.0.0.0") {
-        int reuse = 1;
-        setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
+    /// @param shared  true lets other sockets bind the same port. Needed for
+    ///                multicast, where several listeners on one group are normal.
+    ///                Leave false for a unicast listener: each unicast datagram
+    ///                reaches only one socket, so a second listener would silently
+    ///                starve one of them. Exclusive, the second bind fails instead.
+    bool Bind(uint16_t port, const std::string& localInterface = "0.0.0.0", bool shared = false) {
+        int opt = 1;
+        if (shared) {
+            setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
 #ifndef _WIN32
 #ifdef SO_REUSEPORT
-        setsockopt(m_socket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse));
+            setsockopt(m_socket, SOL_SOCKET, SO_REUSEPORT, (const char*)&opt, sizeof(opt));
 #endif
 #endif
+        } else {
+#ifdef _WIN32
+            // Without this, a later socket that sets SO_REUSEADDR can still take
+            // over the port on Windows.
+            setsockopt(m_socket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&opt, sizeof(opt));
+#endif
+        }
 
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
@@ -97,6 +110,24 @@ public:
             return false;
         }
         return true;
+    }
+
+    /// Create, bind and (with a group) join multicast, for a tool's receive socket.
+    /// The port is shared only in multicast mode; see Bind().
+    /// @return Empty on success, otherwise an error message for the user.
+    std::string Listen(uint16_t port, const std::string& multicastGroup, const std::string& localInterface) {
+        if (!Create())
+            return "ERROR: Failed to create socket";
+        bool multicast = !multicastGroup.empty();
+        if (!Bind(port, "0.0.0.0", multicast)) {
+            std::string err = "ERROR: Could not bind to UDP port " + std::to_string(port);
+            if (!multicast)
+                err += ". Is another tool already listening on it?";
+            return err;
+        }
+        if (multicast && !JoinGroup(multicastGroup, localInterface.empty() ? "0.0.0.0" : localInterface))
+            return "ERROR: Could not join group " + multicastGroup;
+        return "";
     }
 
     bool Connect(const std::string& address, uint16_t port) {

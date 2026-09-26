@@ -46,25 +46,7 @@ static std::string MakeKey(const dmq::util::ThreadStatsPacket& p, const std::str
     return ip + ":" + p.cpu_name + ":" + p.thread_name;
 }
 
-static void ReceiverThread(uint16_t port, std::string multicastGroup, std::string localInterface) {
-    UdpSocket socket;
-    if (!socket.Create()) {
-        g_statusMessage = "ERROR: Failed to create socket";
-        return;
-    }
-
-    if (!socket.Bind(port, "0.0.0.0")) {
-        g_statusMessage = "ERROR: Could not bind to port " + std::to_string(port);
-        return;
-    }
-
-    if (!multicastGroup.empty()) {
-        if (!socket.JoinGroup(multicastGroup, localInterface.empty() ? "0.0.0.0" : localInterface)) {
-            g_statusMessage = "ERROR: Could not join group " + multicastGroup;
-            return;
-        }
-    }
-
+static void ReceiverThread(UdpSocket& socket) {
     socket.SetReceiveTimeout(100);
     std::vector<uint8_t> buffer(16384);
     dmq::util::ThreadStatsPacketSerializer serializer;
@@ -119,8 +101,17 @@ int main(int argc, char* argv[]) {
     }
 
     dmq::util::NetworkContext winsock;
+    // Open the socket before the UI starts, so a failure (e.g. another tool
+    // already on the port) is reported plainly instead of an empty display.
+    UdpSocket socket;
+    std::string err = socket.Listen(port, multicastGroup, localInterface);
+    if (!err.empty()) {
+        std::cerr << err << std::endl;
+        return 1;
+    }
+
     auto screen = ScreenInteractive::Fullscreen();
-    std::thread receiver(ReceiverThread, port, multicastGroup, localInterface);
+    std::thread receiver(ReceiverThread, std::ref(socket));
 
     auto renderer = Renderer([&] {
         std::vector<ThreadRecord> records;

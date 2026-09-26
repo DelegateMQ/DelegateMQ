@@ -94,7 +94,7 @@ You may occasionally see negative values in the Delta columns (e.g., `-0.015` ms
 ### Key Features
 
 *   **Real-Time Live Feed**: Instant visualization of every message published to the `dmq::databus::DataBus` (Newest at Top).
-*   **Regex-Based Filtering**: Dynamically filter topics using regular expressions to isolate specific system events.
+*   **Topic Filtering**: Dynamically filter topics by substring to isolate specific system events.
 *   **Intelligent Color-Coding**: Values are highlighted based on content (Green for OK/Running, Red for Error/Fault, Yellow for Warn).
 *   **Unicast & Multicast Support**: Monitor point-to-point traffic or join a multicast group for one-to-many monitoring.
 *   **Log to Disk**: High-performance background logging to a file for later historical analysis.
@@ -157,7 +157,51 @@ These "reflections" indicate that the data has successfully traversed the networ
 
 # Log all traffic to a file
 ./dmq-spy 9999 --log traffic.log
+
+# Log as CSV or JSON Lines for analysis
+./dmq-spy 9999 --log traffic.csv --log-format csv
+./dmq-spy 9999 --log traffic.jsonl --log-format json
 ```
+
+**Log formats** (`--log-format`, default `text`):
+
+| Format | Output |
+|--------|--------|
+| `text` | Human-readable lines: `[time] [info] [sender_ip] [node_id] [topic] value`. Appends to an existing file. |
+| `csv`  | Header row, then one row per message: `host_time_us,source_time_us,sender_ip,node_id,topic,value`. String fields are quoted. |
+| `json` | JSON Lines, one object per message with the same fields as CSV. |
+
+`host_time_us` is the Spy console's wall clock (microseconds since the Unix epoch) when the packet arrived. `source_time_us` is the sender's monotonic clock from the packet, so it only compares meaningfully against other messages from the same node. `csv` and `json` overwrite the file at startup. All formats are flushed to disk every second. The `value` field is the stringifier's text, so logs are for analysis, not replay.
+
+### Command-Line Modes: echo, hz, bw
+
+Headless alternatives to the TUI for SSH sessions and shell pipelines. Each prints to stdout and runs until `Ctrl-C`. Topics match by substring, the same as the TUI filter. `--log` works alongside any mode.
+
+**One unicast listener per port.** A unicast message reaches only one socket, so a mode and the TUI can't both listen on port 9999. A second `dmq-spy` (or `dmq-monitor` / `dmq-thread`) on a port that's already taken exits with `Could not bind to UDP port`. Close the TUI first, or use `--multicast` if the application sends to a multicast group, where any number of tools can listen.
+
+```bash
+# Print every message on topics containing "sensor/"
+./dmq-spy --echo sensor/
+
+# Same, as JSON Lines (pipe to jq, grep, a file...)
+./dmq-spy --echo pump/status --json | jq .value
+
+# Publish rate per topic, reported every second
+./dmq-spy --hz sensor
+
+# Bandwidth per topic, reported every second
+./dmq-spy --bw /
+```
+
+| Mode | Reports |
+|------|---------|
+| `--echo <topic>` | One line per message: source timestamp (s), sender, topic, value. `--json` switches to the same JSON records as `--log-format json`. |
+| `--hz <topic>` | Per sender and topic: rate (Hz) and min / max / standard deviation of the interval between messages (ms), plus `AGE`, seconds since the last message. Computed from the **sender's** timestamps, so network jitter between the sender and Spy doesn't affect it. |
+| `--bw <topic>` | Per sender and topic: rate, bytes/s, and mean / min / max message size. |
+
+`--window <n>` sets how many recent messages per topic `--hz` and `--bw` use (default 100). A growing `AGE` means the topic has stopped publishing.
+
+**`--bw` measures the Spy feed, not your transport.** Spy receives each message as a `SpyPacket` (topic, stringified value, timestamp, node ID), not as serialized on the application's own link. The byte counts are useful for comparing topics against each other, but not for budgeting a real link such as a serial port.
 
 **Controls:**
 - `Ctrl-P` — Pause / Resume live feed
