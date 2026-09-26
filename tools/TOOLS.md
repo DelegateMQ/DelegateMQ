@@ -9,6 +9,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 | **Spy Console** | `dmq-spy` | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
 | **Node Monitor** | `dmq-monitor` | Live network topology view — shows all active nodes, their status, uptime, and published topics |
 | **Thread Monitor**| `dmq-thread` | Real-time per-thread metrics — shows queue depths and dispatch latency across the system |
+| **Wireshark Dissector** | `wireshark/dmq.lua` | Decodes DelegateMQ UDP/TCP traffic in Wireshark — header fields, ACKs, topic labels. See [wireshark/README.md](wireshark/README.md) |
 
 ---
 
@@ -293,6 +294,8 @@ cmake --build . --config Release
 ```
 
 This produces four executables: `dmq-spy`, `dmq-monitor`, `dmq-thread`, and `dmq-target` (a test application that exercises both bridges).
+
+The Wireshark dissector is a Lua script and needs no build; see [wireshark/README.md](wireshark/README.md) to install it.
 
 ---
 
