@@ -22,6 +22,7 @@
 #include <csignal>
 #include <cmath>
 #include <deque>
+#include <regex>
 
 #include "UdpSocket.h"
 #include "extras/databus/SpyPacket.h"
@@ -101,6 +102,112 @@ std::string JsonRecord(int64_t hostTimeUs, const std::string& senderIp, const dm
     return ss.str();
 }
 
+// --- PlotJuggler forwarding (--plotjuggler) ---
+// Sends each message as one JSON datagram to PlotJuggler's UDP Server. Spy
+// only has the stringifier text, so numbers are extracted from it:
+//   "28 C"                 -> <sender>/<topic>
+//   "AIR: 0"               -> <sender>/<topic>/AIR
+//   "Latency(ms):1.2/3.4"  -> <sender>/<topic>/Latency, .../Latency_1
+//   "12 of 40"             -> <sender>/<topic>/v0, .../v1
+// A number preceded by "name:" or "name=" (optionally "name(unit):") takes
+// that name, and a "/"-separated run keeps it. Values with no number are skipped.
+
+bool g_pjEnabled = false;
+std::string g_pjAddress = "127.0.0.1:9870";
+UdpSocket g_pjSocket;
+
+// ThreadMonitor's rows share one topic with the thread named only in the text,
+// so their series would mix threads. dmq-thread shows this data instead.
+const char* const PJ_SKIP_TOPIC = "ThreadStats";
+
+struct NamedNumber {
+    std::string name;   ///< Empty when the number had no "name:" prefix
+    double value;
+};
+
+std::vector<NamedNumber> ExtractNumbers(const std::string& text) {
+    static const std::regex numberRe(
+        R"((?:([A-Za-z_][A-Za-z0-9_]*)(?:\([^)]*\))?\s*[:=]\s*)?([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?))");
+    std::vector<NamedNumber> out;
+    std::string runName;            // name of the current "/"-separated run
+    int runIndex = 0;
+    size_t prevEnd = std::string::npos;
+    for (auto it = std::sregex_iterator(text.begin(), text.end(), numberRe); it != std::sregex_iterator(); ++it) {
+        const auto& m = *it;
+        size_t numPos = static_cast<size_t>(m.position(2));
+        // Skip digits inside a word or a larger token, e.g. "Thread2", "v1.2.3".
+        if (!m[1].matched && numPos > 0) {
+            char before = text[numPos - 1];
+            if (std::isalnum(static_cast<unsigned char>(before)) || before == '_' || before == '.')
+                continue;
+        }
+        double v = std::strtod(m[2].str().c_str(), nullptr);
+        if (!std::isfinite(v)) continue;
+
+        std::string name;
+        if (m[1].matched) {
+            runName = m[1].str();
+            runIndex = 0;
+            name = runName;
+        } else if (!runName.empty() && prevEnd != std::string::npos &&
+                   static_cast<size_t>(m.position(0)) == prevEnd + 1 && text[prevEnd] == '/') {
+            name = runName + "_" + std::to_string(++runIndex);
+        } else {
+            runName.clear();
+        }
+        prevEnd = static_cast<size_t>(m.position(0) + m.length(0));
+        out.push_back({ name, v });
+    }
+    return out;
+}
+
+std::string JsonNumber(double v) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.10g", v);
+    return buf;
+}
+
+void ForwardToPlotJuggler(const std::string& senderIp, const dmq::databus::SpyPacket& packet) {
+    if (!g_pjEnabled) return;
+    std::string topic = (std::string)packet.topic;
+    if (topic == PJ_SKIP_TOPIC) return;
+    auto numbers = ExtractNumbers((std::string)packet.value);
+    if (numbers.empty()) return;
+
+    // A single unnamed number is the topic's value itself.
+    bool bare = numbers.size() == 1 && numbers[0].name.empty();
+
+    // Name the unnamed ones by position; make names unique ("x=1 x=2").
+    for (size_t i = 0; i < numbers.size(); ++i) {
+        if (numbers[i].name.empty()) numbers[i].name = "v" + std::to_string(i);
+        for (size_t j = 0; j < i; ++j)
+            if (numbers[j].name == numbers[i].name) { numbers[i].name += "_" + std::to_string(i); break; }
+    }
+
+    std::string sender = (std::string)packet.nodeId;
+    if (sender.empty()) sender = senderIp;
+
+    // Spy's arrival time (Unix epoch seconds) is common to all senders, unlike
+    // each sender's own monotonic clock, so series from different nodes line up.
+    double hostTime = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count()) / 1e6;
+
+    std::ostringstream ss;
+    ss << "{\"timestamp\":" << std::fixed << std::setprecision(6) << hostTime
+       << "," << JsonString(sender) << ":{" << JsonString(topic) << ":";
+    if (bare) {
+        ss << JsonNumber(numbers[0].value);
+    } else {
+        ss << "{";
+        for (size_t i = 0; i < numbers.size(); ++i)
+            ss << (i ? "," : "") << JsonString(numbers[i].name) << ":" << JsonNumber(numbers[i].value);
+        ss << "}";
+    }
+    ss << "}}";
+    std::string msg = ss.str();
+    g_pjSocket.Send(msg.data(), msg.size());
+}
+
 // Write one received packet to the log file in the selected format.
 // CSV and JSON carry both clocks: host_time_us (Spy's wall clock, Unix epoch)
 // and source_time_us (the sender's monotonic clock, from the packet).
@@ -138,6 +245,7 @@ void ReceiverThread(UdpSocket& socket) {
             ms_decoder.read(iss, packet);
             if (iss.good()) {
                 LogPacket(senderIp, packet);
+                ForwardToPlotJuggler(senderIp, packet);
                 
                 auto arrival = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
                 
@@ -269,6 +377,7 @@ int RunCli(UdpSocket& socket, CliMode mode, const std::string& topicFilter, bool
             ms_decoder.read(iss, packet);
             if (iss.good()) {
                 LogPacket(senderIp, packet);
+                ForwardToPlotJuggler(senderIp, packet);
                 std::string topic = (std::string)packet.topic;
                 if (topic.find(topicFilter) != std::string::npos) {
                     std::string sender = (std::string)packet.nodeId;
@@ -329,6 +438,8 @@ void PrintUsage() {
         "Options:\n"
         "  --log <file>            Also log all traffic to a file\n"
         "  --log-format <fmt>      text (default), csv or json\n"
+        "  --plotjuggler           Forward numeric values to PlotJuggler's UDP Server\n"
+        "  --pj-address <addr>     PlotJuggler host:port (default 127.0.0.1:9870)\n"
         "  --multicast <group>     Join a multicast group\n"
         "  --interface <addr>      Local interface for multicast\n"
         "  --help                  Show this help\n";
@@ -365,6 +476,8 @@ int main(int argc, char* argv[]) {
             cliTopic = argv[++i];
         }
         else if (arg == "--json") cliJson = true;
+        else if (arg == "--plotjuggler") g_pjEnabled = true;
+        else if (arg == "--pj-address" && i + 1 < argc) { g_pjAddress = argv[++i]; g_pjEnabled = true; }
         else if (arg == "--window" && i + 1 < argc) {
             int n = std::atoi(argv[++i]);
             if (n < 2) {
@@ -403,6 +516,19 @@ int main(int argc, char* argv[]) {
     if (!err.empty()) {
         std::cerr << err << std::endl;
         return 1;
+    }
+
+    if (g_pjEnabled) {
+        auto colon = g_pjAddress.rfind(':');
+        std::string pjHost = colon == std::string::npos ? g_pjAddress : g_pjAddress.substr(0, colon);
+        int pjPort = colon == std::string::npos ? 9870 : std::atoi(g_pjAddress.c_str() + colon + 1);
+        if (pjPort <= 0 || pjPort > 65535 || !g_pjSocket.Create() ||
+            !g_pjSocket.Connect(pjHost, static_cast<uint16_t>(pjPort))) {
+            std::cerr << "ERROR: Invalid PlotJuggler address '" << g_pjAddress
+                      << "' (use an IPv4 host:port, e.g. 127.0.0.1:9870)" << std::endl;
+            return 1;
+        }
+        std::cerr << "Forwarding numeric values to PlotJuggler at " << pjHost << ":" << pjPort << std::endl;
     }
 
     if (cliMode != CliMode::NONE) {

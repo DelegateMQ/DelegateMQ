@@ -204,6 +204,41 @@ Headless alternatives to the TUI for SSH sessions and shell pipelines. Each prin
 
 **`--bw` measures the Spy feed, not your transport.** Spy receives each message as a `SpyPacket` (topic, stringified value, timestamp, node ID), not as serialized on the application's own link. The byte counts are useful for comparing topics against each other, but not for budgeting a real link such as a serial port.
 
+### Live Plots in PlotJuggler
+
+[PlotJuggler](https://github.com/facontidavide/PlotJuggler) is a free time-series plotting tool. `--plotjuggler` forwards every numeric value Spy receives to PlotJuggler's UDP Server as JSON, alongside whatever else Spy is doing (TUI, `--echo`, `--hz`, `--log`...).
+
+```bash
+# Plot everything, and keep the TUI
+./dmq-spy --plotjuggler
+
+# Plot while headless (no screen output needed; --echo on a topic that never matches)
+./dmq-spy --echo none --plotjuggler
+
+# PlotJuggler on another machine or port
+./dmq-spy --pj-address 192.168.1.50:9870
+```
+
+In PlotJuggler:
+1. **Streaming** panel: select **UDP Server** and click **Start**.
+2. Port `9870` (the default), message protocol **JSON**.
+3. Optionally tick the option to use a field as the timestamp and enter `timestamp`, so points are placed at the time Spy received them rather than when PlotJuggler did. Otherwise `timestamp` also shows up as a series.
+4. Drag series from the list onto a plot.
+
+(Option names are from recent PlotJuggler versions and may differ slightly in yours.)
+
+**Series names.** Spy only has each message's stringified value, so numbers are extracted from the text:
+
+| Value text | Series |
+|------------|--------|
+| `28 C` | `<sender>/<topic>` |
+| `RPM: 542` | `<sender>/<topic>/RPM` |
+| `Latency(ms):1.2/3.4` | `<sender>/<topic>/Latency`, `.../Latency_1` |
+| `12 of 40` | `<sender>/<topic>/v0`, `.../v1` |
+| `Running OK` | skipped (no number) |
+
+A `name:` or `name=` before a number names it (a unit in parentheses is allowed), and a `/`-separated run keeps the name. `<sender>` is the node ID, or the sender's IP if it has none. Write stringifiers as `name: value` pairs to get clearly named series. The `ThreadStats` topic is skipped: all threads share it, so its series would mix threads (use `dmq-thread` for that data).
+
 **Controls:**
 - `Ctrl-P` — Pause / Resume live feed
 - `Ctrl-C` — Clear trace and reset session time
