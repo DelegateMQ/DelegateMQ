@@ -19,13 +19,13 @@ DelegateMQ is a modular C++ messaging library with a header-only core. It provid
 * **DataBus (DDS Lite):** Topic-based publish/subscribe with thread-safe async data distribution.
 * **Remote:** Inter-process (IPC) and inter-processor communication over any transport.
 
-The library is unit-tested, built for portability (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.
+The library is lightweight, unit-tested, and ships as full source code under the MIT license. It scales from PC applications down to small RTOS and bare-metal microcontrollers (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.
 
 # Motivation
 
-Applications typically use one mechanism for callbacks, another for inter-thread messaging, and a third for inter-processor communication — each with its own API and data-passing rules. Yet all three solve the same underlying problem: move argument data to a target function and invoke it.
+Applications typically use one mechanism for callbacks, another for inter-thread messaging, and a third for inter-processor communication. Each brings its own API and data-passing rules, plus the hand-written queues, mutexes and message-packing code to go with it. Yet all three solve the same problem: move argument data to a target function and invoke it.
 
-DelegateMQ unifies them in a single library. Bind a delegate to any callable — free function, method, or lambda — and invoke it synchronously, on another thread, or on another processor. The library handles the copying, marshalling, and dispatch; the call site stays the same.
+DelegateMQ unifies them in a single library. Bind a delegate to any callable (free function, method or lambda) and invoke it synchronously, on another thread, or on another processor. The library handles the copying, marshalling and dispatch; the calling code stays the same. The DataBus applies the same idea to data: publishers and subscribers don't need to know whether the other side is on the same thread or a different CPU.
 
 # Advantages
 
@@ -74,6 +74,20 @@ build\delegate_app\Debug\delegate_app.exe
 # Linux
 ./build/delegate_app/delegate_app
 ```
+
+# Example Use Cases
+
+- Async callback between a subsystem and the UI
+- Data passed between threads using Signals
+- Local and remote data distribution between threads and CPUs over Ethernet, serial, or both
+- Embedded development on a PC, with the same code running on the target via OS and transport abstraction
+- Blocking call into a worker thread with a timeout, returning its result
+- Thread-safe wrapper around a non-thread-safe library (database, HTTP client, file system)
+- Periodic tasks driven by timers, dispatched onto worker threads
+- Watchdog detection of hung or starved threads
+- Remote procedure calls between processes or processors
+- C# or Python tools commanding and monitoring an embedded device
+- On-target integration tests that call internal functions on their own threads
 
 # Overview
 
