@@ -10,6 +10,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 | **Node Monitor** | `dmq-monitor` | Live network topology view — shows all active nodes, their status, uptime, and published topics |
 | **Thread Monitor**| `dmq-thread` | Real-time per-thread metrics — shows queue depths and dispatch latency across the system |
 | **Wireshark Dissector** | `wireshark/dmq.lua` | Decodes DelegateMQ UDP/TCP traffic in Wireshark — header fields, ACKs, topic labels. See [wireshark/README.md](wireshark/README.md) |
+| **MQTT Gateway** | `bridge/MqttBridge` | Exposes chosen DataBus topics as MQTT topics with JSON payloads, and optionally accepts commands — for Node-RED, Home Assistant, Grafana, cloud IoT. See [MqttBridge](#mqttbridge--databus--mqtt-gateway) |
 
 ---
 
@@ -309,6 +310,69 @@ Topic and message count tracking is automatic — NodeBridge subscribes to `dmq:
 - `↑` / `↓` — Select a node to view its topics
 - `c` — Clear all offline nodes from the table
 - `q` — Quit
+
+---
+
+## MqttBridge — DataBus ↔ MQTT Gateway
+
+`MqttBridge` (`bridge/MqttBridge.h/.cpp`) connects a DataBus application to an MQTT broker, so the MQTT ecosystem (Node-RED, Home Assistant, Grafana via Telegraf, MQTT Explorer, AWS IoT / Azure IoT) can watch it and, where you allow it, command it. Each exposed DataBus topic becomes its own MQTT topic with a readable payload:
+
+```
+DataBus "pump/telemetry"   →  MQTT "pumptron/pump/telemetry"   {"rpm":1500,"flow":30.0,...}
+DataBus "pump/status"      →  MQTT "pumptron/pump/status"      {"state":"RUNNING",...}   (retained)
+MQTT "pumptron/pump/cmd/set" {"command":"START"}   →   DataBus "pump/cmd"
+```
+
+This is different from `port/transport/mqtt/MqttTransport`, which tunnels DelegateMQ's binary frames between DelegateMQ apps on one fixed MQTT topic, which other MQTT tools can't read.
+
+### Usage
+
+```cpp
+#include "MqttBridge.h"
+#include "MqttJson.h"   // optional flat-JSON helpers
+
+std::string TelemetryToJson(const TelemetryMsg& m) {
+    return mqttjson::Writer().Add("rpm", m.rpm, 0).Add("flow", m.flowLpm, 2).Str();
+}
+bool CommandFromJson(const std::string& json, PumpCommandMsg& cmd) {
+    mqttjson::Reader r;
+    std::string name;
+    if (!r.Parse(json) || !r.GetString("command", name)) return false;
+    // ... map name to cmd, validate arguments; return false to reject
+}
+
+MqttBridge::Options opt;
+opt.brokerUri = "tcp://127.0.0.1:1883";
+opt.topicPrefix = "pumptron";
+MqttBridge::Start(opt);
+MqttBridge::Publish<TelemetryMsg>("pump/telemetry", &TelemetryToJson);                          // QoS 0
+MqttBridge::Publish<PumpStatusMsg>("pump/status", &StatusToJson, MqttBridge::Retain::YES, 1);    // retained, QoS 1
+MqttBridge::Subscribe<PumpCommandMsg>("pump/cmd", &CommandFromJson);                             // opt-in inbound
+// ...
+MqttBridge::Stop();
+```
+
+Add it to a CMake target with the helper, which also builds Paho MQTT C from the workspace (`../mqtt`, fetched by `01_fetch_repos.py`):
+
+```cmake
+include(<DelegateMQ>/tools/bridge/MqttBridge.cmake)
+dmq_add_mqtt_bridge(my_app)
+```
+
+### Behavior
+
+| Feature | Details |
+|---------|---------|
+| **Threading** | Messages are converted and sent on the bridge's own thread (`FullPolicy::DROP`), so publishers never block on the network. |
+| **Reconnect** | The broker connection is retried in the background (every 2 s by default). An unreachable broker is reported once, not on every retry. Messages published while disconnected are dropped. |
+| **Retained state** | `Retain::YES` topics are retained at the broker, so a dashboard that connects late sees the current state. The bridge also re-publishes their last value on every (re)connect. |
+| **Liveness** | `<prefix>/online` is `true` (retained) while connected, and `false` on `Stop()` or, if the application dies, via the broker's Last Will. |
+| **Inbound commands** | Opt-in per topic with `Subscribe()`, on `<prefix>/<topic>/set` (the usual MQTT command-topic convention, which also avoids echoing a published topic back into itself). Payloads that the converter rejects are reported and dropped. |
+| **Events** | `MqttBridge::OnEvent()` reports connects, disconnects and rejected commands as text. Without a subscriber they go to stderr. |
+
+**Every `Subscribe()` is a remote control path into the application.** Validate everything in the converter, and enable inbound only on a broker you trust. The bridge uses plain TCP with no TLS or authentication.
+
+Examples: [`example/sample-projects/databus-mqtt-gateway`](../example/sample-projects/databus-mqtt-gateway/README.md) (minimal thermostat) and Pumptron's `--mqtt` ([PUMPTRON.md](../example/pumptron/PUMPTRON.md#mqtt-gateway)).
 
 ---
 

@@ -136,6 +136,22 @@ target_link_libraries(pumptron_gui PRIVATE
     ftxui::component
 )
 
+# --- MQTT gateway (--mqtt) ---
+# MqttBridge publishes pump status/telemetry/alarms to an MQTT broker. Paho MQTT C
+# is built from the workspace checkout (../mqtt, fetched by 01_fetch_repos.py);
+# without it the GUI builds with --mqtt unavailable, like --serial without
+# libserialport.
+include("${TOOLS_BRIDGE_DIR}/MqttBridge.cmake")
+if(EXISTS "${DMQ_PAHO_ROOT}/src/MQTTClient.h")
+    dmq_add_mqtt_bridge(pumptron_gui)
+    target_sources(pumptron_gui PRIVATE system/MqttGateway.cpp system/MqttGateway.h)
+    source_group("GUI Files" FILES system/MqttGateway.cpp system/MqttGateway.h)
+    target_compile_definitions(pumptron_gui PRIVATE PUMPTRON_HAVE_MQTT)
+else()
+    message(WARNING "Pumptron GUI: Paho MQTT C not found at ${DMQ_PAHO_ROOT} -- building without --mqtt. "
+                    "Run 01_fetch_repos.py to enable it.")
+endif()
+
 source_group("GUI Files" FILES ${GUI_SOURCES})
 source_group("Common Files" FILES ${COMMON_SOURCES})
 source_group("Tools Files" FILES ${TOOLS_SOURCES})

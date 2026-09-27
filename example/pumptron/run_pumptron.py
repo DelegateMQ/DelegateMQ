@@ -19,6 +19,11 @@ in dmq-spy -- and optionally plot it live in PlotJuggler (either mode):
     python run_pumptron.py --spy
     python run_pumptron.py --serial COM5 --plotjuggler
 
+Publish pump status, telemetry and alarms to an MQTT broker (default
+tcp://127.0.0.1:1883), and optionally accept pump commands from it:
+    python run_pumptron.py --mqtt
+    python run_pumptron.py --serial COM5 --mqtt tcp://192.168.1.10:1883 --mqtt-control
+
 Build first with 03_generate_samples.py + 04_build_samples.py, or from this
 directory: cmake -B build . && cmake --build build --config <Debug|Release>
 """
@@ -112,10 +117,20 @@ def main():
     parser.add_argument("--plotjuggler", action="store_true",
                         help="Like --spy, and dmq-spy also forwards numeric values to PlotJuggler's UDP "
                              "Server (127.0.0.1:9870) for live plots. See tools/TOOLS.md")
+    parser.add_argument("--mqtt", nargs="?", const="tcp://127.0.0.1:1883", metavar="BROKER_URI",
+                        help="Publish pump status/telemetry/alarms to this MQTT broker "
+                             "(default tcp://127.0.0.1:1883). See PUMPTRON.md, 'MQTT Gateway'")
+    parser.add_argument("--mqtt-prefix", default="pumptron",
+                        help="MQTT topic prefix (default: pumptron)")
+    parser.add_argument("--mqtt-control", action="store_true",
+                        help="Also accept pump commands on <prefix>/pump/cmd/set. This is a remote "
+                             "control path into the pump: use only on a trusted broker")
     args = parser.parse_args()
 
     simulate = args.serial is None
     use_spy = args.spy or args.plotjuggler
+    if args.mqtt_control and not args.mqtt:
+        parser.error("--mqtt-control requires --mqtt")
 
     spy_exe = None
     if use_spy:
@@ -143,12 +158,19 @@ def main():
         gui_args.append("--selftest")
     if use_spy:
         gui_args.append("--spy")
+    if args.mqtt:
+        gui_args += ["--mqtt", args.mqtt, "--mqtt-prefix", args.mqtt_prefix]
+        if args.mqtt_control:
+            gui_args.append("--mqtt-control")
 
     kill_orphans()
 
     print("--- Starting Pumptron ---")
     print(f"  Mode:   {'Simulation (FreeRTOS simulator over UDP)' if simulate else f'Hardware (STM32F4 on {args.serial} @ {args.baud})'}")
     print(f"  Config: {args.config}")
+    if args.mqtt:
+        print(f"  MQTT:   {args.mqtt}, topics under '{args.mqtt_prefix}/'"
+              + (f", accepting commands on {args.mqtt_prefix}/pump/cmd/set" if args.mqtt_control else ""))
     if args.plotjuggler:
         print("  PlotJuggler: forwarding enabled (127.0.0.1:9870) -- in PlotJuggler's Streaming")
         print("  panel select UDP Server, port 9870, protocol JSON, then Start.")
