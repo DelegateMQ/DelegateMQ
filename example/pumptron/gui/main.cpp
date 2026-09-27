@@ -6,6 +6,8 @@
  *   pumptron_gui --serial <port> [--baud <rate>]   Real STM32F4 Discovery over RS-232
  *   pumptron_gui --udp                             FreeRTOS simulator on localhost
  *   Add --selftest to run a headless end-to-end check instead of the UI.
+ *   Add --spy to mirror all DataBus traffic, including messages received over
+ *   the link, to dmq-spy (see PUMPTRON.md, "Monitoring with dmq-spy").
  */
 
 #include "DelegateMQ.h"
@@ -14,6 +16,7 @@
 #include "ui/UI.h"
 #include "selftest/SelfTest.h"
 #include "util/Constants.h"
+#include "SpyBridge.h"
 #if defined(PUMPTRON_HAVE_SERIAL)
 #include "libserialport.h"
 #endif
@@ -24,13 +27,24 @@
 
 using namespace pumptron;
 
+/// dmq-spy's default listen port.
+static constexpr int SPY_DEFAULT_PORT = 9999;
+
+struct SpyOptions {
+    bool enabled = false;
+    std::string host = "127.0.0.1";
+    int port = SPY_DEFAULT_PORT;
+};
+
 static void PrintUsage(const char* exe)
 {
     printf("Pumptron operator console\n\n");
     printf("Usage:\n");
     printf("  %s --serial <port> [--baud <rate>]   STM32F4 Discovery over RS-232 (default %d baud)\n", exe, SERIAL_BAUD);
     printf("  %s --udp                             FreeRTOS simulator (pumptron_controller) on localhost\n", exe);
-    printf("  Add --selftest to run a headless end-to-end check of the controller instead of the UI.\n\n");
+    printf("  Add --selftest to run a headless end-to-end check of the controller instead of the UI.\n");
+    printf("  Add --spy [--spy-address <host:port>] to mirror DataBus traffic to dmq-spy (default 127.0.0.1:%d).\n\n",
+           SPY_DEFAULT_PORT);
 
 #if defined(PUMPTRON_HAVE_SERIAL)
     printf("Serial ports found:\n");
@@ -49,7 +63,16 @@ static void PrintUsage(const char* exe)
 #endif
 }
 
-static bool ParseArgs(int argc, char* argv[], System::Options& options, bool& selfTest)
+static bool ParseSpyAddress(const std::string& addr, SpyOptions& spy)
+{
+    auto colon = addr.rfind(':');
+    spy.host = addr.substr(0, colon);
+    if (colon != std::string::npos)
+        spy.port = atoi(addr.c_str() + colon + 1);
+    return !spy.host.empty() && spy.port > 0 && spy.port <= 65535;
+}
+
+static bool ParseArgs(int argc, char* argv[], System::Options& options, bool& selfTest, SpyOptions& spy)
 {
     bool haveLink = false;
     options.baud = SERIAL_BAUD;
@@ -62,6 +85,12 @@ static bool ParseArgs(int argc, char* argv[], System::Options& options, bool& se
             options.baud = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "--selftest")) {
             selfTest = true;
+        } else if (!strcmp(argv[i], "--spy")) {
+            spy.enabled = true;
+        } else if (!strcmp(argv[i], "--spy-address") && i + 1 < argc) {
+            spy.enabled = true;
+            if (!ParseSpyAddress(argv[++i], spy))
+                return false;
         } else if (!strcmp(argv[i], "--udp")) {
             options.link = System::LinkType::UDP;
             haveLink = true;
@@ -85,7 +114,8 @@ int main(int argc, char* argv[])
 {
     System::Options options;
     bool selfTest = false;
-    if (!ParseArgs(argc, argv, options, selfTest)) {
+    SpyOptions spy;
+    if (!ParseArgs(argc, argv, options, selfTest, spy)) {
         PrintUsage(argv[0]);
         return 1;
     }
@@ -93,9 +123,22 @@ int main(int argc, char* argv[])
     ::InstallCrashHandlers();
     static dmq::util::NetworkContext networkContext;
 
+    // Before the link starts, so the first messages are already labeled for
+    // the Bus Monitor pane and dmq-spy.
+    gui::RegisterStringifiers();
+
+    // SpyBridge sends everything on this node's DataBus to dmq-spy over UDP --
+    // including every message received from the controller, which the link
+    // re-publishes locally. Started before the full-screen UI, since it logs
+    // a line to stdout.
+    if (spy.enabled)
+        SpyBridge::Start(spy.host, static_cast<uint16_t>(spy.port), "GUI");
+
     std::string error;
     if (!System::GetInstance().Initialize(options, error)) {
         fprintf(stderr, "Pumptron GUI: %s\n", error.c_str());
+        if (spy.enabled)
+            SpyBridge::Stop();
         System::GetInstance().Shutdown();
         return 1;
     }
@@ -112,6 +155,8 @@ int main(int argc, char* argv[])
         gui::UI::GetInstance().Run(System::GetInstance().GetLinkDescription());
     }
 
+    if (spy.enabled)
+        SpyBridge::Stop();
     System::GetInstance().Shutdown();
 
     // The watchdog thread never returns from OnWatchdog(); skip static

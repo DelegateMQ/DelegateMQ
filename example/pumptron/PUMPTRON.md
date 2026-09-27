@@ -204,7 +204,7 @@ python run_pumptron.py --selftest              # simulation, headless end-to-end
 python run_pumptron.py --serial COM5 --selftest
 ```
 
-Options: `--baud <rate>` (default 115200) and `--config Debug|Release` (default Debug).
+Options: `--baud <rate>` (default 115200), `--config Debug|Release` (default Debug), and `--spy` / `--plotjuggler` (see [Monitoring with dmq-spy](#monitoring-with-dmq-spy)).
 
 ### Hardware
 
@@ -270,6 +270,25 @@ python run_pumptron.py --serial COM5 --selftest   # real board
 ```
 
 It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above). On the STM32F4 board over the serial link it passes every step, with the controller clock at 1.00× real time and no retries.
+
+### Monitoring with dmq-spy
+
+The board has no network connection, so it can't run a `SpyBridge` itself. The GUI can do it instead. Every message the GUI receives from the controller is re-published on the GUI's own DataBus, and `--spy` mirrors that bus to [`dmq-spy`](../../tools/TOOLS.md) over UDP. You see the controller's traffic without touching the firmware, over serial or the simulator link alike.
+
+```bash
+python run_pumptron.py --serial COM5 --spy           # GUI + dmq-spy window
+python run_pumptron.py --serial COM5 --plotjuggler   # same, plus live plots in PlotJuggler
+```
+
+`--plotjuggler` also forwards numeric values to PlotJuggler's UDP Server (port 9870, protocol JSON). Telemetry is stringified as `rpm=… flow=… pressure=… temp=… vib=…`, so each field plots as its own series (`GUI/pump/telemetry/rpm`, …). See [Live Plots in PlotJuggler](../../tools/TOOLS.md#live-plots-in-plotjuggler).
+
+Running the GUI directly: `pumptron_gui --serial COM5 --spy`, or `--spy-address <host:port>` to send to a `dmq-spy` on another machine or port.
+
+Things to know:
+- **Only traffic that crosses the link is visible.** Topics the controller keeps to itself never reach the GUI. `common/util/Topology.h` lists what is sent.
+- **Every message shows sender `GUI`.** Spy sees the GUI's copy of each message, not the controller's.
+- **Timestamps are the GUI's,** taken when it re-publishes each message, so they don't show the controller's own timing or serial-link delay.
+- **Only one `dmq-spy` can listen on port 9999.** Close any other copy first.
 
 ---
 

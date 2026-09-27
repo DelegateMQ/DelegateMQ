@@ -14,6 +14,11 @@ Headless end-to-end check instead of the interactive console (either mode):
     python run_pumptron.py --selftest
     python run_pumptron.py --serial COM5 --selftest
 
+Watch all DataBus traffic, including everything received from the controller,
+in dmq-spy -- and optionally plot it live in PlotJuggler (either mode):
+    python run_pumptron.py --spy
+    python run_pumptron.py --serial COM5 --plotjuggler
+
 Build first with 03_generate_samples.py + 04_build_samples.py, or from this
 directory: cmake -B build . && cmake --build build --config <Debug|Release>
 """
@@ -42,6 +47,18 @@ def find_exe(name, config):
     if not existing:
         return None, candidates
     return max(existing, key=os.path.getmtime), candidates
+
+
+def find_tool(name):
+    """Newest dmq tool executable from tools/build (Release or Debug)."""
+    tools_build = os.path.normpath(os.path.join(BASE_PATH, "..", "..", "tools", "build"))
+    candidates = [
+        os.path.join(tools_build, "Release", name + EXE_SUFFIX),
+        os.path.join(tools_build, "Debug", name + EXE_SUFFIX),
+        os.path.join(tools_build, name + EXE_SUFFIX),
+    ]
+    existing = [p for p in candidates if os.path.isfile(p)]
+    return max(existing, key=os.path.getmtime) if existing else None
 
 
 def launch_in_new_terminal(exe_path, args):
@@ -89,9 +106,23 @@ def main():
     parser.add_argument("--selftest", action="store_true",
                         help="Run the headless end-to-end self-test in this console instead of the UI; "
                              "exits with its result")
+    parser.add_argument("--spy", action="store_true",
+                        help="Open dmq-spy and have the GUI mirror its DataBus traffic to it -- including "
+                             "every message received from the controller over the link")
+    parser.add_argument("--plotjuggler", action="store_true",
+                        help="Like --spy, and dmq-spy also forwards numeric values to PlotJuggler's UDP "
+                             "Server (127.0.0.1:9870) for live plots. See tools/TOOLS.md")
     args = parser.parse_args()
 
     simulate = args.serial is None
+    use_spy = args.spy or args.plotjuggler
+
+    spy_exe = None
+    if use_spy:
+        spy_exe = find_tool("dmq-spy")
+        if not spy_exe:
+            print("ERROR: dmq-spy not found under tools/build. Build the tools first (see tools/TOOLS.md).")
+            sys.exit(1)
 
     gui_exe, gui_searched = find_exe("pumptron_gui", args.config)
     if not gui_exe:
@@ -110,15 +141,27 @@ def main():
     gui_args = ["--udp"] if simulate else ["--serial", args.serial, "--baud", str(args.baud)]
     if args.selftest:
         gui_args.append("--selftest")
+    if use_spy:
+        gui_args.append("--spy")
 
     kill_orphans()
 
     print("--- Starting Pumptron ---")
     print(f"  Mode:   {'Simulation (FreeRTOS simulator over UDP)' if simulate else f'Hardware (STM32F4 on {args.serial} @ {args.baud})'}")
     print(f"  Config: {args.config}")
+    if args.plotjuggler:
+        print("  PlotJuggler: forwarding enabled (127.0.0.1:9870) -- in PlotJuggler's Streaming")
+        print("  panel select UDP Server, port 9870, protocol JSON, then Start.")
 
     processes = []
     try:
+        if use_spy:
+            # Only one dmq-spy can listen on port 9999; this one must be the only one.
+            spy_args = ["9999"] + (["--plotjuggler"] if args.plotjuggler else [])
+            print(f"Launching dmq-spy ({spy_exe} {' '.join(spy_args)})...")
+            processes.append(launch_in_new_terminal(spy_exe, spy_args))
+            time.sleep(0.5)     # let it bind before traffic starts
+
         if simulate:
             print(f"Launching Controller ({ctrl_exe})...")
             processes.append(launch_in_new_terminal(ctrl_exe, []))
@@ -149,6 +192,8 @@ def main():
                 p.terminate()
         if simulate and not IS_WINDOWS:
             subprocess.run(["pkill", "-9", "-f", "pumptron_controller"], stderr=subprocess.DEVNULL)
+        if use_spy and not IS_WINDOWS:
+            subprocess.run(["pkill", "-9", "-f", "dmq-spy"], stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":
