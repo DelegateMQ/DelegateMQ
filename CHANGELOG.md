@@ -9,6 +9,28 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+### Added
+- **Pumptron example** (`example/pumptron/`) — pump controller on a real STM32F4 Discovery (FreeRTOS) or the FreeRTOS simulator, with an FTXUI console over a serial DataBus link. Includes end-to-end error handling, an IWDG hardware watchdog, and crash dumps kept in `.noinit` RAM and delivered to the console on the next boot.
+- **`dmq-spy` command-line modes** — `--echo`, `--hz`, `--bw` print to stdout for SSH sessions and pipelines. `--bw` measures Spy-feed bytes, not transport bytes.
+- **`dmq-spy --log-format text|csv|json`** — CSV and JSON Lines records carry both host and source timestamps.
+- **`dmq-spy --plotjuggler`** — streams numeric values to PlotJuggler's UDP Server for live plots. `run_cellutron.py --plotjuggler` passes it through.
+- **Pumptron `--spy`** — the GUI mirrors its DataBus, including all traffic received from the controller over serial, to `dmq-spy` (and PlotJuggler). `run_pumptron.py --spy` / `--plotjuggler`.
+- **Wireshark dissector** (`tools/wireshark/dmq.lua`) — decodes the DelegateMQ header on UDP/TCP, flags ACKs and malformed frames, and labels remote IDs from a per-project topic table (Cellutron example included).
+- **Interop reliable sends** — `DmqInterop.dll` now uses the `ReliableTransport`/`RetryMonitor`/`TransportMonitor` stack (retry on by default). New `DmqInterop_SetReliability()` and `DmqInterop_RegisterStatusCallback()` (`ACKED`/`TIMEOUT`/`DELIVERY_FAILED` per sequence number). Python and C# wrappers expose both.
+- **`Stm32UartTransport::OnRxError()`** — ISR-safe recovery after a UART error aborts interrupt-driven reception.
+- **`DelegateMQ.cmake` cross-compiled FreeRTOS support** — caller-selected `FREERTOS_PORT_DIR`/`FREERTOS_HEAP` (e.g. `GCC/ARM_CM4F`).
+
+### Changed
+- **Interop C API (breaking)** — `DmqInterop_Send()` takes a `uint16_t* seqNum` out parameter; the error callback is now `(code, remoteId, msg)` with `DmqErrorCode` values. Python/C# `send()` return the sequence number.
+- **Tools bind UDP ports exclusively** unless `--multicast` is given, and open sockets before the TUI starts: a second `dmq-spy`/`dmq-monitor`/`dmq-thread` on a busy port now exits with an error instead of silently receiving nothing.
+- **Unknown `dmq-spy` options are rejected** (previously ignored).
+
+### Fixed
+- **Interop sends were never tracked** — since transports stopped calling `TransportMonitor::Add()`, the DLL's monitor was inert and ACKs on the send socket were never read, so Python/C# sends had no delivery feedback or retry.
+- **Interop C# callbacks could terminate the process** — an exception (e.g. MessagePack deserialization) escaping a native callback now reports `DMQ_ERR_CALLBACK` instead. Python callback exceptions are reported the same way instead of being discarded.
+- **`ThreadMonitor` failed to compile in embedded DataBus builds** with tools disabled; now gated on `DMQ_DATABUS_TOOLS`.
+- **`dmq-spy` log lost its tail** when the window was closed; logs now flush every second.
+
 ## [2.0.4] - 2026-09-20
 
 ### Added
