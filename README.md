@@ -277,13 +277,22 @@ private:
 
 # DelegateMQ Tools
 
-DelegateMQ includes three diagnostic TUI (Terminal User Interface) consoles for real-time monitoring of DataBus traffic, network topology, and thread performance. Monitoring runs through an asynchronous bridge and never blocks the application. Built with FTXUI, the consoles run cross-platform in any terminal and support regex filtering for traffic analysis:
+DelegateMQ includes three diagnostic TUI (Terminal User Interface) consoles for real-time monitoring of DataBus traffic, network topology, and thread performance. Monitoring runs through an asynchronous bridge and never blocks the application. Built with FTXUI, the consoles run cross-platform in any terminal and support topic filtering for traffic analysis:
 
 | Tool | Purpose |
 |------|---------|
 | **`dmq-spy`** | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
 | **`dmq-monitor`** | Live network topology view — shows all active nodes, status, uptime, and published topics |
 | **`dmq-thread`** | Performance dashboard — monitors thread health, queue depths, and dispatch latency (Avg/Max) |
+
+The tools also integrate with two popular third-party analyzers:
+
+| Integration | Purpose |
+|-------------|---------|
+| **Wireshark** | A Lua dissector plugin (`tools/wireshark/dmq.lua`) decodes DelegateMQ UDP/TCP traffic in [Wireshark](https://www.wireshark.org/): header fields, ACKs, and per-project topic labels, with Wireshark's filters and statistics |
+| **PlotJuggler** | `dmq-spy --plotjuggler` streams numeric DataBus values to [PlotJuggler](https://github.com/facontidavide/PlotJuggler) for live time-series plots |
+
+See [Tools](tools/TOOLS.md) for setup and usage.
 
 <img src="docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;">
 
@@ -328,7 +337,7 @@ DelegateMQ at a glance.
 | [**Design Details**](docs/DETAILS.md) | Deep technical architecture | API Reference |
 | [**Porting Guide**](docs/PORTING.md) | OS & Hardware abstraction | Platform Support |
 | [**Interop**](docs/INTEROP.md) | Multi-language integration | C# & Python |
-| [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards | Spy & Monitor |
+| [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards and integrations | Spy, Monitor, Wireshark, PlotJuggler |
 | [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
 | [**Safety Notes**](docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
 
