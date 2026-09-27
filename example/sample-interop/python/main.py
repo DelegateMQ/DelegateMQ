@@ -15,7 +15,7 @@ import msgpack
 # Add interop/python to path so we can find dmq_databus
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../interop/python")))
 
-from dmq_databus import DmqDataBus
+from dmq_databus import DmqDataBus, SendStatus
 
 # 1. Configuration: Match these with the C++ Server settings
 SERVER_HOST = "127.0.0.1"
@@ -57,6 +57,19 @@ def on_sensor_data(payload):
     data = msgpack.unpackb(payload)
     print(f"[RECV] SensorData: id={data[0]} val={data[1]}")
 
+def on_send_status(remote_id, seq, status):
+    """Delivery outcome of a sent command, matched to send() by sequence number."""
+    if status == SendStatus.ACKED:
+        print(f"[ACK]  Command seq={seq} acknowledged by server")
+    elif status == SendStatus.TIMEOUT:
+        print(f"[WARN] Command seq={seq} not acknowledged yet; retrying")
+    else:
+        print(f"[FAIL] Command seq={seq} not delivered after retries (is the server running?)")
+
+def on_error(code, remote_id, message):
+    """Errors from the native core or from our own callbacks."""
+    print(f"[ERROR] {code.name} (remote ID {remote_id}): {message}")
+
 def main():
     print("Starting Python Interop Sample...")
     
@@ -73,8 +86,14 @@ def main():
         return
 
     # 3. Setup: Register interest and start transport
-    # Note: register_callback can be called before or after start()
+    # Note: callbacks can be registered before or after start()
     bus.register_callback(SENSOR_DATA_ID, on_sensor_data)
+    bus.register_status_callback(on_send_status)
+    bus.register_error_callback(on_error)
+
+    # Commands are reliable by default: tracked until the server ACKs them and
+    # resent on timeout (defaults: 2 s timeout, 3 retries). To change:
+    # bus.set_reliability(timeout_ms=1000, max_retries=5)
     
     try:
         # Start the background native receive loop
@@ -88,11 +107,10 @@ def main():
     polling_rate = 250
     try:
         while True:
-            # Command: [pollingRateMs]
-            print(f"[SEND] Command: pollingRateMs={polling_rate}")
-            
-            # Send serialized command to the C++ server via the DLL
-            bus.send(COMMAND_ID, [polling_rate])
+            # Command: [pollingRateMs]. Send serialized command to the C++ server
+            # via the DLL; the returned sequence number tags its status callbacks.
+            seq = bus.send(COMMAND_ID, [polling_rate])
+            print(f"[SEND] Command seq={seq}: pollingRateMs={polling_rate}")
             
             # Toggle between 250 and 1000ms
             polling_rate = 1000 if polling_rate == 250 else 250

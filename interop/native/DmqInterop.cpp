@@ -1,11 +1,17 @@
 /// @file DmqInterop.cpp
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2026.
-/// 
+///
 /// @brief C++ implementation of the DelegateMQ Native Interop DLL.
-/// 
-/// @details This DLL wraps the C++ DelegateMQ core to provide a C-compatible 
+///
+/// @details This DLL wraps the C++ DelegateMQ core to provide a C-compatible
 /// API for languages like C# and Python.
+///
+/// Outgoing messages use the same reliability stack as NetworkNode's RELIABLE
+/// mode: ReliableTransport -> RetryMonitor -> TransportMonitor over the raw send
+/// transport. A dedicated send-monitor thread drains ACKs and runs
+/// TransportMonitor::Process(), so ACK handling isn't held up by the recv
+/// channel's blocking receive.
 
 #include <iostream>
 #include <map>
@@ -13,7 +19,6 @@
 #include <atomic>
 #include <thread>
 #include <memory>
-#include <vector>
 #include <sstream>
 #include <string>
 
@@ -25,6 +30,8 @@
 #include "port/transport/common/DmqHeader.h"
 #include "extras/util/NetworkConnect.h"
 #include "extras/util/TransportMonitor.h"
+#include "extras/util/RetryMonitor.h"
+#include "extras/util/ReliableTransport.h"
 
 #include "DmqInterop.h"
 
@@ -59,83 +66,128 @@ using namespace dmq::transport;
 using namespace dmq::util;
 
 namespace {
-    /// @brief RAII container for the native transport state and background threads.
+    // How often the send-monitor thread runs TransportMonitor::Process(),
+    // matching NetworkNode.
+    constexpr auto MONITOR_PROCESS_INTERVAL = std::chrono::milliseconds(100);
+
+    // ---- Process-wide settings and callbacks (survive Start/Stop) ----------
+
+    std::mutex g_cbMutex;
+    std::map<uint16_t, DmqMessageCallback> g_msgCallbacks;
+    DmqStatusCallback g_statusCallback = nullptr;
+    DmqErrorCallback g_errorCallback = nullptr;
+
+    struct ReliabilityConfig {
+        bool enabled = true;
+        int timeoutMs = 0;      // <= 0: library default
+        int maxRetries = -1;    // < 0: library default
+    };
+    ReliabilityConfig g_reliability;   // guarded by g_lifecycleMutex
+
+    /// @brief Thread-safe helper to invoke the user's error callback.
+    /// @details Copies the callback pointer under lock and calls it outside,
+    /// so the callback may re-register itself without deadlocking.
+    void RaiseError(DmqErrorCode code, uint16_t remoteId, const std::string& msg) {
+        DmqErrorCallback cb = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(g_cbMutex);
+            cb = g_errorCallback;
+        }
+        if (cb) {
+            cb(static_cast<int>(code), remoteId, msg.c_str());
+        } else {
+            std::cerr << "DmqInterop Error " << static_cast<int>(code) << " (no callback): " << msg << std::endl;
+        }
+    }
+
+    void RaiseStatus(uint16_t remoteId, uint16_t seqNum, DmqSendStatus status) {
+        DmqStatusCallback cb = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(g_cbMutex);
+            cb = g_statusCallback;
+        }
+        if (cb) {
+            cb(remoteId, seqNum, static_cast<int>(status));
+        }
+    }
+
+    /// @brief Native transports, reliability stack and background threads for one
+    /// Start()/Stop() session.
     struct InteropState {
         NetworkContext netContext;
         std::unique_ptr<RecvTransportType> recvTransport;
         std::unique_ptr<SendTransportType> sendTransport;
+
+        // Reliability stack (null when reliability is disabled). Declared after the
+        // transports so it is destroyed before them.
         std::unique_ptr<TransportMonitor> monitor;
+        std::unique_ptr<RetryMonitor> retry;
+        std::unique_ptr<ReliableTransport> reliableTransport;
+        dmq::ScopedConnection statusConn;
+        dmq::ScopedConnection deliveryFailedConn;
+        dmq::ScopedConnection capConn;
+        dmq::ScopedConnection pendingConn;
+
         std::thread recvThread;
+        std::thread sendMonitorThread;
         std::atomic<bool> running{false};
-        std::map<uint16_t, DmqMessageCallback> callbacks;
-        std::mutex cbMutex;
+        std::atomic<uint16_t> nextSeqNum{1};
 
         ~InteropState() {
             Stop();
         }
 
-        /// @brief Shuts down transports and joins the receive thread.
+        /// @brief Shuts down threads and transports.
+        /// @details Stops the send-monitor thread first so no retries or status
+        /// callbacks race with closing the sockets, then closes the transports to
+        /// unblock the recv thread's receive.
         void Stop() {
-            bool wasRunning = running.exchange(false);
-            if (wasRunning) {
-                if (recvTransport) recvTransport->Close();
-                if (sendTransport) sendTransport->Close();
-                if (recvThread.joinable()) recvThread.join();
-            }
+            if (!running.exchange(false))
+                return;
+            if (sendMonitorThread.joinable()) sendMonitorThread.join();
+            statusConn.Disconnect();
+            deliveryFailedConn.Disconnect();
+            capConn.Disconnect();
+            pendingConn.Disconnect();
+            if (recvTransport) recvTransport->Close();
+            if (sendTransport) sendTransport->Close();
+            if (recvThread.joinable()) recvThread.join();
         }
 
         void RecvLoop();
+        void SendMonitorLoop();
     };
 
-    // Global state managed via unique_ptr and protected by g_lifecycleMutex
-    std::unique_ptr<InteropState> g_state;
+    // Current session. Swapped under g_stateMutex; Send() takes a reference so a
+    // concurrent Stop() can't destroy the state out from under it.
+    std::shared_ptr<InteropState> g_state;
+    std::mutex g_stateMutex;
 
-    // Supports registering callbacks before DmqInterop_Start() is called
-    std::map<uint16_t, DmqMessageCallback> g_preRegCallbacks;
-    std::mutex g_preRegMutex;
-
-    // Error reporting state
-    DmqErrorCallback g_errorCallback = nullptr;
-    std::mutex g_errorMutex;
-
-    // Synchronizes Start() and Stop() calls
+    // Serializes Start(), Stop() and SetReliability().
     std::mutex g_lifecycleMutex;
 
-    /// @brief Thread-safe helper to invoke the user's error callback.
-    /// @details Copies the callback pointer under lock to avoid deadlocks 
-    /// if the callback attempts to re-register itself.
-    void RaiseError(const std::string& msg) {
-        DmqErrorCallback cb = nullptr;
-        {
-            std::lock_guard<std::mutex> lock(g_errorMutex);
-            cb = g_errorCallback;
-        }
-
-        if (cb) {
-            cb(msg.c_str());
-        } else {
-            std::cerr << "DmqInterop Error (No callback): " << msg << std::endl;
-        }
+    std::shared_ptr<InteropState> GetState() {
+        std::lock_guard<std::mutex> lock(g_stateMutex);
+        return g_state;
     }
 
-    /// @brief The background receive loop that processes incoming packets.
-    /// @details Blocks on transport::Receive() and dispatches to registered callbacks.
+    /// @brief Receives incoming data and dispatches it to registered callbacks.
     void InteropState::RecvLoop() {
         while (running) {
             try {
                 dmq::xstringstream is(std::ios::in | std::ios::out | std::ios::binary);
                 DmqHeader header;
-                
-                // Receive blocks (usually with a timeout configured in the transport)
+
+                // Receive blocks up to the transport's receive timeout
                 if (recvTransport->Receive(is, header) == 0) {
-                    // Ignore internal ACK packets; only process data
+                    // ACKs are consumed by the transport (TransportMonitor::Remove)
                     if (header.GetId() != dmq::ACK_REMOTE_ID) {
                         std::string payload = is.str();
                         DmqMessageCallback cb = nullptr;
                         {
-                            std::lock_guard<std::mutex> lock(cbMutex);
-                            auto it = callbacks.find(header.GetId());
-                            if (it != callbacks.end()) {
+                            std::lock_guard<std::mutex> lock(g_cbMutex);
+                            auto it = g_msgCallbacks.find(header.GetId());
+                            if (it != g_msgCallbacks.end()) {
                                 cb = it->second;
                             }
                         }
@@ -144,16 +196,49 @@ namespace {
                         }
                     }
                 }
-                
-                if (monitor) {
-                    monitor->Process();
-                }
             } catch (const std::exception& e) {
-                RaiseError(std::string("Exception in RecvLoop: ") + e.what());
+                RaiseError(DMQ_ERR_EXCEPTION, 0, std::string("Exception in receive loop: ") + e.what());
                 // Prevent tight-looping on persistent errors
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             } catch (...) {
-                RaiseError("Unknown exception in RecvLoop");
+                RaiseError(DMQ_ERR_EXCEPTION, 0, "Unknown exception in receive loop");
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        }
+    }
+
+    /// @brief Drains ACKs and drives timeouts/retries for outgoing messages.
+    /// @details Peers send ACKs to the source address they received from -- the
+    /// send socket's OS-assigned port -- so for UDP this thread reads that socket;
+    /// Receive() calls TransportMonitor::Remove() on each ACK. Process() then fires
+    /// timeouts, which RetryMonitor turns into resends or a final delivery failure.
+    void InteropState::SendMonitorLoop() {
+        auto lastProcess = dmq::Clock::now();
+        while (running) {
+            try {
+#if !defined(DMQ_TRANSPORT_ZEROMQ)
+                // Short recv timeout on the send socket (2 ms) keeps this loop responsive.
+                // ZeroMQ PUB sockets can't receive; there ACKs arrive on the recv socket.
+                for (int i = 0; i < 16; ++i) {
+                    DmqHeader ackHeader;
+                    dmq::xstringstream ackStream(std::ios::in | std::ios::out | std::ios::binary);
+                    if (sendTransport->Receive(ackStream, ackHeader) != 0) break;
+                }
+#endif
+                // Paces the loop when Receive() returns at once instead of waiting its
+                // timeout -- e.g. on Windows, before the first send binds the socket.
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+                auto now = dmq::Clock::now();
+                if (now - lastProcess >= MONITOR_PROCESS_INTERVAL) {
+                    monitor->Process();
+                    lastProcess = now;
+                }
+            } catch (const std::exception& e) {
+                RaiseError(DMQ_ERR_EXCEPTION, 0, std::string("Exception in send-monitor loop: ") + e.what());
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            } catch (...) {
+                RaiseError(DMQ_ERR_EXCEPTION, 0, "Unknown exception in send-monitor loop");
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
         }
@@ -166,7 +251,7 @@ namespace dmq::util {
     DMQ_NORETURN void FaultHandler(const char* file, unsigned short line) {
         std::stringstream ss;
         ss << "DelegateMQ Fault at " << file << ":" << line;
-        RaiseError(ss.str());
+        RaiseError(DMQ_ERR_FAULT, 0, ss.str());
         std::cerr << ss.str() << std::endl;
         abort();
     }
@@ -179,48 +264,43 @@ extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName) {
     std::stringstream ss;
     ss << "DelegateMQ Watchdog Expired: " << threadName;
-    RaiseError(ss.str());
+    RaiseError(DMQ_ERR_WATCHDOG, 0, ss.str());
     std::cerr << ss.str() << std::endl;
     abort();
 }
 
 extern "C" {
+    int DMQ_CALL DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries) {
+        std::lock_guard<std::mutex> lifecycleLock(g_lifecycleMutex);
+        if (GetState()) return -1;
+        g_reliability.enabled = enabled != 0;
+        g_reliability.timeoutMs = timeoutMs;
+        g_reliability.maxRetries = maxRetries;
+        return 0;
+    }
+
     /// @brief Initialize and start the transport system and background threads.
     /// @return 0 on success, -1 on failure (e.g. already started or bind error).
     int DMQ_CALL DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup) {
         std::lock_guard<std::mutex> lifecycleLock(g_lifecycleMutex);
-        if (g_state) return -1;
+        if (GetState()) return -1;
 
         try {
-            g_state = std::make_unique<InteropState>();
-
-            // Move any pre-registered callbacks into g_state
-            {
-                std::lock_guard<std::mutex> lock(g_preRegMutex);
-                g_state->callbacks = std::move(g_preRegCallbacks);
-                g_preRegCallbacks.clear();
-            }
-
-            g_state->running = true;
-
-            g_state->recvTransport = std::make_unique<RecvTransportType>();
-            g_state->sendTransport = std::make_unique<SendTransportType>();
+            auto state = std::make_shared<InteropState>();
+            state->recvTransport = std::make_unique<RecvTransportType>();
+            state->sendTransport = std::make_unique<SendTransportType>();
 
 #if defined(DMQ_TRANSPORT_ZEROMQ)
-            // ZeroMQ expects a full address string.
-            // Client side typically CONNECTS both.
+            // ZeroMQ expects a full address string. Client side connects both:
+            // SUB to listen, PUB to send.
             std::string recvAddr = "tcp://" + std::string(remoteHost) + ":" + std::to_string(recvPort);
             std::string sendAddr = "tcp://" + std::string(remoteHost) + ":" + std::to_string(sendPort);
-
-            // Note: ZeroMqTransport uses Type::SUB for connecting to a PUB server
-            // and Type::PAIR_CLIENT or Type::PUB for sending.
-            // For Databus interop, we use SUB to listen and PUB to send.
-            if (g_state->recvTransport->Create(RecvTransportType::Type::SUB, recvAddr.c_str()) != 0) {
-                g_state.reset();
+            if (state->recvTransport->Create(RecvTransportType::Type::SUB, recvAddr.c_str()) != 0) {
+                RaiseError(DMQ_ERR_TRANSPORT, 0, "Failed to create recv transport for " + recvAddr);
                 return -1;
             }
-            if (g_state->sendTransport->Create(SendTransportType::Type::PUB, sendAddr.c_str()) != 0) {
-                g_state.reset();
+            if (state->sendTransport->Create(SendTransportType::Type::PUB, sendAddr.c_str()) != 0) {
+                RaiseError(DMQ_ERR_TRANSPORT, 0, "Failed to create send transport for " + sendAddr);
                 return -1;
             }
 #else
@@ -228,84 +308,133 @@ extern "C" {
             // receive the same stream concurrently. Send stays a unicast socket back to
             // the single remote peer (e.g. commands to a server), which needs no fan-out.
             std::string localIP = NetworkContext::GetLocalAddress();
-            if (g_state->recvTransport->Create(RecvTransportType::Type::SUB, multicastGroup, static_cast<uint16_t>(recvPort), localIP.c_str()) != 0) {
-                g_state.reset();
+            if (state->recvTransport->Create(RecvTransportType::Type::SUB, multicastGroup, static_cast<uint16_t>(recvPort), localIP.c_str()) != 0) {
+                RaiseError(DMQ_ERR_TRANSPORT, 0, "Failed to join multicast group " + std::string(multicastGroup)
+                    + " on port " + std::to_string(recvPort));
                 return -1;
             }
-            if (g_state->sendTransport->Create(SendTransportType::Type::PUB, remoteHost, static_cast<uint16_t>(sendPort)) != 0) {
-                g_state.reset();
+            if (state->sendTransport->Create(SendTransportType::Type::PUB, remoteHost, static_cast<uint16_t>(sendPort)) != 0) {
+                RaiseError(DMQ_ERR_TRANSPORT, 0, "Failed to create send transport to " + std::string(remoteHost)
+                    + ":" + std::to_string(sendPort));
                 return -1;
             }
 #endif
 
-            g_state->monitor = std::make_unique<TransportMonitor>();
+            if (g_reliability.enabled) {
+                state->monitor = g_reliability.timeoutMs > 0
+                    ? std::make_unique<TransportMonitor>(std::chrono::milliseconds(g_reliability.timeoutMs))
+                    : std::make_unique<TransportMonitor>();
 
-            // Multicast recv is best-effort (no per-message ACK echo); only the unicast
-            // send channel tracks outstanding sends via the monitor.
-            g_state->sendTransport->SetTransportMonitor(g_state->monitor.get());
+                // Connect before RetryMonitor does (it connects in its constructor), so
+                // a timeout is reported before the retry or DELIVERY_FAILED it causes.
+                state->statusConn = state->monitor->OnSendStatus.Connect(dmq::MakeDelegate(
+                    [](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
+                        RaiseStatus(id, seq, status == TransportMonitor::Status::SUCCESS
+                            ? DMQ_STATUS_ACKED : DMQ_STATUS_TIMEOUT);
+                    }));
 
-            g_state->recvThread = std::thread(&InteropState::RecvLoop, g_state.get());
+                state->retry = std::make_unique<RetryMonitor>(*state->sendTransport, *state->monitor,
+                    g_reliability.maxRetries >= 0 ? g_reliability.maxRetries : dmq::RETRY_MONITOR_MAX_RETRIES);
+                state->reliableTransport = std::make_unique<ReliableTransport>(*state->sendTransport, *state->retry);
 
+#if defined(DMQ_TRANSPORT_ZEROMQ)
+                // ACKs for our sends arrive on the SUB socket; ACKs for received data
+                // go out through the PUB socket.
+                state->recvTransport->SetTransportMonitor(state->monitor.get());
+                state->recvTransport->SetSendTransport(state->sendTransport.get());
+#else
+                // ACKs come back to the send socket's source port (drained by SendMonitorLoop).
+                state->sendTransport->SetTransportMonitor(state->monitor.get());
+#endif
+
+                state->deliveryFailedConn = state->retry->OnDeliveryFailed.Connect(dmq::MakeDelegate(
+                    [](dmq::DelegateRemoteId id, uint16_t seq) {
+                        RaiseStatus(id, seq, DMQ_STATUS_DELIVERY_FAILED);
+                    }));
+                state->capConn = state->monitor->OnCapExceeded.Connect(dmq::MakeDelegate(
+                    [](size_t count) {
+                        RaiseError(DMQ_ERR_CAP_EXCEEDED, 0, "Unacknowledged message limit reached ("
+                            + std::to_string(count) + " pending); send rejected");
+                    }));
+                state->pendingConn = state->monitor->OnPendingExceeded.Connect(dmq::MakeDelegate(
+                    [](size_t remaining) {
+                        RaiseError(DMQ_ERR_PENDING_EXCEEDED, 0, "Timed-out messages accumulating ("
+                            + std::to_string(remaining) + " still expired after one pass)");
+                    }));
+            }
+
+            state->running = true;
+            state->recvThread = std::thread(&InteropState::RecvLoop, state.get());
+            if (state->monitor)
+                state->sendMonitorThread = std::thread(&InteropState::SendMonitorLoop, state.get());
+
+            std::lock_guard<std::mutex> lock(g_stateMutex);
+            g_state = std::move(state);
             return 0;
         } catch (const std::exception& e) {
-            RaiseError(std::string("Exception in DmqInterop_Start: ") + e.what());
-            g_state.reset();
+            RaiseError(DMQ_ERR_EXCEPTION, 0, std::string("Exception in DmqInterop_Start: ") + e.what());
             return -1;
         } catch (...) {
-            RaiseError("Unknown exception in DmqInterop_Start");
-            g_state.reset();
+            RaiseError(DMQ_ERR_EXCEPTION, 0, "Unknown exception in DmqInterop_Start");
             return -1;
         }
     }
 
-    /// @brief Register a callback for a specific Remote ID.
-    /// @details Supports registration before Start() is called.
     void DMQ_CALL DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb) {
-        if (g_state) {
-            std::lock_guard<std::mutex> lock(g_state->cbMutex);
-            g_state->callbacks[remoteId] = cb;
-        } else {
-            std::lock_guard<std::mutex> lock(g_preRegMutex);
-            g_preRegCallbacks[remoteId] = cb;
-        }
+        std::lock_guard<std::mutex> lock(g_cbMutex);
+        if (cb)
+            g_msgCallbacks[remoteId] = cb;
+        else
+            g_msgCallbacks.erase(remoteId);
     }
 
-    /// @brief Register a global callback for internal library errors and faults.
+    void DMQ_CALL DmqInterop_RegisterStatusCallback(DmqStatusCallback cb) {
+        std::lock_guard<std::mutex> lock(g_cbMutex);
+        g_statusCallback = cb;
+    }
+
     void DMQ_CALL DmqInterop_RegisterErrorCallback(DmqErrorCallback cb) {
-        std::lock_guard<std::mutex> lock(g_errorMutex);
+        std::lock_guard<std::mutex> lock(g_cbMutex);
         g_errorCallback = cb;
     }
 
-    /// @brief Send raw bytes to a Remote ID.
-    /// @return 0 on success, -1 on failure.
-    int DMQ_CALL DmqInterop_Send(uint16_t remoteId, const uint8_t* data, uint32_t len) {
-        if (!g_state || !g_state->sendTransport) return -1;
+    int DMQ_CALL DmqInterop_Send(uint16_t remoteId, const uint8_t* data, uint32_t len, uint16_t* seqNum) {
+        auto state = GetState();
+        if (!state || !state->running) return -1;
 
         try {
             dmq::xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
             os.write((const char*)data, len);
 
-            // Framing handled by the transport/header system
-            static std::atomic<uint16_t> seqNum{1};
             DmqHeader header;
             header.SetId(remoteId);
-            header.SetSeqNum(seqNum++);
+            uint16_t seq = state->nextSeqNum++;
+            header.SetSeqNum(seq);
+            if (seqNum) *seqNum = seq;
 
-            return g_state->sendTransport->Send(os, header);
+            // With reliability, RetryMonitor tracks the message and reports its
+            // outcome (including an immediate failure) through the status callback.
+            if (state->reliableTransport)
+                return state->reliableTransport->Send(os, header);
+            return state->sendTransport->Send(os, header);
         } catch (const std::exception& e) {
-            RaiseError(std::string("Exception in DmqInterop_Send: ") + e.what());
+            RaiseError(DMQ_ERR_EXCEPTION, remoteId, std::string("Exception in DmqInterop_Send: ") + e.what());
             return -1;
         } catch (...) {
-            RaiseError("Unknown exception in DmqInterop_Send");
+            RaiseError(DMQ_ERR_EXCEPTION, remoteId, "Unknown exception in DmqInterop_Send");
             return -1;
         }
     }
 
-    /// @brief Stop the transport and cleanup all native resources.
     void DMQ_CALL DmqInterop_Stop() {
         std::lock_guard<std::mutex> lifecycleLock(g_lifecycleMutex);
-        if (!g_state) return;
-        g_state->Stop();
-        g_state.reset();
+        std::shared_ptr<InteropState> state;
+        {
+            std::lock_guard<std::mutex> lock(g_stateMutex);
+            state = std::move(g_state);
+        }
+        // Outside g_stateMutex, so a callback calling DmqInterop_Send while the
+        // threads are being joined can't deadlock.
+        if (state) state->Stop();
     }
 }

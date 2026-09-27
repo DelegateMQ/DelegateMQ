@@ -92,6 +92,12 @@ int main() {
         pollingRateMs = cmd.pollingRateMs;
     });
 
+    // Report DataBus errors, e.g. a client command that fails to deserialize
+    // (ERR_DESERIALIZE) because its MessagePack layout doesn't match Command.
+    auto errConn = DataBus::SubscribeError([](const dmq::xstring& topic, dmq::DelegateError err) {
+        std::cout << "[ERROR] DataBus topic=" << topic << " error=" << static_cast<int>(err) << std::endl;
+    });
+
     // Start a thread to process incoming messages from subTransport
     std::thread recvThread([&subParticipant]() {
         while (true) {
