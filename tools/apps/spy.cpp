@@ -13,6 +13,7 @@
 #include <mutex>
 #include <atomic>
 #include <iomanip>
+#include <locale>
 #include <chrono>
 #include <sstream>
 #include <ctime>
@@ -141,8 +142,12 @@ std::vector<NamedNumber> ExtractNumbers(const std::string& text) {
             if (std::isalnum(static_cast<unsigned char>(before)) || before == '_' || before == '.')
                 continue;
         }
-        double v = std::strtod(m[2].str().c_str(), nullptr);
-        if (!std::isfinite(v)) continue;
+        // Classic locale: strtod would expect ',' as the decimal point under some locales.
+        std::istringstream numStream(m[2].str());
+        numStream.imbue(std::locale::classic());
+        double v = 0;
+        numStream >> v;
+        if (numStream.fail() || !std::isfinite(v)) continue;
 
         std::string name;
         if (m[1].matched) {
@@ -161,10 +166,12 @@ std::vector<NamedNumber> ExtractNumbers(const std::string& text) {
     return out;
 }
 
+// JSON needs '.' as the decimal point, whatever the process locale is.
 std::string JsonNumber(double v) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.10g", v);
-    return buf;
+    std::ostringstream ss;
+    ss.imbue(std::locale::classic());
+    ss << std::setprecision(10) << v;
+    return ss.str();
 }
 
 void ForwardToPlotJuggler(const std::string& senderIp, const dmq::databus::SpyPacket& packet) {

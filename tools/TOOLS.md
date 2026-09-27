@@ -363,7 +363,8 @@ dmq_add_mqtt_bridge(my_app)
 
 | Feature | Details |
 |---------|---------|
-| **Threading** | Messages are converted and sent on the bridge's own thread (`FullPolicy::DROP`), so publishers never block on the network. |
+| **Threading** | Outbound messages are converted and sent on the bridge's own thread (`FullPolicy::DROP`), so publishers never block on the network. If that queue fills (broker slow or unreachable), messages are dropped and reported via `OnEvent()`, at most every 5 s. Inbound commands are handled on Paho's receive thread instead, so a command is never dropped behind an outbound backlog; give command subscribers a thread of their own. |
+| **JSON numbers** | `MqttJson.h` writes and parses numbers in the classic "C" locale, so output stays valid JSON even if the application calls `setlocale()` (e.g. a German locale would otherwise produce `1,23`). |
 | **Reconnect** | The broker connection is retried in the background (every 2 s by default). An unreachable broker is reported once, not on every retry. Messages published while disconnected are dropped. |
 | **Retained state** | `Retain::YES` topics are retained at the broker, so a dashboard that connects late sees the current state. The bridge also re-publishes their last value on every (re)connect. |
 | **Liveness** | `<prefix>/online` is `true` (retained) while connected, and `false` on `Stop()` or, if the application dies, via the broker's Last Will. |

@@ -11,12 +11,23 @@
 
 namespace {
     constexpr const char* ONLINE_SUFFIX = "/online";
+    constexpr char ONLINE_TRUE[] = "true";
+    constexpr char ONLINE_FALSE[] = "false";
+    constexpr int ONLINE_TRUE_LEN = sizeof(ONLINE_TRUE) - 1;
+    constexpr int ONLINE_FALSE_LEN = sizeof(ONLINE_FALSE) - 1;
     constexpr int CONNECT_TIMEOUT_SEC = 3;
     constexpr size_t BRIDGE_QUEUE_SIZE = 500;
+    /// Minimum time between "queue full" reports, so sustained backpressure
+    /// doesn't flood OnEvent().
+    constexpr int64_t DROP_REPORT_INTERVAL_MS = 5000;
+
+    int64_t SteadyMs() {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
 }
 
-/// Paho callbacks. Run on Paho's internal thread; they only hand work to the
-/// bridge thread.
+/// Paho callbacks. Run on Paho's internal thread.
 struct MqttBridgePaho {
     static void ConnectionLost(void*, char* cause) {
         auto& inst = MqttBridge::GetInstance();
@@ -30,8 +41,12 @@ struct MqttBridgePaho {
         std::string payload(static_cast<const char*>(message->payload), static_cast<size_t>(message->payloadlen));
         MQTTClient_freeMessage(&message);
         MQTTClient_free(topicName);
-        if (inst.thread && inst.running)
-            (void)dmq::MakeDelegate(&MqttBridge::HandleInbound, *inst.thread).AsyncInvoke(std::move(topic), std::move(payload));
+        // Handled here, not queued to the bridge thread: that queue carries
+        // outbound telemetry with FullPolicy::DROP, and a command must never be
+        // dropped behind a telemetry backlog. Parsing is quick and
+        // DataBus::Publish doesn't block (threaded subscribers are queued).
+        if (inst.running)
+            MqttBridge::HandleInbound(std::move(topic), std::move(payload));
         return 1;   // message consumed
     }
 };
@@ -82,6 +97,7 @@ bool MqttBridge::Start(const Options& options) {
 
     // DROP: a slow or unreachable broker must never stall DataBus publishers.
     inst.thread = std::make_unique<dmq::os::Thread>("MqttBridge", BRIDGE_QUEUE_SIZE, dmq::os::FullPolicy::DROP);
+    inst.thread->SetDroppedHandler(dmq::MakeDelegate(&MqttBridge::OnQueueFull));
     inst.thread->CreateThread();
 
     inst.running = true;
@@ -107,7 +123,7 @@ void MqttBridge::Stop() {
     if (inst.connected.exchange(false)) {
         std::string topic = inst.options.topicPrefix + ONLINE_SUFFIX;
         MQTTClient_deliveryToken token = 0;
-        if (MQTTClient_publish(client, topic.c_str(), 5, "false", 1, 1, &token) == MQTTCLIENT_SUCCESS)
+        if (MQTTClient_publish(client, topic.c_str(), ONLINE_FALSE_LEN, ONLINE_FALSE, 1, 1, &token) == MQTTCLIENT_SUCCESS)
             MQTTClient_waitForCompletion(client, token, 1000);
         MQTTClient_disconnect(client, 1000);
     }
@@ -143,7 +159,7 @@ void MqttBridge::Connect() {
     std::string onlineTopic = inst.options.topicPrefix + ONLINE_SUFFIX;
     MQTTClient_willOptions will = MQTTClient_willOptions_initializer;
     will.topicName = onlineTopic.c_str();
-    will.message = "false";
+    will.message = ONLINE_FALSE;
     will.retained = 1;
     will.qos = 1;
 
@@ -179,7 +195,7 @@ void MqttBridge::Connect() {
     }
 
     MQTTClient_deliveryToken token = 0;
-    MQTTClient_publish(client, onlineTopic.c_str(), 4, "true", 1, 1, &token);
+    MQTTClient_publish(client, onlineTopic.c_str(), ONLINE_TRUE_LEN, ONLINE_TRUE, 1, 1, &token);
 
     // Current state that was published while disconnected (or before a broker
     // restart lost it).
@@ -234,4 +250,18 @@ void MqttBridge::HandleInbound(std::string mqttTopic, std::string payload) {
         handler = it->second.handler;
     }
     handler(payload);
+}
+
+void MqttBridge::OnQueueFull(size_t depth) {
+    // Runs synchronously on the publishing thread: count, and report at most
+    // once per interval.
+    auto& inst = GetInstance();
+    uint32_t count = ++inst.queueDrops;
+    int64_t now = SteadyMs();
+    int64_t last = inst.lastDropReportMs;
+    if (now - last < DROP_REPORT_INTERVAL_MS || !inst.lastDropReportMs.compare_exchange_strong(last, now))
+        return;
+    inst.queueDrops -= count;
+    RaiseEvent("bridge queue full (" + std::to_string(depth) + " queued): dropped " + std::to_string(count)
+               + " outbound message(s); broker slow or unreachable");
 }

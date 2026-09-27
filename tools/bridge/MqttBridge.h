@@ -31,10 +31,14 @@
 //   MqttBridge::Stop();
 //
 // Threading: DataBus messages are converted and sent on the bridge's own
-// thread (FullPolicy::DROP), so publishers never block on the network. The
-// broker connection is retried in the background; messages published while
-// disconnected are dropped. Inbound messages are parsed on the bridge thread
-// and re-published on the DataBus from there.
+// thread (FullPolicy::DROP), so publishers never block on the network. If that
+// queue fills (broker slow or unreachable), outbound messages are dropped and
+// reported via OnEvent(), at most once every few seconds. The broker
+// connection is retried in the background; messages published while
+// disconnected are dropped. Inbound messages are parsed on Paho's receive
+// thread and published on the DataBus directly, so a command is never dropped
+// behind an outbound backlog. DataBus subscribers registered without a thread
+// therefore run on Paho's thread; give command subscribers a thread.
 //
 // Build: tools/bridge/MqttBridge.cmake adds this bridge and Paho MQTT C to a
 // target (dmq_add_mqtt_bridge). Desktop only (Paho).
@@ -153,6 +157,8 @@ private:
         std::atomic<bool> running{false};
         std::atomic<bool> connected{false};
         std::atomic<uint32_t> dropped{0};           ///< Sends skipped while disconnected
+        std::atomic<uint32_t> queueDrops{0};        ///< Outbound messages dropped by a full queue, not yet reported
+        std::atomic<int64_t> lastDropReportMs{0};   ///< Rate-limits queue-full reports
         std::mutex mutex;                           ///< Guards connections and inbound
         std::list<dmq::ScopedConnection> connections;
         std::map<std::string, Inbound> inbound;     ///< Keyed by MQTT topic
@@ -172,6 +178,7 @@ private:
     static void SupervisorLoop();
     static void Connect();
     static void HandleInbound(std::string mqttTopic, std::string payload);
+    static void OnQueueFull(size_t depth);
 
     // Paho callbacks, defined in MqttBridge.cpp (their signatures use Paho types).
     friend struct MqttBridgePaho;

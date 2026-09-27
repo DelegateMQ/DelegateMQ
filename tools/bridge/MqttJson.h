@@ -7,6 +7,13 @@
 //   {"state":"RUNNING","rpm":1500,"active":true}
 // Nested objects and arrays are not supported by Reader; use a full JSON
 // library (e.g. RapidJSON) in your converter for those.
+//
+// Numbers are written and parsed in the classic "C" locale regardless of the
+// process locale: snprintf/strtod follow setlocale(), so an application (or a
+// framework such as Qt) running with e.g. a German locale would otherwise
+// write "1,23", which is invalid JSON. Streams imbued with
+// std::locale::classic() are locale-independent on every compiler, unlike
+// floating-point std::to_chars/from_chars, which older libc++ lacks.
 
 #ifndef MQTT_JSON_H
 #define MQTT_JSON_H
@@ -14,7 +21,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iomanip>
+#include <locale>
 #include <map>
+#include <sstream>
 #include <string>
 
 namespace mqttjson {
@@ -46,12 +56,13 @@ public:
             m_json += "null";       // JSON has no NaN/Inf
             return *this;
         }
-        char buf[40];
+        std::ostringstream ss;
+        ss.imbue(std::locale::classic());   // always '.', whatever setlocale() says
         if (decimals >= 0)
-            snprintf(buf, sizeof(buf), "%.*f", decimals, value);
+            ss << std::fixed << std::setprecision(decimals) << value;
         else
-            snprintf(buf, sizeof(buf), "%.10g", value);
-        m_json += buf;
+            ss << std::setprecision(10) << value;
+        m_json += ss.str();
         return *this;
     }
     std::string Str() const { return m_json + "}"; }
@@ -218,11 +229,16 @@ private:
         if (Literal("false")) { v.type = Type::BOOL; v.b = false; return true; }
         if (Literal("null")) { v.type = Type::NUL; return true; }
         if (c == '-' || (c >= '0' && c <= '9')) {
-            const char* start = m_text->c_str() + m_pos;
-            char* end = nullptr;
-            v.num = std::strtod(start, &end);
-            if (end == start) return false;
-            m_pos += static_cast<size_t>(end - start);
+            // Take the JSON number token, then parse it in the classic locale
+            // (strtod would expect ',' as the decimal point under some locales).
+            size_t end = m_pos;
+            while (end < m_text->size() && std::string("+-.eE0123456789").find((*m_text)[end]) != std::string::npos)
+                ++end;
+            std::istringstream ss(m_text->substr(m_pos, end - m_pos));
+            ss.imbue(std::locale::classic());
+            ss >> v.num;
+            if (ss.fail() || ss.peek() != std::char_traits<char>::eof()) return false;
+            m_pos = end;
             v.type = Type::NUMBER;
             return true;
         }
