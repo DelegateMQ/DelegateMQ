@@ -42,13 +42,14 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, and transport integrations are available out of the box. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
 
 | Category | Supported |
 | :--- | :--- |
 | **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer |
+| **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
 
 # Getting Started
 
@@ -87,6 +88,7 @@ build\delegate_app\Debug\delegate_app.exe
 - Watchdog detection of hung or starved threads
 - Remote procedure calls between processes or processors
 - C# or Python tools commanding and monitoring an embedded device
+- Bridging device data to MQTT as JSON, for dashboards and IoT platforms
 - On-target integration tests that call internal functions on their own threads
 
 # Overview

@@ -10,7 +10,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 | **Node Monitor** | `dmq-monitor` | Live network topology view — shows all active nodes, their status, uptime, and published topics |
 | **Thread Monitor**| `dmq-thread` | Real-time per-thread metrics — shows queue depths and dispatch latency across the system |
 | **Wireshark Dissector** | `wireshark/dmq.lua` | Decodes DelegateMQ UDP/TCP traffic in Wireshark — header fields, ACKs, topic labels. See [wireshark/README.md](wireshark/README.md) |
-| **MQTT Gateway** | `bridge/mqtt/MqttBridge` | Exposes chosen DataBus topics as MQTT topics with JSON payloads, and optionally accepts commands — for Node-RED, Home Assistant, Grafana, cloud IoT. See [JSON Bridges](#json-bridges--jsontopics-and-mqttbridge) |
+| **MQTT Gateway** | `bridge/mqtt/MqttBridge` | Exposes chosen DataBus topics as MQTT topics with JSON payloads, and optionally accepts commands — standard MQTT, usable from any MQTT client. See [JSON Bridges](#json-bridges--jsontopics-and-mqttbridge) |
 
 ---
 
@@ -322,7 +322,7 @@ DataBus "pump/telemetry"  →  JsonTopics (to JSON, once)  →  MqttBridge  → 
 MQTT "pumptron/pump/cmd/set" {"command":"START"}  →  MqttBridge  →  JsonTopics (validate)  →  DataBus "pump/cmd"
 ```
 
-With MQTT, the whole MQTT ecosystem (Node-RED, Home Assistant, Grafana via Telegraf, MQTT Explorer, AWS IoT / Azure IoT) can watch the application and, where you allow it, command it. This is different from `port/transport/mqtt/MqttTransport`, which tunnels DelegateMQ's binary frames between DelegateMQ apps on one fixed MQTT topic, which other MQTT tools can't read.
+Because the output is standard MQTT with JSON payloads, any MQTT client can watch the application and, where you allow it, command it; see [Using MQTT Tools](#using-mqtt-tools) for what common tools need. This is different from `port/transport/mqtt/MqttTransport`, which tunnels DelegateMQ's binary frames between DelegateMQ apps on one fixed MQTT topic, which other MQTT tools can't read.
 
 ### Usage
 
@@ -385,6 +385,18 @@ dmq_add_mqtt_bridge(my_app)
 | **Liveness** | `<prefix>/online` is `true` (retained) while connected, and `false` on `Stop()` or, if the application dies, via the broker's Last Will. |
 
 Enable inbound commands only on a broker you trust. The bridge uses plain TCP with no TLS or authentication.
+
+### Using MQTT Tools
+
+The bridge has no tool-specific integration: it publishes plain MQTT topics with JSON payloads, which each tool consumes through its own MQTT support. It has been tested with generic MQTT clients, not yet with the tools below.
+
+| Tool | What it takes |
+|------|---------------|
+| [MQTT Explorer](https://mqtt-explorer.com/), `mosquitto_sub` / `mosquitto_pub` | Nothing: connect to the broker and subscribe to `<prefix>/#`. |
+| [Node-RED](https://nodered.org/) | An `mqtt in` node on `<prefix>/#` followed by a `json` node; `mqtt out` to `<prefix>/<topic>/set` for commands. |
+| [Home Assistant](https://www.home-assistant.io/) | Declare each value as an MQTT sensor in YAML, reading a JSON field with a `value_template`. MQTT discovery (automatic entities) isn't published by the bridge. |
+| [Grafana](https://grafana.com/) | Grafana doesn't read a broker natively: use its MQTT data source plugin, or Telegraf (MQTT consumer) into a database such as InfluxDB. |
+| AWS IoT Core, Azure IoT Hub | Their brokers require TLS and authentication, which the bridge doesn't support yet. |
 
 Examples: [`example/sample-projects/databus-mqtt-gateway`](../example/sample-projects/databus-mqtt-gateway/README.md) (minimal thermostat) and Pumptron's `--mqtt` ([PUMPTRON.md](../example/pumptron/PUMPTRON.md#mqtt-gateway)).
 

@@ -1,9 +1,10 @@
 // MqttBridge.h
 // @see https://github.com/DelegateMQ/DelegateMQ
 // MQTT output for the JsonTopics layer (../common/JsonTopics.h): serves every
-// topic the application exposes there as its own MQTT topic, so MQTT tools
-// (Node-RED, Home Assistant, Grafana, MQTT Explorer, cloud IoT) can read and,
-// for accepted topics, command a DelegateMQ system.
+// topic the application exposes there as its own MQTT topic with a JSON
+// payload, so any MQTT client can read and, for accepted topics, command a
+// DelegateMQ system. No tool-specific integration: dashboard tools consume it
+// through their own MQTT support (see tools/TOOLS.md, "Using MQTT Tools").
 //
 // Unlike port/transport/mqtt/MqttTransport (which tunnels DelegateMQ binary
 // frames between DelegateMQ apps on one fixed MQTT topic), each topic gets its

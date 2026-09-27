@@ -1,6 +1,6 @@
 # DataBus ↔ MQTT Gateway Demo
 
-A simulated thermostat that is an ordinary DataBus application, exposed to MQTT tools. Its topics are declared once with `JsonTopics` ([`tools/bridge/common`](../../../tools/bridge/common/JsonTopics.h)), the shared JSON bridge layer, and served over MQTT by `MqttBridge` ([`tools/bridge/mqtt`](../../../tools/bridge/mqtt/MqttBridge.h)). Each DataBus topic becomes its own MQTT topic with a JSON payload, so anything that speaks MQTT (MQTT Explorer, Node-RED, Home Assistant, Grafana, cloud IoT) can watch it and change its setpoint.
+A simulated thermostat that is an ordinary DataBus application, exposed to MQTT tools. Its topics are declared once with `JsonTopics` ([`tools/bridge/common`](../../../tools/bridge/common/JsonTopics.h)), the shared JSON bridge layer, and served over MQTT by `MqttBridge` ([`tools/bridge/mqtt`](../../../tools/bridge/mqtt/MqttBridge.h)). Each DataBus topic becomes its own MQTT topic with a JSON payload, so any MQTT client can watch it and change its setpoint (see [Using MQTT Tools](../../../tools/TOOLS.md#using-mqtt-tools) for dashboard tools).
 
 | Direction | MQTT topic | Payload |
 |-----------|-----------|---------|
