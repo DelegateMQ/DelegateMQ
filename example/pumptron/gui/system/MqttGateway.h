@@ -5,7 +5,8 @@
 
 namespace pumptron {
 
-/// @brief Exposes the pump over MQTT via MqttBridge (tools/bridge).
+/// @brief Exposes the pump over MQTT: declares its JSON view with JsonTopics
+/// (tools/bridge/common) and serves it with MqttBridge (tools/bridge/mqtt).
 ///
 /// The GUI re-publishes everything it receives from the controller on its own
 /// DataBus, so the gateway works the same over serial or the simulator link:

@@ -10,7 +10,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 | **Node Monitor** | `dmq-monitor` | Live network topology view — shows all active nodes, their status, uptime, and published topics |
 | **Thread Monitor**| `dmq-thread` | Real-time per-thread metrics — shows queue depths and dispatch latency across the system |
 | **Wireshark Dissector** | `wireshark/dmq.lua` | Decodes DelegateMQ UDP/TCP traffic in Wireshark — header fields, ACKs, topic labels. See [wireshark/README.md](wireshark/README.md) |
-| **MQTT Gateway** | `bridge/MqttBridge` | Exposes chosen DataBus topics as MQTT topics with JSON payloads, and optionally accepts commands — for Node-RED, Home Assistant, Grafana, cloud IoT. See [MqttBridge](#mqttbridge--databus--mqtt-gateway) |
+| **MQTT Gateway** | `bridge/mqtt/MqttBridge` | Exposes chosen DataBus topics as MQTT topics with JSON payloads, and optionally accepts commands — for Node-RED, Home Assistant, Grafana, cloud IoT. See [JSON Bridges](#json-bridges--jsontopics-and-mqttbridge) |
 
 ---
 
@@ -33,7 +33,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 
 1.  **Instrumentation**: The `dmq::os::Thread` class tracks queue stats and message timestamps during normal operation.
 2.  **Telemetry Service** (`ThreadMonitor`): A service within the application that polls registered threads and publishes `ThreadStatsPacket` to the local DataBus.
-3.  **The Node Bridge** (`bridge/NodeBridge.cpp/.h`): Reuses the existing node bridge to automatically pick up `ThreadStatsPacket` topics and broadcast them over UDP.
+3.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): Reuses the existing node bridge to automatically pick up `ThreadStatsPacket` topics and broadcast them over UDP.
 4.  **The Thread Monitor Console** (`apps/thread.cpp`): The standalone `dmq-thread` application that receives and visualizes the aggregated telemetry.
 
 ### Integrating Thread Monitoring into Your App
@@ -107,12 +107,12 @@ You may occasionally see negative values in the Delta columns (e.g., `-0.015` ms
 ### How it Works
 
 1.  **The Spy Console** (`apps/spy.cpp`): The standalone `dmq-spy` application that displays the data in an aligned table layout.
-2.  **The Spy Bridge** (`bridge/SpyBridge.cpp/.h`): A small component you add to your own application to export its internal bus traffic over UDP.
+2.  **The Spy Bridge** (`bridge/spy/SpyBridge.cpp/.h`): A small component you add to your own application to export its internal bus traffic over UDP.
 
 ### Integrating SpyBridge into Your App
 
 #### 1. Include the Bridge
-Add `tools/bridge/SpyBridge.cpp` and `tools/bridge/SpyBridge.h` to your build system and enable `DMQ_DATABUS_TOOLS`.
+Add `tools/bridge/spy/SpyBridge.cpp` and `tools/bridge/spy/SpyBridge.h` to your build system (include directories `tools/bridge/spy` and `tools/net`) and enable `DMQ_DATABUS_TOOLS`.
 
 #### 2. Register Stringifiers
 For every topic you want to see in the console, register a stringifier function:
@@ -270,12 +270,12 @@ A `name:` or `name=` before a number names it (a unit in parentheses is allowed)
 ### How it Works
 
 1.  **The Node Monitor Console** (`apps/monitor.cpp`): The standalone `dmq-monitor` application that displays the topology table.
-2.  **The Node Bridge** (`bridge/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second.
+2.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second.
 
 ### Integrating NodeBridge into Your App
 
 #### 1. Include the Bridge
-Add `tools/bridge/NodeBridge.cpp`, `tools/bridge/NodeBridge.h`, and `tools/bridge/NodeInfoPacket.h` to your build system and enable `DMQ_DATABUS_TOOLS`.
+Add `tools/bridge/node/NodeBridge.cpp`, `tools/bridge/node/NodeBridge.h`, and `tools/bridge/node/NodeInfoPacket.h` to your build system (include directories `tools/bridge/node` and `tools/net`) and enable `DMQ_DATABUS_TOOLS`.
 
 #### 2. Start the Bridge
 Call `Start` (unicast) or `StartMulticast` at application initialization, providing a unique node ID:
@@ -313,67 +313,89 @@ Topic and message count tracking is automatic — NodeBridge subscribes to `dmq:
 
 ---
 
-## MqttBridge — DataBus ↔ MQTT Gateway
+## JSON Bridges — JsonTopics and MqttBridge
 
-`MqttBridge` (`bridge/MqttBridge.h/.cpp`) connects a DataBus application to an MQTT broker, so the MQTT ecosystem (Node-RED, Home Assistant, Grafana via Telegraf, MQTT Explorer, AWS IoT / Azure IoT) can watch it and, where you allow it, command it. Each exposed DataBus topic becomes its own MQTT topic with a readable payload:
+The JSON bridges connect a DataBus application to tools outside DelegateMQ. The application declares **once**, in the shared `JsonTopics` layer, which topics to expose as JSON and which commands to accept; each bridge then serves that same set over its own protocol. `MqttBridge` is the first bridge; others (e.g. WebSocket/Foxglove) plug into the same layer.
 
 ```
-DataBus "pump/telemetry"   →  MQTT "pumptron/pump/telemetry"   {"rpm":1500,"flow":30.0,...}
-DataBus "pump/status"      →  MQTT "pumptron/pump/status"      {"state":"RUNNING",...}   (retained)
-MQTT "pumptron/pump/cmd/set" {"command":"START"}   →   DataBus "pump/cmd"
+DataBus "pump/telemetry"  →  JsonTopics (to JSON, once)  →  MqttBridge  →  MQTT "pumptron/pump/telemetry"  {"rpm":1500,...}
+MQTT "pumptron/pump/cmd/set" {"command":"START"}  →  MqttBridge  →  JsonTopics (validate)  →  DataBus "pump/cmd"
 ```
 
-This is different from `port/transport/mqtt/MqttTransport`, which tunnels DelegateMQ's binary frames between DelegateMQ apps on one fixed MQTT topic, which other MQTT tools can't read.
+With MQTT, the whole MQTT ecosystem (Node-RED, Home Assistant, Grafana via Telegraf, MQTT Explorer, AWS IoT / Azure IoT) can watch the application and, where you allow it, command it. This is different from `port/transport/mqtt/MqttTransport`, which tunnels DelegateMQ's binary frames between DelegateMQ apps on one fixed MQTT topic, which other MQTT tools can't read.
 
 ### Usage
 
 ```cpp
+#include "JsonTopics.h"
 #include "MqttBridge.h"
-#include "MqttJson.h"   // optional flat-JSON helpers
+#include "BridgeJson.h"   // optional flat-JSON helpers
 
 std::string TelemetryToJson(const TelemetryMsg& m) {
-    return mqttjson::Writer().Add("rpm", m.rpm, 0).Add("flow", m.flowLpm, 2).Str();
+    return bridgejson::Writer().Add("rpm", m.rpm, 0).Add("flow", m.flowLpm, 2).Str();
 }
 bool CommandFromJson(const std::string& json, PumpCommandMsg& cmd) {
-    mqttjson::Reader r;
+    bridgejson::Reader r;
     std::string name;
     if (!r.Parse(json) || !r.GetString("command", name)) return false;
     // ... map name to cmd, validate arguments; return false to reject
 }
 
+// The application's JSON view, declared once for every bridge
+JsonTopics::Expose<TelemetryMsg>("pump/telemetry", &TelemetryToJson);
+JsonTopics::Expose<PumpStatusMsg>("pump/status", &StatusToJson, { true /*latched*/, true /*reliable*/ });
+JsonTopics::Accept<PumpCommandMsg>("pump/cmd", &CommandFromJson);    // opt-in inbound
+
+// Serve it over MQTT
 MqttBridge::Options opt;
 opt.brokerUri = "tcp://127.0.0.1:1883";
 opt.topicPrefix = "pumptron";
 MqttBridge::Start(opt);
-MqttBridge::Publish<TelemetryMsg>("pump/telemetry", &TelemetryToJson);                          // QoS 0
-MqttBridge::Publish<PumpStatusMsg>("pump/status", &StatusToJson, MqttBridge::Retain::YES, 1);    // retained, QoS 1
-MqttBridge::Subscribe<PumpCommandMsg>("pump/cmd", &CommandFromJson);                             // opt-in inbound
 // ...
 MqttBridge::Stop();
+JsonTopics::Shutdown();
 ```
 
-Add it to a CMake target with the helper, which also builds Paho MQTT C from the workspace (`../mqtt`, fetched by `01_fetch_repos.py`):
+Add it to a CMake target with the helper, which adds the shared layer and builds Paho MQTT C from the workspace (`../mqtt`, fetched by `01_fetch_repos.py`):
 
 ```cmake
-include(<DelegateMQ>/tools/bridge/MqttBridge.cmake)
+include(<DelegateMQ>/tools/bridge/mqtt/MqttBridge.cmake)
 dmq_add_mqtt_bridge(my_app)
 ```
 
-### Behavior
+### JsonTopics (shared layer)
 
 | Feature | Details |
 |---------|---------|
-| **Threading** | Outbound messages are converted and sent on the bridge's own thread (`FullPolicy::DROP`), so publishers never block on the network. If that queue fills (broker slow or unreachable), messages are dropped and reported via `OnEvent()`, at most every 5 s. Inbound commands are handled on Paho's receive thread instead, so a command is never dropped behind an outbound backlog; give command subscribers a thread of their own. |
-| **JSON numbers** | `MqttJson.h` writes and parses numbers in the classic "C" locale, so output stays valid JSON even if the application calls `setlocale()` (e.g. a German locale would otherwise produce `1,23`). |
-| **Reconnect** | The broker connection is retried in the background (every 2 s by default). An unreachable broker is reported once, not on every retry. Messages published while disconnected are dropped. |
-| **Retained state** | `Retain::YES` topics are retained at the broker, so a dashboard that connects late sees the current state. The bridge also re-publishes their last value on every (re)connect. |
-| **Liveness** | `<prefix>/online` is `true` (retained) while connected, and `false` on `Stop()` or, if the application dies, via the broker's Last Will. |
-| **Inbound commands** | Opt-in per topic with `Subscribe()`, on `<prefix>/<topic>/set` (the usual MQTT command-topic convention, which also avoids echoing a published topic back into itself). Payloads that the converter rejects are reported and dropped. |
-| **Events** | `MqttBridge::OnEvent()` reports connects, disconnects and rejected commands as text. Without a subscriber they go to stderr. |
+| **Expose / Accept** | `Expose<T>(topic, toJson, options)` and `Accept<T>(topic, fromJson)`, before or after bridges start. |
+| **Convert once** | Each message is converted to JSON once, on the JsonTopics thread (`FullPolicy::DROP`, so publishers never block), and handed to every running bridge. |
+| **Hints** | `latched` (state: keep the last value for late joiners) and `reliable` (prefer confirmed delivery). Each bridge maps them to its protocol. |
+| **Inbound** | Bridges hand incoming payloads to `JsonTopics::Inbound()`, which validates them with `fromJson` and publishes valid ones on the DataBus. **Every `Accept()` is a remote control path into the application**: validate everything in the converter. |
+| **Events** | `JsonTopics::OnEvent()` reports events from the layer and every bridge, prefixed by bridge (e.g. `MQTT: connected ...`): connects, disconnects, rejected commands, dropped messages. Without a subscriber they go to stderr. |
+| **JSON numbers** | `BridgeJson.h` writes and parses numbers in the classic "C" locale, so output stays valid JSON even if the application calls `setlocale()` (e.g. a German locale would otherwise produce `1,23`). |
 
-**Every `Subscribe()` is a remote control path into the application.** Validate everything in the converter, and enable inbound only on a broker you trust. The bridge uses plain TCP with no TLS or authentication.
+### MqttBridge
+
+| Feature | Details |
+|---------|---------|
+| **Topics** | Exposed topic `t` → MQTT `<prefix>/t`. Accepted topic `t` ← MQTT `<prefix>/t/set` (the usual MQTT command-topic convention, which also avoids echoing an exposed topic back into itself). |
+| **Hints** | `latched` → retained message, re-published on every (re)connect so a dashboard that connects late sees the current state. `reliable` → QoS 1, otherwise QoS 0. |
+| **Threading** | Sends run on the bridge's own thread (`FullPolicy::DROP`), so a slow broker can't hold up the layer or other bridges; drops are reported at most every 5 s. Inbound commands are handled on Paho's receive thread, so a command is never dropped behind an outbound backlog; give command subscribers a thread of their own. |
+| **Reconnect** | The broker connection is retried in the background (every 2 s by default). An unreachable broker is reported once, not on every retry. Messages published while disconnected are dropped; latched state is re-published on connect. |
+| **Liveness** | `<prefix>/online` is `true` (retained) while connected, and `false` on `Stop()` or, if the application dies, via the broker's Last Will. |
+
+Enable inbound commands only on a broker you trust. The bridge uses plain TCP with no TLS or authentication.
 
 Examples: [`example/sample-projects/databus-mqtt-gateway`](../example/sample-projects/databus-mqtt-gateway/README.md) (minimal thermostat) and Pumptron's `--mqtt` ([PUMPTRON.md](../example/pumptron/PUMPTRON.md#mqtt-gateway)).
+
+### Bridge Source Layout
+
+| Directory | Contents |
+|-----------|----------|
+| `bridge/common/` | Shared JSON bridge layer: `JsonTopics`, `BridgeJson.h`, `BridgeCommon.cmake` |
+| `bridge/spy/` | `SpyBridge` (DataBus traffic to `dmq-spy`) |
+| `bridge/node/` | `NodeBridge`, `NodeInfoPacket.h` (heartbeats to `dmq-monitor` / `dmq-thread`) |
+| `bridge/mqtt/` | `MqttBridge`, `MqttBridge.cmake` |
 
 ---
 

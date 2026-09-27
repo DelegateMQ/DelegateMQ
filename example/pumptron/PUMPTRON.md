@@ -296,7 +296,7 @@ Things to know:
 
 ### MQTT Gateway
 
-`--mqtt` puts the pump on an MQTT broker, so dashboards and home-automation tools (Node-RED, Home Assistant, Grafana, MQTT Explorer) can watch it, and with `--mqtt-control`, run it. The board itself has no network connection; the GUI is the gateway. It already re-publishes everything the controller sends on its own DataBus, and `MqttBridge` ([`tools/bridge`](../../tools/TOOLS.md#mqttbridge--databus--mqtt-gateway)) forwards chosen topics as JSON.
+`--mqtt` puts the pump on an MQTT broker, so dashboards and home-automation tools (Node-RED, Home Assistant, Grafana, MQTT Explorer) can watch it, and with `--mqtt-control`, run it. The board itself has no network connection; the GUI is the gateway. It already re-publishes everything the controller sends on its own DataBus, and `MqttBridge` ([`tools/bridge`](../../tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge)) forwards chosen topics as JSON.
 
 ```bash
 python run_pumptron.py --serial COM5 --mqtt                          # broker tcp://127.0.0.1:1883

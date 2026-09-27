@@ -1,6 +1,7 @@
-// MqttJson.h
+// BridgeJson.h
 // @see https://github.com/DelegateMQ/DelegateMQ
-// Minimal flat-JSON writer and reader for MqttBridge payload converters.
+// Minimal flat-JSON writer and reader for JsonTopics converters (shared by all
+// JSON bridges: MQTT, and later WebSocket/Foxglove).
 //
 // Covers what dashboards and home-automation tools exchange over MQTT: one
 // object of string, number and boolean fields, e.g.
@@ -15,8 +16,8 @@
 // std::locale::classic() are locale-independent on every compiler, unlike
 // floating-point std::to_chars/from_chars, which older libc++ lacks.
 
-#ifndef MQTT_JSON_H
-#define MQTT_JSON_H
+#ifndef BRIDGE_JSON_H
+#define BRIDGE_JSON_H
 
 #include <cmath>
 #include <cstdio>
@@ -27,7 +28,7 @@
 #include <sstream>
 #include <string>
 
-namespace mqttjson {
+namespace bridgejson {
 
 /// @brief Builds one flat JSON object: Writer().Add("a", 1).Add("b", "x").Str()
 class Writer {
@@ -250,6 +251,6 @@ private:
     size_t m_pos = 0;
 };
 
-} // namespace mqttjson
+} // namespace bridgejson
 
-#endif // MQTT_JSON_H
+#endif // BRIDGE_JSON_H

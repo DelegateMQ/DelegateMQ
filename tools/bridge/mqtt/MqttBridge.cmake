@@ -1,18 +1,21 @@
 # MqttBridge.cmake
-# Adds tools/bridge/MqttBridge (DataBus <-> MQTT gateway) to a target, building
-# Eclipse Paho MQTT C from the workspace checkout (../mqtt, fetched by
-# 01_fetch_repos.py) as a static library. Building from source keeps Paho's
-# architecture matching the target's (e.g. the Win32 Pumptron build) instead of
-# relying on a prebuilt library.
+# Adds tools/bridge/mqtt/MqttBridge (an MQTT output for the JsonTopics layer)
+# and the shared bridge layer to a target, building Eclipse Paho MQTT C from the
+# workspace checkout (../mqtt, fetched by 01_fetch_repos.py) as a static
+# library. Building from source keeps Paho's architecture matching the
+# target's (e.g. the Win32 Pumptron build) instead of relying on a prebuilt
+# library.
 #
 # Usage:
-#   include(<DelegateMQ>/tools/bridge/MqttBridge.cmake)
+#   include(<DelegateMQ>/tools/bridge/mqtt/MqttBridge.cmake)
 #   dmq_add_mqtt_bridge(<target>)
 #
 # The target must already include DelegateMQ (DMQ_DATABUS=ON).
 
+include("${CMAKE_CURRENT_LIST_DIR}/../common/BridgeCommon.cmake")
+
 set(DMQ_MQTT_BRIDGE_DIR "${CMAKE_CURRENT_LIST_DIR}")
-get_filename_component(DMQ_PAHO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../mqtt" ABSOLUTE)
+get_filename_component(DMQ_PAHO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../mqtt" ABSOLUTE)
 
 function(dmq_add_mqtt_bridge target)
     if(NOT TARGET paho-mqtt3c-static)
@@ -31,13 +34,14 @@ function(dmq_add_mqtt_bridge target)
         add_subdirectory("${DMQ_PAHO_ROOT}" "${CMAKE_BINARY_DIR}/paho-mqtt" EXCLUDE_FROM_ALL)
     endif()
 
+    dmq_add_bridge_common(${target})
+
     set(bridge_sources
         "${DMQ_MQTT_BRIDGE_DIR}/MqttBridge.cpp"
         "${DMQ_MQTT_BRIDGE_DIR}/MqttBridge.h"
-        "${DMQ_MQTT_BRIDGE_DIR}/MqttJson.h"
     )
     target_sources(${target} PRIVATE ${bridge_sources})
-    source_group("Tools Files" FILES ${bridge_sources})
+    source_group("Tools Files/MQTT Bridge" FILES ${bridge_sources})
     target_include_directories(${target} PRIVATE "${DMQ_MQTT_BRIDGE_DIR}" "${DMQ_PAHO_ROOT}/src")
     target_link_libraries(${target} PRIVATE paho-mqtt3c-static)
 endfunction()

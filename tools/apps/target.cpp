@@ -3,8 +3,8 @@
 // Test application to generate sample DataBus traffic for the Spy tool.
 
 #include "extras/databus/DataBus.h"
-#include "../bridge/SpyBridge.h"
-#include "../bridge/NodeBridge.h"
+#include "../bridge/spy/SpyBridge.h"
+#include "../bridge/node/NodeBridge.h"
 #include <iostream>
 #include <chrono>
 #include <thread>

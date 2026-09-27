@@ -4,7 +4,8 @@
 //
 // The thermostat is an ordinary DataBus application: it publishes room climate
 // and its own status, and reacts to setpoint commands. MqttBridge exposes those
-// topics to any MQTT tool:
+// topics to any MQTT tool. The topics are declared once with JsonTopics (the
+// shared bridge layer), and MqttBridge serves them over MQTT:
 //
 //   DataBus "room/climate"        ->  MQTT "<prefix>/room/climate"        {"celsius":20.4,"humidity":41.0}
 //   DataBus "thermostat/status"   ->  MQTT "<prefix>/thermostat/status"   {"setpoint":21.0,"heating":true}  (retained)
@@ -16,8 +17,9 @@
 // See README.md for trying it with mosquitto_sub/mosquitto_pub or MQTT Explorer.
 
 #include "DelegateMQ.h"
+#include "JsonTopics.h"
 #include "MqttBridge.h"
-#include "MqttJson.h"
+#include "BridgeJson.h"
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -59,16 +61,16 @@ namespace topics {
 // ---------------------------------------------------------------------------
 
 std::string ClimateToJson(const Climate& c) {
-    return mqttjson::Writer().Add("celsius", c.celsius, 1).Add("humidity", c.humidity, 1).Str();
+    return bridgejson::Writer().Add("celsius", c.celsius, 1).Add("humidity", c.humidity, 1).Str();
 }
 
 std::string StatusToJson(const ThermostatStatus& s) {
-    return mqttjson::Writer().Add("setpoint", s.setpoint, 1).Add("heating", s.heating).Str();
+    return bridgejson::Writer().Add("setpoint", s.setpoint, 1).Add("heating", s.heating).Str();
 }
 
 // Inbound commands are an entry point into the application: validate them.
 bool SetpointFromJson(const std::string& json, SetpointCmd& cmd) {
-    mqttjson::Reader r;
+    bridgejson::Reader r;
     double celsius = 0;
     if (!r.Parse(json) || !r.GetNumber("celsius", celsius)) return false;
     if (celsius < 5.0 || celsius > 35.0) return false;     // accepted range
@@ -164,15 +166,17 @@ int main(int argc, char* argv[]) {
     }, &consoleThread);
 
     // Bridge events (connect, disconnect, rejected commands) to the console.
-    auto eventConn = MqttBridge::OnEvent().Connect(MakeDelegate([](const std::string& text) {
-        std::cout << "[MqttBridge] " << text << std::endl;
+    auto eventConn = JsonTopics::OnEvent().Connect(MakeDelegate([](const std::string& text) {
+        std::cout << "[Bridge] " << text << std::endl;
     }, consoleThread));
+
+    // Declare the JSON view of the application once; every bridge serves it.
+    JsonTopics::Expose<Climate>(topics::CLIMATE, &ClimateToJson);
+    JsonTopics::Expose<ThermostatStatus>(topics::STATUS, &StatusToJson, { true /*latched*/, true /*reliable*/ });
+    JsonTopics::Accept<SetpointCmd>(topics::SETPOINT, &SetpointFromJson);
 
     if (!MqttBridge::Start(options))
         return 1;
-    MqttBridge::Publish<Climate>(topics::CLIMATE, &ClimateToJson);
-    MqttBridge::Publish<ThermostatStatus>(topics::STATUS, &StatusToJson, MqttBridge::Retain::YES, 1);
-    MqttBridge::Subscribe<SetpointCmd>(topics::SETPOINT, &SetpointFromJson);
 
     std::cout << "Thermostat running. MQTT topics under \"" << options.topicPrefix << "/\" on "
               << options.brokerUri << ". Ctrl-C to stop." << std::endl
@@ -192,6 +196,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Stopping..." << std::endl;
     MqttBridge::Stop();
+    JsonTopics::Shutdown();
     thermostat.Stop();
     statusConn.Disconnect();
     eventConn.Disconnect();

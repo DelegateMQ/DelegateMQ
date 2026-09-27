@@ -87,8 +87,8 @@ file(GLOB_RECURSE COMMON_SOURCES CONFIGURE_DEPENDS
 set(TOOLS_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/bridge")
 set(TOOLS_NET_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/net")
 set(TOOLS_SOURCES
-    ${TOOLS_BRIDGE_DIR}/SpyBridge.cpp
-    ${TOOLS_BRIDGE_DIR}/SpyBridge.h
+    ${TOOLS_BRIDGE_DIR}/spy/SpyBridge.cpp
+    ${TOOLS_BRIDGE_DIR}/spy/SpyBridge.h
 )
 
 set(GUI_SOURCES
@@ -121,7 +121,7 @@ target_include_directories(pumptron_gui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${PUMPTRON_COMMON_DIR}
     ${DMQ_INCLUDE_DIR}
-    ${TOOLS_BRIDGE_DIR}
+    ${TOOLS_BRIDGE_DIR}/spy
     ${TOOLS_NET_DIR}
 )
 
@@ -141,7 +141,7 @@ target_link_libraries(pumptron_gui PRIVATE
 # is built from the workspace checkout (../mqtt, fetched by 01_fetch_repos.py);
 # without it the GUI builds with --mqtt unavailable, like --serial without
 # libserialport.
-include("${TOOLS_BRIDGE_DIR}/MqttBridge.cmake")
+include("${TOOLS_BRIDGE_DIR}/mqtt/MqttBridge.cmake")
 if(EXISTS "${DMQ_PAHO_ROOT}/src/MQTTClient.h")
     dmq_add_mqtt_bridge(pumptron_gui)
     target_sources(pumptron_gui PRIVATE system/MqttGateway.cpp system/MqttGateway.h)

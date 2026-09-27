@@ -1,6 +1,7 @@
 #include "MqttGateway.h"
+#include "JsonTopics.h"
 #include "MqttBridge.h"
-#include "MqttJson.h"
+#include "BridgeJson.h"
 #include "util/Constants.h"
 #include "messages/PumpStatusMsg.h"
 #include "messages/TelemetryMsg.h"
@@ -33,7 +34,7 @@ const char* AlarmCodeName(AlarmCode c) {
 }
 
 std::string StatusToJson(const PumpStatusMsg& m) {
-    return mqttjson::Writer()
+    return bridgejson::Writer()
         .Add("state", ToString(m.state))
         .Add("setpoint", static_cast<int>(m.setpointRpm))
         .Add("fault", AlarmCodeName(m.faultCode))
@@ -41,7 +42,7 @@ std::string StatusToJson(const PumpStatusMsg& m) {
 }
 
 std::string TelemetryToJson(const TelemetryMsg& m) {
-    return mqttjson::Writer()
+    return bridgejson::Writer()
         .Add("rpm", m.rpm, 0)
         .Add("flow", m.flowLpm, 2)
         .Add("pressure", m.pressureBar, 3)
@@ -52,7 +53,7 @@ std::string TelemetryToJson(const TelemetryMsg& m) {
 }
 
 std::string AlarmToJson(const AlarmMsg& m) {
-    return mqttjson::Writer()
+    return bridgejson::Writer()
         .Add("code", AlarmCodeName(m.code))
         .Add("text", ToString(m.code))
         .Add("severity", ToString(m.severity))
@@ -63,7 +64,7 @@ std::string AlarmToJson(const AlarmMsg& m) {
 // Every accepted payload becomes a command to the pump: reject anything that
 // isn't a known command with valid arguments.
 bool CommandFromJson(const std::string& json, PumpCommandMsg& cmd) {
-    mqttjson::Reader r;
+    bridgejson::Reader r;
     std::string name;
     if (!r.Parse(json) || !r.GetString("command", name)) return false;
 
@@ -85,23 +86,23 @@ bool CommandFromJson(const std::string& json, PumpCommandMsg& cmd) {
 
 bool StartMqttGateway(const MqttGatewayOptions& options)
 {
+    // The pump's JSON view, declared once for every bridge (JsonTopics).
+    JsonTopics::Expose<PumpStatusMsg>(topics::STATUS, &StatusToJson, { true /*latched*/, true /*reliable*/ });
+    JsonTopics::Expose<TelemetryMsg>(topics::TELEMETRY, &TelemetryToJson);
+    JsonTopics::Expose<AlarmMsg>(topics::ALARM, &AlarmToJson, { false, true /*reliable*/ });
+    if (options.allowControl)
+        JsonTopics::Accept<PumpCommandMsg>(topics::CMD, &CommandFromJson);
+
     MqttBridge::Options bridgeOptions;
     bridgeOptions.brokerUri = options.brokerUri;
     bridgeOptions.topicPrefix = options.topicPrefix;
-    if (!MqttBridge::Start(bridgeOptions))
-        return false;
-
-    MqttBridge::Publish<PumpStatusMsg>(topics::STATUS, &StatusToJson, MqttBridge::Retain::YES, 1);
-    MqttBridge::Publish<TelemetryMsg>(topics::TELEMETRY, &TelemetryToJson);
-    MqttBridge::Publish<AlarmMsg>(topics::ALARM, &AlarmToJson, MqttBridge::Retain::NO, 1);
-    if (options.allowControl)
-        MqttBridge::Subscribe<PumpCommandMsg>(topics::CMD, &CommandFromJson);
-    return true;
+    return MqttBridge::Start(bridgeOptions);
 }
 
 void StopMqttGateway()
 {
     MqttBridge::Stop();
+    JsonTopics::Shutdown();
 }
 
 } // namespace pumptron

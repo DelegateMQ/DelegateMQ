@@ -1,30 +1,30 @@
 // MqttBridge.cpp
 // @see https://github.com/DelegateMQ/DelegateMQ
-// DataBus <-> MQTT gateway implementation (Paho MQTT C, synchronous client
-// with callbacks).
+// MQTT output for the JsonTopics layer (Paho MQTT C, synchronous client with
+// callbacks).
 
 #include "MqttBridge.h"
 #include "MQTTClient.h"
 #include <chrono>
-#include <iostream>
-#include <vector>
 
 namespace {
     constexpr const char* ONLINE_SUFFIX = "/online";
+    constexpr const char* COMMAND_SUFFIX = "/set";
     constexpr char ONLINE_TRUE[] = "true";
     constexpr char ONLINE_FALSE[] = "false";
     constexpr int ONLINE_TRUE_LEN = sizeof(ONLINE_TRUE) - 1;
     constexpr int ONLINE_FALSE_LEN = sizeof(ONLINE_FALSE) - 1;
     constexpr int CONNECT_TIMEOUT_SEC = 3;
     constexpr size_t BRIDGE_QUEUE_SIZE = 500;
-    /// Minimum time between "queue full" reports, so sustained backpressure
-    /// doesn't flood OnEvent().
+    /// Minimum time between "queue full" reports.
     constexpr int64_t DROP_REPORT_INTERVAL_MS = 5000;
 
     int64_t SteadyMs() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
     }
+
+    int QosFor(const JsonTopics::Options& options) { return options.reliable ? 1 : 0; }
 }
 
 /// Paho callbacks. Run on Paho's internal thread.
@@ -37,27 +37,52 @@ struct MqttBridgePaho {
 
     static int MessageArrived(void*, char* topicName, int topicLen, MQTTClient_message* message) {
         auto& inst = MqttBridge::GetInstance();
-        std::string topic = topicLen > 0 ? std::string(topicName, static_cast<size_t>(topicLen)) : std::string(topicName);
+        std::string mqttTopic = topicLen > 0 ? std::string(topicName, static_cast<size_t>(topicLen)) : std::string(topicName);
         std::string payload(static_cast<const char*>(message->payload), static_cast<size_t>(message->payloadlen));
         MQTTClient_freeMessage(&message);
         MQTTClient_free(topicName);
-        // Handled here, not queued to the bridge thread: that queue carries
-        // outbound telemetry with FullPolicy::DROP, and a command must never be
-        // dropped behind a telemetry backlog. Parsing is quick and
-        // DataBus::Publish doesn't block (threaded subscribers are queued).
-        if (inst.running)
-            MqttBridge::HandleInbound(std::move(topic), std::move(payload));
+
+        // "<prefix>/<topic>/set" -> "<topic>". Handled here, not queued to the
+        // bridge thread: that queue carries outbound messages with
+        // FullPolicy::DROP, and a command must never be dropped behind a
+        // backlog. Parsing is quick and DataBus::Publish doesn't block.
+        std::string prefix = MqttBridge::MqttTopic("");
+        std::string suffix = COMMAND_SUFFIX;
+        if (inst.running && mqttTopic.size() > prefix.size() + suffix.size()
+            && mqttTopic.compare(0, prefix.size(), prefix) == 0
+            && mqttTopic.compare(mqttTopic.size() - suffix.size(), suffix.size(), suffix) == 0) {
+            std::string topic = mqttTopic.substr(prefix.size(), mqttTopic.size() - prefix.size() - suffix.size());
+            JsonTopics::Inbound(topic, payload, "MQTT");
+        }
         return 1;   // message consumed
     }
 };
 
-dmq::Signal<void(const std::string&)>& MqttBridge::OnEvent() {
-    return GetInstance().onEvent;
+// ---------------------------------------------------------------------------
+// JsonTopics sink: runs on the JsonTopics thread; only queues work.
+// ---------------------------------------------------------------------------
+
+void MqttBridge::Sink::OnMessage(const std::string& topic, const std::string& json, const JsonTopics::Options& options) {
+    auto& inst = GetInstance();
+    // While disconnected, don't queue: the message would be sent after
+    // Connect()'s replay of current state, briefly re-publishing an older
+    // value. Latched state is covered by that replay; the rest is dropped.
+    if (!inst.running || !inst.thread || !inst.connected) return;
+    (void)dmq::MakeDelegate(&MqttBridge::Send, *inst.thread).AsyncInvoke(
+        MqttTopic(topic), json, options.latched, QosFor(options));
 }
 
-std::string MqttBridge::MqttTopic(const std::string& dataBusTopic) {
+void MqttBridge::Sink::OnTopicAccepted(const std::string& topic) {
+    auto& inst = GetInstance();
+    if (!inst.running || !inst.thread) return;
+    (void)dmq::MakeDelegate(&MqttBridge::SubscribeCommand, *inst.thread).AsyncInvoke(topic);
+}
+
+// ---------------------------------------------------------------------------
+
+std::string MqttBridge::MqttTopic(const std::string& topic) {
     const auto& prefix = GetInstance().options.topicPrefix;
-    return prefix.empty() ? dataBusTopic : prefix + "/" + dataBusTopic;
+    return prefix.empty() ? topic : prefix + "/" + topic;
 }
 
 bool MqttBridge::IsConnected() {
@@ -65,11 +90,7 @@ bool MqttBridge::IsConnected() {
 }
 
 void MqttBridge::RaiseEvent(const std::string& text) {
-    auto& inst = GetInstance();
-    if (inst.onEvent.Empty())
-        std::cerr << "[MqttBridge] " << text << std::endl;
-    else
-        inst.onEvent(text);
+    JsonTopics::RaiseEvent("MQTT: " + text);
 }
 
 bool MqttBridge::Start(const Options& options) {
@@ -95,12 +116,13 @@ bool MqttBridge::Start(const Options& options) {
     }
     inst.client = client;
 
-    // DROP: a slow or unreachable broker must never stall DataBus publishers.
+    // DROP: a slow or unreachable broker must never stall the JsonTopics layer.
     inst.thread = std::make_unique<dmq::os::Thread>("MqttBridge", BRIDGE_QUEUE_SIZE, dmq::os::FullPolicy::DROP);
     inst.thread->SetDroppedHandler(dmq::MakeDelegate(&MqttBridge::OnQueueFull));
     inst.thread->CreateThread();
 
     inst.running = true;
+    JsonTopics::AddSink(&inst.sink);
     inst.supervisor = std::thread(&MqttBridge::SupervisorLoop);
     return true;
 }
@@ -109,11 +131,8 @@ void MqttBridge::Stop() {
     auto& inst = GetInstance();
     if (!inst.thread) return;
 
-    // No new DataBus work, then no reconnects, then drain the bridge thread.
-    {
-        std::lock_guard<std::mutex> lock(inst.mutex);
-        inst.connections.clear();
-    }
+    // No new messages, then no reconnects, then drain the bridge thread.
+    JsonTopics::RemoveSink(&inst.sink);
     inst.running = false;
     if (inst.supervisor.joinable()) inst.supervisor.join();
     inst.thread->ExitThread();
@@ -130,11 +149,6 @@ void MqttBridge::Stop() {
     MQTTClient_destroy(&client);
     inst.client = nullptr;
     inst.thread.reset();
-    {
-        std::lock_guard<std::mutex> lock(inst.mutex);
-        inst.inbound.clear();
-    }
-    inst.retained.clear();
 }
 
 void MqttBridge::SupervisorLoop() {
@@ -182,78 +196,57 @@ void MqttBridge::Connect() {
     }
     reportedUnreachable = false;
 
-    // Re-subscribe inbound command topics (clean session).
-    std::vector<std::pair<std::string, int>> subs;
-    {
-        std::lock_guard<std::mutex> lock(inst.mutex);
-        for (const auto& [topic, in] : inst.inbound)
-            subs.emplace_back(topic, in.qos);
-    }
-    for (const auto& [topic, qos] : subs) {
-        if (MQTTClient_subscribe(client, topic.c_str(), qos) != MQTTCLIENT_SUCCESS)
-            RaiseEvent("cannot subscribe to " + topic);
+    // Command topics (clean session: subscribe on every connect).
+    auto accepted = JsonTopics::AcceptedTopics();
+    for (const auto& topic : accepted) {
+        std::string commandTopic = MqttTopic(topic) + COMMAND_SUFFIX;
+        if (MQTTClient_subscribe(client, commandTopic.c_str(), 1) != MQTTCLIENT_SUCCESS)
+            RaiseEvent("cannot subscribe to " + commandTopic);
     }
 
     MQTTClient_deliveryToken token = 0;
     MQTTClient_publish(client, onlineTopic.c_str(), ONLINE_TRUE_LEN, ONLINE_TRUE, 1, 1, &token);
 
-    // Current state that was published while disconnected (or before a broker
-    // restart lost it).
-    for (const auto& [topic, value] : inst.retained)
-        MQTTClient_publish(client, topic.c_str(), static_cast<int>(value.first.size()), value.first.data(),
-                           value.second, 1, &token);
+    // Connected BEFORE the snapshot below: a message published from here on is
+    // queued behind this function, so it's sent after the replay and the
+    // newest value always goes out last.
     inst.connected = true;
+
+    // Current state, including anything published before this connection.
+    auto exposed = JsonTopics::ExposedTopics();
+    for (const auto& [topic, json] : JsonTopics::LatchedValues()) {
+        int qos = 1;
+        for (const auto& [t, options] : exposed)
+            if (t == topic) qos = QosFor(options);
+        std::string mqttTopic = MqttTopic(topic);
+        MQTTClient_publish(client, mqttTopic.c_str(), static_cast<int>(json.size()), json.data(), qos, 1, &token);
+    }
     RaiseEvent("connected to " + inst.options.brokerUri + " as " + inst.options.clientId
-               + (subs.empty() ? "" : " (" + std::to_string(subs.size()) + " command topic(s))"));
+               + (accepted.empty() ? "" : " (" + std::to_string(accepted.size()) + " command topic(s))"));
 }
 
-void MqttBridge::SendPayload(const std::string& mqttTopic, const std::string& payload, bool retained, int qos) {
+void MqttBridge::Send(std::string mqttTopic, std::string payload, bool retained, int qos) {
     auto& inst = GetInstance();
-    if (retained)
-        inst.retained[mqttTopic] = { payload, qos };    // re-sent by Connect()
-    if (!inst.connected) {
-        ++inst.dropped;
-        return;
-    }
+    if (!inst.connected)
+        return;     // latched values are re-published by Connect()
     MQTTClient_deliveryToken token = 0;
     int rc = MQTTClient_publish(static_cast<MQTTClient>(inst.client), mqttTopic.c_str(),
                                 static_cast<int>(payload.size()), payload.data(), qos, retained ? 1 : 0, &token);
-    if (rc != MQTTCLIENT_SUCCESS) {
-        ++inst.dropped;
-        if (rc == MQTTCLIENT_DISCONNECTED && inst.connected.exchange(false))
-            RaiseEvent("connection lost while publishing " + mqttTopic);
-    }
+    if (rc == MQTTCLIENT_DISCONNECTED && inst.connected.exchange(false))
+        RaiseEvent("connection lost while publishing " + mqttTopic);
 }
 
-void MqttBridge::AddInbound(const std::string& mqttTopic, InboundHandler handler, int qos) {
+void MqttBridge::SubscribeCommand(std::string topic) {
+    // Accepted after connecting; Connect() covers topics accepted earlier.
     auto& inst = GetInstance();
-    {
-        std::lock_guard<std::mutex> lock(inst.mutex);
-        inst.inbound[mqttTopic] = Inbound{ std::move(handler), qos };
-    }
-    // Already connected: subscribe now, on the bridge thread. Otherwise Connect() does it.
-    std::string topic = mqttTopic;
-    (void)dmq::MakeDelegate(std::function<void()>([topic, qos]() {
-        auto& i = GetInstance();
-        if (i.connected && MQTTClient_subscribe(static_cast<MQTTClient>(i.client), topic.c_str(), qos) != MQTTCLIENT_SUCCESS)
-            RaiseEvent("cannot subscribe to " + topic);
-    }), *inst.thread).AsyncInvoke();
-}
-
-void MqttBridge::HandleInbound(std::string mqttTopic, std::string payload) {
-    auto& inst = GetInstance();
-    InboundHandler handler;
-    {
-        std::lock_guard<std::mutex> lock(inst.mutex);
-        auto it = inst.inbound.find(mqttTopic);
-        if (it == inst.inbound.end()) return;
-        handler = it->second.handler;
-    }
-    handler(payload);
+    if (!inst.connected) return;
+    std::string commandTopic = MqttTopic(topic) + COMMAND_SUFFIX;
+    if (MQTTClient_subscribe(static_cast<MQTTClient>(inst.client), commandTopic.c_str(), 1) != MQTTCLIENT_SUCCESS)
+        RaiseEvent("cannot subscribe to " + commandTopic);
 }
 
 void MqttBridge::OnQueueFull(size_t depth) {
-    // Runs synchronously on the publishing thread: count, and report at most
+    // Runs synchronously on the JsonTopics thread: count, and report at most
     // once per interval.
     auto& inst = GetInstance();
     uint32_t count = ++inst.queueDrops;
@@ -262,6 +255,6 @@ void MqttBridge::OnQueueFull(size_t depth) {
     if (now - last < DROP_REPORT_INTERVAL_MS || !inst.lastDropReportMs.compare_exchange_strong(last, now))
         return;
     inst.queueDrops -= count;
-    RaiseEvent("bridge queue full (" + std::to_string(depth) + " queued): dropped " + std::to_string(count)
+    RaiseEvent("queue full (" + std::to_string(depth) + " queued): dropped " + std::to_string(count)
                + " outbound message(s); broker slow or unreachable");
 }

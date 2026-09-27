@@ -8,7 +8,7 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT $
 set(DMQ_THREAD "DMQ_THREAD_STDLIB")
 set(DMQ_DATABUS "ON")
 include("${CMAKE_SOURCE_DIR}/../../../src/delegate-mq/DelegateMQ.cmake")
-include("${CMAKE_SOURCE_DIR}/../../../tools/bridge/MqttBridge.cmake")
+include("${CMAKE_SOURCE_DIR}/../../../tools/bridge/mqtt/MqttBridge.cmake")
 
 add_executable(${DELEGATE_APP}
     main.cpp

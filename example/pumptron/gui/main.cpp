@@ -22,7 +22,7 @@
 #include "SpyBridge.h"
 #if defined(PUMPTRON_HAVE_MQTT)
 #include "system/MqttGateway.h"
-#include "MqttBridge.h"
+#include "JsonTopics.h"
 #endif
 #if defined(PUMPTRON_HAVE_SERIAL)
 #include "libserialport.h"
@@ -186,8 +186,8 @@ int main(int argc, char* argv[])
         // the Events pane; printing would corrupt the full-screen display. The
         // self-test leaves them on stderr.
         if (!selfTest) {
-            mqttEventConn = MqttBridge::OnEvent().Connect(dmq::MakeDelegate([](const std::string& text) {
-                System::GetInstance().OnEvent("MQTT: " + text);
+            mqttEventConn = JsonTopics::OnEvent().Connect(dmq::MakeDelegate([](const std::string& text) {
+                System::GetInstance().OnEvent(text);    // already prefixed "MQTT: " by the bridge
             }));
         }
         std::string control = mqtt.allowControl
