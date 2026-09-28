@@ -7,7 +7,18 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
-## [Unreleased]
+## [2.1.0] - 2026-09-28
+
+### Upgrading to 2.1.0
+Check these before upgrading; each can change the behavior of an existing application. Details are in the Changed and Added entries below.
+
+1. **`ExitThread()` now runs queued messages first (all ports except stdlib).** Win32, POSIX, Qt, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2 and NuttX previously skipped messages still queued at `ExitThread()`; they now invoke them first (`ExitPolicy::DRAIN`, as stdlib always did). This compiles unchanged but runs differently at shutdown. If an application destroys objects before calling `ExitThread()`, a queued message could now run against a destroyed object. Either call `ExitThread()` before destroying what its messages target, or pass `ExitThread(dmq::ExitPolicy::DISCARD)` to keep the old skip-pending behavior.
+2. **RTOS ports fault above 16 concurrent threads.** `dmq::ThisThread::GetCurrent()` registers every running `dmq::os::Thread` in a fixed table on FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2 and NuttX. An application with more than 16 running at once faults when the 17th thread starts; raise `DMQ_MAX_CURRENT_THREADS` in your `DelegateMQConfig.h`. Desktop ports are unaffected.
+3. **Interop C API (source and binary break).** Code calling `DmqInterop.dll` directly must pass `uint16_t* seqNum` to `DmqInterop_Send()` and add a `void* context` first parameter to every callback, registered with `DmqInterop_Register*(..., context)`. The Python and C# wrappers are already updated; their `send()` now returns the sequence number.
+4. **`tools/bridge` source paths.** Projects that compile `SpyBridge.cpp` or `NodeBridge.cpp` must use `tools/bridge/spy/` and `tools/bridge/node/` and add those plus `tools/net` to their include directories. `#include` lines are unchanged.
+5. **Tools bind UDP ports exclusively.** A second `dmq-spy`, `dmq-monitor` or `dmq-thread` on the same port now exits with an error instead of silently receiving nothing. Pass `--multicast` where several listeners must share a port.
+
+Custom `IThread` implementations need no changes. Two optional additions: create a `dmq::CurrentThreadScope` in the worker loop so `ThisThread::GetCurrent()` finds the thread, and call `DelegateMsg::Cancel()` on any queued message the thread drops so a blocked sender is released (see [PORTING.md](docs/PORTING.md#dmqexitpolicy-shutdown)).
 
 ### Added
 - **Pumptron example** (`example/pumptron/`) — pump controller on a real STM32F4 Discovery (FreeRTOS) or the FreeRTOS simulator, with an FTXUI console over a serial DataBus link. Includes end-to-end error handling, an IWDG hardware watchdog, and crash dumps kept in `.noinit` RAM and delivered to the console on the next boot.
