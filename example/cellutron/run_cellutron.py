@@ -72,6 +72,15 @@ def main():
         help="Enable or disable DMQ Spy logging to spy_logs.txt (default: on)"
     )
     parser.add_argument(
+        "--plotjuggler",
+        action="store_true",
+        help="Forward DMQ Spy's numeric values to PlotJuggler's UDP Server "
+             "(127.0.0.1:9870) for live plotting. See tools/TOOLS.md. Only "
+             "one dmq-spy can bind port 9999 at a time, so this must be set "
+             "up front -- a second, separately-launched dmq-spy --plotjuggler "
+             "will fail to bind while this script's own Spy instance is running."
+    )
+    parser.add_argument(
         "--threadx",
         action="store_true",
         help="Launch the ThreadX build (build-threadx/) instead of the default "
@@ -106,6 +115,8 @@ def main():
     spy_args = ["9999"]
     if log_enabled:
         spy_args += ["--log", "spy_logs.txt"]
+    if args_parsed.plotjuggler:
+        spy_args += ["--plotjuggler"]
 
     tools_definitions = [
         {
@@ -157,6 +168,9 @@ def main():
     print(f"  RTOS: {'ThreadX' if args_parsed.threadx else 'FreeRTOS'}")
     print(f"  Apps Config: {config}")
     print(f"  Tools: Auto-selecting newest (Debug/Release)")
+    if args_parsed.plotjuggler:
+        print("  PlotJuggler: forwarding enabled (127.0.0.1:9870) -- open PlotJuggler's")
+        print("  Streaming panel, select UDP Server, Start, port 9870, protocol JSON.")
     if args_parsed.threadx:
         print("  WARNING: The ThreadX Linux/GNU simulation port has a known vendor")
         print("  kernel deadlock once 2+ ThreadX threads run concurrently (Controller")

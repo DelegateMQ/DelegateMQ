@@ -40,8 +40,8 @@ set(COMMON_SOURCES ${ALL_COMMON_SOURCES})
 
 # NetworkNode is header-only; only RemoteConfig.cpp needs explicit inclusion
 list(APPEND COMMON_SOURCES "${CELLUTRON_COMMON_DIR}/util/RemoteConfig.cpp")
-list(APPEND COMMON_SOURCES "${TOOLS_BRIDGE_DIR}/SpyBridge.cpp")
-list(APPEND COMMON_SOURCES "${TOOLS_BRIDGE_DIR}/NodeBridge.cpp")
+list(APPEND COMMON_SOURCES "${TOOLS_BRIDGE_DIR}/spy/SpyBridge.cpp")
+list(APPEND COMMON_SOURCES "${TOOLS_BRIDGE_DIR}/node/NodeBridge.cpp")
 list(REMOVE_DUPLICATES COMMON_SOURCES)
 
 foreach(FILE_PATH ${COMMON_SOURCES})
@@ -136,7 +136,8 @@ target_include_directories(cellutron_controller PRIVATE
     ${DMQ_INCLUDE_DIR}
     ${DMQ_SRC_DIR}
     ${SPDLOG_INCLUDE_DIR}
-    ${TOOLS_BRIDGE_DIR}
+    ${TOOLS_BRIDGE_DIR}/spy
+    ${TOOLS_BRIDGE_DIR}/node
     ${TOOLS_SRC_DIR}
 )
 

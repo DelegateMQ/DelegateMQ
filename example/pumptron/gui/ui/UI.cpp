@@ -41,9 +41,11 @@ xstring StringifyStatus(const PumpStatusMsg& m) {
     return oss.str();
 }
 
+// "name=value unit" so tools that extract numbers from the text (dmq-spy
+// --plotjuggler) get one named series per field.
 xstring StringifyTelemetry(const TelemetryMsg& m) {
     char buf[128];
-    snprintf(buf, sizeof(buf), "%.0f rpm  %.1f L/min  %.2f bar  %.1f C  %.2f g",
+    snprintf(buf, sizeof(buf), "rpm=%.0f  flow=%.1f L/min  pressure=%.2f bar  temp=%.1f C  vib=%.2f g",
              m.rpm, m.flowLpm, m.pressureBar, m.motorTempC, m.vibrationG);
     return buf;
 }
@@ -60,7 +62,7 @@ xstring StringifyHeartbeat(const HeartbeatMsg& m) {
     return oss.str();
 }
 
-void RegisterStringifiers() {
+void RegisterStringifiersImpl() {
     DataBus::RegisterStringifier<PumpCommandMsg>(topics::CMD, MakeDelegate(&StringifyCommand));
     DataBus::RegisterStringifier<PumpStatusMsg>(topics::STATUS, MakeDelegate(&StringifyStatus));
     DataBus::RegisterStringifier<TelemetryMsg>(topics::TELEMETRY, MakeDelegate(&StringifyTelemetry));
@@ -300,10 +302,13 @@ void UI::Refresh()
 // Screen
 // ---------------------------------------------------------------------------
 
+void RegisterStringifiers()
+{
+    RegisterStringifiersImpl();
+}
+
 void UI::Run(const std::string& linkDescription)
 {
-    RegisterStringifiers();
-
     m_thread.SetDroppedHandler(MakeDelegate(this, &UI::OnMessageDropped));
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 

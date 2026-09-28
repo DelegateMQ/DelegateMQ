@@ -149,13 +149,17 @@ public:
     /// Remove and delete every pending message in both lanes without
     /// blocking. Used during shutdown once the owning thread has stopped
     /// consuming the queues.
+    /// Each message is canceled first (CancelThreadMsg()), releasing a sender
+    /// blocked waiting on it.
     void DrainAndDelete()
     {
         ThreadMsg* msg = nullptr;
         while (xQueueReceive(m_highQueue, &msg, 0) == pdPASS) {
+            CancelThreadMsg(*msg);  // Release a sender blocked on it
             delete msg;
         }
         while (xQueueReceive(m_normalQueue, &msg, 0) == pdPASS) {
+            CancelThreadMsg(*msg);  // Release a sender blocked on it
             delete msg;
         }
     }

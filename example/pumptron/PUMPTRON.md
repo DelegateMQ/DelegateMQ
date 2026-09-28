@@ -204,7 +204,7 @@ python run_pumptron.py --selftest              # simulation, headless end-to-end
 python run_pumptron.py --serial COM5 --selftest
 ```
 
-Options: `--baud <rate>` (default 115200) and `--config Debug|Release` (default Debug).
+Options: `--baud <rate>` (default 115200), `--config Debug|Release` (default Debug), and `--spy` / `--plotjuggler` (see [Monitoring with dmq-spy](#monitoring-with-dmq-spy)).
 
 ### Hardware
 
@@ -270,6 +270,56 @@ python run_pumptron.py --serial COM5 --selftest   # real board
 ```
 
 It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above). On the STM32F4 board over the serial link it passes every step, with the controller clock at 1.00× real time and no retries.
+
+### Monitoring with dmq-spy
+
+The board has no network connection, so it can't run a `SpyBridge` itself. The GUI can do it instead. Every message the GUI receives from the controller is re-published on the GUI's own DataBus, and `--spy` mirrors that bus to [`dmq-spy`](../../tools/TOOLS.md) over UDP. You see the controller's traffic without touching the firmware, over serial or the simulator link alike.
+
+```bash
+python run_pumptron.py --serial COM5 --spy           # GUI + dmq-spy window
+python run_pumptron.py --serial COM5 --plotjuggler   # same, plus live plots in PlotJuggler
+```
+
+`--plotjuggler` also forwards numeric values to PlotJuggler's UDP Server (port 9870, protocol JSON). Telemetry is stringified as `rpm=… flow=… pressure=… temp=… vib=…`, so each field plots as its own series (`GUI/pump/telemetry/rpm`, …). See [Live Plots in PlotJuggler](../../tools/TOOLS.md#live-plots-in-plotjuggler).
+
+<img src="pumptron_plotjuggler.png" width="1000" alt="PlotJuggler plotting live Pumptron telemetry (RPM, flow) forwarded by dmq-spy --plotjuggler">
+
+In PlotJuggler's Timeseries List, series are nested under the sender (`GUI`) and topic path — expand `GUI` → `pump` → `telemetry`/`status` to find `rpm`, `flow`, `pressure`, `temp`, `vib`, `sp`, then drag one onto the plot. `timestamp` is metadata for the X-axis, not a series to plot itself.
+
+Running the GUI directly: `pumptron_gui --serial COM5 --spy`, or `--spy-address <host:port>` to send to a `dmq-spy` on another machine or port.
+
+Things to know:
+- **Only traffic that crosses the link is visible.** Topics the controller keeps to itself never reach the GUI. `common/util/Topology.h` lists what is sent.
+- **Every message shows sender `GUI`.** Spy sees the GUI's copy of each message, not the controller's.
+- **Timestamps are the GUI's,** taken when it re-publishes each message, so they don't show the controller's own timing or serial-link delay.
+- **Only one `dmq-spy` can listen on port 9999.** Close any other copy first.
+
+### MQTT Gateway
+
+`--mqtt` puts the pump on an MQTT broker as JSON, so any MQTT client can watch it, and with `--mqtt-control`, run it. MQTT Explorer or `mosquitto_sub` work directly; dashboard tools such as Node-RED, Home Assistant and Grafana need their own MQTT setup (see [Using MQTT Tools](../../tools/TOOLS.md#using-mqtt-tools)). The board itself has no network connection; the GUI is the gateway. It already re-publishes everything the controller sends on its own DataBus, and `MqttBridge` ([`tools/bridge`](../../tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge)) forwards chosen topics as JSON.
+
+```bash
+python run_pumptron.py --serial COM5 --mqtt                          # broker tcp://127.0.0.1:1883
+python run_pumptron.py --serial COM5 --mqtt tcp://192.168.1.10:1883 --mqtt-control
+```
+
+Running the GUI directly: `pumptron_gui --serial COM5 --mqtt <broker-uri> [--mqtt-prefix <name>] [--mqtt-control]`.
+
+| MQTT topic (default prefix `pumptron`) | Payload |
+|------|---------|
+| `pumptron/pump/status` (retained) | `{"state":"RUNNING","setpoint":1500,"fault":"NONE"}` |
+| `pumptron/pump/telemetry` | `{"rpm":1500,"flow":30.00,"pressure":1.200,"motorTemp":41.2,"ambientTemp":24.0,"vibration":0.050}` |
+| `pumptron/pump/alarm` | `{"code":"OVER_TEMP","text":"OVER-TEMP TRIP","severity":"FAULT","active":true}` (`code` is a stable identifier to match on; `text` is for display) |
+| `pumptron/online` (retained) | `true` while the GUI is connected; `false` on exit, or via Last Will if it dies |
+| `pumptron/pump/cmd/set` (with `--mqtt-control`) | `{"command":"START"}`, `{"command":"SET_SPEED","rpm":1200}`, `STOP`, `ESTOP`, `RESET`, `QUERY` |
+
+Commands from MQTT go to the controller exactly like the GUI's own buttons: over the link, reliably, with the same setpoint limits (500–3000 RPM). Anything else is rejected and noted in the Events pane.
+
+Things to know:
+- **`--mqtt-control` is a remote control path into the pump.** Without it the gateway is read-only. Enable it only on a broker you trust. The gateway uses plain TCP with no authentication or TLS.
+- **The GUI must be running** for the gateway to work. It's an interactive app; an unattended gateway would need a headless mode (not built yet).
+- **A status is always available.** It's retained at the broker, and re-published when the broker connection is restored, so a dashboard that connects late still shows the current state.
+- **Broker:** any MQTT 3.1.1 broker. [Mosquitto](https://mosquitto.org/) is the usual choice for a local one.
 
 ---
 

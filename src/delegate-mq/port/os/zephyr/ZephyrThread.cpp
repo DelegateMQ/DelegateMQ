@@ -5,6 +5,7 @@
 #include "DelegateMQ.h"
 #include "ZephyrThread.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
 #include <cstring> // for memset
@@ -37,6 +38,7 @@ ZephyrThread::ZephyrThread(const char* threadName, size_t maxQueueSize, FullPoli
 
     // Initialize exit semaphore (Initial count 0, Limit 1)
     k_sem_init(&m_exitSem, 0, 1);
+    k_sem_init(&m_startSem, 0, 1);
 
 #if defined(DMQ_DATABUS_TOOLS)
     k_mutex_init(&m_statMutex);
@@ -72,6 +74,10 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     // Check if thread is already created (dummy check on stack ptr)
     if (!m_stackMemory)
     {
+        // Reset from a previous ExitThread(), so the thread can be created again
+        m_exit.store(false);
+        m_discard.store(false);
+
         // 1. Create Message Queues
         DMQ_ASSERT_TRUE(m_queue.Create(m_queueSize));
 
@@ -86,6 +92,11 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         m_stackMemory.reset(stackBuf); // Ownership passed to unique_ptr
 
+        // Called from a thread, CreateThread() waits for the start handler.
+        // Pre-kernel or from an ISR it cannot block; the start handler then runs
+        // when the thread is first scheduled, still before any message.
+        m_startSync = !k_is_pre_kernel() && !k_is_in_isr();
+
         k_tid_t tid = k_thread_create(&m_thread,
                                       (k_thread_stack_t*)m_stackMemory.get(),
                                       STACK_SIZE,
@@ -99,6 +110,10 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         
         // Optional: Set thread name for debug
         k_thread_name_set(tid, THREAD_NAME.c_str());
+
+        // Wait for the start handler to complete
+        if (m_startSync)
+            k_sem_take(&m_startSem, K_FOREVER);
 
         m_lastAliveTime.store(Timer::GetNow());
 
@@ -134,10 +149,12 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void ZephyrThread::ExitThread()
+void ZephyrThread::ExitThread(ExitPolicy policy)
 {
     if (m_stackMemory)
     {
+        // Set before m_exit: Run() reads it for every message ahead of the exit message
+        m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
@@ -400,8 +417,25 @@ void ZephyrThread::Run()
     bool selfExit = false;
     m_selfExitPtr = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Reset
+    // before the exit handler runs (and destroyed before exitGuard on a
+    // self-exit), so the exit handler sees nullptr.
+    std::optional<dmq::CurrentThreadScope> currentScope;
+    currentScope.emplace(this);
+
+    if (m_startHandler)
+        m_startHandler();
+
+    if (m_startSync)
+        k_sem_give(&m_startSem);
+
     ThreadMsg* msg = nullptr;
-    while (!selfExit && !m_exit.load())
+    while (!selfExit)
     {
         dmq::Duration watchdogTimeout;
         {
@@ -410,21 +444,37 @@ void ZephyrThread::Run()
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 
-        // m_lastAliveTime while idle. Otherwise, block forever to save power.
+        // m_lastAliveTime while idle. If an idle handler is set, wake no later
+        // than when it is due. Otherwise, block forever to save power.
+        dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / 4 : dmq::Duration(-1));
         k_timeout_t waitOption = K_FOREVER;
-        if (watchdogTimeout.count() > 0)
+        if (waitTime >= dmq::Duration::zero())
         {
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
-            waitOption = K_MSEC(ms / 4);
-            if (K_TIMEOUT_EQ(waitOption, K_NO_WAIT)) waitOption = K_MSEC(1);
+            // Rounded up, so only an idle handler that is already due waits 0
+            waitOption = K_MSEC(std::chrono::ceil<std::chrono::milliseconds>(waitTime).count());
         }
 
         // Block for a message or timeout
         msg = m_queue.Receive(waitOption);
-        if (msg != nullptr)
+        if (msg == nullptr)
+        {
+            // Exit requested but no exit message arrived (e.g. it could not be allocated)
+            if (m_exit.load())
+                break;
+
+            // Timed out with the queue empty: run the idle handler if it is due
+            if (idle.IsDue())
+                idle.Run();
+        }
+        else
         {
             int msgId = msg->GetId();
-            if (msgId == MSG_DISPATCH_DELEGATE)
+            if (msgId == MSG_DISPATCH_DELEGATE && m_discard.load())
+            {
+                // ExitPolicy::DISCARD: skip messages queued ahead of the exit message
+                CancelThreadMsg(*msg);
+            }
+            else if (msgId == MSG_DISPATCH_DELEGATE)
             {
 #if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking
@@ -502,8 +552,15 @@ void ZephyrThread::Run()
             if (msgId == MSG_EXIT_THREAD) {
                 break;
             }
+
+            // Any message restarts the idle countdown
+            idle.Restart();
         }
     }
+
+    // Run the exit handler before signalling ExitThread(), so it returns only after it
+    currentScope.reset();
+    exitGuard.Fire();
 
     // Signal that we are about to exit
     k_sem_give(&m_exitSem);

@@ -4,6 +4,7 @@
 
 #include "DelegateMQ.h"
 #include "StdlibThread.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 
 #ifdef _WIN32
@@ -67,12 +68,18 @@ bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_threadStartFuture.emplace(m_threadStartPromise->get_future());
         m_exit = false;
 
-        m_thread.emplace(&StdlibThread::Process, this);
+        {
+            // Held until m_thread is fully constructed and named. Process() takes
+            // this lock before running the start handler, which may call
+            // IsCurrentThread() or dispatch to this thread (both read m_thread).
+            lock_guard<mutex> lock(m_mutex);
+            m_thread.emplace(&StdlibThread::Process, this);
 
-        auto handle = m_thread->native_handle();
-        SetThreadName(handle, THREAD_NAME);
+            auto handle = m_thread->native_handle();
+            SetThreadName(handle, THREAD_NAME);
+        }
 
-        // Wait for the thread to enter the Process method
+        // Wait for the thread to run the start handler and enter its loop
         m_threadStartFuture->get();
 
         m_lastAliveTime.store(Timer::GetNow());
@@ -171,7 +178,7 @@ void StdlibThread::SetThreadName(std::thread::native_handle_type handle, const d
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void StdlibThread::ExitThread()
+void StdlibThread::ExitThread(ExitPolicy policy)
 {
     if (!m_thread)
         return;
@@ -179,12 +186,23 @@ void StdlibThread::ExitThread()
     // Create a new ThreadMsg
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr);
 
+    // Messages taken off the queues without being invoked; canceled outside the lock
+    decltype(m_highQueue) discardedHigh;
+    decltype(m_normalQueue) discardedNormal;
+
     {
         lock_guard<mutex> lock(m_mutex);
 
         // Set exit flag INSIDE lock before notifying.
         // This ensures that when a blocked producer wakes up, it sees m_exit == true immediately.
         m_exit.store(true);
+
+        // DISCARD: empty the queues so the exit message is the next one processed
+        if (policy == ExitPolicy::DISCARD)
+        {
+            discardedHigh.swap(m_highQueue);
+            discardedNormal.swap(m_normalQueue);
+        }
 
         // Explicitly allow Exit message to bypass the MAX_QUEUE_SIZE limit.
         // We do not wait on m_cvNotFull here to prevent deadlock during shutdown.
@@ -198,6 +216,9 @@ void StdlibThread::ExitThread()
         // Wake up blocked producers (DispatchDelegate)
         m_cvNotFull.notify_all();
     }
+
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (m_thread->joinable())
@@ -219,12 +240,18 @@ void StdlibThread::ExitThread()
     {
         lock_guard<mutex> lock(m_mutex);
         m_thread.reset();
-        m_highQueue.clear();
-        m_normalQueue.clear();
+
+        // Normally empty. After a self-exit the loop returns without draining,
+        // so anything still queued is discarded here.
+        discardedHigh.swap(m_highQueue);
+        discardedNormal.swap(m_normalQueue);
 
         // Final cleanup notification
         m_cvNotFull.notify_all();
     }
+
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 }
 
 //----------------------------------------------------------------------------
@@ -382,6 +409,21 @@ void StdlibThread::Process()
     bool selfExit = false;
     t_self_exit = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    // Wait for CreateThread() to finish constructing m_thread
+    { lock_guard<mutex> lock(m_mutex); }
+
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Declared
+    // after exitGuard, so it is cleared again before the exit handler runs.
+    dmq::CurrentThreadScope currentScope(this);
+
+    if (m_startHandler)
+        m_startHandler();
+
     // Signal that the thread has started processing to notify CreateThread
     m_threadStartPromise->set_value();
 
@@ -398,18 +440,16 @@ void StdlibThread::Process()
             std::unique_lock<std::mutex> lk(m_mutex);
 
             // Wait for message to be added to the queue.
-            // If watchdog active, use a finite timeout so we can periodically update 
-            // m_lastAliveTime while idle. Otherwise, block forever.
+            // If watchdog active, use a finite timeout so we can periodically update
+            // m_lastAliveTime while idle. If an idle handler is set, wake no later
+            // than when it is due. Otherwise, block forever.
             auto predicate = [this]() { return !(m_highQueue.empty() && m_normalQueue.empty()) || m_exit.load(); };
-            if (watchdogTimeout.count() > 0)
-            {
-                // Wake up frequently to ensure heartbeat is updated while idle
-                m_cv.wait_for(lk, watchdogTimeout / 10, predicate);
-            }
+            // Wake up frequently to ensure heartbeat is updated while idle (negative = forever)
+            dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / 10 : dmq::Duration(-1));
+            if (waitTime >= dmq::Duration::zero())
+                m_cv.wait_for(lk, waitTime, predicate);
             else
-            {
                 m_cv.wait(lk, predicate);
-            }
 
             // Always update alive time immediately after waking up
             m_lastAliveTime.store(Timer::GetNow());
@@ -418,23 +458,33 @@ void StdlibThread::Process()
             if ((m_highQueue.empty() && m_normalQueue.empty()))
             {
                 if (m_exit.load()) { t_self_exit = nullptr; return; }
-                continue;
+                if (!idle.IsDue())
+                    continue;
+                // Idle handler is due: fall through with no message
             }
-
-            // Get highest priority message within queue
-            if (!m_highQueue.empty()) {
-                msg = m_highQueue.front();
-                m_highQueue.pop_front();
-            } else {
-                msg = m_normalQueue.front();
-                m_normalQueue.pop_front();
-            }
-
-            // Unblock producers now that space is available
-            if (MAX_QUEUE_SIZE > 0)
+            else
             {
-                m_cvNotFull.notify_one();
+                // Get highest priority message within queue
+                if (!m_highQueue.empty()) {
+                    msg = m_highQueue.front();
+                    m_highQueue.pop_front();
+                } else {
+                    msg = m_normalQueue.front();
+                    m_normalQueue.pop_front();
+                }
+
+                // Unblock producers now that space is available
+                if (MAX_QUEUE_SIZE > 0)
+                {
+                    m_cvNotFull.notify_one();
+                }
             }
+        }
+
+        if (!msg)
+        {
+            idle.Run();
+            continue;
         }
 
         switch (msg->GetId())
@@ -519,6 +569,10 @@ void StdlibThread::Process()
                 DMQ_ASSERT();
                 break;
         }
+
+        // Any message restarts the idle countdown
+        idle.Restart();
+
         // msg goes out of scope here — may trigger self-destruction of 'this'.
         // After this point do not access any member; check selfExit in while().
     }

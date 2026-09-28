@@ -38,12 +38,13 @@ if (DMQ_DATABUS_TOOLS)
     add_compile_definitions(DMQ_DATABUS_TOOLS)
     set(SPY_BRIDGE_DIR "${CMAKE_SOURCE_DIR}/../../../../tools")
     set(SPY_BRIDGE_SOURCES
-        "${SPY_BRIDGE_DIR}/bridge/NodeBridge.cpp"
-        "${SPY_BRIDGE_DIR}/bridge/NodeBridge.h"
+        "${SPY_BRIDGE_DIR}/bridge/node/NodeBridge.cpp"
+        "${SPY_BRIDGE_DIR}/bridge/node/NodeBridge.h"
     )
     include_directories(
-        "${SPY_BRIDGE_DIR}/src"
-        "${SPY_BRIDGE_DIR}/bridge"
+        "${SPY_BRIDGE_DIR}/net"
+        "${SPY_BRIDGE_DIR}/bridge/spy"
+        "${SPY_BRIDGE_DIR}/bridge/node"
     )
     list(APPEND SOURCES ${SPY_BRIDGE_SOURCES})
 endif()

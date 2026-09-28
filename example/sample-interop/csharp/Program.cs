@@ -55,6 +55,34 @@ namespace CsharpSample
                 Console.WriteLine($"[RECV] SensorData: id={data.Id} val={data.Value}");
             });
 
+            // Delivery outcome of each sent command, matched to Send() by sequence number.
+            bus.RegisterStatusCallback((remoteId, seq, status) =>
+            {
+                switch (status)
+                {
+                    case SendStatus.Acked:
+                        Console.WriteLine($"[ACK]  Command seq={seq} acknowledged by server");
+                        break;
+                    case SendStatus.Timeout:
+                        Console.WriteLine($"[WARN] Command seq={seq} not acknowledged yet; retrying");
+                        break;
+                    case SendStatus.DeliveryFailed:
+                        Console.WriteLine($"[FAIL] Command seq={seq} not delivered after retries (is the server running?)");
+                        break;
+                }
+            });
+
+            // Errors from the native core, and exceptions from our own callbacks
+            // (e.g. a SensorData payload that fails to deserialize).
+            bus.RegisterErrorCallback((code, remoteId, message) =>
+            {
+                Console.WriteLine($"[ERROR] {code} (remote ID {remoteId}): {message}");
+            });
+
+            // Commands are reliable by default: tracked until the server ACKs them and
+            // resent on timeout (defaults: 2 s timeout, 3 retries). To change:
+            // bus.SetReliability(timeoutMs: 1000, maxRetries: 5);
+
             try
             {
                 // Start the background native receive loop
@@ -72,10 +100,11 @@ namespace CsharpSample
             while (true)
             {
                 var cmd = new Command { PollingRateMs = pollingRate };
-                Console.WriteLine($"[SEND] Command: pollingRateMs={cmd.PollingRateMs}");
-                
-                // Send serialized command to the C++ server via the DLL
-                bus.Send(CommandId, cmd);
+
+                // Send serialized command to the C++ server via the DLL; the returned
+                // sequence number tags its status callbacks.
+                ushort seq = bus.Send(CommandId, cmd);
+                Console.WriteLine($"[SEND] Command seq={seq}: pollingRateMs={cmd.PollingRateMs}");
 
                 // Toggle between 250 and 1000ms
                 pollingRate = (pollingRate == 250) ? 1000 : 250;

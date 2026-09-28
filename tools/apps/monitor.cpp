@@ -89,28 +89,7 @@ static std::string FormatAge(const NodeRecord& rec) {
 
 // --- Receiver thread ---
 
-static void ReceiverThread(uint16_t port, std::string multicastGroup, std::string localInterface) {
-    UdpSocket socket;
-    if (!socket.Create()) {
-        g_statusMessage = "ERROR: Failed to create socket";
-        return;
-    }
-
-    if (!socket.Bind(port, "0.0.0.0")) {
-        g_statusMessage = "ERROR: Could not bind to port " + std::to_string(port);
-        return;
-    }
-
-    if (!multicastGroup.empty()) {
-        if (!socket.JoinGroup(multicastGroup, localInterface.empty() ? "0.0.0.0" : localInterface)) {
-            g_statusMessage = "ERROR: Could not join group " + multicastGroup;
-            return;
-        }
-        g_statusMessage = "Joined Group: " + multicastGroup + " Port: " + std::to_string(port);
-    } else {
-        g_statusMessage = "Listening on Port: " + std::to_string(port);
-    }
-
+static void ReceiverThread(UdpSocket& socket) {
     socket.SetReceiveTimeout(100);
 
     std::vector<uint8_t> buffer(16384);
@@ -181,9 +160,21 @@ int main(int argc, char* argv[]) {
         localInterface = dmq::util::NetworkContext::GetLocalAddress();
     }
 
+    // Open the socket before the UI starts, so a failure (e.g. another tool
+    // already on the port) is reported plainly instead of an empty display.
+    UdpSocket socket;
+    std::string err = socket.Listen(port, multicastGroup, localInterface);
+    if (!err.empty()) {
+        std::cerr << err << std::endl;
+        return 1;
+    }
+    g_statusMessage = multicastGroup.empty()
+        ? "Listening on Port: " + std::to_string(port)
+        : "Joined Group: " + multicastGroup + " Port: " + std::to_string(port);
+
     auto screen = ScreenInteractive::Fullscreen();
 
-    std::thread receiver(ReceiverThread, port, multicastGroup, localInterface);
+    std::thread receiver(ReceiverThread, std::ref(socket));
 
     // Shared snapshot — written by renderer, read by event handler (both on FTXUI thread).
     std::vector<std::pair<std::string, NodeRecord>> sharedNodeList;

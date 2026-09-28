@@ -8,7 +8,8 @@
 /// @brief Portable sleep_for()/yield() for the calling thread, ThreadX backend.
 ///
 /// @details
-/// Backs dmq::ThisThread::sleep_for()/yield() (see DelegateOpt.h). Exists so
+/// This is dmq::ThisThread for this port (see DelegateOpt.h). GetCurrent()
+/// uses RegistryCurrentThread, keyed by the calling thread's control block. Exists so
 /// library internals that need to delay or yield (e.g. RetryMonitor backoff)
 /// aren't forced to pull in the full dmq::os::Thread class -- which also
 /// drags in the message queue, watchdog, and stats machinery -- just to
@@ -16,12 +17,25 @@
 /// call is implemented exactly once.
 
 #include <tx_api.h>
+#include "ThreadXMutex.h"
+#include "port/os/common/CurrentThreadStorage.h"
 #include <chrono>
 
 namespace dmq::os {
 
-    struct ThreadXThisThread {
-        static void sleep_for(std::chrono::milliseconds ms) {
+    /// @brief Key for RegistryCurrentThread: the calling thread's control block.
+    /// @TODO: Return 0 inside an ISR if your target can detect it (e.g. read IPSR on
+    /// ARM Cortex-M). tx_thread_identify() returns the interrupted thread there, so
+    /// dmq::ThisThread::GetCurrent() from an ISR returns that thread's IThread
+    /// instead of nullptr. See docs/PORTING.md, "Current Thread".
+    inline uintptr_t ThreadXCurrentThreadKey() {
+        return reinterpret_cast<uintptr_t>(tx_thread_identify());
+    }
+
+    struct ThreadXThisThread : RegistryCurrentThread<ThreadXCurrentThreadKey, ThreadXMutex> {
+        template<typename Rep, typename Period>
+        static void sleep_for(std::chrono::duration<Rep, Period> d) {
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(d);
             auto count = ms.count();
             // Round up so a sub-tick sleep still yields the CPU for at least
             // one tick rather than returning immediately.

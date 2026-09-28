@@ -9,6 +9,8 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 | **Spy Console** | `dmq-spy` | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
 | **Node Monitor** | `dmq-monitor` | Live network topology view — shows all active nodes, their status, uptime, and published topics |
 | **Thread Monitor**| `dmq-thread` | Real-time per-thread metrics — shows queue depths and dispatch latency across the system |
+| **Wireshark Dissector** | `wireshark/dmq.lua` | Decodes DelegateMQ UDP/TCP traffic in Wireshark — header fields, ACKs, topic labels. See [wireshark/README.md](wireshark/README.md) |
+| **MQTT Gateway** | `bridge/mqtt/MqttBridge` | Exposes chosen DataBus topics as MQTT topics with JSON payloads, and optionally accepts commands — standard MQTT, usable from any MQTT client. See [JSON Bridges](#json-bridges--jsontopics-and-mqttbridge) |
 
 ---
 
@@ -31,7 +33,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 
 1.  **Instrumentation**: The `dmq::os::Thread` class tracks queue stats and message timestamps during normal operation.
 2.  **Telemetry Service** (`ThreadMonitor`): A service within the application that polls registered threads and publishes `ThreadStatsPacket` to the local DataBus.
-3.  **The Node Bridge** (`bridge/NodeBridge.cpp/.h`): Reuses the existing node bridge to automatically pick up `ThreadStatsPacket` topics and broadcast them over UDP.
+3.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): Reuses the existing node bridge to automatically pick up `ThreadStatsPacket` topics and broadcast them over UDP.
 4.  **The Thread Monitor Console** (`apps/thread.cpp`): The standalone `dmq-thread` application that receives and visualizes the aggregated telemetry.
 
 ### Integrating Thread Monitoring into Your App
@@ -94,7 +96,7 @@ You may occasionally see negative values in the Delta columns (e.g., `-0.015` ms
 ### Key Features
 
 *   **Real-Time Live Feed**: Instant visualization of every message published to the `dmq::databus::DataBus` (Newest at Top).
-*   **Regex-Based Filtering**: Dynamically filter topics using regular expressions to isolate specific system events.
+*   **Topic Filtering**: Dynamically filter topics by substring to isolate specific system events.
 *   **Intelligent Color-Coding**: Values are highlighted based on content (Green for OK/Running, Red for Error/Fault, Yellow for Warn).
 *   **Unicast & Multicast Support**: Monitor point-to-point traffic or join a multicast group for one-to-many monitoring.
 *   **Log to Disk**: High-performance background logging to a file for later historical analysis.
@@ -105,12 +107,12 @@ You may occasionally see negative values in the Delta columns (e.g., `-0.015` ms
 ### How it Works
 
 1.  **The Spy Console** (`apps/spy.cpp`): The standalone `dmq-spy` application that displays the data in an aligned table layout.
-2.  **The Spy Bridge** (`bridge/SpyBridge.cpp/.h`): A small component you add to your own application to export its internal bus traffic over UDP.
+2.  **The Spy Bridge** (`bridge/spy/SpyBridge.cpp/.h`): A small component you add to your own application to export its internal bus traffic over UDP.
 
 ### Integrating SpyBridge into Your App
 
 #### 1. Include the Bridge
-Add `tools/bridge/SpyBridge.cpp` and `tools/bridge/SpyBridge.h` to your build system and enable `DMQ_DATABUS_TOOLS`.
+Add `tools/bridge/spy/SpyBridge.cpp` and `tools/bridge/spy/SpyBridge.h` to your build system (include directories `tools/bridge/spy` and `tools/net`) and enable `DMQ_DATABUS_TOOLS`.
 
 #### 2. Register Stringifiers
 For every topic you want to see in the console, register a stringifier function:
@@ -157,7 +159,90 @@ These "reflections" indicate that the data has successfully traversed the networ
 
 # Log all traffic to a file
 ./dmq-spy 9999 --log traffic.log
+
+# Log as CSV or JSON Lines for analysis
+./dmq-spy 9999 --log traffic.csv --log-format csv
+./dmq-spy 9999 --log traffic.jsonl --log-format json
 ```
+
+**Log formats** (`--log-format`, default `text`):
+
+| Format | Output |
+|--------|--------|
+| `text` | Human-readable lines: `[time] [info] [sender_ip] [node_id] [topic] value`. Appends to an existing file. |
+| `csv`  | Header row, then one row per message: `host_time_us,source_time_us,sender_ip,node_id,topic,value`. String fields are quoted. |
+| `json` | JSON Lines, one object per message with the same fields as CSV. |
+
+`host_time_us` is the Spy console's wall clock (microseconds since the Unix epoch) when the packet arrived. `source_time_us` is the sender's monotonic clock from the packet, so it only compares meaningfully against other messages from the same node. `csv` and `json` overwrite the file at startup. All formats are flushed to disk every second. The `value` field is the stringifier's text, so logs are for analysis, not replay.
+
+### Command-Line Modes: echo, hz, bw
+
+Headless alternatives to the TUI for SSH sessions and shell pipelines. Each prints to stdout and runs until `Ctrl-C`. Topics match by substring, the same as the TUI filter. `--log` works alongside any mode.
+
+**One unicast listener per port.** A unicast message reaches only one socket, so a mode and the TUI can't both listen on port 9999. A second `dmq-spy` (or `dmq-monitor` / `dmq-thread`) on a port that's already taken exits with `Could not bind to UDP port`. Close the TUI first, or use `--multicast` if the application sends to a multicast group, where any number of tools can listen.
+
+```bash
+# Print every message on topics containing "sensor/"
+./dmq-spy --echo sensor/
+
+# Same, as JSON Lines (pipe to jq, grep, a file...)
+./dmq-spy --echo pump/status --json | jq .value
+
+# Publish rate per topic, reported every second
+./dmq-spy --hz sensor
+
+# Bandwidth per topic, reported every second
+./dmq-spy --bw /
+```
+
+| Mode | Reports |
+|------|---------|
+| `--echo <topic>` | One line per message: source timestamp (s), sender, topic, value. `--json` switches to the same JSON records as `--log-format json`. |
+| `--hz <topic>` | Per sender and topic: rate (Hz) and min / max / standard deviation of the interval between messages (ms), plus `AGE`, seconds since the last message. Computed from the **sender's** timestamps, so network jitter between the sender and Spy doesn't affect it. |
+| `--bw <topic>` | Per sender and topic: rate, bytes/s, and mean / min / max message size. |
+
+`--window <n>` sets how many recent messages per topic `--hz` and `--bw` use (default 100). A growing `AGE` means the topic has stopped publishing.
+
+**`--bw` measures the Spy feed, not your transport.** Spy receives each message as a `SpyPacket` (topic, stringified value, timestamp, node ID), not as serialized on the application's own link. The byte counts are useful for comparing topics against each other, but not for budgeting a real link such as a serial port.
+
+### Live Plots in PlotJuggler
+
+[PlotJuggler](https://github.com/facontidavide/PlotJuggler) is a free time-series plotting tool. `--plotjuggler` forwards every numeric value Spy receives to PlotJuggler's UDP Server as JSON, alongside whatever else Spy is doing (TUI, `--echo`, `--hz`, `--log`...).
+
+<img src="plot-juggler.png" alt="PlotJuggler plotting live Cellutron telemetry from dmq-spy" style="max-width: 800px; width: 100%;">
+
+*Live Cellutron telemetry in PlotJuggler, started with `run_cellutron.py --plotjuggler`: the centrifuge speed command ramping up and down across two runs, with actuator and outlet pressure alongside. The series tree on the left is built from the `<sender>/<topic>/<name>` series names.*
+
+```bash
+# Plot everything, and keep the TUI
+./dmq-spy --plotjuggler
+
+# Plot while headless (no screen output needed; --echo on a topic that never matches)
+./dmq-spy --echo none --plotjuggler
+
+# PlotJuggler on another machine or port
+./dmq-spy --pj-address 192.168.1.50:9870
+```
+
+In PlotJuggler:
+1. **Streaming** panel: select **UDP Server** and click **Start**.
+2. Port `9870` (the default), message protocol **JSON**.
+3. Optionally tick the option to use a field as the timestamp and enter `timestamp`, so points are placed at the time Spy received them rather than when PlotJuggler did. Otherwise `timestamp` also shows up as a series.
+4. Drag series from the list onto a plot.
+
+(Option names are from recent PlotJuggler versions and may differ slightly in yours.)
+
+**Series names.** Spy only has each message's stringified value, so numbers are extracted from the text:
+
+| Value text | Series |
+|------------|--------|
+| `28 C` | `<sender>/<topic>` |
+| `RPM: 542` | `<sender>/<topic>/RPM` |
+| `Latency(ms):1.2/3.4` | `<sender>/<topic>/Latency`, `.../Latency_1` |
+| `12 of 40` | `<sender>/<topic>/v0`, `.../v1` |
+| `Running OK` | skipped (no number) |
+
+A `name:` or `name=` before a number names it (a unit in parentheses is allowed), and a `/`-separated run keeps the name. `<sender>` is the node ID, or the sender's IP if it has none. Write stringifiers as `name: value` pairs to get clearly named series. The `ThreadStats` topic is skipped: all threads share it, so its series would mix threads (use `dmq-thread` for that data).
 
 **Controls:**
 - `Ctrl-P` — Pause / Resume live feed
@@ -185,12 +270,12 @@ These "reflections" indicate that the data has successfully traversed the networ
 ### How it Works
 
 1.  **The Node Monitor Console** (`apps/monitor.cpp`): The standalone `dmq-monitor` application that displays the topology table.
-2.  **The Node Bridge** (`bridge/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second.
+2.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second.
 
 ### Integrating NodeBridge into Your App
 
 #### 1. Include the Bridge
-Add `tools/bridge/NodeBridge.cpp`, `tools/bridge/NodeBridge.h`, and `tools/bridge/NodeInfoPacket.h` to your build system and enable `DMQ_DATABUS_TOOLS`.
+Add `tools/bridge/node/NodeBridge.cpp`, `tools/bridge/node/NodeBridge.h`, and `tools/bridge/node/NodeInfoPacket.h` to your build system (include directories `tools/bridge/node` and `tools/net`) and enable `DMQ_DATABUS_TOOLS`.
 
 #### 2. Start the Bridge
 Call `Start` (unicast) or `StartMulticast` at application initialization, providing a unique node ID:
@@ -228,6 +313,104 @@ Topic and message count tracking is automatic — NodeBridge subscribes to `dmq:
 
 ---
 
+## JSON Bridges — JsonTopics and MqttBridge
+
+The JSON bridges connect a DataBus application to tools outside DelegateMQ. The application declares **once**, in the shared `JsonTopics` layer, which topics to expose as JSON and which commands to accept; each bridge then serves that same set over its own protocol. `MqttBridge` is the first bridge; others (e.g. WebSocket/Foxglove) plug into the same layer.
+
+```
+DataBus "pump/telemetry"  →  JsonTopics (to JSON, once)  →  MqttBridge  →  MQTT "pumptron/pump/telemetry"  {"rpm":1500,...}
+MQTT "pumptron/pump/cmd/set" {"command":"START"}  →  MqttBridge  →  JsonTopics (validate)  →  DataBus "pump/cmd"
+```
+
+Because the output is standard MQTT with JSON payloads, any MQTT client can watch the application and, where you allow it, command it; see [Using MQTT Tools](#using-mqtt-tools) for what common tools need. This is different from `port/transport/mqtt/MqttTransport`, which tunnels DelegateMQ's binary frames between DelegateMQ apps on one fixed MQTT topic, which other MQTT tools can't read.
+
+### Usage
+
+```cpp
+#include "JsonTopics.h"
+#include "MqttBridge.h"
+#include "BridgeJson.h"   // optional flat-JSON helpers
+
+std::string TelemetryToJson(const TelemetryMsg& m) {
+    return bridgejson::Writer().Add("rpm", m.rpm, 0).Add("flow", m.flowLpm, 2).Str();
+}
+bool CommandFromJson(const std::string& json, PumpCommandMsg& cmd) {
+    bridgejson::Reader r;
+    std::string name;
+    if (!r.Parse(json) || !r.GetString("command", name)) return false;
+    // ... map name to cmd, validate arguments; return false to reject
+}
+
+// The application's JSON view, declared once for every bridge
+JsonTopics::Expose<TelemetryMsg>("pump/telemetry", &TelemetryToJson);
+JsonTopics::Expose<PumpStatusMsg>("pump/status", &StatusToJson, { true /*latched*/, true /*reliable*/ });
+JsonTopics::Accept<PumpCommandMsg>("pump/cmd", &CommandFromJson);    // opt-in inbound
+
+// Serve it over MQTT
+MqttBridge::Options opt;
+opt.brokerUri = "tcp://127.0.0.1:1883";
+opt.topicPrefix = "pumptron";
+MqttBridge::Start(opt);
+// ...
+MqttBridge::Stop();
+JsonTopics::Shutdown();
+```
+
+Add it to a CMake target with the helper, which adds the shared layer and builds Paho MQTT C from the workspace (`../mqtt`, fetched by `01_fetch_repos.py`):
+
+```cmake
+include(<DelegateMQ>/tools/bridge/mqtt/MqttBridge.cmake)
+dmq_add_mqtt_bridge(my_app)
+```
+
+### JsonTopics (shared layer)
+
+| Feature | Details |
+|---------|---------|
+| **Expose / Accept** | `Expose<T>(topic, toJson, options)` and `Accept<T>(topic, fromJson)`, before or after bridges start. |
+| **Convert once** | Each message is converted to JSON once, on the JsonTopics thread (`FullPolicy::DROP`, so publishers never block), and handed to every running bridge. |
+| **Hints** | `latched` (state: keep the last value for late joiners) and `reliable` (prefer confirmed delivery). Each bridge maps them to its protocol. |
+| **Inbound** | Bridges hand incoming payloads to `JsonTopics::Inbound()`, which validates them with `fromJson` and publishes valid ones on the DataBus. **Every `Accept()` is a remote control path into the application**: validate everything in the converter. |
+| **Events** | `JsonTopics::OnEvent()` reports events from the layer and every bridge, prefixed by bridge (e.g. `MQTT: connected ...`): connects, disconnects, rejected commands, dropped messages. Without a subscriber they go to stderr. |
+| **JSON numbers** | `BridgeJson.h` writes and parses numbers in the classic "C" locale, so output stays valid JSON even if the application calls `setlocale()` (e.g. a German locale would otherwise produce `1,23`). |
+
+### MqttBridge
+
+| Feature | Details |
+|---------|---------|
+| **Topics** | Exposed topic `t` → MQTT `<prefix>/t`. Accepted topic `t` ← MQTT `<prefix>/t/set` (the usual MQTT command-topic convention, which also avoids echoing an exposed topic back into itself). |
+| **Hints** | `latched` → retained message, re-published on every (re)connect so a dashboard that connects late sees the current state. `reliable` → QoS 1, otherwise QoS 0. |
+| **Threading** | Sends run on the bridge's own thread (`FullPolicy::DROP`), so a slow broker can't hold up the layer or other bridges; drops are reported at most every 5 s. Inbound commands are handled on Paho's receive thread, so a command is never dropped behind an outbound backlog; give command subscribers a thread of their own. |
+| **Reconnect** | The broker connection is retried in the background (every 2 s by default). An unreachable broker is reported once, not on every retry. Messages published while disconnected are dropped; latched state is re-published on connect. |
+| **Liveness** | `<prefix>/online` is `true` (retained) while connected, and `false` on `Stop()` or, if the application dies, via the broker's Last Will. |
+
+Enable inbound commands only on a broker you trust. The bridge uses plain TCP with no TLS or authentication.
+
+### Using MQTT Tools
+
+The bridge has no tool-specific integration: it publishes plain MQTT topics with JSON payloads, which each tool consumes through its own MQTT support. It has been tested with generic MQTT clients, not yet with the tools below.
+
+| Tool | What it takes |
+|------|---------------|
+| [MQTT Explorer](https://mqtt-explorer.com/), `mosquitto_sub` / `mosquitto_pub` | Nothing: connect to the broker and subscribe to `<prefix>/#`. |
+| [Node-RED](https://nodered.org/) | An `mqtt in` node on `<prefix>/#` followed by a `json` node; `mqtt out` to `<prefix>/<topic>/set` for commands. |
+| [Home Assistant](https://www.home-assistant.io/) | Declare each value as an MQTT sensor in YAML, reading a JSON field with a `value_template`. MQTT discovery (automatic entities) isn't published by the bridge. |
+| [Grafana](https://grafana.com/) | Grafana doesn't read a broker natively: use its MQTT data source plugin, or Telegraf (MQTT consumer) into a database such as InfluxDB. |
+| AWS IoT Core, Azure IoT Hub | Their brokers require TLS and authentication, which the bridge doesn't support yet. |
+
+Examples: [`example/sample-projects/databus-mqtt-gateway`](../example/sample-projects/databus-mqtt-gateway/README.md) (minimal thermostat) and Pumptron's `--mqtt` ([PUMPTRON.md](../example/pumptron/PUMPTRON.md#mqtt-gateway)).
+
+### Bridge Source Layout
+
+| Directory | Contents |
+|-----------|----------|
+| `bridge/common/` | Shared JSON bridge layer: `JsonTopics`, `BridgeJson.h`, `BridgeCommon.cmake` |
+| `bridge/spy/` | `SpyBridge` (DataBus traffic to `dmq-spy`) |
+| `bridge/node/` | `NodeBridge`, `NodeInfoPacket.h` (heartbeats to `dmq-monitor` / `dmq-thread`) |
+| `bridge/mqtt/` | `MqttBridge`, `MqttBridge.cmake` |
+
+---
+
 ## Building
 
 ### Prerequisites
@@ -249,6 +432,8 @@ cmake --build . --config Release
 ```
 
 This produces four executables: `dmq-spy`, `dmq-monitor`, `dmq-thread`, and `dmq-target` (a test application that exercises both bridges).
+
+The Wireshark dissector is a Lua script and needs no build; see [wireshark/README.md](wireshark/README.md) to install it.
 
 ---
 

@@ -13,6 +13,10 @@
     #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2       // seconds
 #endif
 
+#ifndef DMQ_THREAD_IDLE_INTERVAL
+    #define DMQ_THREAD_IDLE_INTERVAL        100     // milliseconds; default for Thread::SetIdleHandler()
+#endif
+
 #ifndef DMQ_MAX_TIMER_EXPIRED
     #define DMQ_MAX_TIMER_EXPIRED           16
 #endif
@@ -38,6 +42,12 @@
 
 #ifndef DMQ_MAX_WATCHDOG_THREADS
     #define DMQ_MAX_WATCHDOG_THREADS        16
+#endif
+
+// Max threads registered for dmq::ThisThread::GetCurrent() at once on RTOS ports
+// (one per running dmq::os::Thread or custom IThread worker). Exceeding it faults.
+#ifndef DMQ_MAX_CURRENT_THREADS
+    #define DMQ_MAX_CURRENT_THREADS         16
 #endif
 
 #ifndef DMQ_SEQ_HISTORY_SIZE

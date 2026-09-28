@@ -24,6 +24,14 @@ static int registerId = qRegisterMetaType<std::shared_ptr<dmq::DelegateMsg>>();
 // Worker::OnDispatch
 //----------------------------------------------------------------------------
 void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
+    // ExitPolicy::DISCARD: skip messages queued ahead of the event loop's quit
+    if (m_discard.load()) {
+        if (msg)
+            msg->Cancel();
+        emit MessageProcessed();
+        return;
+    }
+
     if (msg) {
         auto invoker = msg->GetInvoker();
         if (invoker) {
@@ -67,7 +75,30 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 #endif
         }
     }
+
+    // Any message restarts the idle countdown
+    if (m_idleTimer)
+        m_idleTimer->start();
+
     emit MessageProcessed();
+}
+
+//----------------------------------------------------------------------------
+// Worker::StartIdleTimer
+//----------------------------------------------------------------------------
+void Worker::StartIdleTimer(const dmq::UnicastDelegate<void()>& handler, dmq::Duration interval)
+{
+    m_idleHandler = handler;
+    auto ms = std::chrono::ceil<std::chrono::milliseconds>(interval).count();
+
+    m_idleTimer = new QTimer(this);
+    m_idleTimer->setSingleShot(true);
+    m_idleTimer->setInterval(static_cast<int>(ms > 0 ? ms : 1));
+    connect(m_idleTimer, &QTimer::timeout, this, [this]() {
+        m_idleHandler();
+        m_idleTimer->start();
+    });
+    m_idleTimer->start();
 }
 
 //----------------------------------------------------------------------------
@@ -110,6 +141,7 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     if (!m_thread)
     {
+        m_exiting.store(false);
         m_thread = new QThread();
         m_thread->setObjectName(QString::fromUtf8(m_threadName.c_str()));
 
@@ -130,11 +162,41 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         // Ensure worker is deleted when thread finishes
         connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
+
+        // Start handler and idle timer run on the new thread (started is emitted
+        // there; DirectConnection runs the lambda in place) before its event loop
+        // processes any dispatched message.
+        Worker* worker = m_worker;
+        QSemaphore* startSem = &m_startSem;
+        dmq::IThread* self = this;
+        connect(m_thread, &QThread::started, m_worker,
+            [worker, self, startSem, startHandler = m_startHandler,
+             idleHandler = m_idleHandler, idleInterval = m_idleInterval]() {
+                worker->BeginCurrentScope(self);
+                if (startHandler)
+                    startHandler();
+                if (idleHandler)
+                    worker->StartIdleTimer(idleHandler, idleInterval);
+                startSem->release();
+            }, Qt::DirectConnection);
+
+        // Exit handler runs on the worker thread as it finishes (finished is
+        // emitted there), after GetCurrent() is cleared. Captured by copy so it
+        // works even if this QtThread was destroyed by a self-exit.
+        connect(m_thread, &QThread::finished, m_worker,
+            [worker, exitHandler = m_exitHandler]() {
+                worker->EndCurrentScope();
+                if (exitHandler)
+                    exitHandler();
+            }, Qt::DirectConnection);
         
         // Also delete the QThread object itself when finished (optional, depending on ownership)
         // connect(m_thread, &QThread::finished, m_thread, &QObject::deleteLater);
 
         m_thread->start();
+
+        // Wait for the start handler to complete
+        m_startSem.acquire();
 
         m_lastAliveTime.store(Timer::GetNow());
 
@@ -229,18 +291,28 @@ dmq::RecursiveMutex& QtThread::GetWatchdogLock()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void QtThread::ExitThread()
+void QtThread::ExitThread(ExitPolicy policy)
 {
     if (m_thread)
     {
-        m_thread->quit();
+        m_exiting.store(true);
+        const bool selfExit = (QThread::currentThread() == m_thread);
+
+        // A self-exit always discards: the event loop keeps running after this
+        // object may be destroyed.
+        m_worker->SetDiscard(policy == ExitPolicy::DISCARD || selfExit);
+
+        // Quit queued behind every message already dispatched, so DRAIN invokes
+        // them first and DISCARD cancels them first.
+        QThread* thread = m_thread;
+        QMetaObject::invokeMethod(m_worker, [thread]() { thread->quit(); }, Qt::QueuedConnection);
 
         // Wake any blocked threads
         m_mutex.lock();
         m_cvNotFull.wakeAll();
         m_mutex.unlock();
 
-        if (QThread::currentThread() != m_thread) {
+        if (!selfExit) {
             m_thread->wait();
             delete m_thread;
         } else {
@@ -292,7 +364,7 @@ void QtThread::Sleep(dmq::Duration timeout) {
 bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Safety check: Don't emit if thread is tearing down
-    if (m_thread && m_thread->isRunning()) 
+    if (m_thread && m_thread->isRunning() && !m_exiting.load())
     {
         m_mutex.lock();
         if (m_queueSize >= m_maxQueueSize)

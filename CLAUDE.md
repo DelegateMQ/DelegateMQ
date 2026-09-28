@@ -47,7 +47,7 @@ When a fixed-size container is full, the default is `DMQ_ASSERT_TRUE(condition)`
 - **The app already controls the policy for this container** (e.g. a `dmq::os::Thread` message queue): expose it via `FullPolicy` (`FAULT`/`DROP`/`TIMEOUT`) instead of hard-coding a fault. `FAULT` stays the default.
 - **The cap is hit mid-drain of a batch, not a fixed-capacity data member** (e.g. `TransportMonitor::Process()`, `Timer::ProcessTimers()`): loop across multiple bounded passes until the backlog is empty instead of faulting — see `TransportMonitor::Process()` for the reference pattern.
 
-`docs/asserts.md` catalogs every `DMQ_ASSERT`/`DMQ_ASSERT_TRUE` site in the library with the reasoning behind its classification — consult it before adding a new one or changing an existing one.
+A thread that drops a `DelegateMsg` it already accepted into its queue (at exit, `ExitPolicy::DISCARD`, or clearing leftovers) must cancel it first — `CancelThreadMsg()`/`CancelAll()` in `port/os/common/ThreadMsg.h`, which call `DelegateMsg::Cancel()`. Otherwise an async-wait sender blocked on that message waits out its full timeout (forever with `WAIT_INFINITE`). Rejecting a message in `DispatchDelegate()` (`FullPolicy::DROP`) needs no cancel: the sender sees the `false` return.
 
 ## Exception vs. Assert (`DMQ_ASSERTS` / `BAD_ALLOC`)
 
@@ -138,6 +138,20 @@ Files under `port/transport/` and `port/os/` that are **desktop-only** (ZeroMQ, 
 **Embedded transport and OS ports** (`port/transport/stm32-uart/`, `port/transport/arm-lwip-*/`, `port/transport/netx-udp/`, `port/transport/zephyr-udp/`, `port/os/freertos/`, `port/os/threadx/`, `port/os/zephyr/`, `port/os/cmsis-rtos2/`, `port/os/nuttx/`, `port/os/bare-metal/`) must follow all allocation and abstraction rules — they run on constrained targets.
 
 **`extras/`** (DataBus, utils, dispatcher, allocator) is shared across all targets and must always follow the rules.
+
+**`tools/`** (the diagnostic consoles, `tools/bridge/*`, the Wireshark dissector) is desktop-only diagnostic and integration code, not library code, and may use `std::` primitives. Code that must run on an MCU belongs in a port or in `extras/` and follows the full rules.
+
+## Tools Bridges
+
+- `tools/bridge/` is split by purpose: `common/` (shared JSON layer: `JsonTopics`, `BridgeJson.h`), `spy/` (`SpyBridge`), `node/` (`NodeBridge`), `mqtt/` (`MqttBridge`). Put a new bridge in its own `tools/bridge/<name>/` with a `<Name>Bridge.cmake` helper (`dmq_add_<name>_bridge(target)`), following `mqtt/MqttBridge.cmake`.
+- **JSON bridges are `JsonTopics::ISink`s.** Applications declare their JSON view once with `JsonTopics::Expose<T>()` / `Accept<T>()`; a bridge serves whatever is registered and must not grow its own per-topic Publish/Subscribe API.
+- A bridge sends on its own thread (`FullPolicy::DROP`, drops reported rate-limited), so a slow peer can't hold up the JsonTopics thread or other bridges. It must not queue sends while disconnected; replay `JsonTopics::LatchedValues()` on (re)connect instead, after marking itself connected, so the newest value always goes out last.
+- Inbound commands go to `JsonTopics::Inbound()` directly on the bridge's receive thread, never through the DROP send queue, so a command can't be dropped behind outbound traffic.
+- Report through `JsonTopics::OnEvent()`, prefixed with the bridge name (e.g. `"MQTT: "`).
+
+## Interop Layer
+
+`interop/native` (`DmqInterop` C API), `interop/python`, `interop/csharp` and the interop samples (`example/sample-interop`, `example/sample-projects/databus-interop`) ship together: a C API change must update both wrappers and all interop samples in the same change. Cross-language messages use MessagePack (`MSGPACK_DEFINE`).
 
 ## Portable Abstractions
 

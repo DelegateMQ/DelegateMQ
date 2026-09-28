@@ -81,6 +81,16 @@ file(GLOB_RECURSE COMMON_SOURCES CONFIGURE_DEPENDS
     "${PUMPTRON_COMMON_DIR}/*.cpp"
 )
 
+# --- DataBus tools bridge (--spy) ---
+# SpyBridge mirrors this node's DataBus traffic to dmq-spy over UDP. Requires
+# DMQ_DATABUS_TOOLS, on by default for desktop DataBus builds.
+set(TOOLS_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/bridge")
+set(TOOLS_NET_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/net")
+set(TOOLS_SOURCES
+    ${TOOLS_BRIDGE_DIR}/spy/SpyBridge.cpp
+    ${TOOLS_BRIDGE_DIR}/spy/SpyBridge.h
+)
+
 set(GUI_SOURCES
     main.cpp
     system/System.cpp
@@ -95,6 +105,7 @@ set(GUI_SOURCES
 add_executable(pumptron_gui
     ${GUI_SOURCES}
     ${COMMON_SOURCES}
+    ${TOOLS_SOURCES}
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
 )
@@ -110,6 +121,8 @@ target_include_directories(pumptron_gui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${PUMPTRON_COMMON_DIR}
     ${DMQ_INCLUDE_DIR}
+    ${TOOLS_BRIDGE_DIR}/spy
+    ${TOOLS_NET_DIR}
 )
 
 if(PUMPTRON_HAVE_SERIAL)
@@ -123,8 +136,25 @@ target_link_libraries(pumptron_gui PRIVATE
     ftxui::component
 )
 
+# --- MQTT gateway (--mqtt) ---
+# MqttBridge publishes pump status/telemetry/alarms to an MQTT broker. Paho MQTT C
+# is built from the workspace checkout (../mqtt, fetched by 01_fetch_repos.py);
+# without it the GUI builds with --mqtt unavailable, like --serial without
+# libserialport.
+include("${TOOLS_BRIDGE_DIR}/mqtt/MqttBridge.cmake")
+if(EXISTS "${DMQ_PAHO_ROOT}/src/MQTTClient.h")
+    dmq_add_mqtt_bridge(pumptron_gui)
+    target_sources(pumptron_gui PRIVATE system/MqttGateway.cpp system/MqttGateway.h)
+    source_group("GUI Files" FILES system/MqttGateway.cpp system/MqttGateway.h)
+    target_compile_definitions(pumptron_gui PRIVATE PUMPTRON_HAVE_MQTT)
+else()
+    message(WARNING "Pumptron GUI: Paho MQTT C not found at ${DMQ_PAHO_ROOT} -- building without --mqtt. "
+                    "Run 01_fetch_repos.py to enable it.")
+endif()
+
 source_group("GUI Files" FILES ${GUI_SOURCES})
 source_group("Common Files" FILES ${COMMON_SOURCES})
+source_group("Tools Files" FILES ${TOOLS_SOURCES})
 source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
 source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
 source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})

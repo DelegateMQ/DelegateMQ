@@ -5,6 +5,10 @@
 #include <chrono>
 #include <cstring>
 #include <atomic>
+#include <future>
+#include <memory>
+#include <string>
+#include <vector>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -549,6 +553,274 @@ static void ThreadFullPolicyTests()
     FullPolicy_DefaultQueueSize_StillCapsUnderFlood();
 }
 
+#if !defined(DMQ_THREAD_NONE)
+// ---------------------------------------------------------------------------
+// Start/exit/idle handler tests
+// ---------------------------------------------------------------------------
+
+// Start handler runs on the worker thread before any message, and has finished
+// when CreateThread() returns. Exit handler runs on the worker thread after the
+// last message, and has finished when ExitThread() returns.
+static void Hooks_StartAndExitRunOnThreadInOrder()
+{
+    Thread hookThread("HookThread");
+
+    std::mutex orderLock;
+    std::vector<std::string> order;
+    auto record = [&](const char* what) {
+        std::lock_guard<std::mutex> lock(orderLock);
+        order.push_back(what);
+    };
+
+    std::atomic<bool> startOnThread{ false };
+    std::atomic<bool> exitOnThread{ false };
+
+    hookThread.SetStartHandler(MakeDelegate([&]() {
+        startOnThread = hookThread.IsCurrentThread();
+        record("start");
+        // Dispatching to this thread from the start handler must queue, not fail
+        MakeDelegate([&]() { record("fromStart"); }, hookThread)();
+    }));
+    hookThread.SetExitHandler(MakeDelegate([&]() {
+        exitOnThread = hookThread.IsCurrentThread();
+        record("exit");
+    }));
+
+    hookThread.CreateThread();
+    {
+        std::lock_guard<std::mutex> lock(orderLock);
+        DMQ_ASSERT_TRUE(!order.empty() && order[0] == "start");
+    }
+
+    // Blocking call, so "fromStart" and "msg" have both run before ExitThread():
+    // some ports (e.g. Win32) queue the exit message ahead of pending messages.
+    MakeDelegate(std::function<void()>([&]() { record("msg"); }), hookThread, TEST_TIMEOUT)();
+    hookThread.ExitThread();
+
+    DMQ_ASSERT_TRUE(startOnThread);
+    DMQ_ASSERT_TRUE(exitOnThread);
+    const std::vector<std::string> expected{ "start", "fromStart", "msg", "exit" };
+    DMQ_ASSERT_TRUE(order == expected);
+
+    // Handlers run again on restart
+    order.clear();
+    hookThread.CreateThread();
+    MakeDelegate(std::function<void()>([]() {}), hookThread, TEST_TIMEOUT)();
+    hookThread.ExitThread();
+    const std::vector<std::string> expectedRestart{ "start", "fromStart", "exit" };
+    DMQ_ASSERT_TRUE(order == expectedRestart);
+
+    std::cout << "Hooks_StartAndExitRunOnThreadInOrder() complete!" << std::endl;
+}
+
+// Exit handler still runs when the thread exits itself from one of its own handlers.
+static void Hooks_ExitRunsOnSelfExit()
+{
+    auto selfThread = std::make_unique<Thread>("HookSelfExitThread");
+    std::promise<void> exited;
+    auto exitedFuture = exited.get_future();
+    selfThread->SetExitHandler(MakeDelegate([&]() { exited.set_value(); }));
+    selfThread->CreateThread();
+
+    Thread* raw = selfThread.get();
+    MakeDelegate([raw]() { raw->ExitThread(); }, *raw)();
+
+    DMQ_ASSERT_TRUE(exitedFuture.wait_for(TEST_TIMEOUT) == std::future_status::ready);
+    selfThread.reset();
+
+    std::cout << "Hooks_ExitRunsOnSelfExit() complete!" << std::endl;
+}
+
+// Idle handler fires repeatedly while the queue is empty, and not while a steady
+// stream of messages keeps the thread busy.
+static void Hooks_IdleFiresOnlyWhenQuiet()
+{
+    Thread idleThread("HookIdleThread");
+    const auto INTERVAL = std::chrono::milliseconds(100);
+
+    std::atomic<int> idleCount{ 0 };
+    std::atomic<bool> idleOnThread{ true };
+    idleThread.SetIdleHandler(MakeDelegate([&]() {
+        if (!idleThread.IsCurrentThread())
+            idleOnThread = false;
+        idleCount++;
+    }), INTERVAL);
+    idleThread.CreateThread();
+
+    // Quiet: several intervals elapse with no messages
+    std::this_thread::sleep_for(INTERVAL * 5);
+    int quietCount = idleCount;
+    DMQ_ASSERT_TRUE(quietCount >= 2);
+    DMQ_ASSERT_TRUE(idleOnThread);
+
+    // Busy: a message well within every interval keeps restarting the countdown.
+    // Wait out any idle call already in progress before sampling the count.
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    MakeDelegate([]() {}, idleThread)();
+    int busyStart = idleCount;
+    auto busyEnd = std::chrono::steady_clock::now() + INTERVAL * 5;
+    while (std::chrono::steady_clock::now() < busyEnd)
+    {
+        MakeDelegate([]() {}, idleThread)();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    DMQ_ASSERT_TRUE(idleCount == busyStart);
+
+    idleThread.ExitThread();
+    std::cout << "Hooks_IdleFiresOnlyWhenQuiet() complete! (quiet " << quietCount << " calls)" << std::endl;
+}
+
+// ThisThread::GetCurrent() returns the worker's own thread from its start, message
+// and idle handlers; nullptr from other threads and from the exit handler.
+static void Hooks_GetCurrent()
+{
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
+
+    Thread curThread("HookCurrentThread");
+    IThread* const expected = &curThread;
+    std::atomic<IThread*> fromStart{ nullptr };
+    std::atomic<IThread*> fromMsg{ nullptr };
+    std::atomic<IThread*> fromIdle{ nullptr };
+    std::atomic<IThread*> fromExit{ expected };
+
+    curThread.SetStartHandler(MakeDelegate([&]() { fromStart = ThisThread::GetCurrent(); }));
+    curThread.SetIdleHandler(MakeDelegate([&]() { fromIdle = ThisThread::GetCurrent(); }));  // dmq::THREAD_IDLE_INTERVAL
+    curThread.SetExitHandler(MakeDelegate([&]() { fromExit = ThisThread::GetCurrent(); }));
+    curThread.CreateThread();
+
+    // Blocking call: returns after the target ran on curThread
+    auto msgDelegate = MakeDelegate(std::function<void()>([&]() { fromMsg = ThisThread::GetCurrent(); }), curThread, TEST_TIMEOUT);
+    msgDelegate();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100) + dmq::THREAD_IDLE_INTERVAL * 2);
+    curThread.ExitThread();
+
+    DMQ_ASSERT_TRUE(fromStart == expected);
+    DMQ_ASSERT_TRUE(fromMsg == expected);
+    DMQ_ASSERT_TRUE(fromIdle == expected);
+    DMQ_ASSERT_TRUE(fromExit == nullptr);
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
+
+    std::cout << "Hooks_GetCurrent() complete!" << std::endl;
+}
+
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+// A custom IThread registers itself with CurrentThreadScope; scopes nest and
+// restore the previous value. (Uses std::thread, so desktop ports only.)
+static void Hooks_CurrentThreadScope()
+{
+    struct CustomThread : IThread {
+        bool DispatchDelegate(std::shared_ptr<DelegateMsg>) override { return false; }
+        bool IsCurrentThread() override { return ThisThread::GetCurrent() == this; }
+    } outer, inner;
+
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
+    {
+        CurrentThreadScope outerScope(&outer);
+        DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == &outer);
+        DMQ_ASSERT_TRUE(outer.IsCurrentThread());
+        {
+            CurrentThreadScope innerScope(&inner);
+            DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == &inner);
+        }
+        DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == &outer);
+
+        // Per thread: another thread does not see this registration
+        std::atomic<IThread*> other{ &outer };
+        std::thread([&]() { other = ThisThread::GetCurrent(); }).join();
+        DMQ_ASSERT_TRUE(other == nullptr);
+    }
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
+
+    std::cout << "Hooks_CurrentThreadScope() complete!" << std::endl;
+}
+#endif // desktop ports
+#endif // !DMQ_THREAD_NONE
+
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+// ---------------------------------------------------------------------------
+// ExitPolicy tests (use std::thread/std::async, so desktop ports only)
+// ---------------------------------------------------------------------------
+
+// Queue `count` increments behind a message that holds the thread until `release`
+// is set, so they are all still queued when ExitThread() is called.
+static void QueueBehindBlocker(Thread& thread, std::atomic<bool>& running, std::atomic<bool>& release,
+    std::atomic<bool>& blockerDone, std::atomic<int>& counter, int count)
+{
+    MakeDelegate([&]() {
+        running = true;
+        while (!release) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        blockerDone = true;
+    }, thread)();
+    while (!running) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    for (int i = 0; i < count; i++)
+        MakeDelegate([&]() { counter++; }, thread)();
+}
+
+// DRAIN (default): every message queued before ExitThread() runs.
+static void ExitPolicy_Drain_RunsQueuedMessages()
+{
+    Thread thread("ExitDrainThread");
+    thread.CreateThread();
+    std::atomic<bool> running{ false }, release{ false }, blockerDone{ false };
+    std::atomic<int> counter{ 0 };
+    QueueBehindBlocker(thread, running, release, blockerDone, counter, 5);
+
+    // ExitThread() joins, so release the blocker from another thread
+    std::thread releaser([&]() { std::this_thread::sleep_for(std::chrono::milliseconds(20)); release = true; });
+    thread.ExitThread();  // ExitPolicy::DRAIN
+    releaser.join();
+
+    DMQ_ASSERT_TRUE(blockerDone);
+    DMQ_ASSERT_TRUE(counter == 5);
+    std::cout << "ExitPolicy_Drain_RunsQueuedMessages() complete!" << std::endl;
+}
+
+// DISCARD: the running message finishes; queued messages never run.
+static void ExitPolicy_Discard_SkipsQueuedMessages()
+{
+    Thread thread("ExitDiscardThread");
+    thread.CreateThread();
+    std::atomic<bool> running{ false }, release{ false }, blockerDone{ false };
+    std::atomic<int> counter{ 0 };
+    QueueBehindBlocker(thread, running, release, blockerDone, counter, 5);
+
+    std::thread releaser([&]() { std::this_thread::sleep_for(std::chrono::milliseconds(20)); release = true; });
+    thread.ExitThread(ExitPolicy::DISCARD);
+    releaser.join();
+
+    DMQ_ASSERT_TRUE(blockerDone);
+    DMQ_ASSERT_TRUE(counter == 0);
+    std::cout << "ExitPolicy_Discard_SkipsQueuedMessages() complete!" << std::endl;
+}
+
+// DISCARD: a sender blocked on a discarded message (WAIT_INFINITE) is released
+// promptly and sees the call fail, instead of waiting forever.
+static void ExitPolicy_Discard_ReleasesBlockedSender()
+{
+    Thread thread("ExitDiscardWaitThread");
+    thread.CreateThread();
+    std::atomic<bool> running{ false }, release{ false }, blockerDone{ false };
+    std::atomic<int> counter{ 0 };
+    QueueBehindBlocker(thread, running, release, blockerDone, counter, 0);
+
+    // A blocking call queued behind the blocker
+    std::atomic<bool> invoked{ false };
+    auto blockingCall = MakeDelegate(std::function<int()>([&]() { invoked = true; return 42; }), thread, WAIT_INFINITE);
+    auto sender = std::async(std::launch::async, [&]() { return blockingCall.AsyncInvoke(); });
+    while (thread.GetQueueSize() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    std::thread releaser([&]() { std::this_thread::sleep_for(std::chrono::milliseconds(20)); release = true; });
+    thread.ExitThread(ExitPolicy::DISCARD);
+    releaser.join();
+
+    DMQ_ASSERT_TRUE(sender.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+    auto result = sender.get();
+    DMQ_ASSERT_TRUE(!result.has_value());
+    DMQ_ASSERT_TRUE(!invoked);
+    std::cout << "ExitPolicy_Discard_ReleasesBlockedSender() complete!" << std::endl;
+}
+#endif // desktop ports
+
 void DelegateThreadsTests()
 {
     workerThread1.CreateThread();
@@ -563,4 +835,20 @@ void DelegateThreadsTests()
     workerThread2.ExitThread();
 
     ThreadFullPolicyTests();
+
+#if !defined(DMQ_THREAD_NONE)
+    Hooks_StartAndExitRunOnThreadInOrder();
+    Hooks_ExitRunsOnSelfExit();
+    Hooks_IdleFiresOnlyWhenQuiet();
+    Hooks_GetCurrent();
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    Hooks_CurrentThreadScope();
+#endif
+#endif
+
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    ExitPolicy_Drain_RunsQueuedMessages();
+    ExitPolicy_Discard_SkipsQueuedMessages();
+    ExitPolicy_Discard_ReleasesBlockedSender();
+#endif
 }

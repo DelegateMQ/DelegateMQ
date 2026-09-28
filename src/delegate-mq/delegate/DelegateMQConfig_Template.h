@@ -13,6 +13,10 @@
 /// Timeout (seconds) used by the TIMEOUT queue-full policy on all threads.
 #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2
 
+/// Default quiet time (milliseconds) before a Thread's idle handler runs, and
+/// between calls while the queue stays empty. See Thread::SetIdleHandler().
+#define DMQ_THREAD_IDLE_INTERVAL        100
+
 /// Max timers processed in one tick without heap allocation.
 #define DMQ_MAX_TIMER_EXPIRED           16
 
@@ -33,6 +37,11 @@
 
 /// Max number of threads that can be registered with the watchdog.
 #define DMQ_MAX_WATCHDOG_THREADS        16
+
+/// Max threads registered for dmq::ThisThread::GetCurrent() at once on RTOS ports
+/// (one per running dmq::os::Thread or custom IThread worker). Exceeding it faults.
+/// Unused on desktop ports, which use thread_local storage.
+#define DMQ_MAX_CURRENT_THREADS         16
 
 /// Duplicate-detection ring buffer depth per remote Participant.
 /// Larger values catch more out-of-order duplicates; reduce on RAM-constrained targets.

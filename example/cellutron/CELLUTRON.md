@@ -44,6 +44,12 @@ The Cellutron system is cross-platform and supports both **Windows** and **Linux
     ```bash
     python3 run_cellutron.py --threadx
     ```
+    To plot live telemetry (centrifuge speed, RPM, pressures) in [PlotJuggler](https://github.com/facontidavide/PlotJuggler), start PlotJuggler's UDP Server on port 9870 (protocol JSON), then:
+    ```bash
+    python3 run_cellutron.py --plotjuggler
+    ```
+    This passes `--plotjuggler` to the script's own `dmq-spy`, which forwards numeric values to PlotJuggler. Use this flag rather than starting a second `dmq-spy`: only one can listen on port 9999. See [Live Plots in PlotJuggler](../../tools/TOOLS.md#live-plots-in-plotjuggler).
+
     *Note: On Linux, ensure you have a terminal emulator like `gnome-terminal`, `xterm`, or `konsole` installed for multi-window simulation support.*
 
 ---

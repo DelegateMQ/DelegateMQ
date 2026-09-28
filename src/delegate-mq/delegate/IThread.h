@@ -43,6 +43,26 @@ public:
 	virtual bool IsCurrentThread() = 0;
 };
 
+/// @brief Registers `thread` as the calling thread's dmq::ThisThread::GetCurrent()
+/// for the lifetime of this object, restoring the previous value when destroyed.
+///
+/// @details An IThread implementation creates one on its worker thread at the top
+/// of its worker loop, so code running there can find the thread it runs on. A
+/// custom IThread does the same to be found by GetCurrent(). Does nothing on ports
+/// without current-thread storage (GetCurrent() then always returns nullptr).
+class CurrentThreadScope
+{
+public:
+	explicit CurrentThreadScope(IThread* thread) noexcept : m_prev(ThisThread::SetCurrent(thread)) {}
+	~CurrentThreadScope() { ThisThread::SetCurrent(m_prev); }
+
+	CurrentThreadScope(const CurrentThreadScope&) = delete;
+	CurrentThreadScope& operator=(const CurrentThreadScope&) = delete;
+
+private:
+	IThread* m_prev;
+};
+
 }
 
 #endif

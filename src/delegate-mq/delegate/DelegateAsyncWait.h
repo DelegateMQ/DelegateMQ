@@ -104,6 +104,10 @@ public:
 
     virtual ~DelegateAsyncWaitMsg() = default;
 
+    /// Release the blocked sender without invoking: its wait ends with the invoke
+    /// not succeeded (GetInvokeSucceeded() stays false), so the call reports failure.
+    void Cancel() override { m_sema.Signal(); }
+
     /// Get all function arguments 
     /// @return A tuple of all function arguments
     std::tuple<Args...>& GetArgs() { return m_args; }

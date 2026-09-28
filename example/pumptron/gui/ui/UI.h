@@ -16,6 +16,11 @@
 namespace pumptron {
 namespace gui {
 
+/// @brief Register readable DataBus::Monitor values for every Pumptron topic.
+/// Used by the UI's Bus Monitor pane and by SpyBridge (--spy). Call once at
+/// startup, before the link starts, so no early message goes unlabeled.
+void RegisterStringifiers();
+
 /// @brief FTXUI operator console.
 ///
 /// DataBus handlers run on the UI's own worker thread (FullPolicy::DROP -- a

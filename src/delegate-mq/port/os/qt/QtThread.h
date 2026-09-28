@@ -28,8 +28,11 @@
 #include <QObject>
 #include <QMutex>
 #include <QWaitCondition>
+#include <QSemaphore>
+#include <QTimer>
 #include <memory>
 #include <atomic>
+#include <optional>
 #include <string>
 
 namespace dmq::os {
@@ -37,6 +40,9 @@ namespace dmq::os {
 /// @brief Policy applied when the thread message queue is full. See dmq::FullPolicy
 /// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
 using FullPolicy = dmq::FullPolicy;
+
+/// @brief What ExitThread() does with queued messages. See dmq::ExitPolicy in DelegateOpt.h.
+using ExitPolicy = dmq::ExitPolicy;
 
 // ----------------------------------------------------------------------------
 // Worker Object
@@ -50,6 +56,18 @@ public:
     Worker(QtThread* thread = nullptr) : m_thread(thread) {}
     void ClearThread() { m_thread = nullptr; }
 
+    /// Start the idle countdown. Must be called on the worker's thread.
+    void StartIdleTimer(const dmq::UnicastDelegate<void()>& handler, dmq::Duration interval);
+
+    /// Register `thread` for dmq::ThisThread::GetCurrent() until EndCurrentScope().
+    /// Both must be called on the worker's thread.
+    void BeginCurrentScope(dmq::IThread* thread) { m_currentScope.emplace(thread); }
+    void EndCurrentScope() { m_currentScope.reset(); }
+
+    /// ExitPolicy::DISCARD: cancel messages instead of invoking them. Set by
+    /// ExitThread() from any thread before it queues the event loop's quit.
+    void SetDiscard(bool discard) { m_discard.store(discard); }
+
 public slots:
     void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg);
 
@@ -58,6 +76,16 @@ signals:
 
 private:
     QtThread* m_thread;
+
+    // Idle handler copy and its single-shot timer, restarted by every message.
+    // Created on the worker's thread by StartIdleTimer(); null if no idle handler.
+    dmq::UnicastDelegate<void()> m_idleHandler;
+    QTimer* m_idleTimer = nullptr;
+
+    // Held for the life of the event loop: a Qt worker has no loop stack frame
+    std::optional<dmq::CurrentThreadScope> m_currentScope;
+
+    std::atomic<bool> m_discard{ false };
 };
 
 class QtThread : public QObject, public dmq::IThread
@@ -109,8 +137,12 @@ public:
     /// @return TRUE if thread is created. FALSE otherwise.
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
 
-    /// Stop the QThread
-    void ExitThread();
+    /// Shut down the worker thread.
+    /// @param[in] policy - DRAIN (default) invokes every message queued before this
+    ///   call first; DISCARD invokes only the message already running and cancels
+    ///   the rest (see dmq::ExitPolicy). Called from the thread's own message
+    ///   handler (a self-exit), queued messages are always discarded.
+    void ExitThread(ExitPolicy policy = ExitPolicy::DRAIN);
 
     /// Get the QThread pointer (used as the ID)
     QThread* GetThreadId();
@@ -140,6 +172,50 @@ public:
     /// thread, with the queue depth at the time of the drop.
     void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
     void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
+
+    /// @brief Register a handler invoked on the worker thread before it processes
+    /// any message. Use it for per-thread setup (COM, a language runtime attach,
+    /// thread-local state, affinity). CreateThread() returns only after it completes.
+    /// @details Must be called while the thread is not running (before CreateThread(),
+    /// or after ExitThread()); calling it on a running thread faults. It runs again
+    /// on each CreateThread(). Messages dispatched meanwhile are queued, not lost.
+    void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(!m_thread); m_startHandler = handler; }
+    void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(!m_thread); m_startHandler = std::move(handler); }
+
+    /// @brief Register a handler invoked on the worker thread after it processes
+    /// its last message, as the thread exits. Use it to undo SetStartHandler() setup.
+    /// @details Must be called while the thread is not running; calling it on a
+    /// running thread faults. The handler is copied when the thread starts.
+    /// ExitThread() from another thread returns after it completes. If the thread
+    /// exits itself (ExitThread() from a handler on this thread), it runs after the
+    /// owning QtThread may already be destroyed, so it must not touch that object.
+    void SetExitHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(!m_thread); m_exitHandler = handler; }
+    void SetExitHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(!m_thread); m_exitHandler = std::move(handler); }
+
+    /// @brief Register a handler invoked on the worker thread when its queue has
+    /// been empty for `interval`, then again every `interval` while it stays empty.
+    /// Any message processed restarts the countdown. Use it for background work that
+    /// should yield to messages: polling, housekeeping, entering low power.
+    /// @details Must be called while the thread is not running; calling it on a
+    /// running thread faults. The handler and interval are copied when the thread
+    /// starts. Not called once ExitThread() has been requested.
+    /// @param[in] handler - the idle handler, or an empty delegate to disable.
+    /// @param[in] interval - quiet time before each call. Must be greater than zero.
+    ///                       Defaults to dmq::THREAD_IDLE_INTERVAL (DMQ_THREAD_IDLE_INTERVAL).
+    void SetIdleHandler(const dmq::UnicastDelegate<void()>& handler, dmq::Duration interval = dmq::THREAD_IDLE_INTERVAL)
+    {
+        DMQ_ASSERT_TRUE(!m_thread);
+        DMQ_ASSERT_TRUE(interval > dmq::Duration::zero());
+        m_idleHandler = handler;
+        m_idleInterval = interval;
+    }
+    void SetIdleHandler(dmq::UnicastDelegate<void()>&& handler, dmq::Duration interval = dmq::THREAD_IDLE_INTERVAL)
+    {
+        DMQ_ASSERT_TRUE(!m_thread);
+        DMQ_ASSERT_TRUE(interval > dmq::Duration::zero());
+        m_idleHandler = std::move(handler);
+        m_idleInterval = interval;
+    }
 
     /// @brief Manually update the watchdog alive timestamp.
     /// @details The Run() loop refreshes the timestamp automatically on every iteration.
@@ -192,8 +268,21 @@ private:
     QMutex m_mutex;
     QWaitCondition m_cvNotFull;
 
+    // Released on the worker thread once the start handler has run
+    QSemaphore m_startSem;
+
+    // Set by ExitThread(): DispatchDelegate() rejects new messages, which would
+    // otherwise queue behind the event loop's quit and never run
+    std::atomic<bool> m_exiting{ false };
+
     // Optional handler invoked when a message is dropped (FullPolicy::DROP or TIMEOUT)
     dmq::UnicastDelegate<void(size_t)> m_droppedHandler;
+
+    // Optional handlers invoked on the worker thread at start, exit and when idle
+    dmq::UnicastDelegate<void()> m_startHandler;
+    dmq::UnicastDelegate<void()> m_exitHandler;
+    dmq::UnicastDelegate<void()> m_idleHandler;
+    dmq::Duration m_idleInterval = dmq::Duration::zero();
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;

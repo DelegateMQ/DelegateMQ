@@ -65,7 +65,7 @@ add_executable(dmq-monitor
 )
 target_include_directories(dmq-monitor PRIVATE
     ${COMMON_INCLUDES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/bridge"
+    "${CMAKE_CURRENT_SOURCE_DIR}/bridge/node"
 )
 target_link_libraries(dmq-monitor PRIVATE
     ftxui::screen
@@ -81,7 +81,7 @@ add_executable(dmq-thread
 )
 target_include_directories(dmq-thread PRIVATE
     ${COMMON_INCLUDES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/bridge"
+    "${CMAKE_CURRENT_SOURCE_DIR}/bridge/node"
 )
 target_link_libraries(dmq-thread PRIVATE
     ftxui::screen
@@ -92,14 +92,15 @@ target_link_libraries(dmq-thread PRIVATE
 # --- dmq-target (test source app) ---
 add_executable(dmq-target
     apps/target.cpp
-    bridge/SpyBridge.cpp
-    bridge/NodeBridge.cpp
+    bridge/spy/SpyBridge.cpp
+    bridge/node/NodeBridge.cpp
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
 )
 target_include_directories(dmq-target PRIVATE
     ${COMMON_INCLUDES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/bridge"
+    "${CMAKE_CURRENT_SOURCE_DIR}/bridge/spy"
+    "${CMAKE_CURRENT_SOURCE_DIR}/bridge/node"
 )
 target_link_libraries(dmq-target PRIVATE spdlog::spdlog)
 

@@ -7,7 +7,50 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
-## [Unreleased]
+## [2.1.0] - 2026-09-28
+
+### Upgrading to 2.1.0
+Check these before upgrading; each can change the behavior of an existing application. Details are in the Changed and Added entries below.
+
+1. **`ExitThread()` now runs queued messages first (all ports except stdlib).** Win32, POSIX, Qt, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2 and NuttX previously skipped messages still queued at `ExitThread()`; they now invoke them first (`ExitPolicy::DRAIN`, as stdlib always did). This compiles unchanged but runs differently at shutdown. If an application destroys objects before calling `ExitThread()`, a queued message could now run against a destroyed object. Either call `ExitThread()` before destroying what its messages target, or pass `ExitThread(dmq::ExitPolicy::DISCARD)` to keep the old skip-pending behavior.
+2. **RTOS ports fault above 16 concurrent threads.** `dmq::ThisThread::GetCurrent()` registers every running `dmq::os::Thread` in a fixed table on FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2 and NuttX. An application with more than 16 running at once faults when the 17th thread starts; raise `DMQ_MAX_CURRENT_THREADS` in your `DelegateMQConfig.h`. Desktop ports are unaffected.
+3. **Interop C API (source and binary break).** Code calling `DmqInterop.dll` directly must pass `uint16_t* seqNum` to `DmqInterop_Send()` and add a `void* context` first parameter to every callback, registered with `DmqInterop_Register*(..., context)`. The Python and C# wrappers are already updated; their `send()` now returns the sequence number.
+4. **`tools/bridge` source paths.** Projects that compile `SpyBridge.cpp` or `NodeBridge.cpp` must use `tools/bridge/spy/` and `tools/bridge/node/` and add those plus `tools/net` to their include directories. `#include` lines are unchanged.
+5. **Tools bind UDP ports exclusively.** A second `dmq-spy`, `dmq-monitor` or `dmq-thread` on the same port now exits with an error instead of silently receiving nothing. Pass `--multicast` where several listeners must share a port.
+
+Custom `IThread` implementations need no changes. Two optional additions: create a `dmq::CurrentThreadScope` in the worker loop so `ThisThread::GetCurrent()` finds the thread, and call `DelegateMsg::Cancel()` on any queued message the thread drops so a blocked sender is released (see [PORTING.md](docs/PORTING.md#dmqexitpolicy-shutdown)).
+
+### Added
+- **Pumptron example** (`example/pumptron/`) — pump controller on a real STM32F4 Discovery (FreeRTOS) or the FreeRTOS simulator, with an FTXUI console over a serial DataBus link. Includes end-to-end error handling, an IWDG hardware watchdog, and crash dumps kept in `.noinit` RAM and delivered to the console on the next boot.
+- **`dmq-spy` command-line modes** — `--echo`, `--hz`, `--bw` print to stdout for SSH sessions and pipelines. `--bw` measures Spy-feed bytes, not transport bytes.
+- **`dmq-spy --log-format text|csv|json`** — CSV and JSON Lines records carry both host and source timestamps.
+- **`dmq-spy --plotjuggler`** — streams numeric values to PlotJuggler's UDP Server for live plots. `run_cellutron.py --plotjuggler` passes it through.
+- **Pumptron `--spy`** — the GUI mirrors its DataBus, including all traffic received from the controller over serial, to `dmq-spy` (and PlotJuggler). `run_pumptron.py --spy` / `--plotjuggler`.
+- **JSON bridges** — `tools/bridge/common/JsonTopics`, a shared layer where an application declares once which DataBus topics to expose as JSON (`Expose<T>`) and which commands to accept (`Accept<T>`); each bridge serves that same set. First bridge: **MQTT gateway** (`tools/bridge/mqtt/MqttBridge`) — per-topic MQTT topics with JSON payloads, opt-in inbound commands (`<topic>/set`), retained state re-published on reconnect, `<prefix>/online` Last Will and background reconnect. `MqttBridge.cmake` builds Paho MQTT C from the workspace. New `example/sample-projects/databus-mqtt-gateway` demo; Pumptron `--mqtt` / `--mqtt-control` puts the pump on a broker.
+- **Wireshark dissector** (`tools/wireshark/dmq.lua`) — decodes the DelegateMQ header on UDP/TCP, flags ACKs and malformed frames, and labels remote IDs from a per-project topic table (Cellutron example included).
+- **Interop reliable sends** — `DmqInterop.dll` now uses the `ReliableTransport`/`RetryMonitor`/`TransportMonitor` stack (retry on by default). New `DmqInterop_SetReliability()` and `DmqInterop_RegisterStatusCallback()` (`ACKED`/`TIMEOUT`/`DELIVERY_FAILED` per sequence number). Python and C# wrappers expose both.
+- **`Stm32UartTransport::OnRxError()`** — ISR-safe recovery after a UART error aborts interrupt-driven reception.
+- **`DelegateMQ.cmake` cross-compiled FreeRTOS support** — caller-selected `FREERTOS_PORT_DIR`/`FREERTOS_HEAP` (e.g. `GCC/ARM_CM4F`).
+- **Thread start, exit and idle handlers** — every `dmq::os::Thread` port gains `SetStartHandler()`, `SetExitHandler()` and `SetIdleHandler()`, run on the worker thread: before the first message (`CreateThread()` returns after it), after the last message (`ExitThread()` returns after it), and when the queue has been empty for an interval (`DMQ_THREAD_IDLE_INTERVAL`, default 100 ms). Setters fault if the thread is running. See [PORTING.md](docs/PORTING.md#start-exit-and-idle-handlers).
+- **`dmq::ThisThread::GetCurrent()`** — returns the `IThread` whose worker is the calling thread, or `nullptr`. Every `dmq::os::Thread` port registers its worker; a custom `IThread` registers with `dmq::CurrentThreadScope`. Desktop ports use `thread_local`; RTOS ports use a fixed registry sized by `DMQ_MAX_CURRENT_THREADS` (default 16; exceeding it faults). New `ReplyToCaller` sample shows an async service replying on the requesting thread. See [PORTING.md](docs/PORTING.md#current-thread), including ISR limitations on ThreadX, CMSIS-RTOS2 and non-ARM FreeRTOS.
+- **`dmq::ExitPolicy`** — `ExitThread(ExitPolicy::DRAIN)` (default) invokes every queued message before exiting; `ExitThread(ExitPolicy::DISCARD)` finishes only the running message. See [PORTING.md](docs/PORTING.md#dmqexitpolicy-shutdown).
+- **`DelegateMsg::Cancel()`** — a thread that discards a queued message calls it; an async-wait sender blocked on the message is released and sees the call fail.
+
+### Changed
+- **`ExitThread()` drains the queue on every port (behavior change)** — previously only stdlib ran messages still queued at `ExitThread()`; Win32 and POSIX skipped pending normal-priority messages, the RTOS ports stopped as soon as exit was requested, and Qt dropped pending events. All ports now default to `ExitPolicy::DRAIN`, so queued messages run during shutdown: call `ExitThread()` before destroying objects they target, or pass `ExitPolicy::DISCARD` for the old skip-pending behavior.
+- **`dmq::ThisThread` is defined per port** — each `port/os/<os>/<Os>ThisThread.h` is now the complete type (new `port/os/stdlib/StdlibThisThread.h` for the desktop ports) and `DelegateOpt.h` aliases it. `sleep_for()` accepts any `std::chrono::duration` on every port.
+- **Interop C API (breaking)** — `DmqInterop_Send()` takes a `uint16_t* seqNum` out parameter; every callback now receives a caller-supplied `void* context` as its first argument (registered with `DmqInterop_Register*(..., context)`); the error callback is `(context, code, remoteId, msg)` with `DmqErrorCode` values. Python/C# `send()` return the sequence number.
+- **Tools bind UDP ports exclusively** unless `--multicast` is given, and open sockets before the TUI starts: a second `dmq-spy`/`dmq-monitor`/`dmq-thread` on a busy port now exits with an error instead of silently receiving nothing.
+- **Unknown `dmq-spy` options are rejected** (previously ignored).
+- **`tools/bridge` reorganized into subdirectories (breaking paths)** — `spy/` (`SpyBridge`), `node/` (`NodeBridge`, `NodeInfoPacket.h`), `mqtt/` (`MqttBridge`), `common/` (shared JSON layer). Projects that add `tools/bridge/SpyBridge.cpp` or `tools/bridge/NodeBridge.cpp` must use the new paths and include directories (`tools/bridge/spy`, `tools/bridge/node`, plus `tools/net`); header names and `#include "SpyBridge.h"` are unchanged. All in-repo examples and samples are updated (the DataBus samples' stale `tools/src` include is also corrected to `tools/net`).
+
+### Fixed
+- **RTOS threads could not be restarted** — on FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2 and NuttX, `CreateThread()` after `ExitThread()` started a worker that exited immediately; the exit flag is now reset.
+- **Blocked senders hung on messages dropped at thread exit** — an async-wait caller (e.g. `WAIT_INFINITE`) whose message was still queued when its thread exited waited out its full timeout. Dropped messages are now canceled, releasing the caller with a failure.
+- **Interop sends were never tracked** — since transports stopped calling `TransportMonitor::Add()`, the DLL's monitor was inert and ACKs on the send socket were never read, so Python/C# sends had no delivery feedback or retry.
+- **Interop C# callbacks could terminate the process** — an exception (e.g. MessagePack deserialization) escaping a native callback now reports `DMQ_ERR_CALLBACK` instead. Python callback exceptions are reported the same way instead of being discarded.
+- **`ThreadMonitor` failed to compile in embedded DataBus builds** with tools disabled; now gated on `DMQ_DATABUS_TOOLS`.
+- **`dmq-spy` log lost its tail** when the window was closed; logs now flush every second.
 
 ## [2.0.4] - 2026-09-20
 

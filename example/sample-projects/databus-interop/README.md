@@ -67,7 +67,7 @@ sends.
 
 ### 3. Run the C# client
 
-**Prerequisites:** .NET 8 SDK.
+**Prerequisites:** .NET 10 SDK, and the native interop DLL built first (`interop/native`, see [INTEROP.md](../../../docs/INTEROP.md)); the project copies it next to the executable.
 
 ```bash
 cd example/sample-projects/databus-interop/csharp-client

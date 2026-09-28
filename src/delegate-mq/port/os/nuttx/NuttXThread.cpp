@@ -5,6 +5,7 @@
 #include "DelegateMQ.h"
 #include "NuttXThread.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
 #include <cstring> // for memset
@@ -33,6 +34,8 @@ NuttXThread::NuttXThread(const char* threadName, size_t maxQueueSize, FullPolicy
     m_priority = 100; // Default SCHED_FIFO priority (NuttX default range is typically 1-255)
 
     sem_init(&m_exitSem, 0, 0);
+    sem_init(&m_goSem, 0, 0);
+    sem_init(&m_startSem, 0, 0);
 
 #if defined(DMQ_DATABUS_TOOLS)
     pthread_mutex_init(&m_statMutex, nullptr);
@@ -47,6 +50,8 @@ NuttXThread::~NuttXThread()
     ExitThread();
 
     sem_destroy(&m_exitSem);
+    sem_destroy(&m_goSem);
+    sem_destroy(&m_startSem);
 
 #if defined(DMQ_DATABUS_TOOLS)
     pthread_mutex_destroy(&m_statMutex);
@@ -73,6 +78,10 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     if (!m_created.load())
     {
+        // Reset from a previous ExitThread(), so the thread can be created again
+        m_exit.store(false);
+        m_discard.store(false);
+
         // 1. Create the message queue
         DMQ_ASSERT_TRUE(m_queue.Create(m_queueSize));
 
@@ -96,6 +105,12 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // extension); harmless no-op if unsupported on a given configuration.
         pthread_setname_np(m_thread, THREAD_NAME.c_str());
 #endif
+
+        // pthread_create() stores m_thread only after the (SCHED_FIFO, possibly
+        // higher priority) thread may already be running: release Run() to the
+        // start handler now, then wait for it to complete.
+        sem_post(&m_goSem);
+        sem_wait(&m_startSem);
 
         m_created.store(true);
         m_lastAliveTime.store(Timer::GetNow());
@@ -132,10 +147,12 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void NuttXThread::ExitThread()
+void NuttXThread::ExitThread(ExitPolicy policy)
 {
     if (m_created.load())
     {
+        // Set before m_exit: Run() reads it for every message ahead of the exit message
+        m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
@@ -387,8 +404,27 @@ void NuttXThread::Run()
     bool selfExit = false;
     m_selfExitPtr = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    // Wait for CreateThread() to store m_thread (see CreateThread())
+    sem_wait(&m_goSem);
+
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Reset
+    // before the exit handler runs (and destroyed before exitGuard on a
+    // self-exit), so the exit handler sees nullptr.
+    std::optional<dmq::CurrentThreadScope> currentScope;
+    currentScope.emplace(this);
+
+    if (m_startHandler)
+        m_startHandler();
+
+    sem_post(&m_startSem);
+
     ThreadMsg* msg = nullptr;
-    while (!selfExit && !m_exit.load())
+    while (!selfExit)
     {
         dmq::Duration watchdogTimeout;
         {
@@ -397,7 +433,8 @@ void NuttXThread::Run()
         }
 
         // If watchdog active, use a finite timeout so we can periodically update
-        // m_lastAliveTime while idle. Otherwise, block forever to save power.
+        // m_lastAliveTime while idle. If an idle handler is set, wake no later
+        // than when it is due. Otherwise, block forever to save power.
         dmq::Duration waitOption = NuttXDelegateQueue::WAIT_FOREVER;
         if (watchdogTimeout.count() > 0)
         {
@@ -405,13 +442,30 @@ void NuttXThread::Run()
             if (waitOption <= dmq::Duration::zero())
                 waitOption = std::chrono::duration_cast<dmq::Duration>(std::chrono::milliseconds(1));
         }
+        if (idle.Enabled())
+            waitOption = idle.WaitTime(watchdogTimeout.count() > 0 ? waitOption : dmq::Duration(-1));
 
         // Block for a message or timeout
         msg = m_queue.Receive(waitOption);
-        if (msg != nullptr)
+        if (msg == nullptr)
+        {
+            // Exit requested but no exit message arrived (e.g. it could not be allocated)
+            if (m_exit.load())
+                break;
+
+            // Timed out with the queue empty: run the idle handler if it is due
+            if (idle.IsDue())
+                idle.Run();
+        }
+        else
         {
             int msgId = msg->GetId();
-            if (msgId == MSG_DISPATCH_DELEGATE)
+            if (msgId == MSG_DISPATCH_DELEGATE && m_discard.load())
+            {
+                // ExitPolicy::DISCARD: skip messages queued ahead of the exit message
+                CancelThreadMsg(*msg);
+            }
+            else if (msgId == MSG_DISPATCH_DELEGATE)
             {
 #if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking
@@ -489,8 +543,15 @@ void NuttXThread::Run()
             if (msgId == MSG_EXIT_THREAD) {
                 break;
             }
+
+            // Any message restarts the idle countdown
+            idle.Restart();
         }
     }
+
+    // Run the exit handler before signalling ExitThread(), so it returns only after it
+    currentScope.reset();
+    exitGuard.Fire();
 
     // Signal that we are about to exit
     sem_post(&m_exitSem);

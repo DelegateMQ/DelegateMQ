@@ -19,13 +19,23 @@ DelegateMQ is a modular C++ messaging library with a header-only core. It provid
 * **DataBus (DDS Lite):** Topic-based publish/subscribe with thread-safe async data distribution.
 * **Remote:** Inter-process (IPC) and inter-processor communication over any transport.
 
-The library is unit-tested, built for portability (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.
+The library is lightweight, unit-tested, and ships as full source code under the MIT license. It scales from PC applications down to small RTOS and bare-metal microcontrollers (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.
 
 # Motivation
 
-Applications typically use one mechanism for callbacks, another for inter-thread messaging, and a third for inter-processor communication — each with its own API and data-passing rules. Yet all three solve the same underlying problem: move argument data to a target function and invoke it.
+Applications typically use one mechanism for callbacks, another for inter-thread messaging, and a third for inter-processor communication. Each brings its own API and data-passing rules, plus the hand-written queues, mutexes and message-packing code to go with it. Yet all three solve the same problem: move argument data to a target function and invoke it.
 
-DelegateMQ unifies them in a single library. Bind a delegate to any callable — free function, method, or lambda — and invoke it synchronously, on another thread, or on another processor. The library handles the copying, marshalling, and dispatch; the call site stays the same.
+DelegateMQ unifies them in a single library. Bind a delegate to any callable (free function, method or lambda) and invoke it synchronously, on another thread, or on another processor. The library handles the copying, marshalling and dispatch; the calling code stays the same. The DataBus applies the same idea to data: publishers and subscribers don't need to know whether the other side is on the same thread or a different CPU.
+
+# Library
+
+DelegateMQ is layered: a header-only core, plus optional components you enable only if you need them.
+
+| Component | Description |
+| --- | --- |
+| **Delegate Core** | Header-only. Synchronous delegates with no OS required, asynchronous delegates for cross-thread calls, and signals for async signalling. |
+| **RPC** | Remote function calls between processes and processors, over any transport and serializer. |
+| **DataBus** | Topic-based publish/subscribe across threads, processes and processors, with quality-of-service options. |
 
 # Advantages
 
@@ -42,13 +52,29 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, and transport integrations are available out of the box. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
 
 | Category | Supported |
 | :--- | :--- |
 | **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer |
+| **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
+
+# Example Use Cases
+
+- Async callback between a subsystem and the UI
+- Data passed between threads using Signals
+- Local and remote data distribution between threads and CPUs over Ethernet, serial, or both
+- Embedded development on a PC, with the same code running on the target via OS and transport abstraction
+- Blocking call into a worker thread with a timeout, returning its result
+- Thread-safe wrapper around a non-thread-safe library (database, HTTP client, file system)
+- Periodic tasks driven by timers, dispatched onto worker threads
+- Watchdog detection of hung or starved threads
+- Remote procedure calls between processes or processors
+- C# or Python tools commanding and monitoring an embedded device
+- Bridging device data to MQTT as JSON, for dashboards and IoT platforms
+- On-target integration tests that call internal functions on their own threads
 
 # Getting Started
 
@@ -277,13 +303,22 @@ private:
 
 # DelegateMQ Tools
 
-DelegateMQ includes three diagnostic TUI (Terminal User Interface) consoles for real-time monitoring of DataBus traffic, network topology, and thread performance. Monitoring runs through an asynchronous bridge and never blocks the application. Built with FTXUI, the consoles run cross-platform in any terminal and support regex filtering for traffic analysis:
+DelegateMQ includes three diagnostic TUI (Terminal User Interface) consoles for real-time monitoring of DataBus traffic, network topology, and thread performance. Monitoring runs through an asynchronous bridge and never blocks the application. Built with FTXUI, the consoles run cross-platform in any terminal and support topic filtering for traffic analysis:
 
 | Tool | Purpose |
 |------|---------|
 | **`dmq-spy`** | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
 | **`dmq-monitor`** | Live network topology view — shows all active nodes, status, uptime, and published topics |
 | **`dmq-thread`** | Performance dashboard — monitors thread health, queue depths, and dispatch latency (Avg/Max) |
+
+The tools also integrate with two popular third-party analyzers:
+
+| Integration | Purpose |
+|-------------|---------|
+| **Wireshark** | A Lua dissector plugin (`tools/wireshark/dmq.lua`) decodes DelegateMQ UDP/TCP traffic in [Wireshark](https://www.wireshark.org/): header fields, ACKs, and per-project topic labels, with Wireshark's filters and statistics |
+| **PlotJuggler** | `dmq-spy --plotjuggler` streams numeric DataBus values to [PlotJuggler](https://github.com/facontidavide/PlotJuggler) for live time-series plots |
+
+See [Tools](tools/TOOLS.md) for setup and usage.
 
 <img src="docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;">
 
@@ -328,7 +363,7 @@ DelegateMQ at a glance.
 | [**Design Details**](docs/DETAILS.md) | Deep technical architecture | API Reference |
 | [**Porting Guide**](docs/PORTING.md) | OS & Hardware abstraction | Platform Support |
 | [**Interop**](docs/INTEROP.md) | Multi-language integration | C# & Python |
-| [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards | Spy & Monitor |
+| [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards and integrations | Spy, Monitor, Wireshark, PlotJuggler |
 | [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
 | [**Safety Notes**](docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
 
@@ -338,7 +373,7 @@ The [`example`](example/README.md) directory ranges from single-file snippets to
 
 | Example | Description | Docs |
 | :--- | :--- | :--- |
-| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README](example/sample-projects/README.md) |
+| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README.md](example/sample-projects/README.md) |
 | **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
 | **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
 
