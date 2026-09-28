@@ -31,6 +31,7 @@
 #include "DelegateMQ.h"
 #include "SafeTimer.h"
 #include "AsyncCallback.h"
+#include "ReplyToCaller.h"
 #include "AsyncWorker.h"
 #include "SignalSlot.h"
 #include "SignalSlotNoHeap.h"
@@ -498,6 +499,9 @@ void RunAllExamples()
 
     // Run asynchronous callbacks using delegates example
     AsyncCallbackExample();
+
+    // Run reply-to-caller example (completions on the requesting thread)
+    ReplyToCallerExample();
 
     // Run signal-slot example
     RunSignalSlotExamples();
