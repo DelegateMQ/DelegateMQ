@@ -139,6 +139,20 @@ Files under `port/transport/` and `port/os/` that are **desktop-only** (ZeroMQ, 
 
 **`extras/`** (DataBus, utils, dispatcher, allocator) is shared across all targets and must always follow the rules.
 
+**`tools/`** (the diagnostic consoles, `tools/bridge/*`, the Wireshark dissector) is desktop-only diagnostic and integration code, not library code, and may use `std::` primitives. Code that must run on an MCU belongs in a port or in `extras/` and follows the full rules.
+
+## Tools Bridges
+
+- `tools/bridge/` is split by purpose: `common/` (shared JSON layer: `JsonTopics`, `BridgeJson.h`), `spy/` (`SpyBridge`), `node/` (`NodeBridge`), `mqtt/` (`MqttBridge`). Put a new bridge in its own `tools/bridge/<name>/` with a `<Name>Bridge.cmake` helper (`dmq_add_<name>_bridge(target)`), following `mqtt/MqttBridge.cmake`.
+- **JSON bridges are `JsonTopics::ISink`s.** Applications declare their JSON view once with `JsonTopics::Expose<T>()` / `Accept<T>()`; a bridge serves whatever is registered and must not grow its own per-topic Publish/Subscribe API.
+- A bridge sends on its own thread (`FullPolicy::DROP`, drops reported rate-limited), so a slow peer can't hold up the JsonTopics thread or other bridges. It must not queue sends while disconnected; replay `JsonTopics::LatchedValues()` on (re)connect instead, after marking itself connected, so the newest value always goes out last.
+- Inbound commands go to `JsonTopics::Inbound()` directly on the bridge's receive thread, never through the DROP send queue, so a command can't be dropped behind outbound traffic.
+- Report through `JsonTopics::OnEvent()`, prefixed with the bridge name (e.g. `"MQTT: "`).
+
+## Interop Layer
+
+`interop/native` (`DmqInterop` C API), `interop/python`, `interop/csharp` and the interop samples (`example/sample-interop`, `example/sample-projects/databus-interop`) ship together: a C API change must update both wrappers and all interop samples in the same change. Cross-language messages use MessagePack (`MSGPACK_DEFINE`).
+
 ## Portable Abstractions
 
 Always use the dmq-provided portable types — never raw OS or std primitives in library code:

@@ -27,6 +27,16 @@ Applications typically use one mechanism for callbacks, another for inter-thread
 
 DelegateMQ unifies them in a single library. Bind a delegate to any callable (free function, method or lambda) and invoke it synchronously, on another thread, or on another processor. The library handles the copying, marshalling and dispatch; the calling code stays the same. The DataBus applies the same idea to data: publishers and subscribers don't need to know whether the other side is on the same thread or a different CPU.
 
+# Library
+
+DelegateMQ is layered: a header-only core, plus optional components you enable only if you need them.
+
+| Component | Description |
+| --- | --- |
+| **Delegate Core** | Header-only. Synchronous delegates with no OS required, asynchronous delegates for cross-thread calls, and signals for async signalling. |
+| **RPC** | Remote function calls between processes and processors, over any transport and serializer. |
+| **DataBus** | Topic-based publish/subscribe across threads, processes and processors, with quality-of-service options. |
+
 # Advantages
 
 Why choose DelegateMQ over a callback, signal/slot, or messaging library.
@@ -50,6 +60,21 @@ Numerous platform, serialization, transport, and tool integrations are available
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer |
 | **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
+
+# Example Use Cases
+
+- Async callback between a subsystem and the UI
+- Data passed between threads using Signals
+- Local and remote data distribution between threads and CPUs over Ethernet, serial, or both
+- Embedded development on a PC, with the same code running on the target via OS and transport abstraction
+- Blocking call into a worker thread with a timeout, returning its result
+- Thread-safe wrapper around a non-thread-safe library (database, HTTP client, file system)
+- Periodic tasks driven by timers, dispatched onto worker threads
+- Watchdog detection of hung or starved threads
+- Remote procedure calls between processes or processors
+- C# or Python tools commanding and monitoring an embedded device
+- Bridging device data to MQTT as JSON, for dashboards and IoT platforms
+- On-target integration tests that call internal functions on their own threads
 
 # Getting Started
 
@@ -75,21 +100,6 @@ build\delegate_app\Debug\delegate_app.exe
 # Linux
 ./build/delegate_app/delegate_app
 ```
-
-# Example Use Cases
-
-- Async callback between a subsystem and the UI
-- Data passed between threads using Signals
-- Local and remote data distribution between threads and CPUs over Ethernet, serial, or both
-- Embedded development on a PC, with the same code running on the target via OS and transport abstraction
-- Blocking call into a worker thread with a timeout, returning its result
-- Thread-safe wrapper around a non-thread-safe library (database, HTTP client, file system)
-- Periodic tasks driven by timers, dispatched onto worker threads
-- Watchdog detection of hung or starved threads
-- Remote procedure calls between processes or processors
-- C# or Python tools commanding and monitoring an embedded device
-- Bridging device data to MQTT as JSON, for dashboards and IoT platforms
-- On-target integration tests that call internal functions on their own threads
 
 # Overview
 
@@ -363,7 +373,7 @@ The [`example`](example/README.md) directory ranges from single-file snippets to
 
 | Example | Description | Docs |
 | :--- | :--- | :--- |
-| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README](example/sample-projects/README.md) |
+| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README.md](example/sample-projects/README.md) |
 | **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
 | **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
 

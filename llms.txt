@@ -352,10 +352,25 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 
 ## Diagnostic Tools (DMQ_TOOLS=ON)
 
-- `dmq-spy` — real-time feed of all DataBus messages with regex filtering
+Desktop-only (`tools/`), not part of the library. See [TOOLS](tools/TOOLS.md).
+
+- `dmq-spy` — real-time feed of all DataBus messages with topic (substring) filtering. Headless modes `--echo`, `--hz`, `--bw` print to stdout; `--log <file> --log-format text|csv|json`; `--plotjuggler` streams numeric values to PlotJuggler's UDP Server for live plots
 - `dmq-monitor` — live network topology dashboard (nodes, IP, uptime, topics)
 - `dmq-thread` — per-thread performance dashboard (latency, queue depth)
-- `dmq-target` — test source app exercising transport bridges (used for tool/integration testing, not a diagnostic console)
+- `dmq-target` — test source app exercising the Spy and Node bridges (used for tool/integration testing, not a diagnostic console)
+- Only one tool can listen on a unicast UDP port; a second one exits with an error. Multicast (`--multicast`) allows several.
+
+Bridges an application links in (`tools/bridge/`):
+
+- `spy/SpyBridge` — mirrors the node's DataBus traffic to `dmq-spy` over UDP (needs stringifiers via `DataBus::RegisterStringifier`)
+- `node/NodeBridge` — heartbeats and thread stats to `dmq-monitor` / `dmq-thread`
+- `common/JsonTopics` — shared JSON bridge layer: declare once which topics to expose (`Expose<T>(topic, toJson, {latched, reliable})`) and which commands to accept (`Accept<T>(topic, fromJson)`); every JSON bridge serves that set
+- `mqtt/MqttBridge` — MQTT gateway for JsonTopics: `<prefix>/<topic>` JSON payloads, commands on `<prefix>/<topic>/set`, retained latched state, `<prefix>/online` Last Will. Standard MQTT for any MQTT client; built with `dmq_add_mqtt_bridge(target)` from `tools/bridge/mqtt/MqttBridge.cmake` (Paho MQTT C)
+- `tools/wireshark/dmq.lua` — Wireshark dissector for the DelegateMQ UDP/TCP header
+
+## Cross-Language Interop
+
+`interop/native` builds `DmqInterop`, a C API over DelegateMQ transports with reliable sends (ACK + retry, per-message `ACKED` / `TIMEOUT` / `DELIVERY_FAILED` status via `DmqInterop_RegisterStatusCallback`; `DmqInterop_Send` returns the sequence number). `interop/python` (`dmq_databus.DmqDataBus`) and `interop/csharp` (`DelegateMQ.Interop.DmqDataBus`) wrap it. Cross-language messages use MessagePack (`MSGPACK_DEFINE` in C++). See [INTEROP](docs/INTEROP.md).
 
 ## Documentation
 
@@ -363,7 +378,12 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 - [DETAILS](docs/DETAILS.md) — in-depth API documentation and design rationale
 - [PORTING](docs/PORTING.md) — how to port to a new OS or thread model
 - [SIGNALS](docs/SIGNALS.md) — Signal/ScopedConnection usage guide
+- [DATABUS](docs/DATABUS.md) — DataBus publish/subscribe, QoS, NetworkNode, topologies, error/status reporting
+- [INTEROP](docs/INTEROP.md) — C#/Python interop, reliability model, delivery status and error codes
+- [TOOLS](tools/TOOLS.md) — diagnostic consoles, bridges, MQTT gateway, Wireshark and PlotJuggler integration
+- [BUILD](docs/BUILD.md) — build and configuration guide
 - [example/cellutron/](example/cellutron/) — multi-node demo simulating a medical instrument with GUI, controller, and safety processor nodes
+- [example/pumptron/](example/pumptron/) — pump controller on a real STM32F4 (FreeRTOS) with an FTXUI console over a serial DataBus link; also runs on the FreeRTOS simulator
 
 ## Comparison to Alternatives
 
@@ -394,7 +414,7 @@ To add a new allocator-gated container: add the header under `extras/allocator/`
 
 ### Port Exception — Desktop-Only Files
 
-Files under `port/transport/` and `port/os/` that are desktop-only (ZeroMQ, NNG, MQTT, Win32, Linux, serial, stdlib/Win32/Qt thread) may use `std::` primitives directly. Embedded transport and OS ports (`stm32-uart`, `arm-lwip-*`, `netx-udp`, `zephyr-udp`, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, bare-metal) must follow all allocation and abstraction rules. Code under `extras/` is shared across all targets and must always follow the rules.
+Files under `port/transport/` and `port/os/` that are desktop-only (ZeroMQ, NNG, MQTT, Win32, Linux, serial, stdlib/Win32/Qt thread) may use `std::` primitives directly. Embedded transport and OS ports (`stm32-uart`, `arm-lwip-*`, `netx-udp`, `zephyr-udp`, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, bare-metal) must follow all allocation and abstraction rules. Code under `extras/` is shared across all targets and must always follow the rules. Code under `tools/` (consoles, bridges, Wireshark dissector) is desktop-only integration code, not library code, and may use `std::` primitives.
 
 ### Portable Abstractions
 
