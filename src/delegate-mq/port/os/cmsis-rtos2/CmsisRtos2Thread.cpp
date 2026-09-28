@@ -5,6 +5,7 @@
 #include "DelegateMQ.h"
 #include "CmsisRtos2Thread.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
 #include <new>
@@ -70,6 +71,11 @@ CmsisRtos2Thread::~CmsisRtos2Thread()
         osSemaphoreDelete(m_exitSem);
         m_exitSem = NULL;
     }
+
+    if (m_startSem) {
+        osSemaphoreDelete(m_startSem);
+        m_startSem = NULL;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -93,8 +99,24 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         attr.stack_size = STACK_SIZE;
         attr.priority = m_priority;
 
+        // If the kernel is running, CreateThread() waits for the start handler.
+        // Before osKernelStart() it cannot block; the start handler then runs
+        // when the kernel starts, still before any message is processed.
+        m_startSync = (osKernelGetState() == osKernelRunning);
+        if (m_startSync && m_startSem == NULL) {
+            m_startSem = osSemaphoreNew(1, 0, NULL);
+            DMQ_ASSERT_TRUE(m_startSem != NULL);
+        }
+
         m_thread = osThreadNew(CmsisRtos2Thread::Process, this, &attr);
         DMQ_ASSERT_TRUE(m_thread != NULL);
+
+        if (m_startSync) {
+            // m_thread is now stored: let Run() proceed to the start handler (see
+            // Run()), then wait for it to complete.
+            osThreadFlagsSet(m_thread, START_FLAG);
+            osSemaphoreAcquire(m_startSem, osWaitForever);
+        }
 
         m_lastAliveTime.store(Timer::GetNow());
 
@@ -359,6 +381,23 @@ void CmsisRtos2Thread::Run()
     bool selfExit = false;
     m_selfExitPtr = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    // osThreadNew() returns m_thread only after this thread may already be
+    // running; wait for CreateThread() so the start handler can use it.
+    const bool startSync = m_startSync;
+    if (startSync)
+        osThreadFlagsWait(START_FLAG, osFlagsWaitAny, osWaitForever);
+
+    if (m_startHandler)
+        m_startHandler();
+
+    if (startSync)
+        osSemaphoreRelease(m_startSem);
+
     ThreadMsg* msg = nullptr;
 
     while (!selfExit && !m_exit.load())
@@ -370,7 +409,8 @@ void CmsisRtos2Thread::Run()
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 
-        // m_lastAliveTime while idle. Otherwise, block forever to save power.
+        // m_lastAliveTime while idle. If an idle handler is set, wake no later
+        // than when it is due. Otherwise, block forever to save power.
         uint32_t waitOption = osWaitForever;
         if (watchdogTimeout.count() > 0)
         {
@@ -378,10 +418,21 @@ void CmsisRtos2Thread::Run()
             waitOption = static_cast<uint32_t>(ms / 4);
             if (waitOption == 0) waitOption = 1;
         }
+        if (idle.Enabled())
+        {
+            auto ms = std::chrono::ceil<std::chrono::milliseconds>(idle.WaitTime(dmq::Duration(-1))).count();
+            if (static_cast<uint32_t>(ms) < waitOption) waitOption = static_cast<uint32_t>(ms);
+        }
 
         // Block for a message or timeout
         msg = m_queue.Receive(waitOption);
-        if (msg != nullptr)
+        if (msg == nullptr)
+        {
+            // Timed out with the queue empty: run the idle handler if it is due
+            if (!m_exit.load() && idle.IsDue())
+                idle.Run();
+        }
+        else
         {
             int msgId = msg->GetId();
             if (msgId == MSG_DISPATCH_DELEGATE)
@@ -462,8 +513,14 @@ void CmsisRtos2Thread::Run()
             if (msgId == MSG_EXIT_THREAD) {
                 break;
             }
+
+            // Any message restarts the idle countdown
+            idle.Restart();
         }
     }
+
+    // Run the exit handler before signalling ExitThread(), so it returns only after it
+    exitGuard.Fire();
 
     // Signal ExitThread() that we are done
     if (m_exitSem) {

@@ -13,6 +13,10 @@
     #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2       // seconds
 #endif
 
+#ifndef DMQ_THREAD_IDLE_INTERVAL
+    #define DMQ_THREAD_IDLE_INTERVAL        100     // milliseconds; default for Thread::SetIdleHandler()
+#endif
+
 #ifndef DMQ_MAX_TIMER_EXPIRED
     #define DMQ_MAX_TIMER_EXPIRED           16
 #endif

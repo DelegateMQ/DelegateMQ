@@ -384,6 +384,12 @@ namespace dmq
     /// Override via DMQ_DEFAULT_DISPATCH_TIMEOUT in DelegateMQConfig.h.
     inline constexpr std::chrono::seconds DEFAULT_DISPATCH_TIMEOUT{DMQ_DEFAULT_DISPATCH_TIMEOUT};
 
+    /// @brief Default quiet time before a Thread's idle handler runs, and between
+    /// calls while its queue stays empty. See Thread::SetIdleHandler().
+    /// Override via DMQ_THREAD_IDLE_INTERVAL in DelegateMQConfig.h.
+    inline constexpr std::chrono::milliseconds THREAD_IDLE_INTERVAL{DMQ_THREAD_IDLE_INTERVAL};
+    static_assert(DMQ_THREAD_IDLE_INTERVAL > 0, "DMQ_THREAD_IDLE_INTERVAL must be greater than zero");
+
     // --- RESOURCE LIMITS & SBO CONFIGURATION ---
 
     /// @brief Max timers processed in one tick without heap allocation.

@@ -4,6 +4,7 @@
 
 #include "DelegateMQ.h"
 #include "StdlibThread.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 
 #ifdef _WIN32
@@ -17,6 +18,9 @@
 static thread_local bool* t_self_exit = nullptr;
 
 namespace dmq::os {
+
+// The StdlibThread whose Process() is running on this thread, for GetCurrent().
+static thread_local StdlibThread* t_current = nullptr;
 
 using namespace std;
 using namespace dmq::util;
@@ -67,12 +71,18 @@ bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_threadStartFuture.emplace(m_threadStartPromise->get_future());
         m_exit = false;
 
-        m_thread.emplace(&StdlibThread::Process, this);
+        {
+            // Held until m_thread is fully constructed and named. Process() takes
+            // this lock before running the start handler, which may call
+            // IsCurrentThread() or dispatch to this thread (both read m_thread).
+            lock_guard<mutex> lock(m_mutex);
+            m_thread.emplace(&StdlibThread::Process, this);
 
-        auto handle = m_thread->native_handle();
-        SetThreadName(handle, THREAD_NAME);
+            auto handle = m_thread->native_handle();
+            SetThreadName(handle, THREAD_NAME);
+        }
 
-        // Wait for the thread to enter the Process method
+        // Wait for the thread to run the start handler and enter its loop
         m_threadStartFuture->get();
 
         m_lastAliveTime.store(Timer::GetNow());
@@ -124,6 +134,14 @@ std::thread::id StdlibThread::GetThreadId()
 std::thread::id StdlibThread::GetCurrentThreadId()
 {
     return this_thread::get_id();
+}
+
+//----------------------------------------------------------------------------
+// GetCurrent
+//----------------------------------------------------------------------------
+StdlibThread* StdlibThread::GetCurrent()
+{
+    return t_current;
 }
 
 //----------------------------------------------------------------------------
@@ -382,6 +400,22 @@ void StdlibThread::Process()
     bool selfExit = false;
     t_self_exit = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    // Declared after exitGuard, so GetCurrent() is cleared before the exit handler runs
+    struct CurrentGuard { ~CurrentGuard() { t_current = nullptr; } } currentGuard;
+
+    // Wait for CreateThread() to finish constructing m_thread
+    { lock_guard<mutex> lock(m_mutex); }
+
+    t_current = this;
+
+    if (m_startHandler)
+        m_startHandler();
+
     // Signal that the thread has started processing to notify CreateThread
     m_threadStartPromise->set_value();
 
@@ -398,18 +432,16 @@ void StdlibThread::Process()
             std::unique_lock<std::mutex> lk(m_mutex);
 
             // Wait for message to be added to the queue.
-            // If watchdog active, use a finite timeout so we can periodically update 
-            // m_lastAliveTime while idle. Otherwise, block forever.
+            // If watchdog active, use a finite timeout so we can periodically update
+            // m_lastAliveTime while idle. If an idle handler is set, wake no later
+            // than when it is due. Otherwise, block forever.
             auto predicate = [this]() { return !(m_highQueue.empty() && m_normalQueue.empty()) || m_exit.load(); };
-            if (watchdogTimeout.count() > 0)
-            {
-                // Wake up frequently to ensure heartbeat is updated while idle
-                m_cv.wait_for(lk, watchdogTimeout / 10, predicate);
-            }
+            // Wake up frequently to ensure heartbeat is updated while idle (negative = forever)
+            dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / 10 : dmq::Duration(-1));
+            if (waitTime >= dmq::Duration::zero())
+                m_cv.wait_for(lk, waitTime, predicate);
             else
-            {
                 m_cv.wait(lk, predicate);
-            }
 
             // Always update alive time immediately after waking up
             m_lastAliveTime.store(Timer::GetNow());
@@ -418,23 +450,33 @@ void StdlibThread::Process()
             if ((m_highQueue.empty() && m_normalQueue.empty()))
             {
                 if (m_exit.load()) { t_self_exit = nullptr; return; }
-                continue;
+                if (!idle.IsDue())
+                    continue;
+                // Idle handler is due: fall through with no message
             }
-
-            // Get highest priority message within queue
-            if (!m_highQueue.empty()) {
-                msg = m_highQueue.front();
-                m_highQueue.pop_front();
-            } else {
-                msg = m_normalQueue.front();
-                m_normalQueue.pop_front();
-            }
-
-            // Unblock producers now that space is available
-            if (MAX_QUEUE_SIZE > 0)
+            else
             {
-                m_cvNotFull.notify_one();
+                // Get highest priority message within queue
+                if (!m_highQueue.empty()) {
+                    msg = m_highQueue.front();
+                    m_highQueue.pop_front();
+                } else {
+                    msg = m_normalQueue.front();
+                    m_normalQueue.pop_front();
+                }
+
+                // Unblock producers now that space is available
+                if (MAX_QUEUE_SIZE > 0)
+                {
+                    m_cvNotFull.notify_one();
+                }
             }
+        }
+
+        if (!msg)
+        {
+            idle.Run();
+            continue;
         }
 
         switch (msg->GetId())
@@ -519,6 +561,10 @@ void StdlibThread::Process()
                 DMQ_ASSERT();
                 break;
         }
+
+        // Any message restarts the idle countdown
+        idle.Restart();
+
         // msg goes out of scope here — may trigger self-destruction of 'this'.
         // After this point do not access any member; check selfExit in while().
     }

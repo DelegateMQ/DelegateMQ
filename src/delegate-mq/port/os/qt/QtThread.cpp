@@ -67,7 +67,30 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 #endif
         }
     }
+
+    // Any message restarts the idle countdown
+    if (m_idleTimer)
+        m_idleTimer->start();
+
     emit MessageProcessed();
+}
+
+//----------------------------------------------------------------------------
+// Worker::StartIdleTimer
+//----------------------------------------------------------------------------
+void Worker::StartIdleTimer(const dmq::UnicastDelegate<void()>& handler, dmq::Duration interval)
+{
+    m_idleHandler = handler;
+    auto ms = std::chrono::ceil<std::chrono::milliseconds>(interval).count();
+
+    m_idleTimer = new QTimer(this);
+    m_idleTimer->setSingleShot(true);
+    m_idleTimer->setInterval(static_cast<int>(ms > 0 ? ms : 1));
+    connect(m_idleTimer, &QTimer::timeout, this, [this]() {
+        m_idleHandler();
+        m_idleTimer->start();
+    });
+    m_idleTimer->start();
 }
 
 //----------------------------------------------------------------------------
@@ -130,11 +153,38 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         // Ensure worker is deleted when thread finishes
         connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
+
+        // Start handler and idle timer run on the new thread (started is emitted
+        // there; DirectConnection runs the lambda in place) before its event loop
+        // processes any dispatched message.
+        Worker* worker = m_worker;
+        QSemaphore* startSem = &m_startSem;
+        connect(m_thread, &QThread::started, m_worker,
+            [worker, startSem, startHandler = m_startHandler,
+             idleHandler = m_idleHandler, idleInterval = m_idleInterval]() {
+                if (startHandler)
+                    startHandler();
+                if (idleHandler)
+                    worker->StartIdleTimer(idleHandler, idleInterval);
+                startSem->release();
+            }, Qt::DirectConnection);
+
+        // Exit handler runs on the worker thread as it finishes (finished is
+        // emitted there). Captured by copy so it works even if this QtThread was
+        // destroyed by a self-exit.
+        connect(m_thread, &QThread::finished, m_worker,
+            [exitHandler = m_exitHandler]() {
+                if (exitHandler)
+                    exitHandler();
+            }, Qt::DirectConnection);
         
         // Also delete the QThread object itself when finished (optional, depending on ownership)
         // connect(m_thread, &QThread::finished, m_thread, &QObject::deleteLater);
 
         m_thread->start();
+
+        // Wait for the start handler to complete
+        m_startSem.acquire();
 
         m_lastAliveTime.store(Timer::GetNow());
 

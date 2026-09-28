@@ -5,6 +5,7 @@
 #include "DelegateMQ.h"
 #include "ThreadXThread.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
 #include <cstring> // for memset
@@ -35,6 +36,7 @@ ThreadXThread::ThreadXThread(const char* threadName, size_t maxQueueSize, FullPo
     // block in ThreadXDelegateQueue's constructor)
     memset(&m_thread, 0, sizeof(m_thread));
     memset(&m_exitSem, 0, sizeof(m_exitSem));
+    memset(&m_startSem, 0, sizeof(m_startSem));
 
 #if defined(DMQ_DATABUS_TOOLS)
     tx_mutex_create(&m_statMutex, (CHAR*)"StatMutex", TX_NO_INHERIT);
@@ -72,6 +74,9 @@ ThreadXThread::~ThreadXThread()
     if (m_exitSem.tx_semaphore_id != 0) {
         tx_semaphore_delete(&m_exitSem);
     }
+    if (m_startSem.tx_semaphore_id != 0) {
+        tx_semaphore_delete(&m_startSem);
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -86,6 +91,14 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         if (m_exitSem.tx_semaphore_id == 0) {
             tx_semaphore_create(&m_exitSem, (CHAR*)"ExitSem", 0);
         }
+        if (m_startSem.tx_semaphore_id == 0) {
+            tx_semaphore_create(&m_startSem, (CHAR*)"StartSem", 0);
+        }
+
+        // Called from a thread, CreateThread() waits for the start handler. From
+        // tx_application_define() (no current thread) it cannot block; the start
+        // handler then runs when the kernel starts, still before any message.
+        m_startSync = (tx_thread_identify() != TX_NULL);
 
         // --- 1. Create Queue ---
         DMQ_ASSERT_TRUE(m_queue.Create(m_queueSize, THREAD_NAME.c_str()));
@@ -119,6 +132,10 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                 GetInstanceRegistry()[&m_thread] = this;
             }
             tx_thread_resume(&m_thread);
+
+            // Wait for the start handler to complete
+            if (m_startSync)
+                tx_semaphore_get(&m_startSem, TX_WAIT_FOREVER);
         }
 
         DMQ_ASSERT_TRUE(ret == TX_SUCCESS);
@@ -435,6 +452,17 @@ void ThreadXThread::Run()
     bool selfExit = false;
     m_selfExitPtr = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    if (m_startHandler)
+        m_startHandler();
+
+    if (m_startSync)
+        tx_semaphore_put(&m_startSem);
+
     ThreadMsg* msg = nullptr;
     while (!selfExit && !m_exit.load())
     {
@@ -445,7 +473,8 @@ void ThreadXThread::Run()
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 
-        // m_lastAliveTime while idle. Otherwise, block forever to save power.
+        // m_lastAliveTime while idle. If an idle handler is set, wake no later
+        // than when it is due. Otherwise, block forever to save power.
         ULONG waitOption = TX_WAIT_FOREVER;
         if (timeout.count() > 0)
         {
@@ -453,9 +482,21 @@ void ThreadXThread::Run()
             waitOption = (static_cast<ULONG>(ms / 4) * TX_TIMER_TICKS_PER_SECOND) / 1000;
             if (waitOption == 0) waitOption = 1;
         }
+        if (idle.Enabled())
+        {
+            auto ms = std::chrono::ceil<std::chrono::milliseconds>(idle.WaitTime(dmq::Duration(-1))).count();
+            ULONG idleTicks = (static_cast<ULONG>(ms) * TX_TIMER_TICKS_PER_SECOND + 999) / 1000;
+            if (idleTicks < waitOption) waitOption = idleTicks;
+        }
 
         msg = m_queue.Receive(waitOption);
-        if (!msg) continue; // Timeout or other failure
+        if (!msg)
+        {
+            // Timeout or other failure: run the idle handler if it is due
+            if (!m_exit.load() && idle.IsDue())
+                idle.Run();
+            continue;
+        }
 
         int msgId = msg->GetId();
         if (msgId == MSG_DISPATCH_DELEGATE)
@@ -536,7 +577,13 @@ void ThreadXThread::Run()
         if (msgId == MSG_EXIT_THREAD) {
             break;
         }
+
+        // Any message restarts the idle countdown
+        idle.Restart();
     }
+
+    // Run the exit handler before signalling ExitThread(), so it returns only after it
+    exitGuard.Fire();
 
     // Signal ExitThread() that the loop has exited
     tx_semaphore_put(&m_exitSem);

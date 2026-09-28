@@ -4,6 +4,7 @@
 
 #include "DelegateMQ.h"
 #include "Win32Thread.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <iostream>
 
@@ -68,12 +69,16 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Manual-reset event for startup synchronization
         m_hStartEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-        m_hThread = ::CreateThread(NULL, 0, ThreadProc, this, 0, &m_threadId);
+        // Created suspended so m_hThread/m_threadId are stored before the thread
+        // runs: the start handler may call IsCurrentThread() or dispatch to it.
+        m_hThread = ::CreateThread(NULL, 0, ThreadProc, this, CREATE_SUSPENDED, &m_threadId);
         if (m_hThread == NULL) return false;
 
         // Set the thread name so it shows in the Visual Studio Debug Location toolbar
         std::wstring wname(THREAD_NAME.begin(), THREAD_NAME.end());
         SetThreadDescription(m_hThread, wname.c_str());
+
+        ResumeThread(m_hThread);
 
         // Wait for the thread to enter the Process method
         WaitForSingleObject(m_hStartEvent, INFINITE);
@@ -212,6 +217,14 @@ void Win32Thread::Process()
     bool selfExit = false;
     t_self_exit = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    if (m_startHandler)
+        m_startHandler();
+
     // Signal that the thread has started processing to notify CreateThread
     SetEvent(m_hStartEvent);
 
@@ -229,13 +242,20 @@ void Win32Thread::Process()
 
         // Wait for message to be added to the queue.
         // If watchdog active, use a finite timeout so we can periodically update 
-        // m_lastAliveTime while idle. Otherwise, block forever.
+        // m_lastAliveTime while idle. If an idle handler is set, wake no later
+        // than when it is due. Otherwise, block forever.
         DWORD dwTimeout = INFINITE;
         if (watchdogTimeout.count() > 0)
         {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
             dwTimeout = static_cast<DWORD>(ms / 4);
             if (dwTimeout == 0) dwTimeout = 1;
+        }
+        if (idle.Enabled())
+        {
+            auto untilIdle = std::chrono::ceil<std::chrono::milliseconds>(idle.WaitTime(dmq::Duration(-1))).count();
+            if (static_cast<DWORD>(untilIdle) < dwTimeout)
+                dwTimeout = static_cast<DWORD>(untilIdle);
         }
 
         while ((m_highQueue.empty() && m_normalQueue.empty()) && !m_exit.load())
@@ -254,10 +274,13 @@ void Win32Thread::Process()
             break;
         }
 
-        // If queue still empty, it means we timed out. Loop again to update m_lastAliveTime.
+        // If queue still empty, it means we timed out. Run the idle handler if it is
+        // due, then loop again to update m_lastAliveTime.
         if ((m_highQueue.empty() && m_normalQueue.empty()))
         {
             LeaveCriticalSection(&m_cs);
+            if (idle.IsDue())
+                idle.Run();
             continue;
         }
 
@@ -360,6 +383,9 @@ void Win32Thread::Process()
                 break;
             }
         }
+
+        // Any message restarts the idle countdown
+        idle.Restart();
     }
     t_self_exit = nullptr;
 }

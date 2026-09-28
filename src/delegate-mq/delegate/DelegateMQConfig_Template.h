@@ -13,6 +13,10 @@
 /// Timeout (seconds) used by the TIMEOUT queue-full policy on all threads.
 #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2
 
+/// Default quiet time (milliseconds) before a Thread's idle handler runs, and
+/// between calls while the queue stays empty. See Thread::SetIdleHandler().
+#define DMQ_THREAD_IDLE_INTERVAL        100
+
 /// Max timers processed in one tick without heap allocation.
 #define DMQ_MAX_TIMER_EXPIRED           16
 

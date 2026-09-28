@@ -4,6 +4,7 @@
 
 #include "DelegateMQ.h"
 #include "PosixThread.h"
+#include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cerrno>
 #include <iostream>
@@ -99,8 +100,12 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_exit = false;
         m_started = false;
 
+        // Held until m_thread is stored and named. Process() takes this lock
+        // before running the start handler, which may call IsCurrentThread() or
+        // dispatch to this thread (both read m_thread).
+        pthread_mutex_lock(&m_mutex);
         int rc = pthread_create(&m_thread, nullptr, &PosixThread::ThreadEntry, this);
-        if (rc != 0) return false;
+        if (rc != 0) { pthread_mutex_unlock(&m_mutex); return false; }
         m_threadCreated = true;
 
         // Set the thread name for debugging (glibc extension, name truncated to
@@ -109,6 +114,7 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 #if defined(__linux__)
         pthread_setname_np(m_thread, THREAD_NAME.substr(0, 15).c_str());
 #endif
+        pthread_mutex_unlock(&m_mutex);
 
         // Wait for the thread to enter the Process method
         pthread_mutex_lock(&m_startMutex);
@@ -353,6 +359,18 @@ void PosixThread::Process()
     bool selfExit = false;
     t_self_exit = &selfExit;
 
+    // Exit and idle handlers are copied onto this stack frame so they work on
+    // every return path, including a self-exit where 'this' may already be freed.
+    ThreadExitGuard exitGuard(m_exitHandler);
+    ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
+
+    // Wait for CreateThread() to finish storing m_thread
+    pthread_mutex_lock(&m_mutex);
+    pthread_mutex_unlock(&m_mutex);
+
+    if (m_startHandler)
+        m_startHandler();
+
     // Signal that the thread has started processing to notify CreateThread
     pthread_mutex_lock(&m_startMutex);
     m_started = true;
@@ -375,11 +393,13 @@ void PosixThread::Process()
 
         // Wait for message to be added to the queue.
         // If watchdog active, use a finite timeout so we can periodically update
-        // m_lastAliveTime while idle. Otherwise, block forever.
-        if (watchdogTimeout.count() > 0)
+        // m_lastAliveTime while idle. If an idle handler is set, wake no later
+        // than when it is due. Otherwise, block forever (negative wait time).
+        dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / 10 : dmq::Duration(-1));
+        if (waitTime >= dmq::Duration::zero())
         {
             struct timespec ts;
-            MakeAbsTimeout(watchdogTimeout / 10, ts);
+            MakeAbsTimeout(waitTime, ts);
             while (!queueReady())
             {
                 int rc = pthread_cond_timedwait(&m_cvNotEmpty, &m_mutex, &ts);
@@ -396,12 +416,15 @@ void PosixThread::Process()
         // Always update alive time immediately after waking up
         m_lastAliveTime.store(Timer::GetNow());
 
-        // If queue still empty, either exit (if requested) or loop again (timeout).
+        // If queue still empty, either exit (if requested), run the idle handler
+        // if it is due, or loop again (timeout).
         if (m_highQueue.empty() && m_normalQueue.empty())
         {
             bool doExit = m_exit.load();
             pthread_mutex_unlock(&m_mutex);
             if (doExit) { t_self_exit = nullptr; return; }
+            if (idle.IsDue())
+                idle.Run();
             continue;
         }
 
@@ -505,6 +528,10 @@ void PosixThread::Process()
                 break;
             }
         }
+
+        // Any message restarts the idle countdown
+        idle.Restart();
+
         // msg goes out of scope here — may trigger self-destruction of 'this'.
         // After this point do not access any member; check selfExit in while().
     }
