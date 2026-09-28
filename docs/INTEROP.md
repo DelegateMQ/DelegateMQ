@@ -52,13 +52,13 @@ int DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries);
 int DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup);
 
 // Register a callback for a specific Remote ID (NULL unregisters)
-void DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb);
+void DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb, void* context);
 
-// Per-message delivery status: (remoteId, seqNum, DmqSendStatus)
-void DmqInterop_RegisterStatusCallback(DmqStatusCallback cb);
+// Per-message delivery status: callback(context, remoteId, seqNum, DmqSendStatus)
+void DmqInterop_RegisterStatusCallback(DmqStatusCallback cb, void* context);
 
-// Errors: (DmqErrorCode, remoteId or 0, message)
-void DmqInterop_RegisterErrorCallback(DmqErrorCallback cb);
+// Errors: callback(context, DmqErrorCode, remoteId or 0, message)
+void DmqInterop_RegisterErrorCallback(DmqErrorCallback cb, void* context);
 
 // Send raw bytes to a Remote ID (DLL handles framing); returns the sequence number via seqNum
 int DmqInterop_Send(uint16_t remoteId, const uint8_t* data, uint32_t len, uint16_t* seqNum);
@@ -67,7 +67,7 @@ int DmqInterop_Send(uint16_t remoteId, const uint8_t* data, uint32_t len, uint16
 void DmqInterop_Stop();
 ```
 
-All callbacks may be registered before or after `Start`. They run on native threads (the receive thread, the ACK/retry thread, or, for an immediate send failure, the thread calling `Send`), so keep them short and thread-safe.
+All callbacks may be registered before or after `Start`. Each `Register*` function takes a `void* context` that is passed back unchanged as the callback's first argument (e.g. `DmqMessageCallback(void* context, uint16_t remoteId, const uint8_t* data, uint32_t len)`), so a caller can reach its own state without globals; pass NULL if unused. Callbacks run on native threads (the receive thread, the ACK/retry thread, or, for an immediate send failure, the thread calling `Send`), so keep them short and thread-safe.
 
 ### Reliability and Delivery Status
 

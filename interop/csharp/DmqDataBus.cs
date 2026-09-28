@@ -71,14 +71,16 @@ namespace DelegateMQ.Interop
     {
         private const string DllName = "DmqInterop.dll";
 
+        // The leading IntPtr is the C API's context pointer. This wrapper passes
+        // IntPtr.Zero: its delegates are instance methods that already carry state.
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate void InternalMessageCallback(ushort remoteId, IntPtr data, uint len);
+        private delegate void InternalMessageCallback(IntPtr context, ushort remoteId, IntPtr data, uint len);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate void InternalStatusCallback(ushort remoteId, ushort seqNum, int status);
+        private delegate void InternalStatusCallback(IntPtr context, ushort remoteId, ushort seqNum, int status);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate void InternalErrorCallback(int code, ushort remoteId, [MarshalAs(UnmanagedType.LPStr)] string msg);
+        private delegate void InternalErrorCallback(IntPtr context, int code, ushort remoteId, [MarshalAs(UnmanagedType.LPStr)] string msg);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
         private static extern int DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries);
@@ -87,13 +89,13 @@ namespace DelegateMQ.Interop
         private static extern int DmqInterop_Start(string remoteHost, int recvPort, int sendPort, string multicastGroup);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
-        private static extern void DmqInterop_RegisterCallback(ushort remoteId, InternalMessageCallback? cb);
+        private static extern void DmqInterop_RegisterCallback(ushort remoteId, InternalMessageCallback? cb, IntPtr context);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
-        private static extern void DmqInterop_RegisterStatusCallback(InternalStatusCallback cb);
+        private static extern void DmqInterop_RegisterStatusCallback(InternalStatusCallback cb, IntPtr context);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
-        private static extern void DmqInterop_RegisterErrorCallback(InternalErrorCallback cb);
+        private static extern void DmqInterop_RegisterErrorCallback(InternalErrorCallback cb, IntPtr context);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
         private static extern int DmqInterop_Send(ushort remoteId, byte[] data, uint len, out ushort seqNum);
@@ -141,8 +143,8 @@ namespace DelegateMQ.Interop
 
             // Always registered, so native errors are reported (to stderr by default)
             // even before the application registers its own handlers.
-            DmqInterop_RegisterErrorCallback(_internalErrorCallback);
-            DmqInterop_RegisterStatusCallback(_internalStatusCallback);
+            DmqInterop_RegisterErrorCallback(_internalErrorCallback, IntPtr.Zero);
+            DmqInterop_RegisterStatusCallback(_internalStatusCallback, IntPtr.Zero);
         }
 
         /// <summary>
@@ -213,7 +215,7 @@ namespace DelegateMQ.Interop
         public void RegisterCallback(ushort remoteId, Action<byte[]> callback)
         {
             _callbacks[remoteId] = callback;
-            DmqInterop_RegisterCallback(remoteId, _internalCallback);
+            DmqInterop_RegisterCallback(remoteId, _internalCallback, IntPtr.Zero);
         }
 
         /// <summary>
@@ -235,7 +237,7 @@ namespace DelegateMQ.Interop
         public void UnregisterCallback(ushort remoteId)
         {
             _callbacks.TryRemove(remoteId, out _);
-            DmqInterop_RegisterCallback(remoteId, null);
+            DmqInterop_RegisterCallback(remoteId, null, IntPtr.Zero);
         }
 
         /// <summary>
@@ -260,7 +262,7 @@ namespace DelegateMQ.Interop
             return seqNum;
         }
 
-        private void OnMessageReceived(ushort remoteId, IntPtr data, uint len)
+        private void OnMessageReceived(IntPtr context, ushort remoteId, IntPtr data, uint len)
         {
             if (!_callbacks.TryGetValue(remoteId, out var callback))
                 return;
@@ -276,7 +278,7 @@ namespace DelegateMQ.Interop
             }
         }
 
-        private void OnStatusReceived(ushort remoteId, ushort seqNum, int status)
+        private void OnStatusReceived(IntPtr context, ushort remoteId, ushort seqNum, int status)
         {
             try
             {
@@ -288,7 +290,7 @@ namespace DelegateMQ.Interop
             }
         }
 
-        private void OnErrorReceived(int code, ushort remoteId, string msg)
+        private void OnErrorReceived(IntPtr context, int code, ushort remoteId, string msg)
         {
             ReportError((DmqErrorCode)code, remoteId, msg ?? string.Empty);
         }

@@ -19,4 +19,21 @@
     <Compile Include="../../../../interop/csharp/Serializer.cs" />
   </ItemGroup>
 
+  <!-- Native interop core (build interop/native first), copied next to the executable -->
+  <ItemGroup>
+    <None Include="../../../../interop/native/build/bin/Release/DmqInterop.dll" Condition="Exists('../../../../interop/native/build/bin/Release/DmqInterop.dll')">
+      <Link>DmqInterop.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../../../interop/native/build/bin/Debug/DmqInterop.dll" Condition="!Exists('../../../../interop/native/build/bin/Release/DmqInterop.dll') And Exists('../../../../interop/native/build/bin/Debug/DmqInterop.dll')">
+      <Link>DmqInterop.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Linux: single-config generators build straight into build/lib. -->
+    <None Include="../../../../interop/native/build/lib/libDmqInterop.so" Condition="Exists('../../../../interop/native/build/lib/libDmqInterop.so')">
+      <Link>libDmqInterop.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

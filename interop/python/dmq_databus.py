@@ -51,9 +51,11 @@ if sys.platform == "win32":
 else:
     _FUNCTYPE = ctypes.CFUNCTYPE
 
-_MESSAGE_CB = _FUNCTYPE(None, ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32)
-_STATUS_CB = _FUNCTYPE(None, ctypes.c_uint16, ctypes.c_uint16, ctypes.c_int)
-_ERROR_CB = _FUNCTYPE(None, ctypes.c_int, ctypes.c_uint16, ctypes.c_char_p)
+# The leading c_void_p is the C API's context pointer. The wrapper passes NULL:
+# Python closures already carry their own state.
+_MESSAGE_CB = _FUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint32)
+_STATUS_CB = _FUNCTYPE(None, ctypes.c_void_p, ctypes.c_uint16, ctypes.c_uint16, ctypes.c_int)
+_ERROR_CB = _FUNCTYPE(None, ctypes.c_void_p, ctypes.c_int, ctypes.c_uint16, ctypes.c_char_p)
 
 
 class DmqDataBus:
@@ -83,11 +85,11 @@ class DmqDataBus:
         self._dll.DmqInterop_SetReliability.restype = ctypes.c_int
         self._dll.DmqInterop_Start.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
         self._dll.DmqInterop_Start.restype = ctypes.c_int
-        self._dll.DmqInterop_RegisterCallback.argtypes = [ctypes.c_uint16, _MESSAGE_CB]
+        self._dll.DmqInterop_RegisterCallback.argtypes = [ctypes.c_uint16, _MESSAGE_CB, ctypes.c_void_p]
         self._dll.DmqInterop_RegisterCallback.restype = None
-        self._dll.DmqInterop_RegisterStatusCallback.argtypes = [_STATUS_CB]
+        self._dll.DmqInterop_RegisterStatusCallback.argtypes = [_STATUS_CB, ctypes.c_void_p]
         self._dll.DmqInterop_RegisterStatusCallback.restype = None
-        self._dll.DmqInterop_RegisterErrorCallback.argtypes = [_ERROR_CB]
+        self._dll.DmqInterop_RegisterErrorCallback.argtypes = [_ERROR_CB, ctypes.c_void_p]
         self._dll.DmqInterop_RegisterErrorCallback.restype = None
         self._dll.DmqInterop_Send.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint8),
                                               ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint16)]
@@ -104,8 +106,8 @@ class DmqDataBus:
 
         # Always registered, so native errors are reported (to stderr by default)
         # even before the application registers its own handlers.
-        self._dll.DmqInterop_RegisterErrorCallback(self._native_error_cb)
-        self._dll.DmqInterop_RegisterStatusCallback(self._native_status_cb)
+        self._dll.DmqInterop_RegisterErrorCallback(self._native_error_cb, None)
+        self._dll.DmqInterop_RegisterStatusCallback(self._native_status_cb, None)
 
     # ---- Lifecycle -------------------------------------------------------
 
@@ -150,7 +152,7 @@ class DmqDataBus:
 
     def register_callback(self, remote_id, callback):
         """Call callback(data: bytes) for each message received on remote_id."""
-        def wrapper(rid, data_ptr, length):
+        def wrapper(_context, rid, data_ptr, length):
             try:
                 callback(ctypes.string_at(data_ptr, length))
             except Exception:
@@ -159,11 +161,11 @@ class DmqDataBus:
 
         native_cb = _MESSAGE_CB(wrapper)
         self._native_callbacks[remote_id] = native_cb
-        self._dll.DmqInterop_RegisterCallback(remote_id, native_cb)
+        self._dll.DmqInterop_RegisterCallback(remote_id, native_cb, None)
 
     def unregister_callback(self, remote_id):
         """Stop delivering messages for remote_id."""
-        self._dll.DmqInterop_RegisterCallback(remote_id, _MESSAGE_CB())
+        self._dll.DmqInterop_RegisterCallback(remote_id, _MESSAGE_CB(), None)
         self._native_callbacks.pop(remote_id, None)
 
     def register_status_callback(self, callback):
@@ -201,7 +203,7 @@ class DmqDataBus:
 
     # ---- Internals -------------------------------------------------------
 
-    def _status_trampoline(self, remote_id, seq, status):
+    def _status_trampoline(self, _context, remote_id, seq, status):
         cb = self._on_status
         if cb is None:
             return
@@ -211,7 +213,7 @@ class DmqDataBus:
             self._report_error(ErrorCode.CALLBACK, remote_id,
                                f"Exception in status callback:\n{traceback.format_exc()}")
 
-    def _error_trampoline(self, code, remote_id, msg):
+    def _error_trampoline(self, _context, code, remote_id, msg):
         self._report_error(ErrorCode(code), remote_id, msg.decode('utf-8', errors='replace') if msg else "")
 
     def _report_error(self, code, remote_id, message):

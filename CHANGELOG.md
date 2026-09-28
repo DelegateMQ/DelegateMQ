@@ -22,7 +22,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **`DelegateMQ.cmake` cross-compiled FreeRTOS support** — caller-selected `FREERTOS_PORT_DIR`/`FREERTOS_HEAP` (e.g. `GCC/ARM_CM4F`).
 
 ### Changed
-- **Interop C API (breaking)** — `DmqInterop_Send()` takes a `uint16_t* seqNum` out parameter; the error callback is now `(code, remoteId, msg)` with `DmqErrorCode` values. Python/C# `send()` return the sequence number.
+- **Interop C API (breaking)** — `DmqInterop_Send()` takes a `uint16_t* seqNum` out parameter; every callback now receives a caller-supplied `void* context` as its first argument (registered with `DmqInterop_Register*(..., context)`); the error callback is `(context, code, remoteId, msg)` with `DmqErrorCode` values. Python/C# `send()` return the sequence number.
 - **Tools bind UDP ports exclusively** unless `--multicast` is given, and open sockets before the TUI starts: a second `dmq-spy`/`dmq-monitor`/`dmq-thread` on a busy port now exits with an error instead of silently receiving nothing.
 - **Unknown `dmq-spy` options are rejected** (previously ignored).
 - **`tools/bridge` reorganized into subdirectories (breaking paths)** — `spy/` (`SpyBridge`), `node/` (`NodeBridge`, `NodeInfoPacket.h`), `mqtt/` (`MqttBridge`), `common/` (shared JSON layer). Projects that add `tools/bridge/SpyBridge.cpp` or `tools/bridge/NodeBridge.cpp` must use the new paths and include directories (`tools/bridge/spy`, `tools/bridge/node`, plus `tools/net`); header names and `#include "SpyBridge.h"` are unchanged. All in-repo examples and samples are updated (the DataBus samples' stale `tools/src` include is also corrected to `tools/net`).

@@ -34,13 +34,13 @@ int DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries);
 int DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup);
 
 // Registers a callback for a specific ID (NULL unregisters)
-void DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb);
+void DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb, void* context);
 
-// Per-message delivery status: (remoteId, seqNum, DmqSendStatus)
-void DmqInterop_RegisterStatusCallback(DmqStatusCallback cb);
+// Per-message delivery status: callback(context, remoteId, seqNum, DmqSendStatus)
+void DmqInterop_RegisterStatusCallback(DmqStatusCallback cb, void* context);
 
-// Errors: (DmqErrorCode, remoteId or 0, message)
-void DmqInterop_RegisterErrorCallback(DmqErrorCallback cb);
+// Errors: callback(context, DmqErrorCode, remoteId or 0, message)
+void DmqInterop_RegisterErrorCallback(DmqErrorCallback cb, void* context);
 
 // Sends raw bytes; the sequence number (for matching status callbacks) is returned via seqNum
 int DmqInterop_Send(uint16_t remoteId, const uint8_t* data, uint32_t len, uint16_t* seqNum);

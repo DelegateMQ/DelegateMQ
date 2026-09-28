@@ -19,6 +19,11 @@
 /// Threading: callbacks run on native threads -- the receive thread, the
 /// send-monitor thread, or (for an immediate send failure) the thread calling
 /// DmqInterop_Send. Keep them short and thread-safe.
+///
+/// Context: every Register* function takes a `void* context` that is passed
+/// back unchanged as the first argument of its callback, so a caller can reach
+/// its own state (an object, a closure, a language runtime handle) without
+/// globals. The DLL never dereferences it. Pass NULL if unused.
 
 #ifdef _WIN32
 #define DMQ_EXPORT __declspec(dllexport)
@@ -56,22 +61,25 @@ extern "C" {
     };
 
     /// @brief Callback signature for received messages.
+    /// @param context The context given to DmqInterop_RegisterCallback().
     /// @param remoteId The DelegateRemoteId (topic ID).
     /// @param data Pointer to the raw payload bytes. Valid only during the call.
     /// @param len Length of the payload in bytes.
-    typedef void (DMQ_CALL *DmqMessageCallback)(uint16_t remoteId, const uint8_t* data, uint32_t len);
+    typedef void (DMQ_CALL *DmqMessageCallback)(void* context, uint16_t remoteId, const uint8_t* data, uint32_t len);
 
     /// @brief Callback signature for per-message delivery status.
+    /// @param context The context given to DmqInterop_RegisterStatusCallback().
     /// @param remoteId The DelegateRemoteId the message was sent to.
     /// @param seqNum The sequence number returned by DmqInterop_Send.
     /// @param status A DmqSendStatus value.
-    typedef void (DMQ_CALL *DmqStatusCallback)(uint16_t remoteId, uint16_t seqNum, int status);
+    typedef void (DMQ_CALL *DmqStatusCallback)(void* context, uint16_t remoteId, uint16_t seqNum, int status);
 
     /// @brief Callback signature for errors.
+    /// @param context The context given to DmqInterop_RegisterErrorCallback().
     /// @param code A DmqErrorCode value.
     /// @param remoteId The related DelegateRemoteId, or 0 if none.
     /// @param msg Human-readable description. Valid only during the call.
-    typedef void (DMQ_CALL *DmqErrorCallback)(int code, uint16_t remoteId, const char* msg);
+    typedef void (DMQ_CALL *DmqErrorCallback)(void* context, int code, uint16_t remoteId, const char* msg);
 
     /// @brief Configure outgoing reliability. Call before DmqInterop_Start().
     /// @param enabled 1 (default) tracks ACKs and retries; 0 sends fire-and-forget with no
@@ -96,15 +104,18 @@ extern "C" {
     /// @brief Register a callback for a specific Remote ID. May be called before Start().
     /// @param remoteId The DelegateRemoteId to listen for.
     /// @param cb The function to call when data arrives, or NULL to unregister.
-    DMQ_EXPORT void DMQ_CALL DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb);
+    /// @param context Passed back as the callback's first argument. May be NULL.
+    DMQ_EXPORT void DMQ_CALL DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb, void* context);
 
     /// @brief Register the per-message delivery status callback. May be called before Start().
     /// @param cb The function to call on ACK, timeout or delivery failure, or NULL to unregister.
-    DMQ_EXPORT void DMQ_CALL DmqInterop_RegisterStatusCallback(DmqStatusCallback cb);
+    /// @param context Passed back as the callback's first argument. May be NULL.
+    DMQ_EXPORT void DMQ_CALL DmqInterop_RegisterStatusCallback(DmqStatusCallback cb, void* context);
 
     /// @brief Register the error callback. May be called before Start().
     /// @param cb The function to call when an error occurs, or NULL to unregister.
-    DMQ_EXPORT void DMQ_CALL DmqInterop_RegisterErrorCallback(DmqErrorCallback cb);
+    /// @param context Passed back as the callback's first argument. May be NULL.
+    DMQ_EXPORT void DMQ_CALL DmqInterop_RegisterErrorCallback(DmqErrorCallback cb, void* context);
 
     /// @brief Send raw bytes to a Remote ID.
     /// @details The DLL handles the DmqHeader framing and sequence numbers. With reliability

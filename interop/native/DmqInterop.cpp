@@ -72,10 +72,17 @@ namespace {
 
     // ---- Process-wide settings and callbacks (survive Start/Stop) ----------
 
+    /// A registered callback and the caller's context, passed back unchanged.
+    template <typename Fn>
+    struct Registered {
+        Fn fn = nullptr;
+        void* context = nullptr;
+    };
+
     std::mutex g_cbMutex;
-    std::map<uint16_t, DmqMessageCallback> g_msgCallbacks;
-    DmqStatusCallback g_statusCallback = nullptr;
-    DmqErrorCallback g_errorCallback = nullptr;
+    std::map<uint16_t, Registered<DmqMessageCallback>> g_msgCallbacks;
+    Registered<DmqStatusCallback> g_statusCallback;
+    Registered<DmqErrorCallback> g_errorCallback;
 
     struct ReliabilityConfig {
         bool enabled = true;
@@ -88,26 +95,26 @@ namespace {
     /// @details Copies the callback pointer under lock and calls it outside,
     /// so the callback may re-register itself without deadlocking.
     void RaiseError(DmqErrorCode code, uint16_t remoteId, const std::string& msg) {
-        DmqErrorCallback cb = nullptr;
+        Registered<DmqErrorCallback> cb;
         {
             std::lock_guard<std::mutex> lock(g_cbMutex);
             cb = g_errorCallback;
         }
-        if (cb) {
-            cb(static_cast<int>(code), remoteId, msg.c_str());
+        if (cb.fn) {
+            cb.fn(cb.context, static_cast<int>(code), remoteId, msg.c_str());
         } else {
             std::cerr << "DmqInterop Error " << static_cast<int>(code) << " (no callback): " << msg << std::endl;
         }
     }
 
     void RaiseStatus(uint16_t remoteId, uint16_t seqNum, DmqSendStatus status) {
-        DmqStatusCallback cb = nullptr;
+        Registered<DmqStatusCallback> cb;
         {
             std::lock_guard<std::mutex> lock(g_cbMutex);
             cb = g_statusCallback;
         }
-        if (cb) {
-            cb(remoteId, seqNum, static_cast<int>(status));
+        if (cb.fn) {
+            cb.fn(cb.context, remoteId, seqNum, static_cast<int>(status));
         }
     }
 
@@ -183,7 +190,7 @@ namespace {
                     // ACKs are consumed by the transport (TransportMonitor::Remove)
                     if (header.GetId() != dmq::ACK_REMOTE_ID) {
                         std::string payload = is.str();
-                        DmqMessageCallback cb = nullptr;
+                        Registered<DmqMessageCallback> cb;
                         {
                             std::lock_guard<std::mutex> lock(g_cbMutex);
                             auto it = g_msgCallbacks.find(header.GetId());
@@ -191,8 +198,8 @@ namespace {
                                 cb = it->second;
                             }
                         }
-                        if (cb) {
-                            cb(header.GetId(), (const uint8_t*)payload.data(), (uint32_t)payload.size());
+                        if (cb.fn) {
+                            cb.fn(cb.context, header.GetId(), (const uint8_t*)payload.data(), (uint32_t)payload.size());
                         }
                     }
                 }
@@ -380,22 +387,22 @@ extern "C" {
         }
     }
 
-    void DMQ_CALL DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb) {
+    void DMQ_CALL DmqInterop_RegisterCallback(uint16_t remoteId, DmqMessageCallback cb, void* context) {
         std::lock_guard<std::mutex> lock(g_cbMutex);
         if (cb)
-            g_msgCallbacks[remoteId] = cb;
+            g_msgCallbacks[remoteId] = { cb, context };
         else
             g_msgCallbacks.erase(remoteId);
     }
 
-    void DMQ_CALL DmqInterop_RegisterStatusCallback(DmqStatusCallback cb) {
+    void DMQ_CALL DmqInterop_RegisterStatusCallback(DmqStatusCallback cb, void* context) {
         std::lock_guard<std::mutex> lock(g_cbMutex);
-        g_statusCallback = cb;
+        g_statusCallback = { cb, context };
     }
 
-    void DMQ_CALL DmqInterop_RegisterErrorCallback(DmqErrorCallback cb) {
+    void DMQ_CALL DmqInterop_RegisterErrorCallback(DmqErrorCallback cb, void* context) {
         std::lock_guard<std::mutex> lock(g_cbMutex);
-        g_errorCallback = cb;
+        g_errorCallback = { cb, context };
     }
 
     int DMQ_CALL DmqInterop_Send(uint16_t remoteId, const uint8_t* data, uint32_t len, uint16_t* seqNum) {
