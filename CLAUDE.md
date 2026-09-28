@@ -47,8 +47,6 @@ When a fixed-size container is full, the default is `DMQ_ASSERT_TRUE(condition)`
 - **The app already controls the policy for this container** (e.g. a `dmq::os::Thread` message queue): expose it via `FullPolicy` (`FAULT`/`DROP`/`TIMEOUT`) instead of hard-coding a fault. `FAULT` stays the default.
 - **The cap is hit mid-drain of a batch, not a fixed-capacity data member** (e.g. `TransportMonitor::Process()`, `Timer::ProcessTimers()`): loop across multiple bounded passes until the backlog is empty instead of faulting — see `TransportMonitor::Process()` for the reference pattern.
 
-`docs/asserts.md` catalogs every `DMQ_ASSERT`/`DMQ_ASSERT_TRUE` site in the library with the reasoning behind its classification — consult it before adding a new one or changing an existing one.
-
 ## Exception vs. Assert (`DMQ_ASSERTS` / `BAD_ALLOC`)
 
 The library supports two error-handling modes, selected at build time:
