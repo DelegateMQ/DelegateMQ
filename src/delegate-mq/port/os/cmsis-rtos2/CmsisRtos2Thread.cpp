@@ -106,7 +106,18 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         // If the kernel is running, CreateThread() waits for the start handler.
         // Before osKernelStart() it cannot block; the start handler then runs
         // when the kernel starts, still before any message is processed.
+        //
+        // Zephyr's CMSIS-RTOS2 compatibility layer (subsys/portability/cmsis_rtos_v2/)
+        // never implements osKernelGetState() -- calling it is a link error -- but on
+        // Zephyr the kernel is already scheduling before main() runs (there is no
+        // separate osKernelStart() call on this backend; see cmsis-rtos2-linux's
+        // main_delegate.cpp), so it would always report osKernelRunning anyway.
+        // __ZEPHYR__ is defined by Zephyr's own build system on every compile.
+#if defined(__ZEPHYR__)
+        m_startSync = true;
+#else
         m_startSync = (osKernelGetState() == osKernelRunning);
+#endif
         if (m_startSync && m_startSem == NULL) {
             m_startSem = osSemaphoreNew(1, 0, NULL);
             DMQ_ASSERT_TRUE(m_startSem != NULL);
