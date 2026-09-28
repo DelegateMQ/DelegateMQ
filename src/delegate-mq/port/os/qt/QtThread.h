@@ -41,6 +41,9 @@ namespace dmq::os {
 /// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
 using FullPolicy = dmq::FullPolicy;
 
+/// @brief What ExitThread() does with queued messages. See dmq::ExitPolicy in DelegateOpt.h.
+using ExitPolicy = dmq::ExitPolicy;
+
 // ----------------------------------------------------------------------------
 // Worker Object
 // Lives on the target QThread and executes the slots
@@ -61,6 +64,10 @@ public:
     void BeginCurrentScope(dmq::IThread* thread) { m_currentScope.emplace(thread); }
     void EndCurrentScope() { m_currentScope.reset(); }
 
+    /// ExitPolicy::DISCARD: cancel messages instead of invoking them. Set by
+    /// ExitThread() from any thread before it queues the event loop's quit.
+    void SetDiscard(bool discard) { m_discard.store(discard); }
+
 public slots:
     void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg);
 
@@ -77,6 +84,8 @@ private:
 
     // Held for the life of the event loop: a Qt worker has no loop stack frame
     std::optional<dmq::CurrentThreadScope> m_currentScope;
+
+    std::atomic<bool> m_discard{ false };
 };
 
 class QtThread : public QObject, public dmq::IThread
@@ -128,8 +137,12 @@ public:
     /// @return TRUE if thread is created. FALSE otherwise.
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
 
-    /// Stop the QThread
-    void ExitThread();
+    /// Shut down the worker thread.
+    /// @param[in] policy - DRAIN (default) invokes every message queued before this
+    ///   call first; DISCARD invokes only the message already running and cancels
+    ///   the rest (see dmq::ExitPolicy). Called from the thread's own message
+    ///   handler (a self-exit), queued messages are always discarded.
+    void ExitThread(ExitPolicy policy = ExitPolicy::DRAIN);
 
     /// Get the QThread pointer (used as the ID)
     QThread* GetThreadId();
@@ -257,6 +270,10 @@ private:
 
     // Released on the worker thread once the start handler has run
     QSemaphore m_startSem;
+
+    // Set by ExitThread(): DispatchDelegate() rejects new messages, which would
+    // otherwise queue behind the event loop's quit and never run
+    std::atomic<bool> m_exiting{ false };
 
     // Optional handler invoked when a message is dropped (FullPolicy::DROP or TIMEOUT)
     dmq::UnicastDelegate<void(size_t)> m_droppedHandler;

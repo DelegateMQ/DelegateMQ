@@ -211,11 +211,15 @@ void PosixThread::Sleep(dmq::Duration timeout) {
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void PosixThread::ExitThread()
+void PosixThread::ExitThread(ExitPolicy policy)
 {
     if (!m_threadCreated) return;
 
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr);
+
+    // Messages taken off the queues without being invoked; canceled outside the lock
+    decltype(m_highQueue) discardedHigh;
+    decltype(m_normalQueue) discardedNormal;
 
     pthread_mutex_lock(&m_mutex);
 
@@ -223,9 +227,17 @@ void PosixThread::ExitThread()
     // This ensures that when a blocked producer wakes up, it sees m_exit == true immediately.
     m_exit.store(true);
 
+    // DISCARD: empty the queues so the exit message is the next one processed
+    if (policy == ExitPolicy::DISCARD)
+    {
+        discardedHigh.swap(m_highQueue);
+        discardedNormal.swap(m_normalQueue);
+    }
+
     // Explicitly allow Exit message to bypass the MAX_QUEUE_SIZE limit.
     // We do not wait on m_cvNotFull here to prevent deadlock during shutdown.
-    m_highQueue.push_back(threadMsg);
+    // Queued last, so DRAIN invokes every message already queued first.
+    m_normalQueue.push_back(threadMsg);
 
     // Wake up consumers
     pthread_cond_signal(&m_cvNotEmpty);
@@ -233,6 +245,9 @@ void PosixThread::ExitThread()
     pthread_cond_broadcast(&m_cvNotFull);
 
     pthread_mutex_unlock(&m_mutex);
+
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (!pthread_equal(pthread_self(), m_thread))
@@ -250,11 +265,16 @@ void PosixThread::ExitThread()
 
     pthread_mutex_lock(&m_mutex);
     m_threadCreated = false;
-    m_highQueue.clear();
-    m_normalQueue.clear();
+    // Normally empty. After a self-exit the loop returns without draining,
+    // so anything still queued is discarded here.
+    discardedHigh.swap(m_highQueue);
+    discardedNormal.swap(m_normalQueue);
     // Final cleanup notification
     pthread_cond_broadcast(&m_cvNotFull);
     pthread_mutex_unlock(&m_mutex);
+
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 }
 
 //----------------------------------------------------------------------------

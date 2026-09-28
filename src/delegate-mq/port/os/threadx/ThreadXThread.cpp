@@ -87,6 +87,10 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     // Check if thread is already created (tx_thread_id is non-zero if created)
     if (m_thread.tx_thread_id == 0)
     {
+        // Reset from a previous ExitThread(), so the thread can be created again
+        m_exit.store(false);
+        m_discard.store(false);
+
         // 0. Create Synchronization Semaphore (Critical for cleanup)
         if (m_exitSem.tx_semaphore_id == 0) {
             tx_semaphore_create(&m_exitSem, (CHAR*)"ExitSem", 0);
@@ -196,10 +200,12 @@ UINT ThreadXThread::GetThreadPriority()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void ThreadXThread::ExitThread()
+void ThreadXThread::ExitThread(ExitPolicy policy)
 {
     if (m_queue.IsCreated())
     {
+        // Set before m_exit: Run() reads it for every message ahead of the exit message
+        m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
         // Determine self-exit BEFORE attempting to enqueue the exit message.
@@ -470,7 +476,7 @@ void ThreadXThread::Run()
         tx_semaphore_put(&m_startSem);
 
     ThreadMsg* msg = nullptr;
-    while (!selfExit && !m_exit.load())
+    while (!selfExit)
     {
         dmq::Duration timeout;
         {
@@ -498,14 +504,23 @@ void ThreadXThread::Run()
         msg = m_queue.Receive(waitOption);
         if (!msg)
         {
+            // Exit requested but no exit message arrived (e.g. it could not be allocated)
+            if (m_exit.load())
+                break;
+
             // Timeout or other failure: run the idle handler if it is due
-            if (!m_exit.load() && idle.IsDue())
+            if (idle.IsDue())
                 idle.Run();
             continue;
         }
 
         int msgId = msg->GetId();
-        if (msgId == MSG_DISPATCH_DELEGATE)
+        if (msgId == MSG_DISPATCH_DELEGATE && m_discard.load())
+        {
+            // ExitPolicy::DISCARD: skip messages queued ahead of the exit message
+            CancelThreadMsg(*msg);
+        }
+        else if (msgId == MSG_DISPATCH_DELEGATE)
         {
 #if defined(DMQ_DATABUS_TOOLS)
             // Update latency stats before invoking

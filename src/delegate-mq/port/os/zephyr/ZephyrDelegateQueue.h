@@ -145,13 +145,17 @@ public:
     /// Remove and delete every pending message in both queues without
     /// blocking. Used during shutdown once the owning thread has stopped
     /// consuming the queues.
+    /// Each message is canceled first (CancelThreadMsg()), releasing a sender
+    /// blocked waiting on it.
     void DrainAndDelete()
     {
         ThreadMsg* msg = nullptr;
         while (k_msgq_get(&m_highMsgq, &msg, K_NO_WAIT) == 0) {
+            CancelThreadMsg(*msg);  // Release a sender blocked on it
             delete msg;
         }
         while (k_msgq_get(&m_normalMsgq, &msg, K_NO_WAIT) == 0) {
+            CancelThreadMsg(*msg);  // Release a sender blocked on it
             delete msg;
         }
     }

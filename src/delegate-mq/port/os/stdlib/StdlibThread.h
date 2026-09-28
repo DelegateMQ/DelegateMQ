@@ -46,6 +46,9 @@ namespace dmq::os {
 /// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
 using FullPolicy = dmq::FullPolicy;
 
+/// @brief What ExitThread() does with queued messages. See dmq::ExitPolicy in DelegateOpt.h.
+using ExitPolicy = dmq::ExitPolicy;
+
 /// @brief Cross-platform thread for any system supporting C++11 std::thread (e.g. Windows, Linux).
 /// @details The StdlibThread class creates a worker thread capable of dispatching and
 /// invoking asynchronous delegates.
@@ -96,8 +99,12 @@ public:
     /// @return TRUE if thread is created. FALSE otherwise. 
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
 
-    /// Called once at program exit to shut down the worker thread
-    void ExitThread();
+    /// Called once at program exit to shut down the worker thread.
+    /// @param[in] policy - DRAIN (default) invokes every message queued before this
+    ///   call first; DISCARD invokes only the message already running and cancels
+    ///   the rest (see dmq::ExitPolicy). Called from the thread's own message
+    ///   handler (a self-exit), queued messages are always discarded.
+    void ExitThread(ExitPolicy policy = ExitPolicy::DRAIN);
 
     /// Get the ID of this thread instance
     std::thread::id GetThreadId();

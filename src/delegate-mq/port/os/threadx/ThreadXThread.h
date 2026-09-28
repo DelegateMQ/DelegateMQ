@@ -53,6 +53,9 @@ using namespace dmq::util;
 /// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
 using FullPolicy = dmq::FullPolicy;
 
+/// @brief What ExitThread() does with queued messages. See dmq::ExitPolicy in DelegateOpt.h.
+using ExitPolicy = dmq::ExitPolicy;
+
 // Comparator for priority (ThreadX priority is 0 to N-1, where 0 is highest)
 // This is used for the priority queue if we had one, but ThreadX uses tx_queue_send/tx_queue_front_send.
 
@@ -103,8 +106,12 @@ public:
     /// @return TRUE if thread is created. FALSE otherwise.
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
 
-    /// Terminate the thread gracefully
-    void ExitThread();
+    /// Shut down the worker thread.
+    /// @param[in] policy - DRAIN (default) invokes every message queued before this
+    ///   call first; DISCARD invokes only the message already running and cancels
+    ///   the rest (see dmq::ExitPolicy). Called from the thread's own message
+    ///   handler (a self-exit), queued messages are always discarded.
+    void ExitThread(ExitPolicy policy = ExitPolicy::DRAIN);
 
     /// Get the ID of this thread instance
     TX_THREAD* GetThreadId();
@@ -255,6 +262,7 @@ private:
     TX_SEMAPHORE m_startSem; // Put by Run() once the start handler has run
     bool m_startSync = false; // CreateThread() waits for the start handler (called from a thread)
     std::atomic<bool> m_exit = false;
+    std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     bool* m_selfExitPtr = nullptr;
 
     // Stack memory required by ThreadX (Managed by RAII)

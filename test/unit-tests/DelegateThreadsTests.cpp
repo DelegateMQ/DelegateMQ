@@ -736,6 +736,91 @@ static void Hooks_CurrentThreadScope()
 #endif // desktop ports
 #endif // !DMQ_THREAD_NONE
 
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+// ---------------------------------------------------------------------------
+// ExitPolicy tests (use std::thread/std::async, so desktop ports only)
+// ---------------------------------------------------------------------------
+
+// Queue `count` increments behind a message that holds the thread until `release`
+// is set, so they are all still queued when ExitThread() is called.
+static void QueueBehindBlocker(Thread& thread, std::atomic<bool>& running, std::atomic<bool>& release,
+    std::atomic<bool>& blockerDone, std::atomic<int>& counter, int count)
+{
+    MakeDelegate([&]() {
+        running = true;
+        while (!release) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        blockerDone = true;
+    }, thread)();
+    while (!running) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    for (int i = 0; i < count; i++)
+        MakeDelegate([&]() { counter++; }, thread)();
+}
+
+// DRAIN (default): every message queued before ExitThread() runs.
+static void ExitPolicy_Drain_RunsQueuedMessages()
+{
+    Thread thread("ExitDrainThread");
+    thread.CreateThread();
+    std::atomic<bool> running{ false }, release{ false }, blockerDone{ false };
+    std::atomic<int> counter{ 0 };
+    QueueBehindBlocker(thread, running, release, blockerDone, counter, 5);
+
+    // ExitThread() joins, so release the blocker from another thread
+    std::thread releaser([&]() { std::this_thread::sleep_for(std::chrono::milliseconds(20)); release = true; });
+    thread.ExitThread();  // ExitPolicy::DRAIN
+    releaser.join();
+
+    DMQ_ASSERT_TRUE(blockerDone);
+    DMQ_ASSERT_TRUE(counter == 5);
+    std::cout << "ExitPolicy_Drain_RunsQueuedMessages() complete!" << std::endl;
+}
+
+// DISCARD: the running message finishes; queued messages never run.
+static void ExitPolicy_Discard_SkipsQueuedMessages()
+{
+    Thread thread("ExitDiscardThread");
+    thread.CreateThread();
+    std::atomic<bool> running{ false }, release{ false }, blockerDone{ false };
+    std::atomic<int> counter{ 0 };
+    QueueBehindBlocker(thread, running, release, blockerDone, counter, 5);
+
+    std::thread releaser([&]() { std::this_thread::sleep_for(std::chrono::milliseconds(20)); release = true; });
+    thread.ExitThread(ExitPolicy::DISCARD);
+    releaser.join();
+
+    DMQ_ASSERT_TRUE(blockerDone);
+    DMQ_ASSERT_TRUE(counter == 0);
+    std::cout << "ExitPolicy_Discard_SkipsQueuedMessages() complete!" << std::endl;
+}
+
+// DISCARD: a sender blocked on a discarded message (WAIT_INFINITE) is released
+// promptly and sees the call fail, instead of waiting forever.
+static void ExitPolicy_Discard_ReleasesBlockedSender()
+{
+    Thread thread("ExitDiscardWaitThread");
+    thread.CreateThread();
+    std::atomic<bool> running{ false }, release{ false }, blockerDone{ false };
+    std::atomic<int> counter{ 0 };
+    QueueBehindBlocker(thread, running, release, blockerDone, counter, 0);
+
+    // A blocking call queued behind the blocker
+    std::atomic<bool> invoked{ false };
+    auto blockingCall = MakeDelegate(std::function<int()>([&]() { invoked = true; return 42; }), thread, WAIT_INFINITE);
+    auto sender = std::async(std::launch::async, [&]() { return blockingCall.AsyncInvoke(); });
+    while (thread.GetQueueSize() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    std::thread releaser([&]() { std::this_thread::sleep_for(std::chrono::milliseconds(20)); release = true; });
+    thread.ExitThread(ExitPolicy::DISCARD);
+    releaser.join();
+
+    DMQ_ASSERT_TRUE(sender.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+    auto result = sender.get();
+    DMQ_ASSERT_TRUE(!result.has_value());
+    DMQ_ASSERT_TRUE(!invoked);
+    std::cout << "ExitPolicy_Discard_ReleasesBlockedSender() complete!" << std::endl;
+}
+#endif // desktop ports
+
 void DelegateThreadsTests()
 {
     workerThread1.CreateThread();
@@ -759,5 +844,11 @@ void DelegateThreadsTests()
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
     Hooks_CurrentThreadScope();
 #endif
+#endif
+
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    ExitPolicy_Drain_RunsQueuedMessages();
+    ExitPolicy_Discard_SkipsQueuedMessages();
+    ExitPolicy_Discard_ReleasesBlockedSender();
 #endif
 }

@@ -18,6 +18,9 @@ Numerous predefined platforms are already supported — Windows, Linux, FreeRTOS
 - [Thread Implementations](#thread-implementations)
   - [Thread Priority and Latency](#thread-priority-and-latency)
   - [Message Queueing](#message-queueing)
+    - [dmq::FullPolicy (Back Pressure / Drop)](#dmqfullpolicy-back-pressure--drop)
+    - [dmq::ExitPolicy (Shutdown)](#dmqexitpolicy-shutdown)
+  - [Start, Exit and Idle Handlers](#start-exit-and-idle-handlers)
   - [Watchdog Integration](#watchdog-integration)
   - [Performance Monitoring](#performance-monitoring)
   - [Current Thread](#current-thread)
@@ -306,6 +309,46 @@ dmq::os::Thread sensorThread("SensorThread", /*maxQueueSize=*/10, dmq::FullPolic
 Setting `maxQueueSize = 0` disables the limit entirely — `FullPolicy` has no effect and all messages are queued regardless of consumer speed.
 
 `FullPolicy` is a thread-level setting. All delegates dispatched to the same `dmq::os::Thread` instance share the policy. If a single thread serves both drop-tolerant and loss-intolerant subscribers, split them across separate threads with different policies.
+
+#### dmq::ExitPolicy (Shutdown)
+
+`dmq::ExitPolicy` controls what `ExitThread()` does with messages still queued when it is called. Like `FullPolicy`, it is defined once in `DelegateOpt.h` and aliased as `dmq::os::ExitPolicy` in every port. It is passed per call, so the same thread can drain on a normal shutdown and discard on an emergency stop.
+
+```cpp
+workerThread.ExitThread();                          // DRAIN (default)
+workerThread.ExitThread(dmq::ExitPolicy::DISCARD);  // fast shutdown
+```
+
+- **`ExitPolicy::DRAIN`** *(default)*: every message queued before `ExitThread()` is invoked, then the thread exits. `ExitThread()` returns once they have all run.
+- **`ExitPolicy::DISCARD`**: the message already running finishes; every queued message is discarded without being invoked. Use when pending work is disposable (telemetry, UI refresh) and shutdown must be fast.
+
+A discarded message is **canceled**, not just deleted: `DelegateMsg::Cancel()` releases a sender blocked on it (an async-wait delegate such as `MakeDelegate(func, thread, WAIT_INFINITE)`), which then sees the call fail instead of waiting out its timeout. This applies to every message a thread drops at exit, including those left behind when a thread exits itself.
+
+A thread that exits itself (`ExitThread()` called from one of its own message handlers) always discards, whatever the policy, because its owner may already be destroyed.
+
+With `DRAIN`, queued messages still run during shutdown. Call `ExitThread()` **before** destroying objects those messages target, or use `DISCARD`.
+
+**Custom `IThread` implementations:** if your thread ever drops a queued `DelegateMsg` without invoking it (at exit, or on overflow after it was accepted), call `msg->Cancel()` on it first. Otherwise a sender blocked on that message waits for its full timeout. `port/os/common/ThreadMsg.h` provides `CancelThreadMsg()` and `CancelAll()` for queues of `ThreadMsg`.
+
+### Start, Exit and Idle Handlers
+
+Every `dmq::os::Thread` port can run application code on the worker thread at points no dispatched delegate can reach:
+
+```cpp
+dmq::os::Thread worker("Worker");
+worker.SetStartHandler(dmq::MakeDelegate([] { /* per-thread setup */ }));
+worker.SetExitHandler(dmq::MakeDelegate([] { /* undo the setup */ }));
+worker.SetIdleHandler(dmq::MakeDelegate([] { /* background work */ }), std::chrono::milliseconds(50));
+worker.CreateThread();
+```
+
+- **Start handler**: runs on the worker before any message. `CreateThread()` returns after it completes. On RTOS ports, a thread created before the scheduler/kernel starts cannot block `CreateThread()`; its start handler runs when the scheduler starts, still before any message. Use it for per-thread setup: COM initialization, attaching to a language runtime, thread-local state, CPU affinity.
+- **Exit handler**: runs on the worker after its last message, on every exit path. `ExitThread()` returns after it completes. When a thread exits itself, the handler runs after the `Thread` object may be destroyed, so it must not touch that object.
+- **Idle handler**: runs on the worker once its queue has been empty for the interval, then every interval while it stays empty. Any processed message restarts the countdown, so it means "quiet for N ms", not a fixed rate (use `dmq::util::Timer` for that). The interval defaults to `DMQ_THREAD_IDLE_INTERVAL` (100 ms). Not called once `ExitThread()` has been requested.
+
+The setters must be called while the thread is not running (before `CreateThread()`, or after `ExitThread()`); calling one on a running thread faults. Handlers run again on each `CreateThread()`.
+
+A new port implements these with the helpers in `port/os/common/ThreadHooks.h`: `ThreadExitGuard` runs the exit handler on every return path of the worker loop (`Fire()` runs it early, e.g. before signalling `ExitThread()`), and `ThreadIdleTimer` bounds each queue wait and tracks when the idle handler is due. See `port/os/stdlib/StdlibThread.cpp` for a reference loop.
 
 ### Watchdog Integration
 

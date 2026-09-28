@@ -178,7 +178,7 @@ void StdlibThread::SetThreadName(std::thread::native_handle_type handle, const d
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void StdlibThread::ExitThread()
+void StdlibThread::ExitThread(ExitPolicy policy)
 {
     if (!m_thread)
         return;
@@ -186,12 +186,23 @@ void StdlibThread::ExitThread()
     // Create a new ThreadMsg
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr);
 
+    // Messages taken off the queues without being invoked; canceled outside the lock
+    decltype(m_highQueue) discardedHigh;
+    decltype(m_normalQueue) discardedNormal;
+
     {
         lock_guard<mutex> lock(m_mutex);
 
         // Set exit flag INSIDE lock before notifying.
         // This ensures that when a blocked producer wakes up, it sees m_exit == true immediately.
         m_exit.store(true);
+
+        // DISCARD: empty the queues so the exit message is the next one processed
+        if (policy == ExitPolicy::DISCARD)
+        {
+            discardedHigh.swap(m_highQueue);
+            discardedNormal.swap(m_normalQueue);
+        }
 
         // Explicitly allow Exit message to bypass the MAX_QUEUE_SIZE limit.
         // We do not wait on m_cvNotFull here to prevent deadlock during shutdown.
@@ -205,6 +216,9 @@ void StdlibThread::ExitThread()
         // Wake up blocked producers (DispatchDelegate)
         m_cvNotFull.notify_all();
     }
+
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (m_thread->joinable())
@@ -226,12 +240,18 @@ void StdlibThread::ExitThread()
     {
         lock_guard<mutex> lock(m_mutex);
         m_thread.reset();
-        m_highQueue.clear();
-        m_normalQueue.clear();
+
+        // Normally empty. After a self-exit the loop returns without draining,
+        // so anything still queued is discarded here.
+        discardedHigh.swap(m_highQueue);
+        discardedNormal.swap(m_normalQueue);
 
         // Final cleanup notification
         m_cvNotFull.notify_all();
     }
+
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 }
 
 //----------------------------------------------------------------------------

@@ -397,9 +397,13 @@ void Win32Thread::Process()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void Win32Thread::ExitThread()
+void Win32Thread::ExitThread(ExitPolicy policy)
 {
     if (m_hThread == NULL) return;
+
+    // Messages taken off the queues without being invoked; canceled outside the lock
+    decltype(m_highQueue) discardedHigh;
+    decltype(m_normalQueue) discardedNormal;
 
     EnterCriticalSection(&m_cs);
 
@@ -407,9 +411,17 @@ void Win32Thread::ExitThread()
     // This ensures that when a blocked producer wakes up, it sees m_exit == true immediately.
     m_exit.store(true);
 
+    // DISCARD: empty the queues so the exit message is the next one processed
+    if (policy == ExitPolicy::DISCARD)
+    {
+        discardedHigh.swap(m_highQueue);
+        discardedNormal.swap(m_normalQueue);
+    }
+
     // Explicitly allow Exit message to bypass the MAX_QUEUE_SIZE limit.
     // We do not wait on m_cvNotFull here to prevent deadlock during shutdown.
-    m_highQueue.push_back(xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr));
+    // Queued last, so DRAIN invokes every message already queued first.
+    m_normalQueue.push_back(xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr));
 
     // Wake up consumers
     WakeConditionVariable(&m_cvNotEmpty);
@@ -418,6 +430,9 @@ void Win32Thread::ExitThread()
     WakeAllConditionVariable(&m_cvNotFull);
 
     LeaveCriticalSection(&m_cs);
+
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (::GetCurrentThreadId() != m_threadId)
@@ -428,6 +443,15 @@ void Win32Thread::ExitThread()
     {
         if (t_self_exit) *t_self_exit = true;
     }
+
+    // Normally empty. After a self-exit the loop returns without draining,
+    // so anything still queued is discarded here.
+    EnterCriticalSection(&m_cs);
+    discardedHigh.swap(m_highQueue);
+    discardedNormal.swap(m_normalQueue);
+    LeaveCriticalSection(&m_cs);
+    CancelAll(discardedHigh);
+    CancelAll(discardedNormal);
 
     CloseHandle(m_hThread);
     m_hThread = NULL;

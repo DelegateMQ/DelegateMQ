@@ -85,6 +85,10 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
 {
     if (m_thread == NULL)
     {
+        // Reset from a previous ExitThread(), so the thread can be created again
+        m_exit.store(false);
+        m_discard.store(false);
+
         // 1. Create Exit Semaphore (Max 1, Initial 0)
         // We use this to wait for the thread to shut down gracefully.
         m_exitSem = osSemaphoreNew(1, 0, NULL);
@@ -173,10 +177,12 @@ osPriority_t CmsisRtos2Thread::GetThreadPriority()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void CmsisRtos2Thread::ExitThread()
+void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
 {
     if (m_queue.IsCreated())
     {
+        // Set before m_exit: Run() reads it for every message ahead of the exit message
+        m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
@@ -406,7 +412,7 @@ void CmsisRtos2Thread::Run()
 
     ThreadMsg* msg = nullptr;
 
-    while (!selfExit && !m_exit.load())
+    while (!selfExit)
     {
         dmq::Duration watchdogTimeout;
         {
@@ -434,14 +440,23 @@ void CmsisRtos2Thread::Run()
         msg = m_queue.Receive(waitOption);
         if (msg == nullptr)
         {
+            // Exit requested but no exit message arrived (e.g. it could not be allocated)
+            if (m_exit.load())
+                break;
+
             // Timed out with the queue empty: run the idle handler if it is due
-            if (!m_exit.load() && idle.IsDue())
+            if (idle.IsDue())
                 idle.Run();
         }
         else
         {
             int msgId = msg->GetId();
-            if (msgId == MSG_DISPATCH_DELEGATE)
+            if (msgId == MSG_DISPATCH_DELEGATE && m_discard.load())
+            {
+                // ExitPolicy::DISCARD: skip messages queued ahead of the exit message
+                CancelThreadMsg(*msg);
+            }
+            else if (msgId == MSG_DISPATCH_DELEGATE)
             {
             #if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking

@@ -52,6 +52,9 @@ namespace dmq::os {
 /// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
 using FullPolicy = dmq::FullPolicy;
 
+/// @brief What ExitThread() does with queued messages. See dmq::ExitPolicy in DelegateOpt.h.
+using ExitPolicy = dmq::ExitPolicy;
+
 class CmsisRtos2Thread : public dmq::IThread
 {
 public:
@@ -97,7 +100,13 @@ public:
     /// @param[in] watchdogTimeout - optional watchdog timeout.
     /// @return TRUE if thread is created. FALSE otherwise.
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
-    void ExitThread();
+
+    /// Shut down the worker thread.
+    /// @param[in] policy - DRAIN (default) invokes every message queued before this
+    ///   call first; DISCARD invokes only the message already running and cancels
+    ///   the rest (see dmq::ExitPolicy). Called from the thread's own message
+    ///   handler (a self-exit), queued messages are always discarded.
+    void ExitThread(ExitPolicy policy = ExitPolicy::DRAIN);
 
     osThreadId_t GetThreadId();
     static osThreadId_t GetCurrentThreadId();
@@ -228,6 +237,7 @@ private:
     osSemaphoreId_t m_startSem = NULL; // Released by Run() once the start handler has run
     bool m_startSync = false; // CreateThread() waits for the start handler (kernel running)
     std::atomic<bool> m_exit = false;
+    std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     bool* m_selfExitPtr = nullptr;
     
     // Configurable sizes

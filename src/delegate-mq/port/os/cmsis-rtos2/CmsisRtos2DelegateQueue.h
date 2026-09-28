@@ -76,10 +76,13 @@ public:
 
     /// Remove and delete every pending message without blocking. Used during
     /// shutdown once the owning thread has stopped consuming the queue.
+    /// Each message is canceled first (CancelThreadMsg()), releasing a sender
+    /// blocked waiting on it.
     void DrainAndDelete()
     {
         ThreadMsg* msg = nullptr;
         while (osMessageQueueGet(m_msgq, &msg, NULL, 0) == osOK) {
+            CancelThreadMsg(*msg);  // Release a sender blocked on it
             delete msg;
         }
     }

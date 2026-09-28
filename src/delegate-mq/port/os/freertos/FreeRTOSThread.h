@@ -58,6 +58,9 @@ namespace dmq::os {
 /// high-priority task, consider DROP to avoid blocking at an unsafe context.
 using FullPolicy = dmq::FullPolicy;
 
+/// @brief What ExitThread() does with queued messages. See dmq::ExitPolicy in DelegateOpt.h.
+using ExitPolicy = dmq::ExitPolicy;
+
 class FreeRTOSThread : public dmq::IThread
 {
     XALLOCATOR
@@ -109,8 +112,12 @@ public:
     /// Returns true if the thread is created
     bool IsThreadCreated() const { return m_thread != nullptr; }
 
-    /// Terminate the thread gracefully
-    void ExitThread();
+    /// Shut down the worker thread.
+    /// @param[in] policy - DRAIN (default) invokes every message queued before this
+    ///   call first; DISCARD invokes only the message already running and cancels
+    ///   the rest (see dmq::ExitPolicy). Called from the thread's own message
+    ///   handler (a self-exit), queued messages are always discarded.
+    void ExitThread(ExitPolicy policy = ExitPolicy::DRAIN);
 
     /// Get the ID of this thread instance
     TaskHandle_t GetThreadId();
@@ -260,6 +267,7 @@ private:
     SemaphoreHandle_t m_startSem = nullptr; // Given by Run() once the start handler has run
     bool m_startSync = false; // CreateThread() waits for the start handler (scheduler running)
     std::atomic<bool> m_exit = false;
+    std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     bool* m_selfExitPtr = nullptr;
 
     // Static allocation support

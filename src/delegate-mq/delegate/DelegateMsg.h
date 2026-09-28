@@ -59,6 +59,12 @@ public:
 	/// @return Delegate message priority
 	Priority GetPriority() const { return m_priority; }
 
+	/// @brief Called by a thread that discards this message without invoking it
+	/// (e.g. dmq::ExitPolicy::DISCARD). Releases a sender blocked waiting on the
+	/// invoke, which then sees the call as failed instead of waiting out its timeout.
+	/// No-op for messages nobody waits on.
+	virtual void Cancel() {}
+
 private:
 	/// The IThreadInvoker instance used to invoke the target function 
     /// on the destination thread of control

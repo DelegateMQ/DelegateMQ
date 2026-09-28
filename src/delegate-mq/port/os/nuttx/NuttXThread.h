@@ -43,6 +43,9 @@ namespace dmq::os {
 /// in DelegateOpt.h for the canonical definition, shared by every dmq::os::Thread port.
 using FullPolicy = dmq::FullPolicy;
 
+/// @brief What ExitThread() does with queued messages. See dmq::ExitPolicy in DelegateOpt.h.
+using ExitPolicy = dmq::ExitPolicy;
+
 class NuttXThread : public dmq::IThread
 {
 public:
@@ -88,7 +91,13 @@ public:
     /// @param[in] watchdogTimeout - optional watchdog timeout.
     /// @return TRUE if thread is created. FALSE otherwise.
     bool CreateThread(std::optional<dmq::Duration> watchdogTimeout = std::nullopt);
-    void ExitThread();
+
+    /// Shut down the worker thread.
+    /// @param[in] policy - DRAIN (default) invokes every message queued before this
+    ///   call first; DISCARD invokes only the message already running and cancels
+    ///   the rest (see dmq::ExitPolicy). Called from the thread's own message
+    ///   handler (a self-exit), queued messages are always discarded.
+    void ExitThread(ExitPolicy policy = ExitPolicy::DRAIN);
 
     pthread_t GetThreadId();
     static pthread_t GetCurrentThreadId();
@@ -216,6 +225,7 @@ private:
     sem_t m_goSem{};    // Posted by CreateThread() once m_thread is stored
     sem_t m_startSem{}; // Posted by Run() once the start handler has run
     std::atomic<bool> m_exit = false;
+    std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     std::atomic<bool> m_created = false;
     bool* m_selfExitPtr = nullptr;
 

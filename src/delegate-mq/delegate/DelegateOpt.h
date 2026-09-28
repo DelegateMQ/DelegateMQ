@@ -336,6 +336,17 @@ namespace dmq
     /// dmq::os::FullPolicy so existing port-qualified references keep working.
     enum class FullPolicy { DROP, FAULT, TIMEOUT };
 
+    /// @brief What a dmq::os::Thread does with messages still queued when ExitThread() is called.
+    ///   - DRAIN:   Invoke every message queued before ExitThread(), then exit (default).
+    ///   - DISCARD: Invoke only the message already running, then exit. Queued messages are
+    ///              discarded without being invoked; a sender blocked on one (an async-wait
+    ///              delegate) is released and sees the call fail (DelegateMsg::Cancel()).
+    ///
+    /// Use DISCARD for fast shutdown when pending work is disposable (telemetry, UI refresh).
+    /// A thread that exits itself (ExitThread() called from its own message handler) always
+    /// discards, since the thread's owner may already be destroyed.
+    enum class ExitPolicy { DRAIN, DISCARD };
+
     /// @brief Default timeout for the TIMEOUT queue-full policy across all Thread ports.
     /// Override via DMQ_DEFAULT_DISPATCH_TIMEOUT in DelegateMQConfig.h.
     inline constexpr std::chrono::seconds DEFAULT_DISPATCH_TIMEOUT{DMQ_DEFAULT_DISPATCH_TIMEOUT};

@@ -60,6 +60,24 @@ private:
     XALLOCATOR
 };
 
+/// @brief Discard a queued message without invoking it: a sender blocked waiting
+/// on it is released and sees the call fail (DelegateMsg::Cancel()). Used for
+/// dmq::ExitPolicy::DISCARD and for messages still queued when a thread exits.
+inline void CancelThreadMsg(const ThreadMsg& msg)
+{
+    if (auto delegateMsg = msg.GetData())
+        delegateMsg->Cancel();
+}
+
+/// @brief CancelThreadMsg() every message in a queue of std::shared_ptr<ThreadMsg>, then clear it.
+template <typename Queue>
+void CancelAll(Queue& queue)
+{
+    for (auto& msg : queue)
+        CancelThreadMsg(*msg);
+    queue.clear();
+}
+
 } // namespace dmq::os
 
 #endif // DMQ_OS_COMMON_THREAD_MSG_H

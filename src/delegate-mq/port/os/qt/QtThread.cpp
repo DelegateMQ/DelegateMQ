@@ -24,6 +24,14 @@ static int registerId = qRegisterMetaType<std::shared_ptr<dmq::DelegateMsg>>();
 // Worker::OnDispatch
 //----------------------------------------------------------------------------
 void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
+    // ExitPolicy::DISCARD: skip messages queued ahead of the event loop's quit
+    if (m_discard.load()) {
+        if (msg)
+            msg->Cancel();
+        emit MessageProcessed();
+        return;
+    }
+
     if (msg) {
         auto invoker = msg->GetInvoker();
         if (invoker) {
@@ -133,6 +141,7 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 {
     if (!m_thread)
     {
+        m_exiting.store(false);
         m_thread = new QThread();
         m_thread->setObjectName(QString::fromUtf8(m_threadName.c_str()));
 
@@ -282,18 +291,28 @@ dmq::RecursiveMutex& QtThread::GetWatchdogLock()
 //----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
-void QtThread::ExitThread()
+void QtThread::ExitThread(ExitPolicy policy)
 {
     if (m_thread)
     {
-        m_thread->quit();
+        m_exiting.store(true);
+        const bool selfExit = (QThread::currentThread() == m_thread);
+
+        // A self-exit always discards: the event loop keeps running after this
+        // object may be destroyed.
+        m_worker->SetDiscard(policy == ExitPolicy::DISCARD || selfExit);
+
+        // Quit queued behind every message already dispatched, so DRAIN invokes
+        // them first and DISCARD cancels them first.
+        QThread* thread = m_thread;
+        QMetaObject::invokeMethod(m_worker, [thread]() { thread->quit(); }, Qt::QueuedConnection);
 
         // Wake any blocked threads
         m_mutex.lock();
         m_cvNotFull.wakeAll();
         m_mutex.unlock();
 
-        if (QThread::currentThread() != m_thread) {
+        if (!selfExit) {
             m_thread->wait();
             delete m_thread;
         } else {
@@ -345,7 +364,7 @@ void QtThread::Sleep(dmq::Duration timeout) {
 bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     // Safety check: Don't emit if thread is tearing down
-    if (m_thread && m_thread->isRunning()) 
+    if (m_thread && m_thread->isRunning() && !m_exiting.load())
     {
         m_mutex.lock();
         if (m_queueSize >= m_maxQueueSize)
