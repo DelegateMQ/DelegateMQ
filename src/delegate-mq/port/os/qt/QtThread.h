@@ -32,6 +32,7 @@
 #include <QTimer>
 #include <memory>
 #include <atomic>
+#include <optional>
 #include <string>
 
 namespace dmq::os {
@@ -55,6 +56,11 @@ public:
     /// Start the idle countdown. Must be called on the worker's thread.
     void StartIdleTimer(const dmq::UnicastDelegate<void()>& handler, dmq::Duration interval);
 
+    /// Register `thread` for dmq::ThisThread::GetCurrent() until EndCurrentScope().
+    /// Both must be called on the worker's thread.
+    void BeginCurrentScope(dmq::IThread* thread) { m_currentScope.emplace(thread); }
+    void EndCurrentScope() { m_currentScope.reset(); }
+
 public slots:
     void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg);
 
@@ -68,6 +74,9 @@ private:
     // Created on the worker's thread by StartIdleTimer(); null if no idle handler.
     dmq::UnicastDelegate<void()> m_idleHandler;
     QTimer* m_idleTimer = nullptr;
+
+    // Held for the life of the event loop: a Qt worker has no loop stack frame
+    std::optional<dmq::CurrentThreadScope> m_currentScope;
 };
 
 class QtThread : public QObject, public dmq::IThread

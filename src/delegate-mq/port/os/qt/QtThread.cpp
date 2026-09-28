@@ -159,9 +159,11 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // processes any dispatched message.
         Worker* worker = m_worker;
         QSemaphore* startSem = &m_startSem;
+        dmq::IThread* self = this;
         connect(m_thread, &QThread::started, m_worker,
-            [worker, startSem, startHandler = m_startHandler,
+            [worker, self, startSem, startHandler = m_startHandler,
              idleHandler = m_idleHandler, idleInterval = m_idleInterval]() {
+                worker->BeginCurrentScope(self);
                 if (startHandler)
                     startHandler();
                 if (idleHandler)
@@ -170,10 +172,11 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             }, Qt::DirectConnection);
 
         // Exit handler runs on the worker thread as it finishes (finished is
-        // emitted there). Captured by copy so it works even if this QtThread was
-        // destroyed by a self-exit.
+        // emitted there), after GetCurrent() is cleared. Captured by copy so it
+        // works even if this QtThread was destroyed by a self-exit.
         connect(m_thread, &QThread::finished, m_worker,
-            [exitHandler = m_exitHandler]() {
+            [worker, exitHandler = m_exitHandler]() {
+                worker->EndCurrentScope();
                 if (exitHandler)
                     exitHandler();
             }, Qt::DirectConnection);

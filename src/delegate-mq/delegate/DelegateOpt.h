@@ -175,6 +175,7 @@
     // see port/os/posix/PosixThread.h, the only file this port adds)
     #include <condition_variable>
     #include <thread>
+    #include "port/os/stdlib/StdlibThisThread.h"
 #elif defined(DMQ_THREAD_FREERTOS)
     #include "port/os/freertos/FreeRTOSClock.h"
     #include "port/os/freertos/FreeRTOSMutex.h"
@@ -285,14 +286,16 @@ namespace dmq
     using Duration = typename Clock::duration;
     using TimePoint = typename Clock::time_point;
 
-    // --- THIS_THREAD (sleep_for / yield) SELECTION ---
+    // --- THIS_THREAD (sleep_for / yield / GetCurrent) SELECTION ---
     // Portable equivalents of std::this_thread::sleep_for()/yield() for the
-    // calling thread. Exists so library internals that need to delay or
-    // yield (e.g. RetryMonitor backoff) aren't forced to pull in a full
-    // dmq::os::Thread -- which also drags in the message queue, watchdog,
-    // and stats machinery -- just to sleep. Each dmq::os::Thread::Sleep()
-    // forwards here too, so every port's native delay call is implemented
-    // exactly once.
+    // calling thread, plus GetCurrent(): the dmq::IThread whose worker is the
+    // calling thread, or nullptr (registered by dmq::CurrentThreadScope in
+    // IThread.h). Exists so library internals that need to delay or yield
+    // (e.g. RetryMonitor backoff) aren't forced to pull in a full
+    // dmq::os::Thread -- which also drags in the message queue, watchdog, and
+    // stats machinery -- just to sleep. Each dmq::os::Thread::Sleep() forwards
+    // here too, so every port's native delay call is implemented exactly once.
+    // Each port implements it in port/os/<os>/<Os>ThisThread.h.
     //
     // A class (not a "this_thread" namespace) deliberately: sample/app code
     // throughout this project does `using namespace dmq; ... using namespace
@@ -300,68 +303,21 @@ namespace dmq
     // this_thread::sleep_for() calls in that code ambiguous against
     // std::this_thread.
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
-    // Windows / Linux / macOS / Qt / POSIX -- std::this_thread is already portable here.
-    struct ThisThread {
-        template<typename Rep, typename Period>
-        static void sleep_for(std::chrono::duration<Rep, Period> d) { std::this_thread::sleep_for(d); }
-        static void yield() noexcept { std::this_thread::yield(); }
-    };
-
+    using ThisThread = dmq::os::StdlibThisThread;
 #elif defined(DMQ_THREAD_FREERTOS)
-    struct ThisThread {
-        template<typename Rep, typename Period>
-        static void sleep_for(std::chrono::duration<Rep, Period> d) {
-            dmq::os::FreeRTOSThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
-        }
-        static void yield() noexcept { dmq::os::FreeRTOSThisThread::yield(); }
-    };
-
+    using ThisThread = dmq::os::FreeRTOSThisThread;
 #elif defined(DMQ_THREAD_THREADX)
-    struct ThisThread {
-        template<typename Rep, typename Period>
-        static void sleep_for(std::chrono::duration<Rep, Period> d) {
-            dmq::os::ThreadXThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
-        }
-        static void yield() noexcept { dmq::os::ThreadXThisThread::yield(); }
-    };
-
+    using ThisThread = dmq::os::ThreadXThisThread;
 #elif defined(DMQ_THREAD_ZEPHYR)
-    struct ThisThread {
-        template<typename Rep, typename Period>
-        static void sleep_for(std::chrono::duration<Rep, Period> d) {
-            dmq::os::ZephyrThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
-        }
-        static void yield() noexcept { dmq::os::ZephyrThisThread::yield(); }
-    };
-
+    using ThisThread = dmq::os::ZephyrThisThread;
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
-    struct ThisThread {
-        template<typename Rep, typename Period>
-        static void sleep_for(std::chrono::duration<Rep, Period> d) {
-            dmq::os::CmsisRtos2ThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
-        }
-        static void yield() noexcept { dmq::os::CmsisRtos2ThisThread::yield(); }
-    };
-
+    using ThisThread = dmq::os::CmsisRtos2ThisThread;
 #elif defined(DMQ_THREAD_NUTTX)
-    struct ThisThread {
-        template<typename Rep, typename Period>
-        static void sleep_for(std::chrono::duration<Rep, Period> d) {
-            dmq::os::NuttXThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
-        }
-        static void yield() noexcept { dmq::os::NuttXThisThread::yield(); }
-    };
-
+    using ThisThread = dmq::os::NuttXThisThread;
 #else
-    // Bare metal (DMQ_THREAD_NONE, or no thread model defined): busy-waits
-    // against BareMetalClock; yield() is a no-op (single thread of control).
-    struct ThisThread {
-        template<typename Rep, typename Period>
-        static void sleep_for(std::chrono::duration<Rep, Period> d) {
-            dmq::os::BareMetalThisThread::sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(d));
-        }
-        static void yield() noexcept { dmq::os::BareMetalThisThread::yield(); }
-    };
+    // Bare metal (DMQ_THREAD_NONE, or no thread model defined): sleep_for()
+    // busy-waits against BareMetalClock; yield() is a no-op.
+    using ThisThread = dmq::os::BareMetalThisThread;
 #endif
 
     /// @brief Policy applied when a dmq::os::Thread port's message queue is full.
@@ -418,6 +374,11 @@ namespace dmq
     /// @brief Max number of threads that can be monitored by the watchdog.
     /// Override via DMQ_MAX_WATCHDOG_THREADS in delegatemqconfig.h.
     inline constexpr size_t MAX_WATCHDOG_THREADS = DMQ_MAX_WATCHDOG_THREADS;
+
+    /// @brief Max threads registered for ThisThread::GetCurrent() at once on RTOS
+    /// ports (see port/os/common/CurrentThreadStorage.h). Exceeding it faults.
+    /// Override via DMQ_MAX_CURRENT_THREADS in delegatemqconfig.h.
+    inline constexpr size_t MAX_CURRENT_THREADS = DMQ_MAX_CURRENT_THREADS;
 
     /// @brief Max number of remote Participants the DataBus can hold without heap allocation.
     /// Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.

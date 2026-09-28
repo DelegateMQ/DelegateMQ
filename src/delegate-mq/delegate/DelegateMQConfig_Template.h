@@ -38,6 +38,11 @@
 /// Max number of threads that can be registered with the watchdog.
 #define DMQ_MAX_WATCHDOG_THREADS        16
 
+/// Max threads registered for dmq::ThisThread::GetCurrent() at once on RTOS ports
+/// (one per running dmq::os::Thread or custom IThread worker). Exceeding it faults.
+/// Unused on desktop ports, which use thread_local storage.
+#define DMQ_MAX_CURRENT_THREADS         16
+
 /// Duplicate-detection ring buffer depth per remote Participant.
 /// Larger values catch more out-of-order duplicates; reduce on RAM-constrained targets.
 #define DMQ_SEQ_HISTORY_SIZE            8

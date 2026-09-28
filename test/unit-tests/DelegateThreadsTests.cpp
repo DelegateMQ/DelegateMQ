@@ -670,39 +670,70 @@ static void Hooks_IdleFiresOnlyWhenQuiet()
     std::cout << "Hooks_IdleFiresOnlyWhenQuiet() complete! (quiet " << quietCount << " calls)" << std::endl;
 }
 
-#if defined(DMQ_THREAD_STDLIB)
-// GetCurrent() returns the worker's own Thread from its start, message and idle
-// handlers; nullptr from other threads and from the exit handler.
+// ThisThread::GetCurrent() returns the worker's own thread from its start, message
+// and idle handlers; nullptr from other threads and from the exit handler.
 static void Hooks_GetCurrent()
 {
-    DMQ_ASSERT_TRUE(Thread::GetCurrent() == nullptr);
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
 
     Thread curThread("HookCurrentThread");
-    std::atomic<Thread*> fromStart{ nullptr };
-    std::atomic<Thread*> fromMsg{ nullptr };
-    std::atomic<Thread*> fromIdle{ nullptr };
-    std::atomic<Thread*> fromExit{ &curThread };
+    IThread* const expected = &curThread;
+    std::atomic<IThread*> fromStart{ nullptr };
+    std::atomic<IThread*> fromMsg{ nullptr };
+    std::atomic<IThread*> fromIdle{ nullptr };
+    std::atomic<IThread*> fromExit{ expected };
 
-    curThread.SetStartHandler(MakeDelegate([&]() { fromStart = Thread::GetCurrent(); }));
-    curThread.SetIdleHandler(MakeDelegate([&]() { fromIdle = Thread::GetCurrent(); }));  // dmq::THREAD_IDLE_INTERVAL
-    curThread.SetExitHandler(MakeDelegate([&]() { fromExit = Thread::GetCurrent(); }));
+    curThread.SetStartHandler(MakeDelegate([&]() { fromStart = ThisThread::GetCurrent(); }));
+    curThread.SetIdleHandler(MakeDelegate([&]() { fromIdle = ThisThread::GetCurrent(); }));  // dmq::THREAD_IDLE_INTERVAL
+    curThread.SetExitHandler(MakeDelegate([&]() { fromExit = ThisThread::GetCurrent(); }));
     curThread.CreateThread();
 
     // Blocking call: returns after the target ran on curThread
-    auto msgDelegate = MakeDelegate(std::function<void()>([&]() { fromMsg = Thread::GetCurrent(); }), curThread, TEST_TIMEOUT);
+    auto msgDelegate = MakeDelegate(std::function<void()>([&]() { fromMsg = ThisThread::GetCurrent(); }), curThread, TEST_TIMEOUT);
     msgDelegate();
     std::this_thread::sleep_for(std::chrono::milliseconds(100) + dmq::THREAD_IDLE_INTERVAL * 2);
     curThread.ExitThread();
 
-    DMQ_ASSERT_TRUE(fromStart == &curThread);
-    DMQ_ASSERT_TRUE(fromMsg == &curThread);
-    DMQ_ASSERT_TRUE(fromIdle == &curThread);
+    DMQ_ASSERT_TRUE(fromStart == expected);
+    DMQ_ASSERT_TRUE(fromMsg == expected);
+    DMQ_ASSERT_TRUE(fromIdle == expected);
     DMQ_ASSERT_TRUE(fromExit == nullptr);
-    DMQ_ASSERT_TRUE(Thread::GetCurrent() == nullptr);
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
 
     std::cout << "Hooks_GetCurrent() complete!" << std::endl;
 }
-#endif // DMQ_THREAD_STDLIB
+
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+// A custom IThread registers itself with CurrentThreadScope; scopes nest and
+// restore the previous value. (Uses std::thread, so desktop ports only.)
+static void Hooks_CurrentThreadScope()
+{
+    struct CustomThread : IThread {
+        bool DispatchDelegate(std::shared_ptr<DelegateMsg>) override { return false; }
+        bool IsCurrentThread() override { return ThisThread::GetCurrent() == this; }
+    } outer, inner;
+
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
+    {
+        CurrentThreadScope outerScope(&outer);
+        DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == &outer);
+        DMQ_ASSERT_TRUE(outer.IsCurrentThread());
+        {
+            CurrentThreadScope innerScope(&inner);
+            DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == &inner);
+        }
+        DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == &outer);
+
+        // Per thread: another thread does not see this registration
+        std::atomic<IThread*> other{ &outer };
+        std::thread([&]() { other = ThisThread::GetCurrent(); }).join();
+        DMQ_ASSERT_TRUE(other == nullptr);
+    }
+    DMQ_ASSERT_TRUE(ThisThread::GetCurrent() == nullptr);
+
+    std::cout << "Hooks_CurrentThreadScope() complete!" << std::endl;
+}
+#endif // desktop ports
 #endif // !DMQ_THREAD_NONE
 
 void DelegateThreadsTests()
@@ -724,8 +755,9 @@ void DelegateThreadsTests()
     Hooks_StartAndExitRunOnThreadInOrder();
     Hooks_ExitRunsOnSelfExit();
     Hooks_IdleFiresOnlyWhenQuiet();
-#if defined(DMQ_THREAD_STDLIB)
     Hooks_GetCurrent();
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    Hooks_CurrentThreadScope();
 #endif
 #endif
 }

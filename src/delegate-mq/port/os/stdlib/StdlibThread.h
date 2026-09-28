@@ -175,14 +175,6 @@ public:
         m_idleInterval = interval;
     }
 
-    /// @brief Returns the StdlibThread whose worker is the calling thread, or nullptr
-    /// if called from any other thread (e.g. main). Lets code dispatch back to the
-    /// thread it was called on without being handed that thread explicitly.
-    /// @details Valid from the start handler and every message and idle handler.
-    /// Returns nullptr from the exit handler: the thread no longer accepts messages
-    /// by then, and on a self-exit the object may already be destroyed.
-    static StdlibThread* GetCurrent();
-
     /// @brief Manually update the watchdog alive timestamp.
     /// @details The Process() loop refreshes the timestamp automatically on every iteration.
     /// Call this from inside long-running message handlers to prevent a false watchdog

@@ -406,6 +406,12 @@ void NuttXThread::Run()
     // Wait for CreateThread() to store m_thread (see CreateThread())
     sem_wait(&m_goSem);
 
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Reset
+    // before the exit handler runs (and destroyed before exitGuard on a
+    // self-exit), so the exit handler sees nullptr.
+    std::optional<dmq::CurrentThreadScope> currentScope;
+    currentScope.emplace(this);
+
     if (m_startHandler)
         m_startHandler();
 
@@ -529,6 +535,7 @@ void NuttXThread::Run()
     }
 
     // Run the exit handler before signalling ExitThread(), so it returns only after it
+    currentScope.reset();
     exitGuard.Fire();
 
     // Signal that we are about to exit

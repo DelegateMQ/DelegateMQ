@@ -388,6 +388,12 @@ void FreeRTOSThread::Run()
     if (startSync)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Reset
+    // before the exit handler runs (and destroyed before exitGuard on a
+    // self-exit), so the exit handler sees nullptr.
+    std::optional<dmq::CurrentThreadScope> currentScope;
+    currentScope.emplace(this);
+
     if (m_startHandler)
         m_startHandler();
 
@@ -514,6 +520,7 @@ void FreeRTOSThread::Run()
     }
 
     // Run the exit handler before signalling ExitThread(), so it returns only after it
+    currentScope.reset();
     exitGuard.Fire();
 
     if (m_exitSem) {

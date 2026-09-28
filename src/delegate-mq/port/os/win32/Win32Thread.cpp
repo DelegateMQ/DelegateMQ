@@ -222,6 +222,10 @@ void Win32Thread::Process()
     ThreadExitGuard exitGuard(m_exitHandler);
     ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
 
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Declared
+    // after exitGuard, so it is cleared again before the exit handler runs.
+    dmq::CurrentThreadScope currentScope(this);
+
     if (m_startHandler)
         m_startHandler();
 

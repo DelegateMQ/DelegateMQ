@@ -368,6 +368,10 @@ void PosixThread::Process()
     pthread_mutex_lock(&m_mutex);
     pthread_mutex_unlock(&m_mutex);
 
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Declared
+    // after exitGuard, so it is cleared again before the exit handler runs.
+    dmq::CurrentThreadScope currentScope(this);
+
     if (m_startHandler)
         m_startHandler();
 

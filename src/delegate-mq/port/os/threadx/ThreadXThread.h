@@ -42,6 +42,7 @@
 #include <tx_api.h>
 #include <memory>
 #include <atomic>
+#include <optional>
 #include <string>
 
 namespace dmq::os {

@@ -19,6 +19,8 @@ Numerous predefined platforms are already supported — Windows, Linux, FreeRTOS
   - [Thread Priority and Latency](#thread-priority-and-latency)
   - [Message Queueing](#message-queueing)
   - [Watchdog Integration](#watchdog-integration)
+  - [Performance Monitoring](#performance-monitoring)
+  - [Current Thread](#current-thread)
 
 ---
 
@@ -431,3 +433,39 @@ Thread::ThreadStats Thread::SnapshotStats()
 ```
 
 The windowed counters (`m_queueDepthMaxWindow`, `m_latencyMaxWindow`, etc.) must be updated during every `DispatchDelegate()` and message processing iteration under the same internal lock used by `SnapshotStats()`.
+
+### Current Thread
+
+`dmq::ThisThread::GetCurrent()` returns the `dmq::IThread` whose worker is the calling thread, or `nullptr` (the main thread, an ISR, or a thread no `IThread` registered). Code can use it to capture the calling thread and later dispatch a reply back to it.
+
+**Registering a worker.** Every `dmq::os::Thread` port registers its worker automatically. A custom `IThread` creates a `dmq::CurrentThreadScope` on its worker thread, at the top of its loop, before running any message:
+
+```cpp
+void MyThread::Process()
+{
+    dmq::CurrentThreadScope currentScope(this);  // GetCurrent() == this until scope exit
+    // ... message loop ...
+}
+```
+
+**Storage.** Each port's `ThisThread` (`port/os/<os>/<Os>ThisThread.h`) supplies the per-thread storage by deriving from one of the types in `port/os/common/CurrentThreadStorage.h`:
+
+| Port | Storage | ISR behavior |
+|---|---|---|
+| stdlib, Win32, Qt, POSIX | `ThreadLocalCurrentThread` (C++ `thread_local`) | N/A |
+| FreeRTOS | `RegistryCurrentThread`, keyed by task handle | `nullptr` on ARM Cortex-M; see TODOs below |
+| ThreadX | `RegistryCurrentThread`, keyed by `tx_thread_identify()` | See TODOs below |
+| Zephyr | `RegistryCurrentThread`, keyed by `k_current_get()` | `nullptr` (`k_is_in_isr()`) |
+| CMSIS-RTOS2 | `RegistryCurrentThread`, keyed by `osThreadGetId()` | See TODOs below |
+| NuttX | `RegistryCurrentThread`, keyed by `pthread_self()` | `nullptr` (`up_interrupt_context()`) |
+| Bare metal | `NoCurrentThread` (always `nullptr`) | N/A |
+
+`RegistryCurrentThread` is a fixed table with one slot per thread currently registered; it needs no heap and no RTOS configuration. Registering more than `DMQ_MAX_CURRENT_THREADS` threads at once (default 16) faults. Raise it in your `DelegateMQConfig.h` if the application runs more threads. Slots are released when a worker exits, so threads created and destroyed over time do not use them up.
+
+A new RTOS port supplies a key function (a nonzero value unique to the calling thread, or 0 inside an ISR) and derives its `ThisThread` from `RegistryCurrentThread<KeyFunction, PortMutex>`.
+
+**Porting TODOs** (tagged `@TODO` in the source):
+
+- **ThreadX** (`ThreadXThisThread.h`): `tx_thread_identify()` returns the interrupted thread inside an ISR, so `GetCurrent()` from an ISR returns that thread's `IThread` instead of `nullptr`. Return 0 from `ThreadXCurrentThreadKey()` inside an ISR if your target can detect it (e.g. read IPSR on ARM Cortex-M).
+- **CMSIS-RTOS2** (`CmsisRtos2ThisThread.h`): same issue, since CMSIS-RTOS2 has no portable ISR check. Return 0 from `CmsisRtos2CurrentThreadKey()` inside an ISR (e.g. `__get_IPSR() != 0` on ARM Cortex-M).
+- **FreeRTOS on non-ARM targets** (`FreeRTOSThisThread.h`): ISR detection uses `xPortIsInsideInterrupt()`, available on ARM Cortex-M only. On RISC-V, Xtensa, etc., extend `detail::IsInsideFreeRTOSInterrupt()` in `FreeRTOSCriticalSection.h` for that architecture.

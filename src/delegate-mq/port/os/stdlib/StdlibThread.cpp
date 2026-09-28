@@ -19,9 +19,6 @@ static thread_local bool* t_self_exit = nullptr;
 
 namespace dmq::os {
 
-// The StdlibThread whose Process() is running on this thread, for GetCurrent().
-static thread_local StdlibThread* t_current = nullptr;
-
 using namespace std;
 using namespace dmq::util;
 
@@ -134,14 +131,6 @@ std::thread::id StdlibThread::GetThreadId()
 std::thread::id StdlibThread::GetCurrentThreadId()
 {
     return this_thread::get_id();
-}
-
-//----------------------------------------------------------------------------
-// GetCurrent
-//----------------------------------------------------------------------------
-StdlibThread* StdlibThread::GetCurrent()
-{
-    return t_current;
 }
 
 //----------------------------------------------------------------------------
@@ -405,13 +394,12 @@ void StdlibThread::Process()
     ThreadExitGuard exitGuard(m_exitHandler);
     ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
 
-    // Declared after exitGuard, so GetCurrent() is cleared before the exit handler runs
-    struct CurrentGuard { ~CurrentGuard() { t_current = nullptr; } } currentGuard;
-
     // Wait for CreateThread() to finish constructing m_thread
     { lock_guard<mutex> lock(m_mutex); }
 
-    t_current = this;
+    // dmq::ThisThread::GetCurrent() returns this thread from here on. Declared
+    // after exitGuard, so it is cleared again before the exit handler runs.
+    dmq::CurrentThreadScope currentScope(this);
 
     if (m_startHandler)
         m_startHandler();
