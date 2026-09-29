@@ -12,6 +12,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[bare-metal-riscv](./bare-metal-riscv/)** | Bare-metal RISC-V (RV32IMC) example, runs on QEMU's `virt` machine (direct machine-mode boot, no SBI). Needs the xPack RISC-V Embedded GCC toolchain (see its README) -- Ubuntu's `gcc-riscv64-unknown-elf` apt package has no libstdc++ for this target. | None | xPack RISC-V GCC |
 | **[keil-bare-metal](./keil-bare-metal/)** | Bare-metal example for ARM Cortex-M4. | None | Keil MDK (ARMCLANG) |
 | **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
+| **[posix-linux](./posix-linux/)** | Verifies the `DMQ_THREAD_POSIX` port (`dmq::os::PosixThread`), built directly on `pthread_create`/`pthread_mutex_t`/`pthread_cond_t` instead of `std::thread`. Linux only. | POSIX pthreads | Linux GCC |
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
 | **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
 | **[zephyr-linux](./zephyr-linux/)** | Zephyr example using the official `native_sim` simulation port (host GCC, no cross-compiler). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | Linux GCC + west |
@@ -44,11 +45,12 @@ The following remote delegate projects have no external library dependencies. Th
 
 ### External Dependencies
 
-The following projects require external 3rd party library support (e.g., ZeroMQ, MQTT, RapidJSON, etc.). See [Examples Setup](../../docs/BUILD.md#automated-workspace-sandbox-setup) for external library installation setup.
+The following projects require external 3rd party library support (e.g., ZeroMQ, MQTT, RapidJSON, etc.). See [Example Ecosystem (Sandbox)](../../docs/BUILD.md#automated-workspace-sandbox-setup) for external library installation setup.
 
 | Project Name | Description | Threading (`dmq::IThread`) | Serialization (`dmq::ISerializer`) | Transport (`dmq::IDispatcher`) |
 | :--- | :--- | :--- | :--- | :--- |
 | **[databus-interop](./databus-interop/)** | Cross-language communication between C++ server and Python/C# clients using `dmq::databus::DataBus` and MessagePack. | `std::thread` | MessagePack | UDP Socket |
+| **[databus-mqtt-gateway](./databus-mqtt-gateway/)** | Simulated thermostat exposed to MQTT tools as per-topic JSON via `JsonTopics` and `MqttBridge`; accepts setpoint commands. | `std::thread` | JSON (`JsonTopics`) | MQTT (Paho) |
 | **[databus-shapes](./databus-shapes/)** | Graphical TUI Shapes Demo using `dmq::databus::DataBus`, UDP Multicast, and FTXUI. | `std::thread` | `dmq::Serializer` class | UDP Multicast |
 | **[mqtt-rapidjson](./mqtt-rapidjson/)** | Remote delegate example with MQTT and RapidJSON (Client/Server). | `std::thread` | RapidJSON | MQTT |
 | **[nnq-bitsery](./nnq-bitsery/)** | Remote delegate using NNG and Bitsery. | `std::thread` | Bitsery | NNG |
@@ -68,6 +70,7 @@ Larger end-to-end projects that integrate multiple DelegateMQ features across se
 | Project | Location | Description |
 | :--- | :--- | :--- |
 | **Cellutron** | `example/cellutron/` | Multi-processor medical instrument demo with three independent CPUs: GUI (stdlib thread), Controller, and Safety — the latter two run on FreeRTOS (default) or ThreadX (`-DCELLUTRON_RTOS=THREADX`, Linux only), a single switch proving DelegateMQ isolates app code from the RTOS. Integrates DataBus with QoS LVC, Active Objects, `DeadlineSubscription` cross-node heartbeats, Spy Monitor audit logging, and explicit per-thread `FullPolicy`. Start with `python run_cellutron.py` (`--threadx` for the ThreadX build). See [Cellutron README](../cellutron/CELLUTRON.md). |
+| **Pumptron** | `example/pumptron/` | Pump controller on a real STM32F4 Discovery board (FreeRTOS) or the FreeRTOS simulator, monitored and commanded from an FTXUI console over a serial DataBus link. Includes a hardware watchdog, crash dumps delivered to the console, and optional MQTT/PlotJuggler output. See [Pumptron README](../pumptron/PUMPTRON.md). |
 | **sample-interop** | `example/sample-interop/` | Cross-language interop demo: C++ server publishes `SensorData` and receives `Command`; C# and Python clients subscribe and respond — all via a shared native C++ DLL. Demonstrates that scripting-language clients share the same ACK/timeout reliability logic as the C++ core. See [INTEROP.md](../../docs/INTEROP.md). |
 
 ## Build

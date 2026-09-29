@@ -182,14 +182,17 @@ motorChannel(3000);
 The code on the **Motor Node** (Receiver) maps that same ID to a local function:
 ```cpp
 // --- Motor Node (Receiver) ---
+// (Note: motor, transport and serializer objects must be defined on this node)
+dmq::RemoteChannel<void(int)> motorChannel(transport, serializer);
+
 // Bind the ID to a specific handler function
-// (Note: motor and transport objects must be defined on this node)
 motorChannel.Bind(&motor, &Motor::SetSpeed, MOTOR_SPEED_ID);
 
-// Loop to process incoming network packets
-while(running) {
-    transport.ProcessIncoming(); 
-}
+// The dispatcher owns the receive thread and routes each incoming ID to its channel
+dmq::rpc::RemoteDispatcher dispatcher;
+dispatcher.Attach(transport, transport);  // send and receive transport
+dispatcher.RegisterEndpoint(MOTOR_SPEED_ID, motorChannel);
+dispatcher.Start();  // incoming MOTOR_SPEED_ID messages now invoke Motor::SetSpeed
 ```
 
 ---

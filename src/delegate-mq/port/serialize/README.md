@@ -28,7 +28,7 @@ Choosing a serializer for an embedded target involves constraints that do not ap
 
 | Serializer | Embedded suitability | Notes |
 |---|---|---|
-| `serialize` | Good | Zero external dependencies, automatic endianness handling, optional no-exception path (`#ifdef __cpp_exceptions`). Structs must inherit `dmq::serialize::I` and implement `read()`/`write()`. Slightly larger wire format due to size-prefix versioning. |
+| `serialize` | Good | Zero external dependencies, automatic endianness handling, optional no-exception path (`#ifdef __cpp_exceptions`). Structs must inherit `serialize::I` and implement `read()`/`write()`. Slightly larger wire format due to size-prefix versioning. |
 | `bitsery` | Best for tight constraints | Header-only, designed for real-time/embedded use, produces the smallest payloads of all supported options. Plain structs work with a `serialize()` annotation — no base class required. Endianness is configured at the adapter level rather than handled automatically, so cross-architecture communication requires explicit configuration. |
 | `msgpack` | Linux/Windows only | The msgpack-c library allocates dynamically (`msgpack::sbuffer`, `std::vector`) and carries an external dependency. These characteristics are manageable on a host but are a significant concern on a MCU with a constrained FreeRTOS heap. |
 | `cereal` | Poor | Heavy template machinery and reliance on `<exception>` and `<memory>` increases code size considerably. Rarely justified on a Cortex-M or similar resource-constrained target. |

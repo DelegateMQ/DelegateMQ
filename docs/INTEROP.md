@@ -32,7 +32,7 @@ The `DmqInterop` native core is fully supported and tested on:
 
 ### 2. Embedded & RTOS
 While the language wrappers (C#/Python) typically run on a "Host" (PC/Server), the **Native Core** or a **Pure C++ DelegateMQ app** can run on:
-- **RTOS**: FreeRTOS, Zephyr, ThreadX, CMSIS-RTOS2.
+- **RTOS**: FreeRTOS, Zephyr, ThreadX, CMSIS-RTOS2, NuttX.
 - **Bare Metal**: Systems with no OS (using custom timers and polling).
 
 This allows a C# application on Windows to communicate seamlessly with a FreeRTOS-based embedded device using the same shared protocol and reliability layer.

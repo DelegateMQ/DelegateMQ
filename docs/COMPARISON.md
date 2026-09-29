@@ -270,10 +270,10 @@ void AppThreadLoop() {
 
 ```cpp
 // Type definition — no IDL, no codegen
-struct SensorData { int x = 0, y = 0; std::string msg; };
+struct SensorData { int x = 0, y = 0; std::string msg; MSGPACK_DEFINE(x, y, msg); };
 
 // Serializer — one per type, registered once
-dmq::serialize::MsgPackSerializer<void(SensorData)> sensorSerializer;
+dmq::serialization::msgpack::Serializer<void(SensorData)> sensorSerializer;
 
 // Publisher — same Publish() call works locally and over the network
 DataBus::RegisterSerializer<SensorData>("SensorTopic", sensorSerializer);
@@ -298,9 +298,9 @@ private:
 
 | Feature | DDS | DelegateMQ |
 |---|---|---|
-| Type definition | IDL file + code generator + generated files | Plain C++ struct — no base class, no codegen |
-| Publisher setup | `Participant → Topic → Publisher → DataWriter` | `dmq::RemoteChannel` + `Bind()` |
-| Subscriber setup | `Participant → Topic → Subscriber → DataReader` | `dmq::RemoteChannel` + `Bind()` |
+| Type definition | IDL file + code generator + generated files | Plain C++ struct — no codegen (plus the serializer's field list, e.g. `MSGPACK_DEFINE`) |
+| Publisher setup | `Participant → Topic → Publisher → DataWriter` | `DataBus::RegisterSerializer()` + `DataBus::Publish()` |
+| Subscriber setup | `Participant → Topic → Subscriber → DataReader` | `DataBus::Subscribe()` with a target thread |
 | Thread dispatch on receive | Manual (listener on DDS thread → queue → your thread) | Automatic (Poll runs on your thread) |
 | Discovery | Automatic (multicast/unicast, topic matching) | Partial (via Multicast group) |
 | QoS policies | Rich (reliability, durability, history, lifespan, ...) | LVC, Lifespan, Min Separation, Deadline Monitoring, Fixed-block, Reliable/Best-Effort |
@@ -441,7 +441,7 @@ DelegateMQ can use ZeroMQ or NNG as its `dmq::transport::ITransport` backend, ad
 | Embedded / RTOS support | Limited | No | Limited | Yes |
 | Transport agnostic | No (RTPS) | No (HTTP/2) | Yes (core) | Yes (`dmq::transport::ITransport`) |
 | Automatic discovery | Yes | Via service mesh | No | No |
-| Blocking remote call (return value) | No (DDS) | Yes | No | Yes (`dmq::DelegateAsyncWait`) |
+| Blocking remote call (return value) | No (DDS) | Yes | No | Blocks until ACK (`RemoteDispatcher::RemoteInvokeWait`); no remote return value |
 | External runtime dependencies | Yes | Yes | Yes | None (core) |
 
 ---

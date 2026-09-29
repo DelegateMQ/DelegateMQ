@@ -18,13 +18,15 @@ The subdirectories contain ready-to-use transport implementations for specific p
 * **`mqtt`**: Publish/Subscribe messaging using **Paho MQTT**.
 * **`linux-tcp` / `linux-udp`**: Standard BSD socket implementations for Linux.
 * **`win32-tcp` / `win32-udp`**: Winsock implementations for Windows.
-* **`arm-lwip-udp`**: Lightweight IP (lwIP) implementation for embedded ARM (FreeRTOS/Bare-metal).
+* **`arm-lwip-udp`**: Lightweight IP (lwIP) raw-API implementation for embedded ARM (FreeRTOS/Bare-metal).
+* **`arm-lwip-netconn-udp`**: lwIP netconn-API UDP implementation for RTOS targets (selected via `DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP`).
 * **`netx-udp`**: Azure RTOS **NetX / NetX Duo** implementation for ThreadX (selected via `DMQ_TRANSPORT_THREADX_UDP`).
 * **`zephyr-udp`**: Native **Zephyr Networking** (BSD Socket API) implementation for Zephyr RTOS.
 
 ### IPC & Serial
 * **`win32-pipe`**: Inter-Process Communication (IPC) using Windows Named Pipes.
 * **`serial`**: Serial port (UART/RS-232) transport using **libserialport**.
+* **`stm32-uart`**: Interrupt-driven STM32 HAL UART transport for embedded targets (selected via `DMQ_TRANSPORT_STM32_UART`).
 
 ## Usage
 

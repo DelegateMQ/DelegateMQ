@@ -31,21 +31,21 @@ alarmChannel.Bind(this, &MyClass::ForwardAlarm, ALARM_MSG_ID);
 // Optionally register an error handler
 alarmChannel.SetErrorHandler(dmq::MakeDelegate(this, &MyClass::OnError));
 
-// Register the receive endpoint 
-dmq::RegisterEndpoint(ALARM_MSG_ID, alarmChannel.GetEndpoint());
+// Register the receive endpoint with the dmq::rpc::RemoteDispatcher
+dispatcher.RegisterEndpoint(ALARM_MSG_ID, alarmChannel);
 
 // Invoke (fire-and-forget)
 AlarmMsg msg; AlarmNote note;
 alarmChannel(msg, note);
 
 // Or invoke with blocking wait
-bool ok = dmq::RemoteInvokeWait(alarmChannel, msg, note);
+bool ok = dispatcher.RemoteInvokeWait(alarmChannel, msg, note);
 ```
 
 Key accessors:
 - `Bind(obj, func, id)` — binds a member function and configures all internal plumbing.
 - `operator()(args...)` — invokes (sends) the remote message.
-- `GetEndpoint()` — returns `dmq::IRemoteInvoker*` for `dmq::RegisterEndpoint()`.
+- `GetEndpoint()` — returns `dmq::IRemoteInvoker*` for `RemoteDispatcher::RegisterEndpoint()`.
 - `GetError()` / `GetRemoteId()` — query last error and remote ID.
 - `SetErrorHandler(delegate)` — register an error notification callback.
 
