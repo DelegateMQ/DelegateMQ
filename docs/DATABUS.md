@@ -15,7 +15,7 @@
     - [2. Timer Loop (for QoS Features)](#2-timer-loop-for-qos-features)
     - [3. Remote Node Polling (for Remote Distribution)](#3-remote-node-polling-for-remote-distribution)
     - [4. Memory Allocator (Optional)](#4-memory-allocator-optional)
-  - [System Architecture](#system-architecture-1)
+  - [Component Reference](#component-reference)
     - [DataBus (`dmq::databus::DataBus`)](#databus-dmqdatabusdatabus)
     - [Participant (`dmq::databus::Participant`)](#participant-dmqdatabusparticipant)
     - [Transport (`dmq::transport::ITransport`)](#transport-dmqtransportitransport)
@@ -62,7 +62,8 @@ auto conn = dmq::databus::DataBus::Subscribe<TemperatureMsg>(
 
 **3. Publish**
 ```cpp
-TemperatureMsg msg{36.6f};
+TemperatureMsg msg;
+msg.celsius = 36.6f;
 dmq::databus::DataBus::Publish("sensor/temperature", msg);
 ```
 
@@ -99,7 +100,7 @@ DataBus::Subscribe<float>("topic", handler, &workerThread);
 ```
 
 ### 2. Timer Loop (for QoS Features)
-Quality of Service features like **Deadline Monitoring** and **LVC Lifespan** rely on the `dmq::util::Timer` system. You must call `Timer::ProcessTimers()` periodically (e.g., every 1-10ms) from a main loop or dedicated thread.
+**Deadline Monitoring** (`dmq::databus::DeadlineSubscription<T>`) relies on the `dmq::util::Timer` system. You must call `Timer::ProcessTimers()` periodically (e.g., every 1-10ms) from a main loop or dedicated thread.
 ```cpp
 while (app_running) {
     dmq::util::Timer::ProcessTimers();
@@ -178,7 +179,7 @@ Fires for (non-exhaustive):
 - `ERR_TYPE_MISMATCH` — the same topic string used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer`/`RegisterStringifier` calls. A **local programmer-error detector**: `T` is a compile-time template parameter, so this can never be triggered by a remote peer's wire bytes, only by your own process's source code.
 - `ERR_NO_SERIALIZER` / `ERR_SERIALIZE` / `ERR_DESERIALIZE` — a topic has remote interest but no serializer registered, or serialization/deserialization itself failed.
 - `ERR_TRANSPORT_RECEIVE` — a `Participant` received bytes but the `DmqHeader` framing was corrupt (bad marker). Distinct from a plain non-zero `Receive()` result during normal polling, which is *not* reported here — see the note under NetworkNode below.
-- `ERR_CAPACITY_EXCEEDED` — a fixed-size capacity limit was reached (e.g. `DataBus::MAX_PARTICIPANTS`).
+- `ERR_CAPACITY_EXCEEDED` — a fixed-size capacity limit was reached (e.g. `dmq::MAX_PARTICIPANTS`).
 
 Several of these (`ERR_TYPE_MISMATCH`, `ERR_CAPACITY_EXCEEDED`) are followed by a hard fault (`DMQ_ASSERT()`) immediately after the report — the report is a last diagnostic before the process terminates, not a chance to recover. Errors are latched per (topic, error code) — reported once unless `DataBus::EnableContinuousErrors(true)` is set. Per-participant errors reach the global handler too: `Participant::SubscribeError` catches a single node's errors; `DataBus::SubscribeError` aggregates across every participant.
 
@@ -222,7 +223,7 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 | **Paradigm** | Data-centric (State) | Call-centric (Action) |
 | **Arguments** | One typed value `void(T)` | Arbitrary `RetType(A, B, C, ...)` |
 | **Addressing**| Topic string | Remote ID |
-| **Return Value**| None | Supported |
+| **Return Value**| None | None (`RemoteInvokeWait()` can block until the remote ACKs) |
 
 ## Features
 
@@ -230,7 +231,7 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 - **Type Safety**: Runtime checks prevent mismatched data types on the same topic.
 - **Spying and Monitoring**: Enable human-readable logs for every message on the bus.
   - **Stringifiers**: Use `RegisterStringifier<T>(topic, func)` to convert your custom message types into strings.
-  - **Spy Tool**: View real-time traffic using the [Monitor Tool](../tools/TOOLS.md).
+  - **Spy Tool**: View real-time traffic using the [`dmq-spy` tool](../tools/TOOLS.md).
 - **Duplicate Protection**: Automatic filtering of redundant network packets.
 
 ## Threading and Performance

@@ -11,6 +11,9 @@ The subdirectories contain the platform-specific thread wrappers:
 * **`stdlib`**: Standard C++11 implementation.
     * *Target:* Windows, Linux, macOS, or any OS with a compliant C++ Standard Library.
     * *Implementation:* Uses `std::thread`, `std::mutex`, `std::condition_variable`, and `std::promise`.
+* **`win32`**: Native Windows implementation.
+    * *Target:* Windows.
+    * *Implementation:* Uses Win32 thread and message-queue APIs directly rather than `std::thread`.
 * **`posix`**: Raw POSIX implementation.
     * *Target:* Linux (verified). Written against the POSIX API rather than any Linux-specific
       syscall, but `pthread_condattr_setclock(CLOCK_MONOTONIC)` -- used here so timed waits are
@@ -38,6 +41,9 @@ The subdirectories contain the platform-specific thread wrappers:
 * **`nuttx`**: Apache NuttX RTOS implementation.
     * *Target:* Any board supported by NuttX (POSIX-compliant embedded RTOS), including its `sim` simulation target.
     * *Implementation:* Uses NuttX's native POSIX APIs directly: `pthread_create`, `pthread_mutex_t`, `sem_t`, and a POSIX `mqueue` (with native `msg_prio`-based priority) for message passing.
+* **`bare-metal`**: No-OS support (`DMQ_THREAD_NONE`).
+    * *Target:* Super-loop firmware on ARM Cortex-M or RISC-V.
+    * *Implementation:* Provides `Clock`, `ThisThread` and an ISR-safe `CriticalSection` so synchronous delegates, signals and `dmq::util::Timer` work; there is no `Thread`, so asynchronous delegates are unavailable.
 * **`qt`**: Qt Framework implementation.
     * *Target:* Desktop or embedded GUI applications using Qt.
     * *Implementation:* Uses `QThread` and the native Signal & Slot mechanism (`moveToThread`) to safely dispatch delegates to the Qt Event Loop.
@@ -49,6 +55,7 @@ To select the appropriate threading model, set the `DMQ_THREAD` variable in your
 ```cmake
 # Options:
 # DMQ_THREAD_STDLIB        (Default for PC/Linux)
+# DMQ_THREAD_WIN32         (Native Win32 threads)
 # DMQ_THREAD_POSIX         (Raw POSIX pthreads -- Linux, verified)
 # DMQ_THREAD_FREERTOS      (FreeRTOS)
 # DMQ_THREAD_THREADX       (Azure RTOS ThreadX)

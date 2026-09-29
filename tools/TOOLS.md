@@ -1,6 +1,6 @@
 # DelegateMQ Tools
 
-Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ `dmq::databus::DataBus`. Two complementary consoles plus the bridge components needed to integrate them into your application.
+Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ `dmq::databus::DataBus`. Three complementary consoles plus the bridge components needed to integrate them into your application.
 
 ## Tools Overview
 
@@ -57,7 +57,7 @@ dmq::util::ThreadMonitor::Enable();
 ```
 
 #### 3. Start NodeBridge
-Ensure `NodeBridge` is started (see Node Monitor section above). It will automatically discover and broadcast the thread statistics.
+Ensure `NodeBridge` is started (see [Integrating NodeBridge into Your App](#integrating-nodebridge-into-your-app) below). It will automatically discover and broadcast the thread statistics.
 
 ### Usage
 

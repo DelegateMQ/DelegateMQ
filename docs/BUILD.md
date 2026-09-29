@@ -47,7 +47,7 @@ include(FetchContent)
 FetchContent_Declare(
   delegatemq
   GIT_REPOSITORY https://github.com/DelegateMQ/DelegateMQ.git
-  GIT_TAG v2.0.3
+  GIT_TAG v2.1.0
 )
 FetchContent_MakeAvailable(delegatemq)
 
@@ -83,9 +83,9 @@ Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party l
    ```
 
 ### Manual Sample Build
-If you want to build a specific sample without scripts, navigate to its directory:
+If you want to build a specific sample without scripts, navigate to its directory (its third-party dependencies must already be built, e.g. by `02_build_libs.py`):
 ```bash
-cd example/sample-projects/tcp-msgpack-cpp
+cd example/sample-projects/zeromq-msgpack-cpp
 cmake -B build
 cmake --build build
 ```
@@ -93,16 +93,20 @@ cmake --build build
 ---
 
 ## Configuration and Overrides
-DelegateMQ behavior can be customized at build-time using three levels of precedence.
+DelegateMQ behavior can be customized at build time in two ways.
 
 ### 1. CMake Options
 Passed via `-D` flags during configuration. These are the most common overrides:
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
-| `DMQ_ASSERTS` | `OFF` | Enable internal library assertions. |
+| `DMQ_THREAD` | Platform (`DMQ_THREAD_STDLIB` on Windows/Linux) | OS port: `DMQ_THREAD_STDLIB`, `_WIN32`, `_FREERTOS`, `_THREADX`, `_ZEPHYR`, `_CMSIS_RTOS2`, `_NUTTX`, `_NONE`, etc. |
+| `DMQ_SERIALIZE` | `DMQ_SERIALIZE_SERIALIZE` (Windows/Linux) | Serializer port, e.g. `DMQ_SERIALIZE_MSGPACK`, `DMQ_SERIALIZE_RAPIDJSON`, `DMQ_SERIALIZE_NONE`. |
+| `DMQ_TRANSPORT` | Platform UDP (Windows/Linux) | Transport port, e.g. `DMQ_TRANSPORT_ZEROMQ`, `DMQ_TRANSPORT_WIN32_TCP`, `DMQ_TRANSPORT_NONE`. |
+| `DMQ_ASSERTS` | `OFF` | Use asserts routed to `FaultHandler` instead of C++ exceptions (auto-enabled when exceptions are disabled). |
 | `DMQ_ALLOCATOR` | `OFF` | Use fixed-block memory allocator (deterministic) instead of heap. |
-| `DMQ_DEBUG_LOG` | `OFF` | Enable verbose internal debug logging (requires spdlog). |
+| `DMQ_LOG` | `OFF` | Enable verbose internal debug logging (requires spdlog). |
+| `DMQ_TOOLS` | `OFF` | Build the diagnostic tools (`dmq-spy`, `dmq-monitor`, `dmq-thread`); see [Tools](../tools/TOOLS.md). |
 | `DMQ_FORCE_OPTIMIZE_DEBUG` | `OFF` | Force `-Os` template optimization in unoptimized GCC/Clang Debug builds to reduce embedded flash bloat (silent no-op on MSVC). |
 
 ### 2. User Config File (`DelegateMQConfig.h`)
@@ -121,4 +125,4 @@ For fine-tuning numeric constants without editing library files:
 
 ### Windows / Linux
 - **Standard Library**: On PC platforms, the library defaults to using `std::thread`, `std::mutex`, and `std::chrono` via the `stdlib` port.
-- **TUI Tools**: Building the `dmq-spy` and `dmq-monitor` tools requires a terminal that supports ANSI escape codes (Windows Terminal, iTerm2, xterm).
+- **TUI Tools**: Running the `dmq-spy` and `dmq-monitor` tools requires a terminal that supports ANSI escape codes (Windows Terminal, iTerm2, xterm).

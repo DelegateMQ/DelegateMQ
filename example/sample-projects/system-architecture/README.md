@@ -2,7 +2,7 @@ The System Architecture example demonstrates a complex client-server DelegateMQ 
 
 Follow the steps below to execute the projects.
 
-1. Setup ZeroMQ and MessagePack external library dependencies (see `Examples Setup` in `DETAILS.md`). Alternatively, see the `system-architecture-bare-metal` directory project with no external dependencies.
+1. Setup ZeroMQ and MessagePack external library dependencies (see [Example Ecosystem (Sandbox)](../../../docs/BUILD.md#example-ecosystem-sandbox) in `BUILD.md`). Alternatively, see the [`system-architecture-no-deps`](../system-architecture-no-deps/README.md) project with no external dependencies.
 2. Execute CMake command in `client` and `server` directories.  
    `cmake -B build .`
 3. Build client and server applications within the `build` directory.

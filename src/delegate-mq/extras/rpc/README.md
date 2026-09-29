@@ -11,7 +11,7 @@ DelegateMQ has two distinct patterns for talking across threads/processes/machin
 | Pattern | Point-to-point RPC (remote function invoke) | Publish/subscribe (data distribution) |
 | Addressing | Remote ID → one specific registered endpoint | Topic string, many-to-many |
 | Who receives | Exactly one endpoint per remote ID | Any number of subscribers (0, 1, or many) — the publisher doesn't know or care who |
-| Call semantics | `RemoteInvokeWait()` blocks the caller until the remote ACKs or times out, returning success/failure directly — plus a fire-and-forget mode too | `Publish()` is always fire-and-forget from the caller's side; delivery outcome (if any) arrives later via signals (`OnSendStatus`, `OnDeliveryFailed`) |
+| Call semantics | `RemoteInvokeWait()` blocks the caller until the remote ACKs or times out, returning success/failure directly — plus a fire-and-forget mode too | `Publish()` is always fire-and-forget from the caller's side; delivery outcome (if any) arrives later via `NetworkNode` signals (`OnPeerSendStatus`, `OnDeliveryFailed`) |
 | How you use it | Compose: hold a `dmq::rpc::RemoteDispatcher` as a member (`NetworkMgr`), connect to its `OnError`/`OnStatus`/`OnDeliveryFailed` Signals — no subclassing required | Compose: hold an `ITransport&` (`Participant`), or instantiate `NetworkNode<Transport>` — no subclassing required |
 | Reliability opt-in | Per-connection — the owning class decides once whether to wrap its transport in `ReliableTransport` | Per-message — pass `Reliability::RELIABLE` or `UNRELIABLE` to `Send()` |
 | Multi-peer topology | One connection per `RemoteDispatcher` instance; the app manages multiple peers itself if it needs more than one | Built in — `NetworkNode` manages any number of peers |

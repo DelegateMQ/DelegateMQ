@@ -12,8 +12,8 @@ DelegateMQ has two distinct patterns for talking across threads/processes/machin
 | Addressing | Topic string, many-to-many | Remote ID → one specific registered endpoint |
 | Who receives | Any number of subscribers (0, 1, or many) — the publisher doesn't know or care who | Exactly one endpoint per remote ID |
 | Call semantics | `Publish()` is always fire-and-forget from the caller's side; delivery outcome (if any) arrives later via signals (`OnPeerSendStatus`, `OnDeliveryFailed`) | `RemoteInvokeWait()` blocks the caller until the remote ACKs or times out, returning success/failure directly — plus a fire-and-forget mode too |
-| How you use it | Compose: hold an `ITransport&` (`Participant`), or instantiate `NetworkNode<Transport>` — no subclassing required | Subclass: `NetworkMgr : public dmq::rpc::RemoteDispatcher`, override virtual hooks (`OnError`/`OnStatus`/`OnDeliveryFailed`) |
-| Reliability opt-in | Per-message — pass `Reliability::RELIABLE` or `UNRELIABLE` to `Send()` | Per-connection — the derived class decides once, at construction, whether to wrap its transport in `ReliableTransport` |
+| How you use it | Compose: hold an `ITransport&` (`Participant`), or instantiate `NetworkNode<Transport>` — no subclassing required | Compose: hold a `dmq::rpc::RemoteDispatcher` as a member (`NetworkMgr`), connect to its `OnError`/`OnStatus`/`OnDeliveryFailed` Signals — no subclassing required |
+| Reliability opt-in | Per-message — pass `Reliability::RELIABLE` or `UNRELIABLE` to `Send()` | Per-connection — the owning class decides once whether to wrap its transport in `ReliableTransport` |
 | Multi-peer topology | Built in — `NetworkNode` manages any number of peers | One connection per `RemoteDispatcher` instance; the app manages multiple peers itself if it needs more than one |
 | Typical use | Sensor data, telemetry, status broadcasts, state that should reach whoever's currently interested | Commands, remote function calls, request/response where the caller needs to know the call landed |
 
@@ -25,7 +25,8 @@ Three steps to send data between components:
 
 **1. Define a message type**
 ```cpp
-// Any serializable struct — inherit MessageBase for built-in sequence numbers
+// Any serializable struct (the Cellutron/Pumptron examples derive from their own
+// MessageBase to add sequence numbers)
 struct TemperatureMsg : public serialize::I {
     float celsius = 0.0f;
     std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, celsius); }
@@ -57,7 +58,7 @@ To dispatch to a specific thread instead of the caller's thread:
 ```cpp
 auto conn = dmq::databus::DataBus::Subscribe<TemperatureMsg>(
     "sensor/temperature",
-    dmq::MakeDelegate(&MySensor::OnTemp, this),
+    dmq::MakeDelegate(this, &MySensor::OnTemp),
     &m_workerThread);   // callback executes on m_workerThread, not the publisher's thread
 ```
 
@@ -87,7 +88,7 @@ auto conn = dmq::databus::DataBus::Subscribe<int>("Temperature", [](const int& v
 
 // Subscription dispatched to a specific worker thread
 auto conn2 = dmq::databus::DataBus::Subscribe<int>("Temperature",
-    dmq::MakeDelegate(&MyClass::OnTempChange, &myObj), &workerThread);
+    dmq::MakeDelegate(&myObj, &MyClass::OnTempChange), &workerThread);
 ```
 
 ### Publishing to a Topic
@@ -174,7 +175,7 @@ void SetupNetwork() {
 - **Transport-agnostic**: Pass any `ITransport`-derived type as the template argument — `Win32UdpTransport`, `LinuxUdpTransport`, `ZephyrUdpTransport`, etc.
 - **Fixed allocation**: `MaxPeers` and `MaxTopics` template parameters control pre-allocated capacity. No heap for transport objects (`RemoteNode` members are by-value in `std::array`).
 - **`Participant` allocation**: Uses `xmake_shared` — fixed-block allocator on embedded targets.
-- **Error & status signals**: `OnDeliveryFailed(peerName, remoteId, seqNum)` fires once when a RELIABLE message exhausts its retry budget; `OnPeerSendStatus(peerName, remoteId, seqNum, status)` fires on every per-attempt outcome (SUCCESS or TIMEOUT) leading up to that, so an app can tell "still retrying" apart from "permanently abandoned"; `OnPeerCapExceeded`/`OnPeerPendingExceeded(peerName, count)` are backpressure health signals. None of these overlap `DataBus::SubscribeError` — see [Error & Status Reporting](../../../docs/DATABUS.md#error--status-reporting) in the full DataBus doc for the complete picture (including `DelegateError` codes) and usage examples.
+- **Error & status signals**: `OnDeliveryFailed(peerName, remoteId, seqNum)` fires once when a RELIABLE message exhausts its retry budget; `OnPeerSendStatus(peerName, remoteId, seqNum, status)` fires on every per-attempt outcome (SUCCESS or TIMEOUT) leading up to that, so an app can tell "still retrying" apart from "permanently abandoned"; `OnPeerCapExceeded`/`OnPeerPendingExceeded(peerName, count)` are backpressure health signals. None of these overlap `DataBus::SubscribeError` — see [Error & Status Reporting](../../../../docs/DATABUS.md#error--status-reporting) in the full DataBus doc for the complete picture (including `DelegateError` codes) and usage examples.
 
 ### Template parameters
 

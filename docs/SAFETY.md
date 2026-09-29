@@ -35,9 +35,9 @@ This assessment covers `src/delegate-mq/**` — the library itself, not `example
 - **No unions**, and no `printf`-family call with a non-literal format string.
 - **Multiple inheritance is used only in the MISRA-permitted shape** — one concrete base plus pure-interface bases (`DelegateAsync.h`, `DelegateAsyncWait.h`, `DelegateRemote.h` via `IThreadInvoker`/`IRemoteInvoker`; `port/os/qt/QtThread.h` via `QObject` + `IThread`) — never diamond or multiple concrete-state inheritance.
 - **No unbudgeted self-recursion** found anywhere in `src/delegate-mq/**`.
-- **`reinterpret_cast` is used sparingly and only where a genuine reinterpretation is intended** (7 files total), rather than as a catch-all substitute for a C-style cast.
+- **`reinterpret_cast` is used sparingly and only where a genuine reinterpretation is intended** (11 files total), rather than as a catch-all substitute for a C-style cast.
 - **The `extern "C"`/exception-safety interaction is already an explicit, documented concern**, not an oversight — see `CLAUDE.md`'s note on `BAD_ALLOC()` and MSVC `/EHc` in `xallocator.cpp`. The other two `extern "C"` sites (`extras/util/Fault.h`, `port/fault/Fault.cpp`) are thin `[[noreturn]]`-style fault-handler wrappers, not allocation paths, so they don't carry the same risk.
-- **Test coverage is extensive.** 28 unit-test source files under `test/unit-tests/` plus 3 stress-test files, run via a custom assertion-based harness (not just a smoke test) — covering the core delegate types (Unicast/Multicast/Async/AsyncWait/Remote), `Signal`, the fixed-block allocator, `Dispatcher`/`RemoteChannel`, `RetryMonitor`/`TransportMonitor`/`ReliableTransport`, and DataBus end-to-end (local, remote, QoS, deadline, spy, error, capacity, `NetworkNode`). This session's own work traced a real `NetworkNode::Stop()` use-after-free specifically *because* new tests were added and exercised it — evidence the test suite finds real bugs, not just passes trivially. See [`DATABUS.md`](DATABUS.md) and this repository's `test/` tree for details; coverage gaps that existed as of this session are noted where relevant above.
+- **Test coverage is extensive.** 29 unit-test source files under `test/unit-tests/` plus 3 stress-test files, run via a custom assertion-based harness (not just a smoke test) — covering the core delegate types (Unicast/Multicast/Async/AsyncWait/Remote), `Signal`, the fixed-block allocator, `Dispatcher`/`RemoteChannel`, `RetryMonitor`/`TransportMonitor`/`ReliableTransport`, and DataBus end-to-end (local, remote, QoS, deadline, spy, error, capacity, `NetworkNode`). A real `NetworkNode::Stop()` use-after-free was found specifically *because* new tests were added and exercised it — evidence the test suite finds real bugs, not just passes trivially. See [`DATABUS.md`](DATABUS.md) and this repository's `test/` tree for details.
 
 ---
 
@@ -45,7 +45,9 @@ This assessment covers `src/delegate-mq/**` — the library itself, not `example
 
 ### RTTI Dependency
 
-The delegate-equality mechanism (`Equal()`, used by `Signal::Disconnect()` and delegate comparison generally) relies on `dynamic_cast` at roughly 19 call sites across `delegate/Delegate.h`, `delegate/DelegateAsync.h`, `delegate/DelegateAsyncWait.h`, `delegate/DelegateRemote.h`, and `extras/util/TimerDelegate.h`. This is architectural, not incidental — every delegate family's equality check is built on it.
+The delegate-equality mechanism (`Equal()`, used by `Signal::Disconnect()` and delegate comparison generally) relies on `dynamic_cast` at roughly 16 call sites across `delegate/Delegate.h`, `delegate/DelegateAsync.h`, `delegate/DelegateAsyncWait.h`, `delegate/DelegateRemote.h`, and `extras/util/TimerDelegate.h`. This is architectural, not incidental — every delegate family's equality check is built on it.
+
+The bundled serializer ports (`port/serialize/*/Serializer.h`) also use `dynamic_cast` to detect a `dmq::xostringstream` output stream.
 
 Separately, `dmq::databus::DataBus` uses `typeid`/`std::type_index` to catch a topic being used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer` calls (`extras/databus/DataBus.h`). This is a narrower, well-motivated use (a compile-time-adjacent programmer-error check, not polymorphic dispatch), but it's a second, independent place RTTI is load-bearing.
 
@@ -56,7 +58,7 @@ Separately, `dmq::databus::DataBus` uses `typeid`/`std::type_index` to catch a t
 Not a fundamental blocker — RTTI-free polymorphic type identification is a solved problem (it's how LLVM's `isa<>`/`cast<>`/`dyn_cast<>` work, for example). Every `Equal()` override follows the identical pattern:
 
 ```cpp
-// Delegate.h:273-277, and the same shape at 19 sites total across
+// Delegate.h, and the same shape at ~16 sites total across
 // Delegate.h, DelegateAsync.h, DelegateAsyncWait.h, DelegateRemote.h, TimerDelegate.h
 virtual bool Equal(const DelegateBase& rhs) const override {
     auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
@@ -84,7 +86,7 @@ bool Equal(const DelegateBase& rhs) const override {
 
 An `inline static` (C++17, already the library's minimum) gets exactly one ODR-merged definition per template instantiation, so its address is a unique-per-type identifier without touching the RTTI subsystem — and it's cheaper than `dynamic_cast` too (one pointer compare vs. a runtime type-hierarchy walk).
 
-**Scope:** mechanical, not architectural — all 19 sites are the same three-line pattern across the same 5 files.
+**Scope:** mechanical, not architectural — all ~16 sites are the same three-line pattern across the same 5 files.
 
 **Two caveats to weigh before doing this:**
 1. **Discipline requirement.** The scheme depends on every tag genuinely being `inline` (or defined out-of-line exactly once). Get that wrong and, unlike `dynamic_cast`'s clean "wrong type → `nullptr`" failure, you get a silent `Equal()` false negative instead — two genuinely-equal delegates built in different translation units comparing unequal.
@@ -121,7 +123,7 @@ MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whe
 | RTTI | `typeid`/`type_index` for DataBus topic type-checking | Minor | `DataBus.h` |
 | Casts | C-style casts in allocator core pointer arithmetic | Moderate | `Allocator.cpp`, `xallocator.cpp` |
 | Casts | C-style casts in in-scope embedded ports | Moderate | `ZephyrDelegateQueue.h`, `ZephyrThread.cpp`, `NetXUdpTransport.h` |
-| Casts | `reinterpret_cast` used sparingly, only where warranted | Positive | 7 files |
+| Casts | `reinterpret_cast` used sparingly, only where warranted | Positive | 11 files |
 | Dynamic memory | Allocator gating verified correct via inheritance | Positive | `Delegate.h`, `Signal.h`, `TimerDelegate.h` |
 | Dynamic memory | Two intentional "immortal singleton" allocations | Minor | `Timer.h`, `xallocator.cpp` |
 | Dynamic memory | Default pool mode uses heap `new[]` despite a static-pool alternative existing | Moderate | `Allocator.cpp`, `xallocator.cpp` |

@@ -116,6 +116,7 @@ The OS, transport, and serializer sit behind small pure-virtual interfaces, so u
 - `dmq::os::Thread` – A cross-platform thread class. Passed to `dmq::MakeDelegate` to dispatch a call onto a specific worker thread.
 - `dmq::Signal<Sig>` – Thread-safe multicast signal. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects on scope exit.
 - `dmq::MulticastDelegateSafe` – Thread-safe delegate container for broadcast invocation without RAII connection management.
+- `dmq::util::Timer` – Periodic and one-shot timer. `OnExpired` is a `dmq::Signal`; all timers are driven by the application calling `Timer::ProcessTimers()`.
 - `dmq::databus::DataBus` – Type-safe, topic-based publish/subscribe system built on delegates; works across local threads and remote network nodes alike.
 - `dmq::rpc::RemoteDispatcher` – Owns the network thread, receive loop, and ACK/retry-status routing for point-to-point remote delegate invocation.
 
@@ -175,7 +176,52 @@ onComplete += dmq::MakeDelegate([](int result) {
 onComplete(123);
 ```
 
+`dmq::util::AsyncInvoke` reduces a blocking cross-thread call to one line. A common use is making a class thread-safe: each public method marshals its call onto the class's own thread. If the caller is already on that thread, the function runs directly, so there's no self-deadlock:
 
+```cpp
+class Database
+{
+public:
+    Database() : m_thread("DbThread") { m_thread.CreateThread(); }
+
+    // Callable from any thread; InternalWrite() always runs on m_thread
+    bool Write(const std::string& key, int value) {
+        return dmq::util::AsyncInvoke(this, &Database::InternalWrite, m_thread,
+                                      dmq::WAIT_INFINITE, key, value);
+    }
+
+private:
+    bool InternalWrite(const std::string& key, int value);  // no locks needed
+
+    dmq::os::Thread m_thread;
+};
+```
+
+## Threads
+
+`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS (stdlib, Win32, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt), so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
+
+A thread can bound its queue and choose what happens when it fills (`dmq::FullPolicy`), enable a watchdog, run code on the worker at start, exit and idle, and choose how shutdown treats queued messages (`dmq::ExitPolicy`):
+
+```cpp
+// Queue limited to 50 messages; when full, drop new messages instead of faulting
+dmq::os::Thread worker("Worker", /*maxQueueSize=*/50, dmq::FullPolicy::DROP);
+
+worker.SetStartHandler(dmq::MakeDelegate([] { /* per-thread setup */ }));
+worker.SetDroppedHandler(dmq::MakeDelegate([](size_t depth) { /* report the drop */ }));
+
+worker.CreateThread(std::chrono::seconds(2));   // optional watchdog: fault if the thread stalls > 2 s
+
+// ...
+
+worker.ExitThread();                            // runs queued messages first (ExitPolicy::DRAIN)
+// worker.ExitThread(dmq::ExitPolicy::DISCARD); // or discard them for a fast shutdown
+```
+
+| Policy | Options |
+| --- | --- |
+| `dmq::FullPolicy` (queue full) | `FAULT` (default) — fault immediately; `DROP` — discard the message; `TIMEOUT` — wait for space, then drop |
+| `dmq::ExitPolicy` (`ExitThread()`) | `DRAIN` (default) — run every queued message, then exit; `DISCARD` — finish the running message, cancel the rest |
 
 ## Signal / Slot
 
@@ -224,6 +270,49 @@ Button btn;
 }                   // ui destroyed -> m_conn disconnects
 btn.Press(2);       // safe: no subscribers, nothing happens
 ```
+
+## Timers
+
+`dmq::util::Timer` provides periodic and one-shot callbacks. `OnExpired` is a `dmq::Signal`, so a slot connects the same way as above and can be dispatched onto any worker thread. 
+
+```cpp
+dmq::util::Timer heartbeat;
+
+// Timer callback dispatched to 'thread' on every expiration
+auto conn = heartbeat.OnExpired.Connect(
+    dmq::MakeDelegate([]() { std::cout << "Heartbeat\n"; }, thread)
+);
+
+heartbeat.Start(std::chrono::milliseconds(1000));          // periodic
+// heartbeat.Start(std::chrono::milliseconds(500), true);  // one-shot
+
+// Drive all timers (e.g. main loop, RTOS task, or SysTick ISR)
+while (running) {
+    dmq::util::Timer::ProcessTimers();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+}
+
+heartbeat.Stop();
+```
+
+## Fixed-Block Allocator (Optional)
+
+Build with `DMQ_ALLOCATOR` to route all library allocations through a fixed-block pool instead of the heap. This gives deterministic allocation times and no heap fragmentation. Application code can use the same allocator through `dmq::` aliases. Without `DMQ_ALLOCATOR` they fall back to their `std::` equivalents, so the same source builds either way:
+
+```cpp
+class SensorMsg
+{
+    XALLOCATOR   // new/delete use the fixed-block pool
+public:
+    float value;
+};
+
+dmq::xlist<int> readings;                          // std::list with pool allocator
+dmq::xmap<int, dmq::xstring> names;                // std::map, std::string equivalents
+auto msg = dmq::xmake_shared<SensorMsg>();         // object and control block from the pool
+```
+
+`dmq::xset`, `dmq::xqueue`, `dmq::xstringstream`, and others are also available. See [Fixed-Block Memory Allocator](docs/DETAILS.md#fixed-block-memory-allocator).
 
 # DataBus (DDS Lite)
 
@@ -301,6 +390,35 @@ private:
 };
 ```
 
+# Error Handling
+
+DelegateMQ separates **hard faults** (programming or capacity errors that must stop the system) from **recoverable errors** (runtime conditions the application can handle and continue).
+
+**Hard faults** — out of memory, a full thread queue under `FullPolicy::FAULT`, a watchdog timeout, or an invalid argument. The build selects how they surface:
+
+| Build | Behavior |
+| --- | --- |
+| Default (desktop) | C++ exceptions: `std::bad_alloc`, `std::invalid_argument`, `std::runtime_error` |
+| `DMQ_ASSERTS` (embedded default; automatic when exceptions are disabled) | `dmq::util::FaultHandler()` is called. Customize `port/fault/Fault.cpp` to log, capture a crash dump, or reset the system. |
+
+**Recoverable errors** — serialization failures, dispatch failures and transport receive errors are reported as a `dmq::DelegateError` code through a handler or signal. A remote error with no handler registered escalates to a hard fault, so always register one:
+
+```cpp
+// Per remote channel
+channel.SetErrorHandler(dmq::MakeDelegate(
+    [](dmq::DelegateRemoteId id, dmq::DelegateError err, dmq::DelegateErrorAux aux) {
+        std::cerr << "Remote " << id << " error " << (int)err << "\n";
+    }));
+
+// All channels registered with a RemoteDispatcher
+auto errConn = dispatcher.OnError.Connect(dmq::MakeDelegate(
+    [](dmq::DelegateRemoteId id, dmq::DelegateError err, dmq::DelegateErrorAux aux) { /* ... */ }));
+
+// DataBus-wide (type mismatches, serializer errors, capacity limits)
+auto busConn = dmq::databus::DataBus::SubscribeError(
+    [](const dmq::xstring& topic, dmq::DelegateError err) { /* ... */ });
+```
+
 # DelegateMQ Tools
 
 DelegateMQ includes three diagnostic TUI (Terminal User Interface) consoles for real-time monitoring of DataBus traffic, network topology, and thread performance. Monitoring runs through an asynchronous bridge and never blocks the application. Built with FTXUI, the consoles run cross-platform in any terminal and support topic filtering for traffic analysis:
@@ -335,6 +453,7 @@ DelegateMQ at a glance.
 | Object Lifetime | Thread-safe management via smart pointers (`std::weak_ptr`) prevents async invocation on destroyed objects (no dangling pointers). |
 | Complexity | Lightweight and extensible through external library interfaces and full source code |
 | Threads | No internal threads. External configurable thread interface portable to any OS (`dmq::IThread`). |
+| Timers | Periodic and one-shot timers (`dmq::util::Timer`). Callbacks dispatch to any thread via `OnExpired` signal. No internal timer thread; driven by application calling `Timer::ProcessTimers()` from a loop, task, or ISR. |
 | Watchdog | Configurable timeout to detect and handle unresponsive threads. |
 | Signal and Slots | Standard Signal-Slot pattern (`dmq::Signal<Sig>`). `Connect()` returns a `dmq::ScopedConnection` for RAII auto-disconnect. Thread-safe by default; no `shared_ptr` required. |
 | Multicast | Broadcast invoke anonymous callable targets onto multiple threads |
@@ -343,11 +462,11 @@ DelegateMQ at a glance.
 | Message Priority | Asynchronous delegates support prioritization to ensure timely execution of critical messages |
 | Serialization | External configurable serialization data formats, such as MessagePack, RapidJSON, or custom encoding (`dmq::ISerializer`) |
 | Transport | External configurable transport, such as ZeroMQ, TCP, UDP, serial, data pipe or any custom transport (`dmq::transport::ITransport`)  |
-| Transport Reliability | Provided by the built-in reliability layer (`dmq::util::ReliableTransport`) or communication library (e.g. ZeroMQ, nng, TCP/IP stack). | |
+| Transport Reliability | Provided by the built-in reliability layer (`dmq::util::ReliableTransport`) or communication library (e.g. ZeroMQ, nng, TCP/IP stack). |
 | Message Buffering | Remote delegate message buffering provided by a communication library (e.g. ZeroMQ) or custom solution within transport |
-| Dynamic Memory | Heap or DelegateMQ fixed-block allocator |
+| Dynamic Memory | Heap or optional fixed-block allocator (`DMQ_ALLOCATOR`). Application code can use the same pool through `XALLOCATOR`, `dmq::xlist`, `dmq::xmap`, `dmq::xstring`, `dmq::xmake_shared`, and more; these fall back to `std::` equivalents when the allocator is disabled. |
 | Debug Logging | Debug logging using spdlog C++ logging library |
-| Error Handling | Configurable for return error code, assert or exception |
+| Error Handling | Hard faults use asserts (`DMQ_ASSERTS`, routed to a fault handler) or C++ exceptions, selected at build time. Recoverable errors (serialization failure, dispatch timeout) are reported to the application through `dmq::DelegateError` error handlers. |
 | Embedded Friendly | Yes. Any OS such as Windows, Linux and FreeRTOS. An OS is not required (i.e. "super loop"). |
 | Operating System | Any. Custom `dmq::IThread` implementation may be required. |
 | Language | C++17 or higher |

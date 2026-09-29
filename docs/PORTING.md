@@ -1,6 +1,6 @@
 # Porting Guide
 
-Numerous predefined platforms are already supported — Windows, Linux, FreeRTOS, ARM bare-metal, ThreadX, Zephyr, CMSIS-RTOS2, and Qt. Ready-made plugins for threading and communication interfaces exist, or you can create new ones.
+Numerous predefined platforms are already supported — Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare metal (ARM and RISC-V). Ready-made plugins for threading and communication interfaces exist, or you can create new ones.
 
 ---
 
@@ -110,7 +110,7 @@ if (thread) {
 }
 ```
 
-`DispatchDelegate()` inserts a message into the thread's message queue. Name your concrete class `<Platform>Thread` (e.g. `FreeRTOSThread`, matching the existing `StdlibThread`, `Win32Thread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `QtThread` ports) in a `<Platform>Thread.h`/`.cpp` pair under `port/os/<platform>/`, and add `using Thread = <Platform>Thread;` inside `namespace dmq::os` at the end of the header — this is what lets application code, tests, and the rest of the library keep referring to `dmq::os::Thread` regardless of which port is active. Create a unique `DispatchDelegate()` implementation based on your platform's OS API.
+`DispatchDelegate()` inserts a message into the thread's message queue. Name your concrete class `<Platform>Thread` (e.g. `FreeRTOSThread`, matching the existing `StdlibThread`, `Win32Thread`, `PosixThread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `NuttXThread`, `QtThread` ports) in a `<Platform>Thread.h`/`.cpp` pair under `port/os/<platform>/`, and add `using Thread = <Platform>Thread;` inside `namespace dmq::os` at the end of the header — this is what lets application code, tests, and the rest of the library keep referring to `dmq::os::Thread` regardless of which port is active. Create a unique `DispatchDelegate()` implementation based on your platform's OS API.
 
 The message type itself, `dmq::os::ThreadMsg`, is a single shared file — `port/os/common/ThreadMsg.h` — used by every port except Qt (which dispatches through Qt's own signal/slot queued-connection mechanism instead). Don't create a per-port copy; `#include "port/os/common/ThreadMsg.h"` from your new port's header.
 
@@ -120,24 +120,33 @@ If your target's native queue API needs more than a couple of calls (buffer sizi
 
 ```cpp
 // stdlib / Win32 style — check under lock before allocating
-void StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
+bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     std::unique_lock<std::mutex> lk(m_mutex);
 
     if (MAX_QUEUE_SIZE > 0 && m_queue.size() >= MAX_QUEUE_SIZE)
     {
         if (FULL_POLICY == FullPolicy::DROP)
-            return;  // discard — no allocation wasted
+            return false;  // discard — no allocation wasted
 
-        // BLOCK: wait until consumer drains a slot
-        m_cvNotFull.wait(lk, [this]() {
+        if (FULL_POLICY == FullPolicy::FAULT)
+        {
+            DMQ_ASSERT_TRUE(false);
+            return false;
+        }
+
+        // TIMEOUT: wait up to m_dispatchTimeout for the consumer to drain a slot
+        bool hasSpace = m_cvNotFull.wait_for(lk, m_dispatchTimeout, [this]() {
             return m_queue.size() < MAX_QUEUE_SIZE || m_exit.load();
         });
+        if (!hasSpace)
+            return false;  // timed out — dropped
     }
 
-    auto threadMsg = std::make_shared<ThreadMsg>(MSG_DISPATCH_DELEGATE, msg);
+    auto threadMsg = xmake_shared<ThreadMsg>(MSG_DISPATCH_DELEGATE, msg);
     m_queue.push(threadMsg);
     m_cv.notify_one();
+    return true;
 }
 
 // RTOS style (e.g. FreeRTOS) — allocate first, let the queue wrapper enforce the limit
@@ -193,11 +202,6 @@ void Thread::Process()
                 DMQ_ASSERT_TRUE(success);
                 break;
             }
-
-            case MSG_TIMER:
-                // Call ProcessTimers() to service all active dmq::util::Timer instances
-                dmq::util::Timer::ProcessTimers();
-                break;
     // ...
 }
 ```
@@ -206,7 +210,7 @@ void Thread::Process()
 
 ### `dmq::ISerializer`
 
-The `dmq::ISerializer` interface serializes argument data for sending to a remote destination endpoint. Each argument is serialized and deserialized according to system requirements. Custom serialization libraries such as [MessagePack](https://msgpack.org/index.html) are supported. The `examples/sample-projects` folder contains working examples.
+The `dmq::ISerializer` interface serializes argument data for sending to a remote destination endpoint. Each argument is serialized and deserialized according to system requirements. Custom serialization libraries such as [MessagePack](https://msgpack.org/index.html) are supported. The `example/sample-projects` folder contains working examples.
 
 ```cpp
 template <class R>
@@ -241,7 +245,7 @@ public:
 
 ### `dmq::IDispatcher`
 
-The `dmq::IDispatcher` interface dispatches serialized argument data to a remote destination endpoint. Custom dispatchers using sockets, named pipes, ZeroMQ, or any other transport are supported. The `examples/sample-projects` folder contains working examples.
+The `dmq::IDispatcher` interface dispatches serialized argument data to a remote destination endpoint. Custom dispatchers using sockets, named pipes, ZeroMQ, or any other transport are supported. The `example/sample-projects` folder contains working examples.
 
 ```cpp
 /// @brief Delegate interface class to dispatch serialized function argument data
@@ -271,7 +275,7 @@ public:
 
 ## Thread Implementations
 
-While DelegateMQ provides the `dmq::IThread` interface, the library includes concrete `dmq::os::Thread` class implementations for many OSs (`StdlibThread`, `Win32Thread`, `FreeRTOSThread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `QtThread` — each aliased as `dmq::os::Thread`). These implementations provide a standard event loop and several advanced features for robustness and flow control.
+While DelegateMQ provides the `dmq::IThread` interface, the library includes concrete `dmq::os::Thread` class implementations for many OSs (`StdlibThread`, `Win32Thread`, `PosixThread`, `FreeRTOSThread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `NuttXThread`, `QtThread` — each aliased as `dmq::os::Thread`). These implementations provide a standard event loop and several advanced features for robustness and flow control.
 
 ### Thread Priority and Latency
 
@@ -352,7 +356,7 @@ A new port implements these with the helpers in `port/os/common/ThreadHooks.h`: 
 
 ### Watchdog Integration
 
-All `dmq::os::Thread` port implementations (stdlib, Win32, FreeRTOS, CMSIS-RTOS2, ThreadX, Zephyr, Qt) support an optional watchdog. Enable it by passing a timeout to `CreateThread()`:
+All `dmq::os::Thread` port implementations (stdlib, Win32, POSIX, FreeRTOS, CMSIS-RTOS2, ThreadX, Zephyr, NuttX, Qt) support an optional watchdog. Enable it by passing a timeout to `CreateThread()`:
 
 ```cpp
 thread.CreateThread(std::chrono::seconds(2));  // fault if thread stalls > 2s
