@@ -121,6 +121,10 @@ public:
     ///         container for as long as the subscription should stay active.
     /// @note Signal connection is established before LVC delivery to ensure
     /// no messages are missed.
+    /// @note Unsubscribing does not wait for a delivery already in progress on
+    /// a publisher's thread, and a message already queued on `thread` still
+    /// runs. If `func` captures an object, guard its lifetime before destroying
+    /// it right after unsubscribing (see the note in Signal.h).
     template <typename T, typename F>
     [[nodiscard]] static dmq::ScopedConnection Subscribe(const dmq::xstring& topic, F&& func, dmq::IThread* thread = nullptr, QoS qos = {}) {
         dmq::UnicastDelegate<void(const T&)> typedFunc;

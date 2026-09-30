@@ -256,6 +256,7 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 - **Multi-Publisher**: Minor reordering risk; use timestamps or sequence numbers if critical.
 - **Transport Impact**: UDP/Serial are unordered; TCP/ZeroMQ provide stream-level ordering.
 - **Philosophy**: Middleware provides duplicate protection; application handles sequence/stale filtering to minimize RAM/CPU overhead.
+- **Unsubscribe is not a barrier**: Destroying a subscription's `dmq::ScopedConnection` stops future deliveries, but a delivery already in progress on a publisher's thread, or already queued on the subscriber's thread, can still run once. If the callback captures an object that is destroyed right after unsubscribing, guard its lifetime; see [SIGNALS.md](SIGNALS.md#disconnect-and-calls-already-in-progress).
 
 ## Examples
 

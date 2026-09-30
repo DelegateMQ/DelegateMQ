@@ -4,6 +4,11 @@
 /// @file
 /// @brief Delegate container for storing and iterating over a collection of
 /// delegate instances. Class is thread-safe.
+///
+/// @note Invocation snapshots the delegates and calls them after releasing the
+/// lock, so a delegate removed on one thread may still be called once by an
+/// invocation already in progress on another. Removal does not make the target
+/// safe to destroy by itself; see the note in Signal.h.
 
 #include "MulticastDelegate.h"
 #include <array>

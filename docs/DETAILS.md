@@ -408,7 +408,7 @@ dmq::Signal<>          // thread-safe multicast with RAII ScopedConnection
 
 `dmq::MulticastDelegateSafe<>` is a thread-safe container accepting multiple delegates. Always use the thread-safe version if multiple threads access the container instance.
 
-`dmq::Signal<>` is a thread-safe multicast container with RAII connection management. `Connect()` returns a `dmq::ScopedConnection` handle that automatically unsubscribes the delegate when it goes out of scope, preventing callbacks to destroyed objects. `dmq::Signal<>` may be used as a plain stack variable or class member — no `shared_ptr` required.
+`dmq::Signal<>` is a thread-safe multicast container with RAII connection management. `Connect()` returns a `dmq::ScopedConnection` handle that automatically unsubscribes the delegate when it goes out of scope, so later emits no longer reach a destroyed object. A call already in progress on another thread, or an async message already queued, can still run once after the disconnect; see [SIGNALS.md](SIGNALS.md#disconnect-and-calls-already-in-progress). `dmq::Signal<>` may be used as a plain stack variable or class member — no `shared_ptr` required.
 
 ## Synchronous Delegates
 
