@@ -7,6 +7,11 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **Documented: a slot can still run after `Disconnect()` returns.** `Signal`, `MulticastDelegateSafe` and `UnicastDelegateSafe` invoke outside their lock, so a call already in progress on another thread can still invoke a slot once after `Disconnect()` (or removal) returns, and an async delegate's message already queued on its thread still runs. Disconnecting alone does not make a slot's target safe to destroy in multithreaded code; [SIGNALS.md](docs/SIGNALS.md#disconnect-and-calls-already-in-progress) shows how to guard it. Behavior is unchanged; the 1.1.5 entry below is reworded to match.
+
 ## [2.1.0] - 2026-09-28
 
 ### Upgrading to 2.1.0
@@ -263,7 +268,7 @@ Custom `IThread` implementations need no changes. Two optional additions: create
 - More unit tests.
 
 ### Fixed
-- Signal/slot: subscribers could be invoked after disconnect under concurrent access.
+- Signal/slot: fixed races when disconnecting under concurrent access. This does not stop a call already in progress on another thread from invoking the slot after `Disconnect()` returns; see the note in `Signal.h`.
 - Various Linux and FreeRTOS build fixes.
 
 ### Changed

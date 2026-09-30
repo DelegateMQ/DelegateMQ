@@ -13,6 +13,21 @@
 /// * **Lifetime-safe disconnect** — calling `Disconnect()` (or letting a `ScopedConnection`
 ///   go out of scope) after the Signal is destroyed is always a safe no-op.
 ///
+/// **A slot can still run after `Disconnect()` returns.** Disconnect removes the slot from
+/// the list, but it does not wait for a call that has already started: `operator()` takes
+/// a snapshot of the slots under the lock and invokes them after releasing it (so a slot may
+/// itself Connect/Disconnect/emit without deadlocking). If thread A is emitting while
+/// thread B disconnects, A can still invoke the slot once, after B's `Disconnect()` has
+/// returned. Separately, for an asynchronous delegate (`MakeDelegate(..., thread)`), a
+/// message already queued on the target thread still runs after the disconnect.
+///
+/// So when Signal is used across threads, disconnecting is not by itself enough to make
+/// the slot's target safe to destroy. The owner must also guard its own lifetime, for
+/// example: route the slot through a shared flag/mutex it closes before destruction (the
+/// slot checks it under the lock and returns if closed), and for async delegates drain or
+/// exit the target thread (`ExitThread()`) before destroying what its messages target.
+/// Single-threaded use (connect, emit and disconnect on one thread) needs none of this.
+///
 /// Internally, Signal stores its subscriber list in a heap-allocated `State` block. Each
 /// `Connection` holds two `shared_ptr<void>` context fields (state and delegate copy) plus
 /// a raw `DisconnectImpl` function pointer. The destructor marks the block dead under the
@@ -111,6 +126,10 @@ private:
 
 /// @brief RAII handle to a single Signal subscription. Disconnects automatically
 /// on destruction. The only connection type users need to store.
+///
+/// @note Disconnecting does not wait for a call already in progress on another
+/// thread, or for an async delegate message already queued; see the Signal.h file
+/// comment before destroying a slot's target right after disconnecting.
 ///
 /// @code
 ///   dmq::ScopedConnection conn = mySignal.Connect(MakeDelegate(...));

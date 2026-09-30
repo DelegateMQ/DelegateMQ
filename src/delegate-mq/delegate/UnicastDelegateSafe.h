@@ -2,8 +2,13 @@
 #define _UNICAST_DELEGATE_SAFE_H
 
 /// @file
-/// @brief Delegate container for storing an invoking a single delegate instance. 
+/// @brief Delegate container for storing an invoking a single delegate instance.
 /// Class is thread-safe.
+///
+/// @note Invocation copies the delegate out under the lock and calls it after
+/// releasing it, so a delegate cleared or replaced on one thread may still be
+/// called once by an invocation already in progress on another. See the note in
+/// Signal.h before destroying the target right after clearing.
 
 #include "UnicastDelegate.h"
 
