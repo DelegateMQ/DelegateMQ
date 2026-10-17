@@ -127,13 +127,13 @@ static void RegisterSubscriptions(GatewayState& s) {
     // A relay node is still a normal DataBus node: relayed data also reaches local subscribers.
     s.tempConn = DataBus::Subscribe<TempMsg>(SystemTopic::SensorTemp, [](const TempMsg& msg) {
         std::cout << "[gateway] relayed sensor/temp: " << msg.celsius << " C (seq " << msg.seq
-                  << ")  UDP -> pipe" << std::endl;
+                  << ")  UDP -> " << SystemLink::IpcName << std::endl;
     });
     s.setpointConn = DataBus::Subscribe<SetpointMsg>(SystemTopic::CmdSetpoint, [](const SetpointMsg& msg) {
-        std::cout << "[gateway] relayed cmd/setpoint: " << msg.celsius << " C  pipe -> UDP" << std::endl;
+        std::cout << "[gateway] relayed cmd/setpoint: " << msg.celsius << " C  " << SystemLink::IpcName << " -> UDP" << std::endl;
     });
 
-    // Until the monitor connects, pipe sends fail. Report once instead of every message.
+    // Until the monitor connects, IPC sends fail. Report once instead of every message.
     s.errorConn = DataBus::SubscribeError([](const dmq::xstring& topic, dmq::DelegateError err) {
         static std::atomic<bool> reported{ false };
         if (!reported.exchange(true)) {
@@ -150,9 +150,9 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 
-    std::cout << "Starting DataBus Relay GATEWAY (B, UDP <-> pipe)..." << std::endl;
+    std::cout << "Starting DataBus Relay GATEWAY (B, UDP <-> " << SystemLink::IpcName << ")..." << std::endl;
 
-    dmq::util::NetworkContext winsock;
+    dmq::util::NetworkContext netCtx;  // Winsock init on Windows; no-op on Linux
 
     GatewayState s;
     if (!SetupTransports(s)) return -1;

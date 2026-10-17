@@ -32,6 +32,13 @@ namespace SystemLink {
     // sends to the other's (sun_path holds at most 107 chars + NUL).
     inline constexpr const char* const GatewaySocketPath = "/tmp/dmq_relay_gateway.sock";
     inline constexpr const char* const MonitorSocketPath = "/tmp/dmq_relay_monitor.sock";
+
+    // Short name of the local IPC hop, for log output.
+#ifdef _WIN32
+    inline constexpr const char* const IpcName = "pipe";
+#else
+    inline constexpr const char* const IpcName = "socket";
+#endif
 }
 
 #endif // SYSTEM_IDS_H

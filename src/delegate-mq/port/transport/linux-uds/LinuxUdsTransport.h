@@ -34,7 +34,14 @@
 ///    Receive() does not hold the send lock while waiting, so a concurrent
 ///    Send() on the same instance is never held up by an idle read.
 /// 4. **Stale paths**: a crashed process leaves its socket file behind. Create()
-///    unlinks the local path before bind(), and Close() unlinks it again.
+///    probes the local path first: a stale socket (nothing listening) is
+///    unlinked and reused; a path a live process is still bound to makes
+///    Create() fail rather than take it over. Close() unlinks the path again.
+///
+/// @note Socket files are ordinary filesystem entries, so access is governed by
+/// the directory's permissions. A world-writable directory such as `/tmp` lets
+/// any local user send to the socket. Use a per-user directory such as
+/// `$XDG_RUNTIME_DIR` when that matters.
 ///
 /// Type is kept for API parity with `Win32PipeTransport` (`SUB` = server end,
 /// `PUB` = client end). Both ends are duplex. The one difference: a `SUB`
@@ -53,6 +60,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/stat.h>
 #include <poll.h>
 #include <errno.h>
 #include <mutex>
@@ -113,7 +121,13 @@ public:
         }
 
         // A crashed run leaves the socket file behind, which makes bind() fail.
-        unlink(m_localAddr.sun_path);
+        // Unlink it only if it is a stale socket; never steal a live one.
+        if (!ClearStalePath(m_localAddr))
+        {
+            close(m_socket);
+            m_socket = -1;
+            return -1;
+        }
         if (bind(m_socket, (struct sockaddr*)&m_localAddr, sizeof(m_localAddr)) < 0)
         {
             std::cerr << "Bind failed (" << m_localAddr.sun_path << "): " << strerror(errno) << std::endl;
@@ -127,6 +141,10 @@ public:
 
     void Close()
     {
+        // Lock order matches Receive(): m_recvMutex, then m_mutex. Holding
+        // m_recvMutex means no Receive() is mid-wait on the socket we close
+        // (Close() waits at most one recv timeout for it to return).
+        const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket != -1)
         {
@@ -158,12 +176,11 @@ public:
             return -1;
 
         auto payload = os.str();
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
-
-        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
         uint16_t marker = htons(header.GetMarker());
@@ -200,6 +217,7 @@ public:
     {
         // Receive-side state (m_buffer) is only touched here, under m_recvMutex.
         // m_mutex is not held while waiting, so Send() is never blocked by an idle read.
+        // The socket copied below stays valid: Close() also takes m_recvMutex.
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
 
         int sock;
@@ -221,11 +239,15 @@ public:
 
         sockaddr_un fromAddr{};
         socklen_t addrLen = sizeof(fromAddr);
-        ssize_t size = recvfrom(sock, m_buffer, sizeof(m_buffer), MSG_DONTWAIT,
+        // MSG_TRUNC: return the datagram's real length, so an oversized one is
+        // detected and dropped instead of being silently cut off.
+        ssize_t size = recvfrom(sock, m_buffer, sizeof(m_buffer), MSG_DONTWAIT | MSG_TRUNC,
             (struct sockaddr*)&fromAddr, &addrLen);
 
         if (size < static_cast<ssize_t>(DmqHeader::HEADER_SIZE))
             return -1;  // no data (EAGAIN), error, or runt datagram
+        if (size > static_cast<ssize_t>(sizeof(m_buffer)))
+            return -1;  // truncated: larger than the receive buffer
 
         // 1. Read Header directly from m_buffer (Network Byte Order)
         uint16_t marker, id, seqNum, length;
@@ -242,10 +264,11 @@ public:
         if (header.GetMarker() != DmqHeader::MARKER)
             return -1;
 
-        // 2. Write payload to provided stream
+        // 2. Write payload to provided stream. One Send() is one datagram, so
+        // the header length must match exactly; anything else is malformed.
         uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+        if (payloadSize != (size - DmqHeader::HEADER_SIZE))
+            return -1;
 
         if (payloadSize > 0) {
             is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
@@ -266,6 +289,44 @@ public:
     }
 
 private:
+    /// Prepare addr's path for bind(). A connect() probe tells a stale socket
+    /// file (ECONNREFUSED: nothing bound) from a live one (connect succeeds).
+    /// Only a stale socket is unlinked; a live one, or anything that isn't a
+    /// socket, is left alone.
+    /// @return true if bind() may proceed.
+    static bool ClearStalePath(const sockaddr_un& addr)
+    {
+        // connect() also reports ECONNREFUSED for a regular file, so check the
+        // file type first. lstat(): a symlink is not followed or removed.
+        struct stat st{};
+        if (lstat(addr.sun_path, &st) != 0)
+            return true;    // nothing there
+        if (!S_ISSOCK(st.st_mode))
+            return true;    // not a socket: leave it; bind() fails and reports it
+
+        int probe = socket(AF_UNIX, SOCK_DGRAM, 0);
+        if (probe < 0)
+        {
+            std::cerr << "Socket creation failed: " << strerror(errno) << std::endl;
+            return false;
+        }
+        int rc = connect(probe, (const struct sockaddr*)&addr, sizeof(addr));
+        int err = errno;
+        close(probe);
+
+        if (rc == 0)
+        {
+            std::cerr << "LinuxUdsTransport: " << addr.sun_path
+                      << " is in use by another process." << std::endl;
+            return false;
+        }
+        if (err == ECONNREFUSED)
+            unlink(addr.sun_path);  // stale socket file
+        // Any other error (e.g. EACCES): leave the file alone and let bind()
+        // fail and report it.
+        return true;
+    }
+
     static bool MakeAddr(const char* path, sockaddr_un& addr)
     {
         memset(&addr, 0, sizeof(addr));

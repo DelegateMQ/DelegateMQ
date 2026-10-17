@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Starting DataBus Relay SENSOR (A, UDP side)..." << std::endl;
 
-    dmq::util::NetworkContext winsock;
+    dmq::util::NetworkContext netCtx;  // Winsock init on Windows; no-op on Linux
 
     SensorState s;
     if (!Setup(s)) return -1;

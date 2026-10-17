@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 
-    std::cout << "Starting DataBus Relay MONITOR (C, pipe side)..." << std::endl;
+    std::cout << "Starting DataBus Relay MONITOR (C, IPC side)..." << std::endl;
 
     MonitorState s;
     if (!ConnectPipe(s)) return -1;
