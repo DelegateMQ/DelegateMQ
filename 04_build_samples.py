@@ -10,7 +10,8 @@ Description:
 
 Key Features:
     1. Platform Awareness: Skips Windows-only projects on Linux and vice versa.
-    2. Client/Server Support: Builds client and server sub-projects independently.
+    2. Client/Server Support: Builds client and server sub-projects independently
+       (and each node of a MULTI_NODE project, e.g. databus-relay).
     3. Build Config: Builds Release configuration on both Windows (MSVC
        multi-config) and Linux (single-config generators).
     4. Summary Report: Prints a final pass/fail/skipped table.
@@ -36,6 +37,7 @@ Skip List (always excluded):
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
+    - databus-relay           Gateway <-> monitor hop is a Win32 named pipe
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
@@ -67,8 +69,15 @@ SKIP_ALWAYS = {
     "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
 }
 
+# Projects made of more than two node apps, each in its own sub-directory with
+# its own CMakeLists.txt (client/server projects need no entry).
+MULTI_NODE = {
+    "databus-relay": ["gateway", "monitor", "sensor"],
+}
+
 WINDOWS_ONLY = {
     "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
+    "databus-relay",           # gateway <-> monitor hop is a Win32 named pipe (Linux follow-up planned)
     "freertos-bare-metal",
     "win32-pipe-serializer",
     "win32-tcp-serializer",
@@ -212,23 +221,17 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
     def variant_label(suffix):
         return "" if suffix == "build" else suffix.replace("build-", "", 1)
 
-    client_dir = os.path.join(project_dir, "client")
-    server_dir = os.path.join(project_dir, "server")
+    # Node sub-projects: client/server by default, or a MULTI_NODE project's nodes.
+    roles = MULTI_NODE.get(os.path.basename(project_dir), ["client", "server"])
 
-    client_builds = [(s, os.path.join(client_dir, s)) for s in suffixes]
-    server_builds = [(s, os.path.join(server_dir, s)) for s in suffixes]
-
-    client_exist = [(s, p) for s, p in client_builds if os.path.isdir(p)]
-    server_exist = [(s, p) for s, p in server_builds if os.path.isdir(p)]
-
-    if client_exist or server_exist:
-        targets = []
-        for suffix, path in client_exist:
-            variant = variant_label(suffix)
-            targets.append((f"client ({variant})" if variant else "client", path))
-        for suffix, path in server_exist:
-            variant = variant_label(suffix)
-            targets.append((f"server ({variant})" if variant else "server", path))
+    targets = []
+    for role in roles:
+        for suffix in suffixes:
+            path = os.path.join(project_dir, role, suffix)
+            if os.path.isdir(path):
+                variant = variant_label(suffix)
+                targets.append((f"{role} ({variant})" if variant else role, path))
+    if targets:
         return targets
 
     targets = []

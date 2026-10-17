@@ -9,6 +9,9 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+### Added
+- **`databus-relay` sample** (`example/sample-projects/databus-relay/`). Three nodes across two different links: sensor ↔ gateway over UDP, gateway ↔ monitor over a Win32 named pipe. The gateway relays topics both ways with `AddRelayTopic` and uses two transports in one process. Windows only for now. `03`/`04`/`05_*.py` now also handle projects with more than two node apps (`MULTI_NODE`).
+
 ### Fixed
 - **`DataBus::AddRelayTopic` no longer echoes relayed data back to its source.** It also registered the topic as outgoing on the participant the data arrived on. On a duplex link (one participant that both receives and is registered with `AddParticipant`), every relayed message was sent back out the link it came in on. It now forwards only to participants that list the topic as outgoing with `AddRemoteTopic`. If an application relied on the old behavior to send a relayed topic back over the inbound link, it must call `AddRemoteTopic` on that participant explicitly.
 - **`Win32PipeTransport` client (`Type::PUB`) can now receive.** The client handle was left in byte-read, blocking mode. `Receive()` could merge two queued messages into one read and lose the second, and an idle read blocked a concurrent `Send()`. The client now uses the same message-read, non-blocking mode as the server.

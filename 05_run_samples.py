@@ -9,7 +9,8 @@ Description:
 Key Features:
     1. Platform Awareness: Skips Windows-only projects on Linux and vice versa.
     2. Client/Server Support: Launches paired apps concurrently, waits for both,
-       then proceeds to the next sample.
+       then proceeds to the next sample. Multi-node projects (MULTI_NODE, e.g.
+       databus-relay's gateway/monitor/sensor) launch every node the same way.
     3. Failure Detection: Catches non-zero exit codes, crashes, and assertion/
        exception text in output.
     4. Timeout Handling: Kills apps that do not exit on their own (e.g. infinite-
@@ -26,6 +27,7 @@ Skip List (always excluded):
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
+    - databus-relay           Gateway <-> monitor hop is a Win32 named pipe
     - freertos-bare-metal     FreeRTOS Windows simulator
     - win32-*                 Windows API transport projects
 
@@ -89,8 +91,16 @@ CROSS_PAIRS = {
     },
 }
 
+# Projects made of more than two node apps, each in its own sub-directory with
+# its own CMakeLists.txt. Values list the node sub-directories in start order;
+# each node's result is reported under its sub-directory name.
+MULTI_NODE = {
+    "databus-relay": ["gateway", "monitor", "sensor"],  # gateway creates the pipe the monitor connects to
+}
+
 WINDOWS_ONLY = {
     "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); client/server pair only runs on Windows
+    "databus-relay",           # gateway <-> monitor hop is a Win32 named pipe (Linux follow-up planned)
     "freertos-bare-metal",
     "win32-pipe-serializer",
     "win32-tcp-serializer",
@@ -118,6 +128,9 @@ REQUIRED_OUTPUT = {
     "databus":                     {"client": "Client received DataMsg"},
     "databus-freertos":            {"client": "[Client] sensor/temp"},
     "databus-multicast":           {"client": "Received Multicast Data"},
+    # Both directions must cross both hops (UDP and pipe) through the gateway relay.
+    "databus-relay":               {"monitor": "[monitor] sensor/temp received",
+                                    "sensor":  "[sensor] setpoint received"},
     "system-architecture":         {"client": "Actuators:"},
     "system-architecture-no-deps": {"client": "Actuators:"},
     "system-architecture-python":  {"client": "[RECV] Data:"},
@@ -265,31 +278,34 @@ def run_standalone(exe_path, project_dir):
     return r["failed"], results
 
 
+def run_group(procs):
+    """
+    Launch several apps concurrently, in list order, 1 s apart; wait for all.
+    procs is a list of (label, cmd, cwd). Return (failed, results).
+    """
+    results = {}
+    threads = []
+    for i, (label, cmd, cwd) in enumerate(procs):
+        if i > 0:
+            time.sleep(1.0)  # give earlier apps time to bind/listen before later ones connect
+        t = threading.Thread(target=run_process, args=(cmd, cwd, label, results), daemon=True)
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+    not_run = {"failed": True, "output": "did not run", "returncode": -1, "timed_out": False}
+    did_fail = any(results.get(label, not_run)["failed"] for label, _, _ in procs)
+    return did_fail, results
+
+
 def run_pair(server_cmd, client_cmd, server_cwd, client_cwd):
     """Launch server then client concurrently; wait for both. Return (failed, results)."""
-    results = {}
-
-    server_thread = threading.Thread(
-        target=run_process,
-        args=(server_cmd, server_cwd, "server", results),
-        daemon=True,
-    )
-    client_thread = threading.Thread(
-        target=run_process,
-        args=(client_cmd, client_cwd, "client", results),
-        daemon=True,
-    )
-
-    server_thread.start()
-    time.sleep(1.0)          # give server time to bind/listen before client connects
-    client_thread.start()
-
-    server_thread.join()
-    client_thread.join()
-
-    server_r = results.get("server", {"failed": True, "output": "did not run", "returncode": -1, "timed_out": False})
-    client_r = results.get("client", {"failed": True, "output": "did not run", "returncode": -1, "timed_out": False})
-    return server_r["failed"] or client_r["failed"], results
+    return run_group([
+        ("server", server_cmd, server_cwd),
+        ("client", client_cmd, client_cwd),
+    ])
 
 
 # ---------------------------------------------------------------------------
@@ -417,6 +433,23 @@ def run_samples(use_clang=False):
             print(f"[RUNNING] {project_name}  (cross-language client/server)")
             did_fail, results = run_pair(server_cmd, client_cmd, server_proj, client_cwd)
 
+        elif project_name in MULTI_NODE:
+            procs = []
+            for node in MULTI_NODE[project_name]:
+                node_dir = os.path.join(project_dir, node)
+                node_exe = find_executable(os.path.join(node_dir, "build"),
+                                           get_exe_name(os.path.join(node_dir, "CMakeLists.txt")))
+                if not node_exe:
+                    break
+                procs.append((node, [node_exe, str(APP_DURATION)], node_dir))
+
+            if len(procs) != len(MULTI_NODE[project_name]):
+                skipped.append((project_name, "not built"))
+                continue
+
+            print(f"[RUNNING] {project_name}  ({'/'.join(MULTI_NODE[project_name])})")
+            did_fail, results = run_group(procs)
+
         elif is_pair:
             client_name = get_exe_name(os.path.join(client_dir, "CMakeLists.txt"))
             server_name = get_exe_name(os.path.join(server_dir, "CMakeLists.txt"))
@@ -484,7 +517,8 @@ def run_samples(use_clang=False):
 
         # --- CLANG RUN (optional) ---
         # Cross-pair projects are skipped; their server lives in a different project dir.
-        if use_clang and project_name not in CROSS_PAIRS:
+        # Multi-node projects have no clang variant.
+        if use_clang and project_name not in CROSS_PAIRS and project_name not in MULTI_NODE:
             clang_label = f"{project_name} (clang)"
             ran, clang_fail, clang_results = try_run_clang(
                 project_name, project_dir, is_pair, client_dir, server_dir

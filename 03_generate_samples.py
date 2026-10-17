@@ -174,23 +174,28 @@ def build_samples(use_clang=False, clean=False):
                 # databus-freertos requires the FreeRTOS Win32 simulator (cmake -A Win32),
                 # which is only available on Windows.  Attempting to configure it on Linux
                 # produces a noisy cmake error with no useful output.
-                WINDOWS_ONLY_PROJECTS = {"databus-freertos", "stm32-freertos"}
+                # databus-relay's gateway <-> monitor hop is a Win32 named pipe; its
+                # node CMakeLists.txt files FATAL_ERROR on non-Windows.
+                WINDOWS_ONLY_PROJECTS = {"databus-freertos", "stm32-freertos", "databus-relay"}
                 if not IS_WINDOWS and (project_name in WINDOWS_ONLY_PROJECTS or
                                        parent_name in WINDOWS_ONLY_PROJECTS):
                     continue
 
                 # --- SKIP LINUX-ONLY PROJECTS ON WINDOWS ---
                 # freertos-linux and threadx-linux are native Linux/GNU simulator
-                # ports; their own CMakeLists.txt refuses to configure on Windows
-                # (FATAL_ERROR). Skip them here instead of letting that surface as
-                # a noisy FAILED entry on every Windows run.
-                LINUX_ONLY_PROJECTS = {"freertos-linux", "threadx-linux"}
+                # ports, and posix-linux uses the DMQ_THREAD_POSIX port; their own
+                # CMakeLists.txt refuses to configure on Windows (FATAL_ERROR). Skip
+                # them here instead of letting that surface as a noisy FAILED entry
+                # on every Windows run.
+                LINUX_ONLY_PROJECTS = {"freertos-linux", "threadx-linux", "posix-linux"}
                 if IS_WINDOWS and (project_name in LINUX_ONLY_PROJECTS or
                                    parent_name in LINUX_ONLY_PROJECTS):
                     continue
 
                 # Build a display label that includes the parent for client/server sub-dirs
-                if project_name in ("client", "server"):
+                # and for the nodes of multi-node projects (e.g. databus-relay/gateway)
+                MULTI_NODE_PROJECTS = {"databus-relay"}
+                if project_name in ("client", "server") or parent_name in MULTI_NODE_PROJECTS:
                     display_name = f"{parent_name}/{project_name}"
                 else:
                     display_name = project_name
