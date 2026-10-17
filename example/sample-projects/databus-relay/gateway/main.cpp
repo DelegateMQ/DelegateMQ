@@ -1,7 +1,10 @@
 // main.cpp
 // DataBus Relay Example — GATEWAY node (B).
 //
-//   sensor (A) <--- UDP ---> gateway (B) <--- named pipe ---> monitor (C)
+//   sensor (A) <--- UDP ---> gateway (B) <--- local IPC ---> monitor (C)
+//
+// Local IPC is a Win32 named pipe on Windows and a Unix domain datagram socket
+// on Linux. Both are duplex: one transport, one participant, both directions.
 //
 // The gateway sits on two different links and bridges DataBus topics between
 // them. DelegateMQ never forwards received data on its own: AddIncomingTopic
@@ -13,12 +16,16 @@
 //   sensor/temp  : inbound on the UDP participant  -> outgoing on the pipe participant
 //   cmd/setpoint : inbound on the pipe participant -> outgoing on the UDP participant
 //
-// Two transports in one process: CMake selects DMQ_TRANSPORT_WIN32_UDP, and the
-// pipe transport header is included directly below. Desktop transports are
-// header-only, so this needs no library or build-option change.
+// Two transports in one process: CMake selects the platform's UDP transport, and
+// the local IPC transport header is included directly below. Desktop transports
+// are header-only, so this needs no library or build-option change.
 
 #include "DelegateMQ.h"
+#ifdef _WIN32
 #include "port/transport/win32-pipe/Win32PipeTransport.h"
+#else
+#include "port/transport/linux-uds/LinuxUdsTransport.h"
+#endif
 #include "SystemMessages.h"
 #include "SystemIds.h"
 
@@ -31,7 +38,11 @@
 
 using namespace dmq::databus;
 using dmq::transport::UdpTransport;
-using dmq::transport::Win32PipeTransport;
+#ifdef _WIN32
+using IpcTransport = dmq::transport::Win32PipeTransport;
+#else
+using IpcTransport = dmq::transport::LinuxUdsTransport;
+#endif
 
 static std::atomic<bool> g_running(true);
 
@@ -44,8 +55,8 @@ struct GatewayState {
     std::shared_ptr<Participant> udpInParticipant;
     std::shared_ptr<Participant> udpOutParticipant;
 
-    // Pipe side (monitor): one duplex pipe, one participant, both directions
-    Win32PipeTransport pipe;
+    // Pipe side (monitor): one duplex IPC link, one participant, both directions
+    IpcTransport pipe;
     std::shared_ptr<Participant> pipeParticipant;
 
     dmq::serialization::serializer::Serializer<void(TempMsg)> tempSerializer;
@@ -68,11 +79,21 @@ static bool SetupTransports(GatewayState& s) {
         return false;
     }
 
+#ifdef _WIN32
     // The gateway is the pipe server: it creates the pipe the monitor connects to.
-    if (s.pipe.Create(Win32PipeTransport::Type::SUB, SystemLink::PipeName) != 0) {
+    if (s.pipe.Create(IpcTransport::Type::SUB, SystemLink::PipeName) != 0) {
         std::cerr << "[gateway] Failed to create named pipe " << SystemLink::PipeName << std::endl;
         return false;
     }
+#else
+    // Bind the gateway's socket path and send to the monitor's. No connection:
+    // either process may start first.
+    if (s.pipe.Create(IpcTransport::Type::SUB, SystemLink::GatewaySocketPath,
+                      SystemLink::MonitorSocketPath) != 0) {
+        std::cerr << "[gateway] Failed to create Unix socket " << SystemLink::GatewaySocketPath << std::endl;
+        return false;
+    }
+#endif
     return true;
 }
 
@@ -147,7 +168,7 @@ int main(int argc, char* argv[]) {
     });
     std::thread pipeThread([&]() {
         while (running) {
-            while (s.pipeParticipant->ProcessIncoming() == 0) {}  // drain; pipe reads don't block
+            while (s.pipeParticipant->ProcessIncoming() == 0) {}  // drain; IPC reads don't block
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });

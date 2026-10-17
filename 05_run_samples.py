@@ -27,7 +27,6 @@ Skip List (always excluded):
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
-    - databus-relay           Gateway <-> monitor hop is a Win32 named pipe
     - freertos-bare-metal     FreeRTOS Windows simulator
     - win32-*                 Windows API transport projects
 
@@ -95,12 +94,11 @@ CROSS_PAIRS = {
 # its own CMakeLists.txt. Values list the node sub-directories in start order;
 # each node's result is reported under its sub-directory name.
 MULTI_NODE = {
-    "databus-relay": ["gateway", "monitor", "sensor"],  # gateway creates the pipe the monitor connects to
+    "databus-relay": ["gateway", "monitor", "sensor"],  # Windows: gateway creates the pipe the monitor connects to
 }
 
 WINDOWS_ONLY = {
     "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); client/server pair only runs on Windows
-    "databus-relay",           # gateway <-> monitor hop is a Win32 named pipe (Linux follow-up planned)
     "freertos-bare-metal",
     "win32-pipe-serializer",
     "win32-tcp-serializer",
@@ -128,7 +126,7 @@ REQUIRED_OUTPUT = {
     "databus":                     {"client": "Client received DataMsg"},
     "databus-freertos":            {"client": "[Client] sensor/temp"},
     "databus-multicast":           {"client": "Received Multicast Data"},
-    # Both directions must cross both hops (UDP and pipe) through the gateway relay.
+    # Both directions must cross both hops (UDP and pipe/Unix socket) through the gateway relay.
     "databus-relay":               {"monitor": "[monitor] sensor/temp received",
                                     "sensor":  "[sensor] setpoint received"},
     "system-architecture":         {"client": "Actuators:"},

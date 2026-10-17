@@ -1,7 +1,7 @@
 // main.cpp
 // DataBus Relay Example — SENSOR node (A).
 //
-//   sensor (A) <--- UDP ---> gateway (B) <--- named pipe ---> monitor (C)
+//   sensor (A) <--- UDP ---> gateway (B) <--- local IPC ---> monitor (C)
 //
 // An ordinary DataBus node on the Ethernet (UDP) side. It knows nothing about
 // the pipe or the monitor: it publishes sensor/temp to the gateway and receives

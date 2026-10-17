@@ -1,7 +1,10 @@
 // main.cpp
 // DataBus Relay Example — MONITOR node (C).
 //
-//   sensor (A) <--- UDP ---> gateway (B) <--- named pipe ---> monitor (C)
+//   sensor (A) <--- UDP ---> gateway (B) <--- local IPC ---> monitor (C)
+//
+// Local IPC is a Win32 named pipe on Windows and a Unix domain datagram socket
+// on Linux (CMake selects DMQ_TRANSPORT_WIN32_PIPE or DMQ_TRANSPORT_LINUX_UDS).
 //
 // An ordinary DataBus node on the pipe side, typically a local app running on
 // the same box as the gateway. It never talks to the sensor directly: the
@@ -22,14 +25,18 @@
 #include <cstdlib>
 
 using namespace dmq::databus;
-using dmq::transport::Win32PipeTransport;
+#ifdef _WIN32
+using IpcTransport = dmq::transport::Win32PipeTransport;
+#else
+using IpcTransport = dmq::transport::LinuxUdsTransport;
+#endif
 
 static std::atomic<bool> g_running(true);
 
 static void SignalHandler(int) { g_running = false; }
 
 struct MonitorState {
-    Win32PipeTransport pipe;   // client end of the gateway's named pipe (duplex)
+    IpcTransport pipe;   // client end of the gateway's IPC link (duplex)
     std::shared_ptr<Participant> pipeParticipant;
     dmq::serialization::serializer::Serializer<void(TempMsg)> tempSerializer;
     dmq::serialization::serializer::Serializer<void(SetpointMsg)> setpointSerializer;
@@ -37,10 +44,11 @@ struct MonitorState {
     dmq::ScopedConnection errorConn;
 };
 
+#ifdef _WIN32
 // The pipe exists only once the gateway has created it, so retry for a while.
 static bool ConnectPipe(MonitorState& s) {
     for (int attempt = 0; attempt < 40 && g_running; ++attempt) {
-        if (s.pipe.Create(Win32PipeTransport::Type::PUB, SystemLink::PipeName) == 0) {
+        if (s.pipe.Create(IpcTransport::Type::PUB, SystemLink::PipeName) == 0) {
             std::cout << "[monitor] connected to gateway pipe " << SystemLink::PipeName << std::endl;
             return true;
         }
@@ -50,6 +58,20 @@ static bool ConnectPipe(MonitorState& s) {
               << " (is the gateway running?)" << std::endl;
     return false;
 }
+#else
+// Datagram sockets have no connection, so no retry: bind our path and address
+// the gateway's. Sends fail until the gateway is up, then start succeeding.
+static bool ConnectPipe(MonitorState& s) {
+    if (s.pipe.Create(IpcTransport::Type::PUB, SystemLink::MonitorSocketPath,
+                      SystemLink::GatewaySocketPath) != 0) {
+        std::cerr << "[monitor] Failed to create Unix socket " << SystemLink::MonitorSocketPath << std::endl;
+        return false;
+    }
+    std::cout << "[monitor] bound " << SystemLink::MonitorSocketPath << ", gateway at "
+              << SystemLink::GatewaySocketPath << std::endl;
+    return true;
+}
+#endif
 
 static void SetupDataBus(MonitorState& s) {
     s.pipeParticipant = std::make_shared<Participant>(s.pipe);
@@ -89,7 +111,7 @@ int main(int argc, char* argv[]) {
     std::atomic<bool> running{ true };
     std::thread recvThread([&]() {
         while (running) {
-            while (s.pipeParticipant->ProcessIncoming() == 0) {}  // drain; pipe reads don't block
+            while (s.pipeParticipant->ProcessIncoming() == 0) {}  // drain; IPC reads don't block
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });

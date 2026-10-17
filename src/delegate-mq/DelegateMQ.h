@@ -199,6 +199,9 @@
     #include "extras/dispatcher/Dispatcher.h"
     #include "port/transport/linux-udp/LinuxUdpTransport.h"
     #include "port/transport/linux-udp/MulticastTransport.h"
+#elif defined(DMQ_TRANSPORT_LINUX_UDS)
+    #include "extras/dispatcher/Dispatcher.h"
+    #include "port/transport/linux-uds/LinuxUdsTransport.h"
 #elif defined(DMQ_TRANSPORT_LINUX_TCP)
     #include "extras/dispatcher/Dispatcher.h"
     #include "port/transport/linux-tcp/LinuxTcpTransport.h"
@@ -239,7 +242,8 @@
 #if defined(DMQ_TRANSPORT_ZEROMQ) || defined(DMQ_TRANSPORT_NNG) || \
     defined(DMQ_TRANSPORT_WIN32_PIPE) || defined(DMQ_TRANSPORT_WIN32_UDP) || \
     defined(DMQ_TRANSPORT_WIN32_TCP) || defined(DMQ_TRANSPORT_LINUX_UDP) || \
-    defined(DMQ_TRANSPORT_LINUX_TCP) || defined(DMQ_TRANSPORT_MQTT) || \
+    defined(DMQ_TRANSPORT_LINUX_TCP) || defined(DMQ_TRANSPORT_LINUX_UDS) || \
+    defined(DMQ_TRANSPORT_MQTT) || \
     defined(DMQ_TRANSPORT_SERIAL_PORT) || defined(DMQ_TRANSPORT_ARM_LWIP_UDP) || \
     defined(DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP) || defined(DMQ_TRANSPORT_THREADX_UDP) || \
     defined(DMQ_TRANSPORT_STM32_UART) || defined(DMQ_TRANSPORT_ZEPHYR_UDP) || \

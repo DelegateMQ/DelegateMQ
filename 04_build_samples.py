@@ -37,7 +37,6 @@ Skip List (always excluded):
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
-    - databus-relay           Gateway <-> monitor hop is a Win32 named pipe
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
@@ -77,7 +76,6 @@ MULTI_NODE = {
 
 WINDOWS_ONLY = {
     "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
-    "databus-relay",           # gateway <-> monitor hop is a Win32 named pipe (Linux follow-up planned)
     "freertos-bare-metal",
     "win32-pipe-serializer",
     "win32-tcp-serializer",

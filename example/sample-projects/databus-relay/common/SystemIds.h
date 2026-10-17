@@ -3,7 +3,8 @@
 
 #include "DelegateMQ.h"
 
-// Topology:  sensor <--- UDP ---> gateway <--- named pipe ---> monitor
+// Topology:  sensor <--- UDP ---> gateway <--- local IPC ---> monitor
+//   local IPC = Win32 named pipe (Windows) or Unix domain socket (Linux)
 namespace SystemTopic {
     // Topic names
     inline constexpr const char* const SensorTemp  = "sensor/temp";   // sensor -> gateway -> monitor
@@ -24,8 +25,13 @@ namespace SystemLink {
     inline constexpr unsigned short GatewayUdpPort = 5020;   // gateway listens: sensor/temp from sensor
     inline constexpr unsigned short SensorUdpPort  = 5021;   // sensor listens: cmd/setpoint from gateway
 
-    // Pipe hop. gateway = pipe server (creates it), monitor = pipe client.
+    // Local IPC hop (gateway <-> monitor).
+    // Windows: a named pipe. gateway = pipe server (creates it), monitor = pipe client.
     inline constexpr const char* const PipeName = "\\\\.\\pipe\\dmq_relay";
+    // Linux: a Unix domain datagram socket. Each end binds its own path and
+    // sends to the other's (sun_path holds at most 107 chars + NUL).
+    inline constexpr const char* const GatewaySocketPath = "/tmp/dmq_relay_gateway.sock";
+    inline constexpr const char* const MonitorSocketPath = "/tmp/dmq_relay_monitor.sock";
 }
 
 #endif // SYSTEM_IDS_H

@@ -25,6 +25,7 @@ The subdirectories contain ready-to-use transport implementations for specific p
 
 ### IPC & Serial
 * **`win32-pipe`**: Inter-Process Communication (IPC) using Windows Named Pipes.
+* **`linux-uds`**: Inter-Process Communication (IPC) using Linux Unix domain datagram sockets (`AF_UNIX`, `SOCK_DGRAM`). Duplex, path-addressed, no start-order dependency. Selected via `DMQ_TRANSPORT_LINUX_UDS`.
 * **`serial`**: Serial port (UART/RS-232) transport using **libserialport**.
 * **`stm32-uart`**: Interrupt-driven STM32 HAL UART transport for embedded targets (selected via `DMQ_TRANSPORT_STM32_UART`).
 

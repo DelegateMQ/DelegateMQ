@@ -174,9 +174,7 @@ def build_samples(use_clang=False, clean=False):
                 # databus-freertos requires the FreeRTOS Win32 simulator (cmake -A Win32),
                 # which is only available on Windows.  Attempting to configure it on Linux
                 # produces a noisy cmake error with no useful output.
-                # databus-relay's gateway <-> monitor hop is a Win32 named pipe; its
-                # node CMakeLists.txt files FATAL_ERROR on non-Windows.
-                WINDOWS_ONLY_PROJECTS = {"databus-freertos", "stm32-freertos", "databus-relay"}
+                WINDOWS_ONLY_PROJECTS = {"databus-freertos", "stm32-freertos"}
                 if not IS_WINDOWS and (project_name in WINDOWS_ONLY_PROJECTS or
                                        parent_name in WINDOWS_ONLY_PROJECTS):
                     continue

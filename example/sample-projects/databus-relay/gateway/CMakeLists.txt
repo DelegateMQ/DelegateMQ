@@ -5,17 +5,16 @@ set(DELEGATE_APP "delegate_databus_relay_gateway_app")
 project(DelegateDataBusRelayGateway VERSION 1.0 LANGUAGES CXX)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${DELEGATE_APP})
 
-# Windows-only for now: the gateway <-> monitor hop uses a Win32 named pipe.
-if(NOT WIN32)
-    message(FATAL_ERROR "databus-relay currently supports Windows only (Win32 named pipe hop).")
-endif()
-
 # Set build options (see Port.cmake).
 # Rerun cmake configuration and clean/rebuild if you change these settings
-# UDP is the selected transport; the pipe transport header is also included
-# directly in main.cpp. Desktop transports are header-only, so one process
-# can use two of them.
-set(DMQ_TRANSPORT "DMQ_TRANSPORT_WIN32_UDP")
+# UDP is the selected transport; the local IPC transport header (Win32 pipe or
+# Linux Unix domain socket) is also included directly in main.cpp. Desktop
+# transports are header-only, so one process can use two of them.
+if(WIN32)
+    set(DMQ_TRANSPORT "DMQ_TRANSPORT_WIN32_UDP")
+else()
+    set(DMQ_TRANSPORT "DMQ_TRANSPORT_LINUX_UDP")
+endif()
 include("${CMAKE_SOURCE_DIR}/../../../../src/delegate-mq/DelegateMQ.cmake")
 
 # Collect all .cpp and *.h source files in this directory
@@ -50,4 +49,7 @@ target_link_libraries(${DELEGATE_APP} PRIVATE
 )
 
 find_package(Threads REQUIRED)
-target_link_libraries(${DELEGATE_APP} PRIVATE ws2_32 Threads::Threads)
+target_link_libraries(${DELEGATE_APP} PRIVATE Threads::Threads)
+if(WIN32)
+    target_link_libraries(${DELEGATE_APP} PRIVATE ws2_32)
+endif()

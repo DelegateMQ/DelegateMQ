@@ -3,10 +3,12 @@ Script: run_databus_relay.py
 Description:
     Launches the 3-node DataBus relay sample, each node in its own console:
 
-        sensor (A) <--- UDP ---> gateway (B) <--- named pipe ---> monitor (C)
+        sensor (A) <--- UDP ---> gateway (B) <--- local IPC ---> monitor (C)
 
-    Start order: gateway first (it creates the named pipe), then monitor
-    (connects to the pipe), then sensor.
+    Local IPC is a Win32 named pipe on Windows and a Unix domain socket on Linux.
+    Start order: gateway first (on Windows it creates the named pipe), then
+    monitor (connects to the pipe), then sensor. On Linux any order works; the
+    same order is used anyway.
 
     Build first: 03_generate_samples.py + 04_build_samples.py from the repo
     root, or `cmake -B build . && cmake --build build --config Release` in each
@@ -29,7 +31,7 @@ import time
 IS_WINDOWS = platform.system() == "Windows"
 EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
 
-# Start order matters: the gateway is the pipe server.
+# Start order matters on Windows: the gateway is the pipe server.
 NODES = [
     {"name": "Gateway", "dir": "gateway", "exe": "delegate_databus_relay_gateway_app"},
     {"name": "Monitor", "dir": "monitor", "exe": "delegate_databus_relay_monitor_app"},
@@ -119,7 +121,8 @@ def main():
         to_launch.append((node["name"], exe_path))
 
     print("--- Starting DataBus Relay Sample ---")
-    print("  sensor (A) <--- UDP ---> gateway (B) <--- named pipe ---> monitor (C)")
+    ipc = "named pipe" if IS_WINDOWS else "Unix socket"
+    print(f"  sensor (A) <--- UDP ---> gateway (B) <--- {ipc} ---> monitor (C)")
     print(f"  Duration: {args.duration} s" if args.duration > 0 else "  Duration: until Ctrl+C")
 
     node_args = [str(args.duration)] if args.duration > 0 else []
@@ -127,7 +130,7 @@ def main():
     for name, exe_path in to_launch:
         print(f"Launching {name}: {exe_path}")
         processes.append(launch_process(exe_path, node_args, os.path.dirname(exe_path)))
-        time.sleep(1.0)  # gateway must create the pipe before the monitor connects
+        time.sleep(1.0)  # Windows: gateway must create the pipe before the monitor connects
 
     print("\nAll nodes started.")
     print("Terminate this script (Ctrl+C) to stop all processes.")
