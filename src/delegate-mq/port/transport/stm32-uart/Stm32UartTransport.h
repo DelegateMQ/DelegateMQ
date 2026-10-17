@@ -144,6 +144,10 @@ public:
 
         // 1. Prepare Packet Structure
         dmq::xstring payload = os.str();
+        if (payload.length() > BUFFER_SIZE) {  // receiver's reassembly limit
+            xSemaphoreGiveRecursive(m_mutex);
+            return -1;
+        }
         DmqHeader headerCopy = header;
         headerCopy.SetLength((uint16_t)payload.length());
 

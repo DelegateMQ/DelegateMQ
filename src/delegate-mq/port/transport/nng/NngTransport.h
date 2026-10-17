@@ -205,11 +205,10 @@ public:
 
         // Get payload data without string copy if possible
         auto payload = os.str();
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
-        
-        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
         uint16_t marker = htons(header.GetMarker());

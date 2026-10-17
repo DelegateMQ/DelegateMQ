@@ -90,6 +90,7 @@ public:
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::PUB) return -1;
         auto payload = os.str();
+        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) return -1;
         DmqHeader headerCopy = header;
         headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
