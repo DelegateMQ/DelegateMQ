@@ -55,9 +55,23 @@ public:
                 GENERIC_WRITE,
                 0,              // no sharing 
                 NULL,           // default security attributes
-                OPEN_EXISTING,  // opens existing pipe 
-                0,              // default attributes 
-                NULL);          // no template file 
+                OPEN_EXISTING,  // opens existing pipe
+                0,              // default attributes
+                NULL);          // no template file
+
+            // A client handle opens in byte-read, blocking mode. Match the server's
+            // message-read, non-blocking mode so a duplex client can Receive(): one
+            // ReadFile returns exactly one message, and an idle read doesn't block
+            // (while holding m_mutex) a concurrent Send().
+            if (m_hPipe != INVALID_HANDLE_VALUE)
+            {
+                DWORD mode = PIPE_READMODE_MESSAGE | PIPE_NOWAIT;
+                if (!SetNamedPipeHandleState(m_hPipe, &mode, NULL, NULL))
+                {
+                    CloseHandle(m_hPipe);
+                    m_hPipe = INVALID_HANDLE_VALUE;
+                }
+            }
         }
         else if (type == Type::SUB)
         {
@@ -155,15 +169,18 @@ public:
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_hPipe == INVALID_HANDLE_VALUE) return -1;
 
-        // Check/Accept connection
-        // Note: In non-blocking mode (PIPE_NOWAIT), this returns false immediately 
+        // Check/Accept connection (server only; ConnectNamedPipe is a server API)
+        // Note: In non-blocking mode (PIPE_NOWAIT), this returns false immediately
         // if connected, or error if already connected.
-        BOOL connected = ConnectNamedPipe(m_hPipe, NULL) ?
-            TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
-        
-        // If not connected yet, we can't read.
-        if (connected == FALSE && GetLastError() == ERROR_NO_DATA) {
-             return -1; 
+        if (m_type == Type::SUB)
+        {
+            BOOL connected = ConnectNamedPipe(m_hPipe, NULL) ?
+                TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
+
+            // If not connected yet, we can't read.
+            if (connected == FALSE && GetLastError() == ERROR_NO_DATA) {
+                 return -1;
+            }
         }
 
         DWORD size = 0;

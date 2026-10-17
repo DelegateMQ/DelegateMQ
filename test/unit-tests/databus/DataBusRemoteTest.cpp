@@ -170,6 +170,44 @@ int DataBusRemoteTestMain() {
             DMQ_ASSERT_TRUE(localValue == 77);                   // local subscriber got it
             DMQ_ASSERT_TRUE(downstreamTransport.sendCount > 0);  // WAS re-forwarded
         }
+
+        // 3c. AddRelayTopic on a duplex link — the inbound participant is also registered
+        //     with AddParticipant (it sends other topics on the same link). Relayed data must
+        //     go downstream only, never echo back out the link it arrived on.
+        {
+            DataBus::ResetForTesting();
+
+            struct CountingTransport : public ITransport {
+                int sendCount = 0;
+                int Send(xostringstream&, const DmqHeader&) override { sendCount++; return 0; }
+                int Receive(xstringstream&, DmqHeader&) override { return -1; }
+            } downstreamTransport;
+
+            // Loopback that also counts sends made after the test packet is injected
+            struct CountingLoopbackTransport : public DataBusLoopbackTransport {
+                int sendCount = 0;
+                int Send(xostringstream& os, const DmqHeader& header) override {
+                    sendCount++;
+                    return DataBusLoopbackTransport::Send(os, header);
+                }
+            } upstreamTransport;
+
+            auto downParticipant = std::make_shared<Participant>(downstreamTransport);
+            downParticipant->AddRemoteTopic("relay/data", 300);
+            DataBus::AddParticipant(downParticipant);
+            DataBus::RegisterSerializer<int>("relay/data", serializer);
+
+            auto relayParticipant = std::make_shared<Participant>(upstreamTransport);
+            DataBus::AddParticipant(relayParticipant);  // duplex: same link is also an outgoing participant
+            DataBus::AddRelayTopic<int>("relay/data", 400, *relayParticipant, serializer);
+
+            injectPacket(upstreamTransport, 400, 88);
+            upstreamTransport.sendCount = 0;           // ignore the injection send itself
+            relayParticipant->ProcessIncoming();       // → Publish("relay/data", 88)
+
+            DMQ_ASSERT_TRUE(downstreamTransport.sendCount > 0);  // forwarded downstream
+            DMQ_ASSERT_TRUE(upstreamTransport.sendCount == 0);   // NOT echoed back upstream
+        }
     }
 
     // 4. Participant::SetSendThread — transport.Send executes on the send thread, not caller
