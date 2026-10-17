@@ -356,7 +356,7 @@ MqttBridge::Stop();
 JsonTopics::Shutdown();
 ```
 
-Add it to a CMake target with the helper, which adds the shared layer and builds Paho MQTT C from the workspace (`../mqtt`, fetched by `01_fetch_repos.py`):
+Add it to a CMake target with the helper, which adds the shared layer and builds Paho MQTT C from `external/mqtt` (fetched by `01_fetch_repos.py`):
 
 ```cmake
 include(<DelegateMQ>/tools/bridge/mqtt/MqttBridge.cmake)
@@ -401,6 +401,8 @@ The bridge has no tool-specific integration: it publishes plain MQTT topics with
 Examples: [`example/sample-projects/databus-mqtt-gateway`](../example/sample-projects/databus-mqtt-gateway/README.md) (minimal thermostat) and Pumptron's `--mqtt` ([PUMPTRON.md](../example/pumptron/PUMPTRON.md#mqtt-gateway)).
 
 ### Bridge Source Layout
+
+See [bridge/README.md](bridge/README.md) for an overview of the bridges and how to choose between them.
 
 | Directory | Contents |
 |-----------|----------|

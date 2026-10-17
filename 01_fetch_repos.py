@@ -8,7 +8,7 @@ Description:
     3. Applies automated fixes to common build issues:
         - Renames 'zeromq/INSTALL' to 'INSTALL.txt' to prevent Windows file/folder conflicts.
 
-    See Examples Setup within DETAILS.md before running script.
+    See "Example Ecosystem (Sandbox)" in docs/BUILD.md before running script.
 
 Dependencies Pinned:
     - ZeroMQ:        v4.3.5       (Stable C++ standard)
@@ -23,11 +23,18 @@ Dependencies Pinned:
     - FreeRTOS:      202212.00    (LTS Release)
     - ThreadX:       6.5.1.202602a (Latest stable, Linux/GNU port)
 
+Target Directory:
+    <repo>/external (gitignored) by default. Override with --deps-dir or the
+    DMQ_DEPS_DIR environment variable (CMake honors the same variable, see
+    src/delegate-mq/DepsDir.cmake), e.g. to share one checkout between clones.
+
 Usage:
     Run this script FIRST to download source code.
     > python 01_fetch_repos.py
+    > python 01_fetch_repos.py --deps-dir /path/to/shared/external
 """
 
+import argparse
 import os
 import subprocess
 import shutil
@@ -77,27 +84,36 @@ repos = {
     "threadx": ("https://github.com/eclipse-threadx/threadx.git", "v6.5.1.202602a_rel", False)
 }
 
-def fix_zeromq_conflict(workspace_dir):
+def fix_zeromq_conflict(deps_dir):
     """Renames 'INSTALL' to 'INSTALL.txt' in zeromq to prevent build failure."""
-    install_file = os.path.join(workspace_dir, "zeromq", "INSTALL")
+    install_file = os.path.join(deps_dir, "zeromq", "INSTALL")
     if os.path.isfile(install_file):
         try:
-            os.rename(install_file, os.path.join(workspace_dir, "zeromq", "INSTALL.txt"))
+            os.rename(install_file, os.path.join(deps_dir, "zeromq", "INSTALL.txt"))
             print("[FIX] Renamed zeromq/INSTALL to INSTALL.txt")
         except Exception as e:
             print(f"[WARN] Could not rename zeromq/INSTALL: {e}")
 
-def run():
+def resolve_deps_dir():
+    """--deps-dir, else the DMQ_DEPS_DIR env var, else <repo>/external."""
+    parser = argparse.ArgumentParser(description="Fetch DelegateMQ third-party repos.")
+    parser.add_argument("--deps-dir", help="target directory (default: DMQ_DEPS_DIR env var, else <repo>/external)")
+    args = parser.parse_args()
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    workspace_dir = os.path.abspath(os.path.join(script_dir, ".."))
-    print(f"Target Workspace: {workspace_dir}\n")
+    deps_dir = args.deps_dir or os.environ.get("DMQ_DEPS_DIR") or os.path.join(script_dir, "external")
+    return os.path.abspath(deps_dir)
+
+def run():
+    deps_dir = resolve_deps_dir()
+    os.makedirs(deps_dir, exist_ok=True)
+    print(f"Target Directory: {deps_dir}\n")
 
     # Suppress 'detached HEAD' advice to keep output clean
     subprocess.run(["git", "config", "advice.detachedHead", "false"], check=False)
 
     # 1. Clone Repos
     for folder, (url, tag, use_submodules) in repos.items():
-        target_path = os.path.join(workspace_dir, folder)
+        target_path = os.path.join(deps_dir, folder)
         if not os.path.exists(target_path):
             print(f"[CLONING] {folder} (Tag: {tag if tag else 'HEAD'})...")
             # Use -c advice.detachedHead=false to silence the warning during clone
@@ -117,8 +133,8 @@ def run():
             print(f"[SKIP] {folder} exists.")
 
     # 2. Apply Fixes
-    fix_zeromq_conflict(workspace_dir)
-    print("\nWorkspace setup complete!")
+    fix_zeromq_conflict(deps_dir)
+    print("\nThird-party setup complete!")
 
 if __name__ == "__main__":
     run()

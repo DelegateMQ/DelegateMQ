@@ -20,7 +20,7 @@
 
 The Cellutron system is cross-platform and supports both **Windows** and **Linux**. On both platforms, the Controller and Safety nodes operate within an RTOS simulation to emulate embedded hardware behavior — **FreeRTOS** by default, or **ThreadX** with a single build switch (Linux only). See [RTOS Portability](#rtos-portability-freertos--threadx) below.
 
-1.  **Initialize Workspace**: Ensure `DelegateMQ` is placed inside a workspace directory (e.g., `DelegateMQWorkspace`). From the repository root, run the setup scripts to fetch dependencies and build tools:
+1.  **Initialize Workspace**: From the repository root, run the setup scripts to fetch dependencies and build tools:
     ```bash
     python3 01_fetch_repos.py
     python3 02_build_libs.py
@@ -64,7 +64,7 @@ It is also a concrete proof point for DelegateMQ's central design claim: **appli
 
 ## RTOS Portability: FreeRTOS ↔ ThreadX
 
-The Controller and Safety nodes build against either **FreeRTOS** (default) or **ThreadX** (Linux only, via the vendored `threadx` sibling repo fetched by `01_fetch_repos.py`), selected with one CMake switch:
+The Controller and Safety nodes build against either **FreeRTOS** (default) or **ThreadX** (Linux only, via the `external/threadx` repo fetched by `01_fetch_repos.py`), selected with one CMake switch:
 
 ```bash
 cmake -B build .                                  # FreeRTOS (default)

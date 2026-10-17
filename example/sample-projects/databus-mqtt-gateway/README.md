@@ -13,7 +13,7 @@ The application code is plain DataBus: `Thermostat` publishes `Climate` and `The
 
 ## Build
 
-Paho MQTT C is built from the workspace checkout (`../mqtt`, fetched by `01_fetch_repos.py`).
+Paho MQTT C is built from `external/mqtt` (fetched by `01_fetch_repos.py`).
 
 ```bash
 cmake -B build .

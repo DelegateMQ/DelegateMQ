@@ -9,9 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Paths relative to this tools/ directory
 set(DELEGATE_MQ_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src/delegate-mq")
-set(WORKSPACE_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-set(FTXUI_DIR   "${WORKSPACE_DIR}/ftxui")
-set(SPDLOG_DIR  "${WORKSPACE_DIR}/spdlog")
 
 # --- DelegateMQ configuration for tools ---
 set(DMQ_THREAD    "DMQ_THREAD_STDLIB")
@@ -22,6 +19,10 @@ set(DMQ_DATABUS   "ON")
 set(DMQ_ASSERTS   "ON")
 
 include("${DELEGATE_MQ_DIR}/DelegateMQ.cmake")
+
+# Third-party repos (DMQ_DEPS_DIR is set by DelegateMQ.cmake)
+set(FTXUI_DIR   "${DMQ_DEPS_DIR}/ftxui")
+set(SPDLOG_DIR  "${DMQ_DEPS_DIR}/spdlog")
 
 # --- FTXUI ---
 if(EXISTS "${FTXUI_DIR}/CMakeLists.txt")

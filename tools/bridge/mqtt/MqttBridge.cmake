@@ -1,7 +1,7 @@
 # MqttBridge.cmake
 # Adds tools/bridge/mqtt/MqttBridge (an MQTT output for the JsonTopics layer)
 # and the shared bridge layer to a target, building Eclipse Paho MQTT C from the
-# workspace checkout (../mqtt, fetched by 01_fetch_repos.py) as a static
+# third-party checkout (${DMQ_DEPS_DIR}/mqtt, fetched by 01_fetch_repos.py) as a static
 # library. Building from source keeps Paho's architecture matching the
 # target's (e.g. the Win32 Pumptron build) instead of relying on a prebuilt
 # library.
@@ -15,7 +15,8 @@
 include("${CMAKE_CURRENT_LIST_DIR}/../common/BridgeCommon.cmake")
 
 set(DMQ_MQTT_BRIDGE_DIR "${CMAKE_CURRENT_LIST_DIR}")
-get_filename_component(DMQ_PAHO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../mqtt" ABSOLUTE)
+include("${CMAKE_CURRENT_LIST_DIR}/../../../src/delegate-mq/DepsDir.cmake")
+set(DMQ_PAHO_ROOT "${DMQ_DEPS_DIR}/mqtt")
 
 function(dmq_add_mqtt_bridge target)
     if(NOT TARGET paho-mqtt3c-static)

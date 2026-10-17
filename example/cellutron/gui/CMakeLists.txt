@@ -17,9 +17,8 @@ get_filename_component(DMQ_SRC_DIR "${DMQ_INCLUDE_DIR}" DIRECTORY)
 set(TOOLS_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/bridge")
 set(TOOLS_SRC_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/net")
 
-# Paths for FTXUI
-set(WORKSPACE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
-set(FTXUI_DIR "${WORKSPACE_DIR}/ftxui")
+# Paths for FTXUI (DMQ_DEPS_DIR is set by DelegateMQ.cmake)
+set(FTXUI_DIR "${DMQ_DEPS_DIR}/ftxui")
 
 # --- FTXUI ---
 if(EXISTS "${FTXUI_DIR}/CMakeLists.txt")

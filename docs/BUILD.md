@@ -64,12 +64,11 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 ---
 
 ## Example Ecosystem (Sandbox)
-Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party libraries. We provide scripts to automate setting up a "Sandbox Workspace" where all dependencies are built as siblings of the main repository.
+Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party libraries. We provide scripts that fetch and build all dependencies into `external/` inside the repository (gitignored).
 
 ### Automated Workspace Sandbox Setup
-1. Create a parent workspace directory:
+1. Clone the repository:
    ```bash
-   mkdir DMQWorkspace && cd DMQWorkspace
    git clone https://github.com/DelegateMQ/DelegateMQ.git
    cd DelegateMQ
    ```
@@ -81,6 +80,13 @@ Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party l
    python3 04_build_samples.py     # Compile all samples
    python3 05_run_samples.py       # Execute all and report pass/fail
    ```
+
+### Third-Party Directory (`DMQ_DEPS_DIR`)
+`01_fetch_repos.py` clones into `<repo>/external/` by default. To put the dependencies somewhere else, for example one copy shared by several clones or git worktrees, set the `DMQ_DEPS_DIR` environment variable, or pass `--deps-dir` to the `01`/`02` scripts and `-DDMQ_DEPS_DIR=<path>` to CMake. CMake resolves it in `src/delegate-mq/DepsDir.cmake`.
+
+`git clean -xdf` deletes `external/` along with build output, because it's gitignored. Use `git clean -xdf -e external` to keep it.
+
+Older versions cloned the dependencies next to the repository (`<parent>/zeromq`, `<parent>/FreeRTOS`, ...). That layout is no longer used: rerun `01_fetch_repos.py` and `02_build_libs.py`, then delete the old folders.
 
 ### Manual Sample Build
 If you want to build a specific sample without scripts, navigate to its directory (its third-party dependencies must already be built, e.g. by `02_build_libs.py`):

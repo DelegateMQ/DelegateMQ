@@ -21,7 +21,7 @@ Identical test suite to `freertos-bare-metal`, on a different RTOS port — show
 
 *   **CMake** (3.16 or higher)
 *   **Linux** with GCC (the ThreadX Linux/GNU port needs a native assembler and POSIX threads/signals — there is no Windows or macOS build of this sample)
-*   **ThreadX source**: fetched by `python 01_fetch_repos.py` from the repo root, which clones `eclipse-threadx/threadx` to the workspace root (sibling to `DelegateMQ/`)
+*   **ThreadX source**: fetched by `python 01_fetch_repos.py` from the repo root, which clones `eclipse-threadx/threadx` to `external/threadx`
 
 ## Build Instructions
 

@@ -14,10 +14,9 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT $
 
 include("${CMAKE_SOURCE_DIR}/../../../../src/delegate-mq/DelegateMQ.cmake")
 
-# FTXUI & spdlog integration (from peer workspace folders)
-set(WORKSPACE_DIR "${CMAKE_SOURCE_DIR}/../../../../..")
-set(FTXUI_DIR "${WORKSPACE_DIR}/ftxui")
-set(SPDLOG_DIR "${WORKSPACE_DIR}/spdlog")
+# FTXUI & spdlog integration (DMQ_DEPS_DIR is set by DelegateMQ.cmake)
+set(FTXUI_DIR "${DMQ_DEPS_DIR}/ftxui")
+set(SPDLOG_DIR "${DMQ_DEPS_DIR}/spdlog")
 
 if(EXISTS "${FTXUI_DIR}/CMakeLists.txt")
     add_subdirectory("${FTXUI_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ftxui" EXCLUDE_FROM_ALL)

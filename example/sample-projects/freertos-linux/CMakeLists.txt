@@ -1,7 +1,7 @@
 # freertos-linux — DelegateMQ feature demo on FreeRTOS (POSIX/Linux simulation port)
 #
 # Requires the FreeRTOS kernel fetched by 01_fetch_repos.py at
-# ../../../../FreeRTOS (i.e. sibling to the DelegateMQ workspace root).
+# ${DMQ_DEPS_DIR}/FreeRTOS (default: <DelegateMQ repo>/external/FreeRTOS).
 #
 # Linux only: uses the FreeRTOS ThirdParty/GCC/Posix simulator port, which
 # implements each FreeRTOS task as a real pthread.

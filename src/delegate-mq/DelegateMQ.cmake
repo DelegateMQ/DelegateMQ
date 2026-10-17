@@ -35,6 +35,10 @@ endmacro()
 set_and_check(DMQ_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set_and_check(DMQ_INCLUDE_DIR "${DMQ_ROOT_DIR}")
 
+# DMQ_DEPS_DIR: third-party repos fetched by 01_fetch_repos.py
+check("${DMQ_ROOT_DIR}/DepsDir.cmake")
+include ("${DMQ_ROOT_DIR}/DepsDir.cmake")
+
 check("${DMQ_ROOT_DIR}/Defaults.cmake")
 include ("${DMQ_ROOT_DIR}/Defaults.cmake")
 

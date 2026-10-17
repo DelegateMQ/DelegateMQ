@@ -4,7 +4,7 @@ Description:
     Test runner for all DelegateMQ sample projects.
     Discovers, runs, and reports pass/fail for every built sample.
 
-    See Examples Setup within DETAILS.md before running script.
+    See "Example Ecosystem (Sandbox)" in docs/BUILD.md before running script.
 
 Key Features:
     1. Platform Awareness: Skips Windows-only projects on Linux and vice versa.

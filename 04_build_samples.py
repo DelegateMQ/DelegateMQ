@@ -6,7 +6,7 @@ Description:
     (generate) the build directories. This script compiles every project
     and reports pass/fail.
 
-    See Examples Setup within DETAILS.md before running script.
+    See "Example Ecosystem (Sandbox)" in docs/BUILD.md before running script.
 
 Key Features:
     1. Platform Awareness: Skips Windows-only projects on Linux and vice versa.

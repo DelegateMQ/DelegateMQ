@@ -5,7 +5,7 @@ Description:
     This script compiles the raw source code cloned by '01_fetch_repos.py' into 
     static libraries usable by the sample projects.
 
-    See Examples Setup within DETAILS.md before running script.
+    See "Example Ecosystem (Sandbox)" in docs/BUILD.md before running script.
 
 Key Features:
     1. Cross-Platform Support: 
@@ -26,8 +26,13 @@ Targets Built:
 Usage:
     Run this script SECOND to compile the static libraries.
     > python 02_build_libs.py
+    > python 02_build_libs.py --deps-dir /path/to/shared/external
+
+    Builds in <repo>/external by default (--deps-dir or the DMQ_DEPS_DIR
+    environment variable override it; see 01_fetch_repos.py).
 """
 
+import argparse
 import os
 import shutil
 import subprocess
@@ -69,13 +74,13 @@ libs = [
     }
 ]
 
-def fix_zeromq_conflict(workspace_dir):
+def fix_zeromq_conflict(deps_dir):
     """
     AUTOMATIC FIX: 
     Renames 'zeromq/INSTALL' (file) to 'zeromq/INSTALL.txt' 
     so CMake can create the 'zeromq/INSTALL' (directory).
     """
-    zmq_path = os.path.join(workspace_dir, "zeromq")
+    zmq_path = os.path.join(deps_dir, "zeromq")
     conflict_file = os.path.join(zmq_path, "INSTALL")
     
     # If the text file exists, rename it
@@ -91,16 +96,25 @@ def fix_zeromq_conflict(workspace_dir):
         except Exception as e:
             print(f"[WARNING] Could not rename zeromq/INSTALL: {e}")
 
-def build_deps():
+def resolve_deps_dir():
+    """Where 01_fetch_repos.py put the repos: --deps-dir, else the DMQ_DEPS_DIR
+    env var, else <repo>/external. Same rule as src/delegate-mq/DepsDir.cmake."""
+    parser = argparse.ArgumentParser(description="Build DelegateMQ third-party libraries.")
+    parser.add_argument("--deps-dir", help="third-party directory (default: DMQ_DEPS_DIR env var, else <repo>/external)")
+    args = parser.parse_args()
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    workspace_dir = os.path.abspath(os.path.join(script_dir, ".."))
-    print(f"Workspace Root: {workspace_dir}\n")
+    deps_dir = args.deps_dir or os.environ.get("DMQ_DEPS_DIR") or os.path.join(script_dir, "external")
+    return os.path.abspath(deps_dir)
+
+def build_deps():
+    deps_dir = resolve_deps_dir()
+    print(f"Third-party Directory: {deps_dir}\n")
 
     # 1. Run the Auto-Fix before building
-    fix_zeromq_conflict(workspace_dir)
+    fix_zeromq_conflict(deps_dir)
 
     for lib in libs:
-        source_dir = os.path.join(workspace_dir, lib["path"])
+        source_dir = os.path.join(deps_dir, lib["path"])
         install_dir = os.path.join(source_dir, "install")
         
         if not os.path.isdir(source_dir):

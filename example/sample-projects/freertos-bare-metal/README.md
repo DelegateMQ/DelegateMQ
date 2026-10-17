@@ -15,7 +15,7 @@ This sample project demonstrates how to integrate **DelegateMQ** into a **FreeRT
 
 *   **CMake** (3.10 or higher)
 *   **Visual Studio** (Windows is required for the FreeRTOS Win32 simulator)
-*   **FreeRTOS Source**: This project assumes the FreeRTOS kernel source is available in the workspace.
+*   **FreeRTOS Source**: This project assumes the FreeRTOS kernel source is available in `external/FreeRTOS` (fetched by `01_fetch_repos.py`).
 
 ## Build Instructions
 

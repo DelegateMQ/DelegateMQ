@@ -21,7 +21,7 @@ Identical test suite to `freertos-bare-metal` and `threadx-linux` — showing th
 
 *   **CMake** (3.16 or higher)
 *   **Linux** with GCC (the FreeRTOS POSIX port needs `pthread`/`rt`; there is no Windows or macOS build of this sample — use `freertos-bare-metal` there instead)
-*   **FreeRTOS kernel source**: fetched by `python 01_fetch_repos.py` from the repo root, which clones `FreeRTOS/FreeRTOS-Kernel` to the workspace root (sibling to `DelegateMQ/`)
+*   **FreeRTOS kernel source**: fetched by `python 01_fetch_repos.py` from the repo root, which clones `FreeRTOS/FreeRTOS-Kernel` to `external/FreeRTOS`
 
 ## Build Instructions
 

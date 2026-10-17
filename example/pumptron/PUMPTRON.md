@@ -25,7 +25,7 @@ It is Cellutron's hardware sibling. Cellutron simulates three CPUs on one PC; Pu
 
 Pumptron builds and runs on **Windows** and **Linux**. Steps 1–3 run the whole system on the PC, with the controller on the FreeRTOS simulator. Steps 4–6 are optional: they move the controller onto a real STM32F4 Discovery board.
 
-1.  **Initialize Workspace**: Ensure `DelegateMQ` is placed inside a workspace directory (e.g., `DelegateMQWorkspace`). From the repository root, fetch the dependencies (FreeRTOS, FTXUI, libserialport):
+1.  **Initialize Workspace**: From the repository root, fetch the dependencies (FreeRTOS, FTXUI, libserialport):
     ```bash
     python3 01_fetch_repos.py
     ```
@@ -235,7 +235,7 @@ Cross TX to RX, leave the adapter's VCC unconnected (the board is powered over m
    pumptron_gui --serial COM5          # Windows
    pumptron_gui --serial /dev/ttyUSB0  # Linux
    ```
-   Run `pumptron_gui` with no arguments to list the serial ports it can see. On Linux, `--serial` needs libserialport (`libserialport-dev`, or a build in the workspace's `libserialport/`); without it the GUI builds UDP-only.
+   Run `pumptron_gui` with no arguments to list the serial ports it can see. On Linux, `--serial` needs libserialport (`libserialport-dev`, or a build in `external/libserialport/`); without it the GUI builds UDP-only.
 3. Optionally check the link first with `python run_pumptron.py --serial <port> --selftest`.
 
 ### Simulator (No Board)

@@ -14,10 +14,8 @@ set(DMQ_DATABUS "ON")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../../../src/delegate-mq/DelegateMQ.cmake")
 
-set(WORKSPACE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
-
 # --- FTXUI ---
-set(FTXUI_DIR "${WORKSPACE_DIR}/ftxui")
+set(FTXUI_DIR "${DMQ_DEPS_DIR}/ftxui")
 if(NOT EXISTS "${FTXUI_DIR}/CMakeLists.txt")
     message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
 endif()
@@ -31,11 +29,11 @@ endif()
 # --- libserialport ---
 # Windows: built from source so it always matches this target's architecture
 # (the top-level build forces Win32 for the FreeRTOS simulator, while the
-# workspace's prebuilt libserialport is x64).
-# Linux: uses an existing libserialport build (workspace .libs/ or the system
+# prebuilt libserialport in DMQ_DEPS_DIR is x64).
+# Linux: uses an existing libserialport build (DMQ_DEPS_DIR/libserialport/.libs/ or the system
 # libserialport-dev package). If none is found the GUI is built UDP-only
 # (simulator link) and --serial is unavailable.
-set(SERIALPORT_ROOT "${WORKSPACE_DIR}/libserialport")
+set(SERIALPORT_ROOT "${DMQ_DEPS_DIR}/libserialport")
 set(PUMPTRON_HAVE_SERIAL OFF)
 if(TARGET pumptron_serialport)
     set(PUMPTRON_HAVE_SERIAL ON)
@@ -138,7 +136,7 @@ target_link_libraries(pumptron_gui PRIVATE
 
 # --- MQTT gateway (--mqtt) ---
 # MqttBridge publishes pump status/telemetry/alarms to an MQTT broker. Paho MQTT C
-# is built from the workspace checkout (../mqtt, fetched by 01_fetch_repos.py);
+# is built from ${DMQ_DEPS_DIR}/mqtt (fetched by 01_fetch_repos.py);
 # without it the GUI builds with --mqtt unavailable, like --serial without
 # libserialport.
 include("${TOOLS_BRIDGE_DIR}/mqtt/MqttBridge.cmake")
