@@ -179,15 +179,8 @@ def main():
 
     # 1. Launch Tools (Monitor/Spy/Thread)
     for tool in tools_definitions:
-        # Search for the newest tool in either Debug or Release
-        search_paths = [
-            f"../../tools/build/Release/{tool['exe']}",
-            f"../../tools/build/Debug/{tool['exe']}"
-        ]
-        if not IS_WINDOWS:
-            search_paths.append(f"../../tools/build/{tool['exe']}")
-
-        exe_path = get_newest_exe(base_path, search_paths)
+        # Every tools build copies the executables to tools/bin
+        exe_path = get_newest_exe(base_path, [f"../../tools/bin/{tool['exe']}"])
 
         if exe_path:
             # Special case: Clean up log for DMQ Spy in its specific directory
@@ -206,7 +199,7 @@ def main():
             processes.append(p)
             time.sleep(0.5)
         else:
-            print(f"INFO: {tool['name']} not found in Debug or Release. Skipping.")
+            print(f"INFO: {tool['name']} not found in tools/bin (build the tools first). Skipping.")
 
     # 2. Launch Cellutron Apps
     # First, verify all core apps exist to avoid partial system starts

@@ -119,3 +119,16 @@ if(WIN32)
     target_compile_definitions(dmq-target  PRIVATE _WIN32_WINNT=0x0601)
     target_link_libraries(dmq-target       PRIVATE ws2_32)
 endif()
+
+# --- Copy to tools/bin ---
+# After each build, copy every tool to tools/bin (gitignored), so they're always
+# at tools/bin/dmq-spy[.exe] whatever the build directory or configuration.
+# The last build wins: Debug and Release overwrite each other. On Windows the
+# copy fails while that tool is running; close it and build again.
+set(DMQ_TOOLS_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+foreach(tool dmq-spy dmq-monitor dmq-thread dmq-target)
+    add_custom_command(TARGET ${tool} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DMQ_TOOLS_BIN_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${tool}>" "${DMQ_TOOLS_BIN_DIR}"
+        VERBATIM)
+endforeach()

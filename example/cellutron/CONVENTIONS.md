@@ -63,6 +63,6 @@ To ensure the system can run on FreeRTOS, Windows (Win32), and Standard C++ targ
 *   **Reliability Tiers**: All nodes communicate over UDP through `cellutron::Network` (a `dmq::databus::NetworkNode`). Register commands and critical state transitions with `Reliability::RELIABLE` (ACK and automatic retry). Use `Reliability::UNRELIABLE` (the default) for high-frequency sensor updates and heartbeats.
 
 ## 7. Debugging & Tooling
-*   **Spy & Monitor Tools**: Use the `dmq-spy` and `dmq-monitor` tools (found in `tools/build/Release`) to visualize DataBus traffic in real-time.
+*   **Spy & Monitor Tools**: Use the `dmq-spy` and `dmq-monitor` tools (copied to `tools/bin` by every tools build) to visualize DataBus traffic in real-time.
 *   **Logging**: `dmq-spy` can be launched with `--log <filename>` to capture an audit trail of all messages. This is the primary method for post-run analysis.
 *   **Console Output**: Use `printf` or `std::cout` for high-level state transition logging in console applications to provide immediate feedback during development.

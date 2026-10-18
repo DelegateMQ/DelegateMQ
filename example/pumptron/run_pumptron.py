@@ -43,11 +43,11 @@ BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 def find_exe(name, config):
     """Newest matching executable across the multi-config (Windows) and
-    single-config (Linux) output layouts of example/pumptron/build."""
-    candidates = [
-        os.path.join(BASE_PATH, "build", "bin", config, name + EXE_SUFFIX),
-        os.path.join(BASE_PATH, "build", "bin", name + EXE_SUFFIX),
-    ]
+    single-config (Linux) output layouts of example/pumptron/build.
+    config None = whichever of Debug/Release is built (newest if both)."""
+    configs = [config] if config else ["Debug", "Release"]
+    candidates = [os.path.join(BASE_PATH, "build", "bin", c, name + EXE_SUFFIX) for c in configs]
+    candidates.append(os.path.join(BASE_PATH, "build", "bin", name + EXE_SUFFIX))
     existing = [p for p in candidates if os.path.isfile(p)]
     if not existing:
         return None, candidates
@@ -55,15 +55,9 @@ def find_exe(name, config):
 
 
 def find_tool(name):
-    """Newest dmq tool executable from tools/build (Release or Debug)."""
-    tools_build = os.path.normpath(os.path.join(BASE_PATH, "..", "..", "tools", "build"))
-    candidates = [
-        os.path.join(tools_build, "Release", name + EXE_SUFFIX),
-        os.path.join(tools_build, "Debug", name + EXE_SUFFIX),
-        os.path.join(tools_build, name + EXE_SUFFIX),
-    ]
-    existing = [p for p in candidates if os.path.isfile(p)]
-    return max(existing, key=os.path.getmtime) if existing else None
+    """dmq tool executable from tools/bin (every tools build copies there)."""
+    path = os.path.normpath(os.path.join(BASE_PATH, "..", "..", "tools", "bin", name + EXE_SUFFIX))
+    return path if os.path.isfile(path) else None
 
 
 def launch_in_new_terminal(exe_path, args):
@@ -105,9 +99,9 @@ def main():
                         help="Controller is a real STM32F4 board on this serial port "
                              "(e.g. COM5, /dev/ttyUSB0). Only the operator console is started.")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200)")
-    parser.add_argument("--config", choices=["Debug", "Release"], default="Debug",
-                        help="Build configuration to launch (default: Debug -- see PUMPTRON.md for "
-                             "the known Release-build FreeRTOS Windows simulator stall)")
+    parser.add_argument("--config", choices=["Debug", "Release"], default=None,
+                        help="Build configuration to launch (default: whichever is built, "
+                             "the newest if both are)")
     parser.add_argument("--selftest", action="store_true",
                         help="Run the headless end-to-end self-test in this console instead of the UI; "
                              "exits with its result")
@@ -136,7 +130,7 @@ def main():
     if use_spy:
         spy_exe = find_tool("dmq-spy")
         if not spy_exe:
-            print("ERROR: dmq-spy not found under tools/build. Build the tools first (see tools/TOOLS.md).")
+            print("ERROR: dmq-spy not found in tools/bin. Build the tools first (see tools/TOOLS.md).")
             sys.exit(1)
 
     gui_exe, gui_searched = find_exe("pumptron_gui", args.config)
@@ -145,9 +139,15 @@ def main():
         print("Build the project first (see PUMPTRON.md).")
         sys.exit(1)
 
+    # Launch the controller from the same configuration as the GUI.
+    config = args.config
+    if config is None:
+        parent = os.path.basename(os.path.dirname(gui_exe))
+        config = parent if parent in ("Debug", "Release") else None
+
     ctrl_exe = None
     if simulate:
-        ctrl_exe, ctrl_searched = find_exe("pumptron_controller", args.config)
+        ctrl_exe, ctrl_searched = find_exe("pumptron_controller", config)
         if not ctrl_exe:
             print(f"ERROR: pumptron_controller not found. Searched: {ctrl_searched}")
             print("Build the project first (see PUMPTRON.md).")
@@ -167,7 +167,7 @@ def main():
 
     print("--- Starting Pumptron ---")
     print(f"  Mode:   {'Simulation (FreeRTOS simulator over UDP)' if simulate else f'Hardware (STM32F4 on {args.serial} @ {args.baud})'}")
-    print(f"  Config: {args.config}")
+    print(f"  Config: {config or 'single-config build'}")
     if args.mqtt:
         print(f"  MQTT:   {args.mqtt}, topics under '{args.mqtt_prefix}/'"
               + (f", accepting commands on {args.mqtt_prefix}/pump/cmd/set" if args.mqtt_control else ""))

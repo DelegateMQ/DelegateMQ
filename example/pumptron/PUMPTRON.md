@@ -165,7 +165,7 @@ The commands are in [Quick Start](#quick-start); this section covers what they p
 
 Builds both the GUI and the controller to run on Windows or Linux, with the controller on the FreeRTOS simulator. No embedded hardware needed.
 
-Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. `run_pumptron.py` launches the Debug build by default; after a Release build (`cmake --build build --config Release`), pass it `--config Release`. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
+Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. `run_pumptron.py` launches whichever configuration is built, the newest if both are; pass `--config Debug` or `--config Release` to pick one. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
 
 ### STM32F4 Firmware
 
@@ -204,7 +204,7 @@ python run_pumptron.py --selftest              # simulation, headless end-to-end
 python run_pumptron.py --serial COM5 --selftest
 ```
 
-Options: `--baud <rate>` (default 115200), `--config Debug|Release` (default Debug), and `--spy` / `--plotjuggler` (see [Monitoring with dmq-spy](#monitoring-with-dmq-spy)).
+Options: `--baud <rate>` (default 115200), `--config Debug|Release` (default: whichever is built), and `--spy` / `--plotjuggler` (see [Monitoring with dmq-spy](#monitoring-with-dmq-spy)).
 
 ### Hardware
 

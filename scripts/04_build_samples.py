@@ -454,8 +454,8 @@ if __name__ == "__main__":
 # Post-Build Executable Locations (Windows Release):
 # 1. Main test executable: 
 #    DelegateMQ/test/build/Release/delegate_app.exe
-# 2. Tools executables (dmq-spy, dmq-monitor, dmq-target):
-#    DelegateMQ/tools/build/Release/
+# 2. Tools executables (dmq-spy, dmq-monitor, dmq-thread, dmq-target):
+#    DelegateMQ/tools/bin/ (copied there after every tools build)
 # 3. Sample project executables:
 #    DelegateMQ/example/sample-projects/<project_name>/build/Release/
 #    (Note: For client/server samples, they are in the 'client' and 'server' sub-folders)

@@ -435,6 +435,8 @@ cmake --build . --config Release
 
 This produces four executables: `dmq-spy`, `dmq-monitor`, `dmq-thread`, and `dmq-target` (a test application that exercises both bridges).
 
+Every build copies them to `tools/bin/` (gitignored), so they're always at `tools/bin/dmq-spy` (`.exe` on Windows), whether you build the tools on their own (`cmake -B build` in `tools/`, as `04_build_samples.py` does) or from the repo root with `DMQ_TOOLS=ON`, and in any configuration. The last build wins: Debug and Release overwrite each other. The Cellutron and Pumptron run scripts launch the tools from there. On Windows the copy fails while that tool is running, so close it before rebuilding.
+
 The Wireshark dissector is a Lua script and needs no build; see [wireshark/README.md](wireshark/README.md) to install it.
 
 ---
