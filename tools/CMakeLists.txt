@@ -28,14 +28,14 @@ set(SPDLOG_DIR  "${DMQ_DEPS_DIR}/spdlog")
 if(EXISTS "${FTXUI_DIR}/CMakeLists.txt")
     add_subdirectory("${FTXUI_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ftxui" EXCLUDE_FROM_ALL)
 else()
-    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
+    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run scripts/01_fetch_repos.py first.")
 endif()
 
 # --- spdlog ---
 if(EXISTS "${SPDLOG_DIR}/CMakeLists.txt")
     add_subdirectory("${SPDLOG_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/spdlog" EXCLUDE_FROM_ALL)
 else()
-    message(FATAL_ERROR "spdlog not found at ${SPDLOG_DIR}. Run 01_fetch_repos.py first.")
+    message(FATAL_ERROR "spdlog not found at ${SPDLOG_DIR}. Run scripts/01_fetch_repos.py first.")
 endif()
 
 set(COMMON_INCLUDES

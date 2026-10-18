@@ -17,7 +17,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/../../../src/delegate-mq/DelegateMQ.cmake")
 # --- FTXUI ---
 set(FTXUI_DIR "${DMQ_DEPS_DIR}/ftxui")
 if(NOT EXISTS "${FTXUI_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
+    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run scripts/01_fetch_repos.py first.")
 endif()
 if(NOT TARGET ftxui::component)
     # FTXUI defaults to a block-only glyph fallback on Windows, which halves
@@ -39,7 +39,7 @@ if(TARGET pumptron_serialport)
     set(PUMPTRON_HAVE_SERIAL ON)
 elseif(WIN32)
     if(NOT EXISTS "${SERIALPORT_ROOT}/libserialport.h")
-        message(FATAL_ERROR "libserialport not found at ${SERIALPORT_ROOT}. Run 01_fetch_repos.py first.")
+        message(FATAL_ERROR "libserialport not found at ${SERIALPORT_ROOT}. Run scripts/01_fetch_repos.py first.")
     endif()
     add_library(pumptron_serialport SHARED
         "${SERIALPORT_ROOT}/serialport.c"
@@ -147,7 +147,7 @@ if(EXISTS "${DMQ_PAHO_ROOT}/src/MQTTClient.h")
     target_compile_definitions(pumptron_gui PRIVATE PUMPTRON_HAVE_MQTT)
 else()
     message(WARNING "Pumptron GUI: Paho MQTT C not found at ${DMQ_PAHO_ROOT} -- building without --mqtt. "
-                    "Run 01_fetch_repos.py to enable it.")
+                    "Run scripts/01_fetch_repos.py to enable it.")
 endif()
 
 source_group("GUI Files" FILES ${GUI_SOURCES})

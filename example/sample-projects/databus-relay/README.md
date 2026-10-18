@@ -68,7 +68,7 @@ DDS behaves the same way. A DDS participant doesn't forward between networks eit
 
 ## Build
 
-From the repo root, `03_generate_samples.py` then `04_build_samples.py` builds all three nodes. To build only this sample, run this in each of `gateway/`, `monitor/` and `sensor/`:
+From the repo root, `scripts/03_generate_samples.py` then `scripts/04_build_samples.py` builds all three nodes. To build only this sample, run this in each of `gateway/`, `monitor/` and `sensor/`:
 
 ```bash
 cmake -B build .

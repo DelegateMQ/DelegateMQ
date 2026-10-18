@@ -24,7 +24,7 @@ set(FTXUI_DIR "${DMQ_DEPS_DIR}/ftxui")
 if(EXISTS "${FTXUI_DIR}/CMakeLists.txt")
     add_subdirectory("${FTXUI_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ftxui" EXCLUDE_FROM_ALL)
 else()
-    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
+    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run scripts/01_fetch_repos.py first.")
 endif()
 
 file(GLOB_RECURSE ALL_COMMON_SOURCES CONFIGURE_DEPENDS "${CELLUTRON_COMMON_DIR}/*.h" "${CELLUTRON_COMMON_DIR}/*.cpp" "${CELLUTRON_COMMON_DIR}/*.c")

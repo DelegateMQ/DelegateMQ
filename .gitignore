@@ -15,6 +15,7 @@
 # Build results
 build
 build_win32
+build-*/
 lib
 [Dd]ebug/
 [Dd]ebugPublic/

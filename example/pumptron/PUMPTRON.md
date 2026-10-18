@@ -27,7 +27,7 @@ Pumptron builds and runs on **Windows** and **Linux**. Steps 1–3 run the whole
 
 1.  **Initialize Workspace**: From the repository root, fetch the dependencies (FreeRTOS, FTXUI, libserialport):
     ```bash
-    python3 01_fetch_repos.py
+    python3 scripts/01_fetch_repos.py
     ```
 2.  **Build Pumptron**: From this directory (`example/pumptron/`), build the GUI and the simulated controller:
     ```bash

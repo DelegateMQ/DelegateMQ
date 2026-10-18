@@ -40,7 +40,7 @@ Windows-only (skipped on Linux):
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
-    > python 04_build_samples.py
+    > python scripts/04_build_samples.py
 """
 
 import argparse
@@ -245,7 +245,7 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
 # ---------------------------------------------------------------------------
 
 def build_samples(use_clang=False):
-    repo_root    = os.path.dirname(os.path.abspath(__file__))
+    repo_root    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_dirs = [
         os.path.join(repo_root, "interop"),
         os.path.join(repo_root, "example", "sample-projects"),

@@ -86,7 +86,7 @@ def main():
         help="Launch the ThreadX build (build-threadx/) instead of the default "
              "FreeRTOS build (build/). Same Controller/Safety/GUI app code either "
              "way -- only the underlying RTOS differs. Build it first with "
-             "03_generate_samples.py + 04_build_samples.py (Linux only). "
+             "scripts/03_generate_samples.py + scripts/04_build_samples.py (Linux only). "
              "KNOWN ISSUE: the vendored ThreadX Linux/GNU simulation port has a "
              "genuine kernel deadlock once 2+ ThreadX threads are concurrently "
              "alive (see CELLUTRON.md); Controller runs 7, so this build "
@@ -215,7 +215,7 @@ def main():
         print(f"ERROR: The following core applications are missing: {', '.join(missing_apps)}")
         if args_parsed.threadx:
             print(f"Please build the '{build_dir_name}' directory first "
-                  f"(03_generate_samples.py + 04_build_samples.py, Linux only).")
+                  f"(scripts/03_generate_samples.py + scripts/04_build_samples.py, Linux only).")
         else:
             print("Please build the project first.")
         sys.exit(1)

@@ -10,7 +10,7 @@ Description:
     monitor (connects to the pipe), then sensor. On Linux any order works; the
     same order is used anyway.
 
-    Build first: 03_generate_samples.py + 04_build_samples.py from the repo
+    Build first: scripts/03_generate_samples.py + scripts/04_build_samples.py from the repo
     root, or `cmake -B build . && cmake --build build --config Release` in each
     of gateway/, monitor/ and sensor/.
 

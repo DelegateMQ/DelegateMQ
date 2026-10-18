@@ -30,8 +30,8 @@ Key Features:
 
 Usage:
     Run this script THIRD to generate project files for your IDE.
-    > python 03_generate_samples.py
-    > python 03_generate_samples.py --clang
+    > python scripts/03_generate_samples.py
+    > python scripts/03_generate_samples.py --clang
 """
 
 import argparse
@@ -124,7 +124,7 @@ def build_samples(use_clang=False, clean=False):
     if clean:
         print("NOTE: --clean enabled. Old build directories will be removed.\n")
 
-    repo_root = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_dirs = [
         os.path.join(repo_root, "interop"),
         os.path.join(repo_root, "example", "sample-projects"),
@@ -171,10 +171,10 @@ def build_samples(use_clang=False, clean=False):
                     continue
 
                 # --- SKIP WINDOWS-ONLY PROJECTS ON LINUX ---
-                # databus-freertos requires the FreeRTOS Win32 simulator (cmake -A Win32),
+                # databus-freertos and freertos-bare-metal require the FreeRTOS Win32 simulator (cmake -A Win32),
                 # which is only available on Windows.  Attempting to configure it on Linux
                 # produces a noisy cmake error with no useful output.
-                WINDOWS_ONLY_PROJECTS = {"databus-freertos", "stm32-freertos"}
+                WINDOWS_ONLY_PROJECTS = {"databus-freertos", "freertos-bare-metal", "stm32-freertos"}
                 if not IS_WINDOWS and (project_name in WINDOWS_ONLY_PROJECTS or
                                        parent_name in WINDOWS_ONLY_PROJECTS):
                     continue

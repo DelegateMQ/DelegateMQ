@@ -36,7 +36,7 @@ Cross-language pairs (server from one project, non-C++ client):
 
 Usage:
     Run this script FIFTH, after building all sample projects.
-    > python 05_run_samples.py
+    > python scripts/05_run_samples.py
 """
 
 import argparse
@@ -351,8 +351,8 @@ def print_result_detail(label, r):
         print(f"         {snippet}")
 
 
-def run_samples(use_clang=False):
-    repo_root   = os.path.dirname(os.path.abspath(__file__))
+def run_samples(use_clang=False, assume_yes=False):
+    repo_root   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     samples_dir = os.path.join(repo_root, "example", "sample-projects")
 
     if not os.path.isdir(samples_dir):
@@ -381,10 +381,11 @@ def run_samples(use_clang=False):
     print("  Each sample runs for up to 25 seconds. Total")
     print("  elapsed time may exceed several minutes.")
     print("=" * 60)
-    answer = input("\nContinue? [y/N]: ").strip().lower()
-    if answer != "y":
-        print("Aborted.")
-        return True
+    if not assume_yes:
+        answer = input("\nContinue? [y/N]: ").strip().lower()
+        if answer != "y":
+            print("Aborted.")
+            return True
     print()
 
     passed  = []
@@ -572,6 +573,10 @@ if __name__ == "__main__":
         "--clang", action="store_true",
         help="Also run build-clang/ variants built by 04_build_samples.py --clang (Linux only)."
     )
+    parser.add_argument(
+        "--yes", "-y", action="store_true",
+        help="Skip the confirmation prompt."
+    )
     args = parser.parse_args()
-    success = run_samples(use_clang=args.clang)
+    success = run_samples(use_clang=args.clang, assume_yes=args.yes)
     sys.exit(0 if success else 1)

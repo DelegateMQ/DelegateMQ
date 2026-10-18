@@ -18,7 +18,7 @@ This example demonstrates a distributed system using `dmq::databus::DataBus` ove
 ## How to Run
 
 1. **Configure and Build**:
-   Use the `03_generate_samples.py` script in the root directory, or run CMake manually in both `client` and `server` folders:
+   Use the `scripts/03_generate_samples.py` script, or run CMake manually in both `client` and `server` folders:
    ```bash
    cmake -B build .
    cmake --build build --config Release

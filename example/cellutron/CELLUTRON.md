@@ -22,9 +22,9 @@ The Cellutron system is cross-platform and supports both **Windows** and **Linux
 
 1.  **Initialize Workspace**: From the repository root, run the setup scripts to fetch dependencies and build tools:
     ```bash
-    python3 01_fetch_repos.py
-    python3 02_build_libs.py
-    python3 03_generate_samples.py
+    python3 scripts/01_fetch_repos.py
+    python3 scripts/02_build_libs.py
+    python3 scripts/03_generate_samples.py
     ```
 2.  **Build Cellutron**: From this directory (`example/cellutron/`), run:
     ```bash

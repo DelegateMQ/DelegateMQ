@@ -21,16 +21,16 @@ Identical test suite to `freertos-bare-metal`, on a different RTOS port — show
 
 *   **CMake** (3.16 or higher)
 *   **Linux** with GCC (the ThreadX Linux/GNU port needs a native assembler and POSIX threads/signals — there is no Windows or macOS build of this sample)
-*   **ThreadX source**: fetched by `python 01_fetch_repos.py` from the repo root, which clones `eclipse-threadx/threadx` to `external/threadx`
+*   **ThreadX source**: fetched by `python scripts/01_fetch_repos.py` from the repo root, which clones `eclipse-threadx/threadx` to `external/threadx`
 
 ## Build Instructions
 
 ### Using the standard script
 From the root `DelegateMQ` directory:
 ```bash
-python 01_fetch_repos.py      # fetches ThreadX (and other deps) if not already present
-python 03_generate_samples.py
-python 04_build_samples.py
+python scripts/01_fetch_repos.py      # fetches ThreadX (and other deps) if not already present
+python scripts/03_generate_samples.py
+python scripts/04_build_samples.py
 ```
 
 ### Manual Build

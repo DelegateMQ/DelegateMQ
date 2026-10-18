@@ -72,14 +72,19 @@ Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party l
    git clone https://github.com/DelegateMQ/DelegateMQ.git
    cd DelegateMQ
    ```
-2. Run the numbered scripts in order:
+2. Run all the steps in order:
    ```bash
-   python3 01_fetch_repos.py       # Clone 3rd-party dependencies
-   python3 02_build_libs.py        # Build dependencies as static libraries
-   python3 03_generate_samples.py  # Generate CMake files for all samples
-   python3 04_build_samples.py     # Compile all samples
-   python3 05_run_samples.py       # Execute all and report pass/fail
+   python3 run_all.py                # 01 -> 05; --from N resumes at step N
    ```
+   Or run the numbered scripts in `scripts/` one at a time:
+   ```bash
+   python3 scripts/01_fetch_repos.py       # Clone 3rd-party dependencies
+   python3 scripts/02_build_libs.py        # Build dependencies as static libraries
+   python3 scripts/03_generate_samples.py  # Generate CMake files for all samples
+   python3 scripts/04_build_samples.py     # Compile all samples
+   python3 scripts/05_run_samples.py       # Execute all and report pass/fail
+   ```
+   `run_all.py` stops if step 01 or 02 fails, and passes `--clang`, `--clean` and `--deps-dir` through to the scripts that take them.
 
 ### Third-Party Directory (`DMQ_DEPS_DIR`)
 `01_fetch_repos.py` clones into `<repo>/external/` by default. To put the dependencies somewhere else, for example one copy shared by several clones or git worktrees, set the `DMQ_DEPS_DIR` environment variable, or pass `--deps-dir` to the `01`/`02` scripts and `-DDMQ_DEPS_DIR=<path>` to CMake. CMake resolves it in `src/delegate-mq/DepsDir.cmake`.

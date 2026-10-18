@@ -21,7 +21,7 @@ set(DMQ_PAHO_ROOT "${DMQ_DEPS_DIR}/mqtt")
 function(dmq_add_mqtt_bridge target)
     if(NOT TARGET paho-mqtt3c-static)
         if(NOT EXISTS "${DMQ_PAHO_ROOT}/src/MQTTClient.h")
-            message(FATAL_ERROR "Paho MQTT C not found at ${DMQ_PAHO_ROOT}. Run 01_fetch_repos.py first.")
+            message(FATAL_ERROR "Paho MQTT C not found at ${DMQ_PAHO_ROOT}. Run scripts/01_fetch_repos.py first.")
         endif()
         # Static library only: no shared libs, tests, samples, docs or TLS.
         set(PAHO_BUILD_STATIC TRUE CACHE BOOL "MqttBridge: static Paho" FORCE)

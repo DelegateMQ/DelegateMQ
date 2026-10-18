@@ -24,8 +24,8 @@ Because FreeRTOS uses a Win32-specific port for the simulator, you **must** buil
 ### Using the standard script
 From the root `DelegateMQ` directory:
 ```powershell
-python 03_generate_samples.py
-python 04_build_samples.py
+python scripts/03_generate_samples.py
+python scripts/04_build_samples.py
 ```
 
 ### Manual Build

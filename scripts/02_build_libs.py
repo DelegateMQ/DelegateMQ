@@ -25,8 +25,8 @@ Targets Built:
 
 Usage:
     Run this script SECOND to compile the static libraries.
-    > python 02_build_libs.py
-    > python 02_build_libs.py --deps-dir /path/to/shared/external
+    > python scripts/02_build_libs.py
+    > python scripts/02_build_libs.py --deps-dir /path/to/shared/external
 
     Builds in <repo>/external by default (--deps-dir or the DMQ_DEPS_DIR
     environment variable override it; see 01_fetch_repos.py).
@@ -36,6 +36,7 @@ import argparse
 import os
 import shutil
 import subprocess
+import sys
 
 # Define the libraries to compile
 libs = [
@@ -102,8 +103,8 @@ def resolve_deps_dir():
     parser = argparse.ArgumentParser(description="Build DelegateMQ third-party libraries.")
     parser.add_argument("--deps-dir", help="third-party directory (default: DMQ_DEPS_DIR env var, else <repo>/external)")
     args = parser.parse_args()
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    deps_dir = args.deps_dir or os.environ.get("DMQ_DEPS_DIR") or os.path.join(script_dir, "external")
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    deps_dir = args.deps_dir or os.environ.get("DMQ_DEPS_DIR") or os.path.join(repo_root, "external")
     return os.path.abspath(deps_dir)
 
 def build_deps():
@@ -113,12 +114,15 @@ def build_deps():
     # 1. Run the Auto-Fix before building
     fix_zeromq_conflict(deps_dir)
 
+    failed = []
+
     for lib in libs:
         source_dir = os.path.join(deps_dir, lib["path"])
         install_dir = os.path.join(source_dir, "install")
         
         if not os.path.isdir(source_dir):
-            print(f"[ERROR] Missing {source_dir}"); continue
+            print(f"[ERROR] Missing {source_dir}")
+            failed.append(lib["name"]); continue
 
         print(f"--- Building {lib['name']} ---")
         
@@ -171,6 +175,11 @@ def build_deps():
             
         except subprocess.CalledProcessError:
             print(f"    [FAILED] {lib['name']}\n")
+            failed.append(lib["name"])
+
+    if failed:
+        print(f"FAILED: {', '.join(failed)}")
+    return not failed
 
 if __name__ == "__main__":
-    build_deps()
+    sys.exit(0 if build_deps() else 1)

@@ -30,14 +30,15 @@ Target Directory:
 
 Usage:
     Run this script FIRST to download source code.
-    > python 01_fetch_repos.py
-    > python 01_fetch_repos.py --deps-dir /path/to/shared/external
+    > python scripts/01_fetch_repos.py
+    > python scripts/01_fetch_repos.py --deps-dir /path/to/shared/external
 """
 
 import argparse
 import os
 import subprocess
 import shutil
+import sys
 
 # Repositories with specific stable tags/branches
 repos = {
@@ -99,8 +100,8 @@ def resolve_deps_dir():
     parser = argparse.ArgumentParser(description="Fetch DelegateMQ third-party repos.")
     parser.add_argument("--deps-dir", help="target directory (default: DMQ_DEPS_DIR env var, else <repo>/external)")
     args = parser.parse_args()
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    deps_dir = args.deps_dir or os.environ.get("DMQ_DEPS_DIR") or os.path.join(script_dir, "external")
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    deps_dir = args.deps_dir or os.environ.get("DMQ_DEPS_DIR") or os.path.join(repo_root, "external")
     return os.path.abspath(deps_dir)
 
 def run():
@@ -112,6 +113,7 @@ def run():
     subprocess.run(["git", "config", "advice.detachedHead", "false"], check=False)
 
     # 1. Clone Repos
+    failed = []
     for folder, (url, tag, use_submodules) in repos.items():
         target_path = os.path.join(deps_dir, folder)
         if not os.path.exists(target_path):
@@ -127,6 +129,7 @@ def run():
                 subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
             except subprocess.CalledProcessError as e:
                 print(f"   [ERROR] Failed to clone {folder}")
+                failed.append(folder)
                 if e.stderr:
                     print(e.stderr.decode(errors="replace"))
         else:
@@ -134,7 +137,11 @@ def run():
 
     # 2. Apply Fixes
     fix_zeromq_conflict(deps_dir)
+    if failed:
+        print(f"\nFAILED to clone: {', '.join(failed)}")
+        return False
     print("\nThird-party setup complete!")
+    return True
 
 if __name__ == "__main__":
-    run()
+    sys.exit(0 if run() else 1)

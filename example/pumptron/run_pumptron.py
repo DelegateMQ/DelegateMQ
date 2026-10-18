@@ -24,7 +24,7 @@ tcp://127.0.0.1:1883), and optionally accept pump commands from it:
     python run_pumptron.py --mqtt
     python run_pumptron.py --serial COM5 --mqtt tcp://192.168.1.10:1883 --mqtt-control
 
-Build first with 03_generate_samples.py + 04_build_samples.py, or from this
+Build first with scripts/03_generate_samples.py + scripts/04_build_samples.py, or from this
 directory: cmake -B build . && cmake --build build --config <Debug|Release>
 """
 
