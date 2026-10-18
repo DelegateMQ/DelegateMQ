@@ -1,5 +1,5 @@
 """
-Script: run_all.py
+Script: build_all.py
 Description:
     Runs the example-ecosystem scripts in scripts/ in order:
         01_fetch_repos.py       Clone third-party dependencies into external/
@@ -15,10 +15,10 @@ Description:
     See "Example Ecosystem (Sandbox)" in docs/BUILD.md before running script.
 
 Usage:
-    > python run_all.py
-    > python run_all.py --clang --clean
-    > python run_all.py --from 3                       # resume at 03
-    > python run_all.py --deps-dir /path/to/shared/external
+    > python build_all.py
+    > python build_all.py --clang --clean
+    > python build_all.py --from 3                       # resume at 03
+    > python build_all.py --deps-dir /path/to/shared/external
 """
 
 import argparse
