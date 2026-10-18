@@ -1,6 +1,12 @@
 // TargetApp.cpp
 // @see https://github.com/DelegateMQ/DelegateMQ
 // Test application to generate sample DataBus traffic for the Spy tool.
+//
+// Usage: dmq-target [--health-demo]
+//   --health-demo  Also cycle dmq-monitor's Health column through OK, WARN and
+//                  FAIL: a TransportMonitor whose messages are never ACKed
+//                  produces real ACK timeouts, and a simulated RetryMonitor
+//                  delivery failure follows.
 
 #include "extras/databus/DataBus.h"
 #include "../bridge/spy/SpyBridge.h"
@@ -9,9 +15,23 @@
 #include <chrono>
 #include <thread>
 #include <random>
+#include <cstring>
+#include <atomic>
 
-int main() {
+int main(int argc, char* argv[]) {
+    const bool healthDemo = (argc > 1 && std::strcmp(argv[1], "--health-demo") == 0);
+
     std::cout << "Starting Target Application (Source)..." << std::endl;
+
+    // NodeBridge's heartbeat runs on a dmq::util::Timer, and timers only fire
+    // when the application drives them.
+    std::atomic<bool> running{ true };
+    std::thread timerThread([&running] {
+        while (running) {
+            dmq::util::Timer::ProcessTimers();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    });
 
     // 1. Start the Spy Bridge (opt-in: streams DataBus messages to dmq-spy)
     SpyBridge::Start("127.0.0.1", 9999);
@@ -38,17 +58,42 @@ int main() {
     std::uniform_int_distribution<int> temp_dist(20, 30);
     std::uniform_real_distribution<float> hum_dist(40.0, 60.0);
 
-    std::cout << "Publishing data to 127.0.0.1:9999 (Press Ctrl+C to stop)..." << std::endl;
+    // 4. Health demo: report link health to dmq-monitor (NodeBridge::Watch).
+    dmq::util::TransportMonitor transportMonitor(std::chrono::milliseconds(200));
+    dmq::util::RetryMonitor retryMonitor;
+    if (healthDemo) {
+        NodeBridge::Watch(transportMonitor);
+        NodeBridge::Watch(retryMonitor);
+    }
 
-    while (true) {
+    std::cout << "Publishing data to 127.0.0.1:9999 (Press Ctrl+C to stop)..." << std::endl;
+    if (healthDemo)
+        std::cout << "Health demo: OK for 15 s, then ACK timeouts (WARN), then a delivery failure (FAIL), repeating." << std::endl;
+
+    uint16_t seq = 0;
+    for (int second = 0; ; ++second) {
         dmq::databus::DataBus::Publish("sensor/temp", temp_dist(generator));
         dmq::databus::DataBus::Publish("sensor/humidity", hum_dist(generator));
         dmq::databus::DataBus::Publish<dmq::xstring>("system/status", "Running OK");
 
+        if (healthDemo) {
+            const int phase = second % 45;
+            if (phase >= 15 && phase < 30) {
+                // A send nobody ACKs: Process() reports TIMEOUT once the 200 ms expire.
+                transportMonitor.Add(seq++, 100);
+            } else if (phase == 30) {
+                // Simulated: a real RetryMonitor fires this after its retry budget runs out.
+                retryMonitor.OnDeliveryFailed(100, seq);
+            }
+        }
+
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        transportMonitor.Process();
     }
 
     SpyBridge::Stop();
     NodeBridge::Stop();
+    running = false;
+    timerThread.join();
     return 0;
 }

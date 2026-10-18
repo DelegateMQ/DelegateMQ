@@ -253,24 +253,26 @@ A `name:` or `name=` before a number names it (a unit in parentheses is allowed)
 
 ## dmq-monitor — Node Monitor Console
 
-**DelegateMQ Node Monitor** is a live network topology dashboard. Instead of showing individual messages, it shows *which nodes* are active on the DataBus network — their hostnames, IP addresses, uptime, total message counts, and the topics they publish. Nodes are color-coded by health status (Online / Stale / Offline).
+**DelegateMQ Node Monitor** is a live network topology dashboard. Instead of showing individual messages, it shows *which nodes* are active on the DataBus network — their hostnames, IP addresses, uptime, total message counts, the topics they publish, and the health of their links. Nodes are color-coded by heartbeat status (Online / Stale / Offline) and by link health (OK / WARN / FAIL).
 
 <img src="dmq-monitor-screenshot.png" alt="DelegateMQ Node Monitor Screenshot" style="max-width: 800px; width: 100%;">
 
 ### Key Features
 
 *   **Live Node Table**: Displays all discovered nodes with status, IP address, hostname, message count, uptime, and time since last heartbeat.
-*   **Health Status**: Nodes are color-coded — green (Online), yellow (Stale), red (Offline) — based on heartbeat recency.
+*   **Heartbeat Status**: Nodes are color-coded — green (Online), yellow (Stale), red (Offline) — based on heartbeat recency.
+*   **Link Health**: A Health column shows whether each node's messages are getting through — OK, WARN (retries) or FAIL (messages lost or rejected) — with a breakdown in the detail panel. See [Link Health](#link-health).
 *   **Multi-Machine Support**: Two nodes with the same name on different machines are shown as separate rows, identified by IP address.
 *   **Topic Discovery**: Automatically discovers which DataBus topics each node publishes, displayed in a detail panel for the selected node.
 *   **Unicast & Multicast Support**: Receive heartbeats point-to-point or via a shared multicast group.
-*   **Interactive Navigation**: Arrow keys to select a node, `c` to clear offline entries, `q` to quit.
+*   **Interactive Navigation**: Arrow keys to select a node, `c` to clear offline entries, `r` to reset health counts, `q` to quit.
+*   **Snapshot Mode**: `--once <sec>` listens for a while, prints the table and every node's details as text, and exits, for scripts and bug reports.
 *   **Zero-Impact Architecture**: The Node Bridge uses a dedicated background thread with a 1-second heartbeat interval that does not block your application.
 
 ### How it Works
 
 1.  **The Node Monitor Console** (`apps/monitor.cpp`): The standalone `dmq-monitor` application that displays the topology table.
-2.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second.
+2.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second, followed by a `dmq::NodeHealthPacket` with its health counters.
 
 ### Integrating NodeBridge into Your App
 
@@ -294,6 +296,38 @@ int main() {
 
 Topic and message count tracking is automatic — NodeBridge subscribes to `dmq::databus::DataBus::Monitor` internally and requires no per-topic registration.
 
+The heartbeat runs on a `dmq::util::Timer`, so the application must drive timers by calling `dmq::util::Timer::ProcessTimers()` periodically, as any app using timers does. Without it no heartbeats are sent and the node never appears.
+
+#### 3. Watch the Links (optional)
+DataBus errors count toward the node's health automatically. Link health (ACK timeouts, abandoned messages, send limits) comes from objects your application owns, so pass them to `NodeBridge::Watch()`:
+
+```cpp
+NodeBridge::StartMulticast("GUI", "239.1.1.1", 9998);
+NodeBridge::Watch(m_network);          // a dmq::databus::NetworkNode: all its peers
+// or, without NetworkNode:
+NodeBridge::Watch(transportMonitor);   // dmq::util::TransportMonitor
+NodeBridge::Watch(retryMonitor);       // dmq::util::RetryMonitor
+```
+
+`Watch()` can be called before or after `Start()`. `Stop()` drops all watches. A watched object must stay alive until `Stop()`, or until it is destroyed itself.
+
+### Link Health
+
+The Health column summarizes each node's last 10 seconds:
+
+| Health | Meaning |
+|---|---|
+| **OK** (green) | No problems reported. |
+| **WARN** (yellow) | Reliable messages needed retries (ACK timeouts), or expired messages are piling up faster than they're processed. Also any DataBus error since the last reset: DataBus errors are reported once per topic and error, so they stay visible until you press `r`. |
+| **FAIL** (red) | Reliable messages were abandoned after all retries, or sends were rejected because too many messages were unacknowledged. |
+| **-** (gray) | The node sends no health data (its NodeBridge predates health reporting). |
+
+Selecting a node shows the breakdown: totals since the node started (or since `r`), the increase in the last 10 seconds as `(+n)`, and the most recent event, e.g. `delivery failed, Safety id=105 seq=8767, retries exhausted`. If only DataBus errors are reported, the panel says the links aren't watched.
+
+Health is what the sender can see. On a link without ACKs (`UNRELIABLE` / best-effort) lost messages go unnoticed, so OK there means "no errors reported", not "nothing lost". The counters live on the node, so restarting `dmq-monitor` loses nothing, and a missed health packet is caught up by the next one.
+
+To try it, run `dmq-target --health-demo`: it cycles its Health through OK, WARN and FAIL every 45 seconds.
+
 ### Usage
 
 ```bash
@@ -304,11 +338,15 @@ Topic and message count tracking is automatic — NodeBridge subscribes to `dmq:
 
 # Join a multicast group (auto-detects local interface)
 ./dmq-monitor 9998 --multicast 239.1.1.1
+
+# Listen 10 s, print the table and every node's details as text, exit
+./dmq-monitor 9998 --multicast 239.1.1.1 --once 10
 ```
 
 **Controls:**
-- `↑` / `↓` — Select a node to view its topics
+- `↑` / `↓` — Select a node to view its topics and health
 - `c` — Clear all offline nodes from the table
+- `r` — Reset health counts (totals restart from zero, WARN from old DataBus errors clears)
 - `q` — Quit
 
 ---

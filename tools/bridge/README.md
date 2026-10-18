@@ -18,7 +18,7 @@ Neither one connects DelegateMQ apps to each other. That's the job of a transpor
 | Folder | Contents | What it does | Details |
 |--------|----------|--------------|---------|
 | `spy/` | `SpyBridge` | Sends every DataBus message (topic, timestamp, value as text) to the `dmq-spy` console, unicast or multicast. Register a stringifier per topic to see its values. | [TOOLS.md: SpyBridge](../TOOLS.md#integrating-spybridge-into-your-app) |
-| `node/` | `NodeBridge`, `NodeInfoPacket.h` | Sends a heartbeat once a second with the node's ID, uptime, published topics and message counts to `dmq-monitor`. Also carries `ThreadMonitor` statistics to `dmq-thread`. Topics are discovered automatically. | [TOOLS.md: NodeBridge](../TOOLS.md#integrating-nodebridge-into-your-app), [thread monitoring](../TOOLS.md#integrating-thread-monitoring-into-your-app) |
+| `node/` | `NodeBridge`, `NodeInfoPacket.h` | Sends a heartbeat once a second with the node's ID, uptime, published topics and message counts to `dmq-monitor`, plus health counters for its Health column (`NodeBridge::Watch()` adds link health). Also carries `ThreadMonitor` statistics to `dmq-thread`. Topics are discovered automatically. | [TOOLS.md: NodeBridge](../TOOLS.md#integrating-nodebridge-into-your-app), [thread monitoring](../TOOLS.md#integrating-thread-monitoring-into-your-app) |
 | `common/` | `JsonTopics`, `BridgeJson.h`, `BridgeCommon.cmake` | Shared layer for JSON bridges. The application declares once which topics to expose as JSON (`Expose<T>`) and which commands to accept (`Accept<T>`). Every JSON bridge serves that same set. `BridgeJson.h` is a small flat-JSON writer and reader for the converters. | [TOOLS.md: JsonTopics](../TOOLS.md#jsontopics-shared-layer) |
 | `mqtt/` | `MqttBridge`, `MqttBridge.cmake` | JSON bridge to an MQTT broker. Exposed topic `t` goes to `<prefix>/t`, and commands arrive on `<prefix>/t/set`. Latched topics are retained, reliable topics use QoS 1, and `<prefix>/online` reports the connection. | [TOOLS.md: MqttBridge](../TOOLS.md#mqttbridge), [Using MQTT Tools](../TOOLS.md#using-mqtt-tools) |
 
@@ -34,7 +34,10 @@ Neither one connects DelegateMQ apps to each other. That's the job of a transpor
 ```cpp
 SpyBridge::Start("127.0.0.1", 9999, "Node-Alpha");    // to dmq-spy
 NodeBridge::Start("Node-Alpha", "127.0.0.1", 9998);   // to dmq-monitor / dmq-thread
+NodeBridge::Watch(m_network);                         // optional: link health (NetworkNode)
 ```
+
+`NodeBridge`'s heartbeat runs on a `dmq::util::Timer`, so the app must call `dmq::util::Timer::ProcessTimers()` periodically.
 
 **JSON bridges:** use the bridge's CMake helper. It also adds the `common/` layer, and for MQTT it builds Paho MQTT C from `external/mqtt` (fetched by `01_fetch_repos.py`). Requires `DMQ_DATABUS=ON`. Desktop only.
 
