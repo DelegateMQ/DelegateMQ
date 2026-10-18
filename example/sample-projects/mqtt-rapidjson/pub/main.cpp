@@ -17,13 +17,16 @@ static void ProcessTimers()
     }
 }
 
-int main() 
+// Usage: delegate_pub_app [broker-uri]   (default: tcp://localhost:1883)
+int main(int argc, char* argv[])
 {
+    const char* broker = (argc > 1) ? argv[1] : MqttTransport::DEFAULT_ADDRESS;
+
     // Start the thread that will run ProcessTimers
     std::thread timerThread(ProcessTimers);
 
     // Create Sender object
-    Sender sender;
+    Sender sender(broker);
 
     sender.Start();
 

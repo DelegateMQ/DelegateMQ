@@ -22,7 +22,8 @@ typedef std::function<void(dmq::DelegateRemoteId, dmq::DelegateError, dmq::Deleg
 class Sender
 {
 public:
-    Sender() :
+    /// @param[in] broker MQTT broker URI, e.g. "tcp://localhost:1883".
+    explicit Sender(const char* broker) :
         m_thread("Sender"),
         m_sendDelegate(Data::DATA_ID),
         m_argStream(ios::in | ios::out | ios::binary)
@@ -34,7 +35,8 @@ public:
         m_sendDelegate.SetErrorHandler(MakeDelegate(this, &Sender::ErrorHandler));
 
         // Set the transport
-        m_transport.Create(MqttTransport::Type::PUB);
+        if (m_transport.Create(MqttTransport::Type::PUB, broker) != 0)
+            std::cerr << "Sender: cannot connect to MQTT broker " << broker << std::endl;
         m_dispatcher.SetTransport(&m_transport);
         
         // Create the sender thread
