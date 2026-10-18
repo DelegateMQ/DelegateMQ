@@ -73,7 +73,7 @@ public:
     /// @brief Expose a DataBus topic as JSON to every bridge.
     /// @param toJson Converts each message to its JSON text.
     template <typename T>
-    static void Expose(const std::string& topic, std::function<std::string(const T&)> toJson, Options options = {})
+    static void Expose(const std::string& topic, std::function<std::string(const T&)> toJson, Options options)
     {
         auto& inst = GetInstance();
         EnsureThread();
@@ -89,6 +89,15 @@ public:
         }
         for (auto* sink : sinks)
             sink->OnTopicExposed(topic, options);
+    }
+
+    /// @brief Expose with default Options. An overload rather than a default
+    /// argument: Clang rejects `Options options = {}` here because Options'
+    /// member initializers aren't usable until JsonTopics is complete.
+    template <typename T>
+    static void Expose(const std::string& topic, std::function<std::string(const T&)> toJson)
+    {
+        Expose<T>(topic, std::move(toJson), Options{});
     }
 
     /// @brief Accept commands for a DataBus topic from every bridge.

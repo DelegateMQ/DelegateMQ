@@ -3,6 +3,7 @@
 
 #include "DelegateMQ.h"
 #include "messages/CoreDumpMsg.h"
+#include "extras/databus/NetworkNode.h"
 #include <atomic>
 #include <optional>
 #include <string>
