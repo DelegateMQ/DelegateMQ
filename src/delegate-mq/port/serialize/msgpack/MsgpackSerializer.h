@@ -1,7 +1,7 @@
-#ifndef SERIALIZER_H
-#define SERIALIZER_H
+#ifndef DMQ_MSGPACK_SERIALIZER_H
+#define DMQ_MSGPACK_SERIALIZER_H
 
-/// @file
+/// @file MsgpackSerializer.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 /// 
@@ -98,4 +98,4 @@ public:
 } // namespace dmq::serialization::msgpack
 
 
-#endif // SERIALIZER_H
+#endif // DMQ_MSGPACK_SERIALIZER_H

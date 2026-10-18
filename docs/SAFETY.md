@@ -47,7 +47,7 @@ This assessment covers `src/delegate-mq/**` — the library itself, not `example
 
 The delegate-equality mechanism (`Equal()`, used by `Signal::Disconnect()` and delegate comparison generally) relies on `dynamic_cast` at roughly 16 call sites across `delegate/Delegate.h`, `delegate/DelegateAsync.h`, `delegate/DelegateAsyncWait.h`, `delegate/DelegateRemote.h`, and `extras/util/TimerDelegate.h`. This is architectural, not incidental — every delegate family's equality check is built on it.
 
-The bundled serializer ports (`port/serialize/*/Serializer.h`) also use `dynamic_cast` to detect a `dmq::xostringstream` output stream.
+The bundled serializer ports (`port/serialize/*/*Serializer.h`) also use `dynamic_cast` to detect a `dmq::xostringstream` output stream.
 
 Separately, `dmq::databus::DataBus` uses `typeid`/`std::type_index` to catch a topic being used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer` calls (`extras/databus/DataBus.h`). This is a narrower, well-motivated use (a compile-time-adjacent programmer-error check, not polymorphic dispatch), but it's a second, independent place RTTI is load-bearing.
 

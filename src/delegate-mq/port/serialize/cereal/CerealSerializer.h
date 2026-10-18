@@ -1,7 +1,7 @@
-#ifndef SERIALIZER_H
-#define SERIALIZER_H
+#ifndef DMQ_CEREAL_SERIALIZER_H
+#define DMQ_CEREAL_SERIALIZER_H
 
-/// @file
+/// @file CerealSerializer.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 /// 
@@ -58,4 +58,4 @@ public:
 } // namespace dmq::serialization::cereal
 
 
-#endif
+#endif // DMQ_CEREAL_SERIALIZER_H

@@ -164,15 +164,15 @@
 #endif
 
 #if defined(DMQ_SERIALIZE_MSGPACK)
-    #include "port/serialize/msgpack/Serializer.h"
+    #include "port/serialize/msgpack/MsgpackSerializer.h"
 #elif defined(DMQ_SERIALIZE_CEREAL)
-    #include "port/serialize/cereal/Serializer.h"
+    #include "port/serialize/cereal/CerealSerializer.h"
 #elif defined(DMQ_SERIALIZE_BITSERY)
-    #include "port/serialize/bitsery/Serializer.h"
+    #include "port/serialize/bitsery/BitserySerializer.h"
 #elif defined(DMQ_SERIALIZE_RAPIDJSON)
-    #include "port/serialize/rapidjson/Serializer.h"
+    #include "port/serialize/rapidjson/RapidJsonSerializer.h"
 #elif defined(DMQ_SERIALIZE_SERIALIZE)
-    #include "port/serialize/serialize/Serializer.h"
+    #include "port/serialize/serialize/DmqSerializer.h"
 #elif defined(DMQ_SERIALIZE_NONE)
     // Create a custom application-specific serializer
 #else
