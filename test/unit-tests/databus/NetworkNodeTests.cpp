@@ -227,6 +227,64 @@ int NetworkNodeTestMain() {
         DMQ_ASSERT_TRUE(capHit);
     }
 
+    // ------------------------------------------------------------------
+    // 4. Receive() Delivery::LOCAL vs. Delivery::RELAY on a gateway with two
+    //    links: an inbound NetworkNode (gwIn) and an outbound NetworkNode
+    //    (gwOut) that Send()s the topic on to a sink node.
+    //
+    //    The source is a bare Participant that calls Participant::Send()
+    //    directly, so the frame reaches gwIn without going through the
+    //    (process-wide, shared) DataBus. The sink receives the frame under a
+    //    different topic name ("nn/relay/sink", same remote ID), so its
+    //    deliveries are counted separately from the gateway's own.
+    //
+    //    LOCAL: the gateway's subscriber fires, nothing goes out gwOut.
+    //    RELAY: the gateway's subscriber fires and the sink receives it too.
+    // ------------------------------------------------------------------
+    for (Delivery delivery : { Delivery::LOCAL, Delivery::RELAY }) {
+        DataBus::ResetForTesting();
+        const bool relay = (delivery == Delivery::RELAY);
+        const uint16_t base = relay ? 15320 : 15316;
+
+        NetworkNode<NetworkNodeTestTransport> gwIn;
+        NetworkNode<NetworkNodeTestTransport> gwOut;
+        NetworkNode<NetworkNodeTestTransport> sink;
+
+        DMQ_ASSERT_TRUE(gwIn.Start("GwIn", base));
+        DMQ_ASSERT_TRUE(gwOut.Start("GwOut", base + 1));
+        DMQ_ASSERT_TRUE(sink.Start("Sink", base + 2));
+
+        gwIn.Receive<int>("nn/relay", 4001, serializer, delivery);
+        gwOut.AddPeer("Sink", "127.0.0.1", base + 2);
+        gwOut.Send<int>("nn/relay", 4001, serializer);
+        sink.Receive<int>("nn/relay/sink", 4001, serializer);
+
+        std::atomic<int> gatewayCount{0};
+        std::atomic<int> sinkCount{0};
+        auto gwConn   = DataBus::Subscribe<int>("nn/relay", [&](int v) { if (v == 55) gatewayCount++; });
+        auto sinkConn = DataBus::Subscribe<int>("nn/relay/sink", [&](int v) { if (v == 55) sinkCount++; });
+
+        NetworkNodeTestTransport srcTransport;
+        DMQ_ASSERT_TRUE(srcTransport.Create(NetworkNodeTestTransport::Type::PUB, "127.0.0.1", base) == 0);
+        Participant source(srcTransport);
+        source.AddRemoteTopic("nn/relay", 4001);
+        source.Send<int>("nn/relay", 55, serializer);
+
+        bool arrived = WaitFor([&] { return gatewayCount.load() >= 1; }, std::chrono::milliseconds(2000));
+        DMQ_ASSERT_TRUE(arrived);
+
+        if (relay) {
+            bool forwarded = WaitFor([&] { return sinkCount.load() >= 1; }, std::chrono::milliseconds(2000));
+            DMQ_ASSERT_TRUE(forwarded);
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            DMQ_ASSERT_TRUE(sinkCount.load() == 0);
+        }
+        DMQ_ASSERT_TRUE(gatewayCount.load() == 1);
+
+        srcTransport.Close();
+    }
+
     std::cout << "NetworkNodeTest PASSED!" << std::endl;
 #endif
     return 0;

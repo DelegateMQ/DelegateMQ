@@ -50,6 +50,7 @@ class SerialLink
     using DataBus          = dmq::databus::DataBus;
     using Participant      = dmq::databus::Participant;
     using Reliability      = dmq::databus::Reliability;
+    using Delivery         = dmq::databus::Delivery;
     using TransportMonitor = dmq::util::TransportMonitor;
 
 public:
@@ -125,7 +126,8 @@ public:
 
         for (size_t i = 0; i < m_inCount; ++i)
             m_inTopics[i].adder(m_inTopics[i].serializer, m_inTopics[i].topic,
-                                m_inTopics[i].remoteId, *m_rxParticipant);
+                                m_inTopics[i].remoteId, *m_rxParticipant,
+                                m_inTopics[i].delivery);
         for (size_t i = 0; i < m_outCount; ++i)
             ApplyOutgoing(m_outTopics[i]);
 
@@ -217,20 +219,20 @@ public:
     }
 
     /// @brief Register a topic this node receives from the peer.
+    /// @param delivery LOCAL (default) or RELAY, as for NetworkNode::Receive().
     template <typename T>
     void Receive(const dmq::xstring& topic, dmq::DelegateRemoteId remoteId,
-                 dmq::ISerializer<void(T)>& serializer)
+                 dmq::ISerializer<void(T)>& serializer,
+                 Delivery delivery = Delivery::LOCAL)
     {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         DMQ_ASSERT_TRUE(m_inCount < MaxTopics);
         m_inTopics[m_inCount++] = {
             topic, remoteId, static_cast<void*>(&serializer),
-            [](void* ser, const dmq::xstring& t, dmq::DelegateRemoteId rid, Participant& p) {
-                DataBus::AddIncomingTopic<T>(t, rid, p, *static_cast<dmq::ISerializer<void(T)>*>(ser));
-            }
+            &dmq::databus::detail::AddReceivedTopic<T>, delivery
         };
         if (m_rxParticipant)
-            DataBus::AddIncomingTopic<T>(topic, remoteId, *m_rxParticipant, serializer);
+            dmq::databus::detail::AddReceivedTopic<T>(&serializer, topic, remoteId, *m_rxParticipant, delivery);
     }
 
 private:
@@ -240,13 +242,14 @@ private:
         Reliability           reliability = Reliability::UNRELIABLE;
     };
 
-    using TopicAdder = void(*)(void*, const dmq::xstring&, dmq::DelegateRemoteId, Participant&);
+    using TopicAdder = void(*)(void*, const dmq::xstring&, dmq::DelegateRemoteId, Participant&, Delivery);
 
     struct IncomingTopic {
         dmq::xstring          topic;
         dmq::DelegateRemoteId remoteId   = 0;
         void*                 serializer = nullptr;
         TopicAdder            adder      = nullptr;
+        Delivery              delivery   = Delivery::LOCAL;
     };
 
     void ApplyOutgoing(const OutgoingTopic& out)
