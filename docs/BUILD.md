@@ -47,7 +47,7 @@ include(FetchContent)
 FetchContent_Declare(
   delegatemq
   GIT_REPOSITORY https://github.com/DelegateMQ/DelegateMQ.git
-  GIT_TAG v2.1.0
+  GIT_TAG v2.2.0
 )
 FetchContent_MakeAvailable(delegatemq)
 

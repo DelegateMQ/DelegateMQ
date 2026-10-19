@@ -9,6 +9,16 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-19
+
+### Upgrading to 2.2.0
+Check these before upgrading; each can change the behavior or build of an existing application. Details are in the Fixed and Changed entries below.
+
+1. **`DataBus::AddRelayTopic` no longer sends relayed data back over the link it arrived on.** If an application relied on that to send a relayed topic back out the inbound participant, call `AddRemoteTopic` on that participant explicitly.
+2. **`MqttTransport::Create(type)` now connects to `tcp://localhost:1883`** instead of a public broker. Pass the broker URI to `Create(type, address, topic, clientId)` to keep using another broker.
+3. **Serializer header paths changed.** Code that includes a serializer header directly must use the new name (e.g. `port/serialize/msgpack/MsgpackSerializer.h`). Nothing to do if you get the serializer through `DelegateMQ.h` and `DMQ_SERIALIZE`.
+4. **Example ecosystem only:** the scripts moved to `scripts/` and third-party repos now live in `<repo>/external/`. Rerun `01_fetch_repos.py` and `02_build_libs.py`, then delete the old folders next to the repo.
+
 ### Added
 - **`databus-relay` sample** (`example/sample-projects/databus-relay/`). Three nodes across two different links: sensor ↔ gateway over UDP, gateway ↔ monitor over local IPC (Windows: named pipe / Linux: Unix domain socket). The gateway relays topics both ways with `AddRelayTopic` and uses two transports in one process. `03`/`04`/`05_*.py` now also handle projects with more than two node apps (`MULTI_NODE`).
 - **`LinuxUdsTransport`** (`port/transport/linux-uds/`, `DMQ_TRANSPORT_LINUX_UDS`). Local IPC over a Unix domain datagram socket (`AF_UNIX`, `SOCK_DGRAM`), the Linux counterpart to `Win32PipeTransport`. Duplex, so one participant can send and receive over it. Each end binds its own socket path and sends to the peer's, so there's no start order. Receive is non-blocking by default (`SetRecvTimeout()` to wait) and never holds up a concurrent `Send()`. A stale socket file from a crashed process is reused, but `Create()` fails rather than take over a path a live process is still bound to, and never removes a non-socket file. The socket file is removed on `Close()`. Oversized or malformed datagrams are dropped rather than truncated.

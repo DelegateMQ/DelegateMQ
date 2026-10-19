@@ -203,6 +203,8 @@ Headless alternatives to the TUI for SSH sessions and shell pipelines. Each prin
 
 `--window <n>` sets how many recent messages per topic `--hz` and `--bw` use (default 100). A growing `AGE` means the topic has stopped publishing.
 
+**Git Bash on Windows rewrites a lone `/`.** MSYS path conversion turns the argument `/` into a Windows path (e.g. `C:/Program Files/Git/`) before `dmq-spy` sees it, so `--bw /` matches nothing and prints `no matching messages yet` forever. Use `MSYS_NO_PATHCONV=1 ./dmq-spy --bw /`, or run it from PowerShell or `cmd`. A topic filter that doesn't start with `/` (e.g. `sensor`) is unaffected.
+
 **`--bw` measures the Spy feed, not your transport.** Spy receives each message as a `SpyPacket` (topic, stringified value, timestamp, node ID), not as serialized on the application's own link. The byte counts are useful for comparing topics against each other, but not for budgeting a real link such as a serial port.
 
 ### Live Plots in PlotJuggler

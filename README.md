@@ -101,6 +101,14 @@ build\delegate_app\Debug\delegate_app.exe
 ./build/delegate_app/delegate_app
 ```
 
+To build and run all the example projects as well, run `build_all.py` from the repository root. It fetches the third-party libraries into `external/` (gitignored), builds them, then builds and runs every sample and reports pass/fail. Requires Python 3 and Git.
+
+```bash
+python3 build_all.py            # --from N resumes at step N
+```
+
+See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individual steps and options.
+
 # Overview
 
 A delegate is a type-safe wrapper around any callable — function, method, or lambda — that can be stored and invoked later, in a different context or on a different thread. DelegateMQ builds everything on this one primitive: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.
