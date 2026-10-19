@@ -34,7 +34,7 @@ jobs:
         lcov --capture --directory . --output-file coverage.info
         
         # Optionally, filter out system headers and unneeded files
-        lcov --remove coverage.info '/usr/*' '*/Serializer.h' '*/msg_serialize.h' --output-file coverage_filtered.info
+        lcov --remove coverage.info '/usr/*' '*/DmqSerializer.h' '*/msg_serialize.h' --output-file coverage_filtered.info
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5  # Upload coverage report to Codecov
