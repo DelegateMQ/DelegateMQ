@@ -58,7 +58,7 @@ Numerous platform, serialization, transport, and tool integrations are available
 | :--- | :--- |
 | **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
-| **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, memory buffer |
+| **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
 | **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
 
 # Example Use Cases
@@ -100,6 +100,14 @@ build\delegate_app\Debug\delegate_app.exe
 # Linux
 ./build/delegate_app/delegate_app
 ```
+
+To build and run all the example projects as well, run `build_all.py` from the repository root. It fetches the third-party libraries into `external/` (gitignored), builds them, then builds and runs every sample and reports pass/fail. Requires Python 3 and Git.
+
+```bash
+python3 build_all.py            # --from N resumes at step N
+```
+
+See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individual steps and options.
 
 # Overview
 

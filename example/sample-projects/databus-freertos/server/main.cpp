@@ -140,8 +140,34 @@ static void vServerTask(void* /*pvParams*/)
 // Main entry point
 // ---------------------------------------------------------------------------
 
+#if defined(_WIN32)
+// Windows 11 ignores timeBeginPeriod() for a process whose windows are hidden
+// behind others or minimized. The FreeRTOS Win32 port's tick thread then
+// sleeps ~15.6 ms per 1 ms tick, so the simulated clock runs ~15x slow until
+// the console comes back to the front. Opt out of that, and of EcoQoS.
+static void KeepFullSpeedInBackground()
+{
+#if defined(PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION)
+    PROCESS_POWER_THROTTLING_STATE state = {};
+    state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    state.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED |
+                        PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION;
+    state.StateMask = 0;    // 0 = never throttle
+    // Looked up at run time: not declared below _WIN32_WINNT 0x0602, absent on Windows 7.
+    using SetProcInfoFn = BOOL (WINAPI*)(HANDLE, PROCESS_INFORMATION_CLASS, LPVOID, DWORD);
+    auto setProcInfo = reinterpret_cast<SetProcInfoFn>(
+        GetProcAddress(GetModuleHandleA("kernel32.dll"), "SetProcessInformation"));
+    if (setProcInfo)
+        setProcInfo(GetCurrentProcess(), ProcessPowerThrottling, &state, sizeof(state));
+#endif
+}
+#endif
+
 int main(void)
 {
+#if defined(_WIN32)
+    KeepFullSpeedInBackground();
+#endif
     prvInitialiseHeap();
 
     // Tick the DelegateMQ Timer subsystem every 10 ms via a FreeRTOS software timer

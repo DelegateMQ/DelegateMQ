@@ -1,7 +1,7 @@
-#ifndef SERIALIZER_H
-#define SERIALIZER_H
+#ifndef DMQ_RAPIDJSON_SERIALIZER_H
+#define DMQ_RAPIDJSON_SERIALIZER_H
 
-/// @file
+/// @file RapidJsonSerializer.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 /// 
@@ -99,4 +99,4 @@ public:
 } // namespace dmq::serialization::rapidjson
 
 
-#endif
+#endif // DMQ_RAPIDJSON_SERIALIZER_H

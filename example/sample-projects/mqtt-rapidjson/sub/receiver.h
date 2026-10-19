@@ -23,7 +23,8 @@ class Receiver
 public:
     dmq::MulticastDelegateSafe<void(Data&)> DataCb;
 
-    Receiver() :
+    /// @param[in] broker MQTT broker URI, e.g. "tcp://localhost:1883".
+    explicit Receiver(const char* broker) :
         m_thread("Receiver"),
         m_argStream(ios::in | ios::out | ios::binary)
     {
@@ -34,7 +35,8 @@ public:
         m_recvDelegate.SetErrorHandler(MakeDelegate(this, &Receiver::ErrorHandler));
 
         // Set the transport
-        m_transport.Create(MqttTransport::Type::SUB);
+        if (m_transport.Create(MqttTransport::Type::SUB, broker) != 0)
+            std::cerr << "Receiver: cannot connect to MQTT broker " << broker << std::endl;
 
         // Create the receiver thread
         m_thread.CreateThread();

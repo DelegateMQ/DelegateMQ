@@ -1,7 +1,7 @@
-#ifndef SERIALIZER_BITSERY_H
-#define SERIALIZER_BITSERY_H
+#ifndef DMQ_BITSERY_SERIALIZER_H
+#define DMQ_BITSERY_SERIALIZER_H
 
-/// @file Serializer.h
+/// @file BitserySerializer.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 ///
@@ -91,4 +91,4 @@ public:
 
 #endif // DMQ_SERIALIZE_BITSERY
 
-#endif // SERIALIZER_BITSERY_H
+#endif // DMQ_BITSERY_SERIALIZER_H

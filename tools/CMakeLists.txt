@@ -9,9 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Paths relative to this tools/ directory
 set(DELEGATE_MQ_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src/delegate-mq")
-set(WORKSPACE_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-set(FTXUI_DIR   "${WORKSPACE_DIR}/ftxui")
-set(SPDLOG_DIR  "${WORKSPACE_DIR}/spdlog")
 
 # --- DelegateMQ configuration for tools ---
 set(DMQ_THREAD    "DMQ_THREAD_STDLIB")
@@ -23,18 +20,22 @@ set(DMQ_ASSERTS   "ON")
 
 include("${DELEGATE_MQ_DIR}/DelegateMQ.cmake")
 
+# Third-party repos (DMQ_DEPS_DIR is set by DelegateMQ.cmake)
+set(FTXUI_DIR   "${DMQ_DEPS_DIR}/ftxui")
+set(SPDLOG_DIR  "${DMQ_DEPS_DIR}/spdlog")
+
 # --- FTXUI ---
 if(EXISTS "${FTXUI_DIR}/CMakeLists.txt")
     add_subdirectory("${FTXUI_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ftxui" EXCLUDE_FROM_ALL)
 else()
-    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
+    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run scripts/01_fetch_repos.py first.")
 endif()
 
 # --- spdlog ---
 if(EXISTS "${SPDLOG_DIR}/CMakeLists.txt")
     add_subdirectory("${SPDLOG_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/spdlog" EXCLUDE_FROM_ALL)
 else()
-    message(FATAL_ERROR "spdlog not found at ${SPDLOG_DIR}. Run 01_fetch_repos.py first.")
+    message(FATAL_ERROR "spdlog not found at ${SPDLOG_DIR}. Run scripts/01_fetch_repos.py first.")
 endif()
 
 set(COMMON_INCLUDES
@@ -118,3 +119,16 @@ if(WIN32)
     target_compile_definitions(dmq-target  PRIVATE _WIN32_WINNT=0x0601)
     target_link_libraries(dmq-target       PRIVATE ws2_32)
 endif()
+
+# --- Copy to tools/bin ---
+# After each build, copy every tool to tools/bin (gitignored), so they're always
+# at tools/bin/dmq-spy[.exe] whatever the build directory or configuration.
+# The last build wins: Debug and Release overwrite each other. On Windows the
+# copy fails while that tool is running; close it and build again.
+set(DMQ_TOOLS_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+foreach(tool dmq-spy dmq-monitor dmq-thread dmq-target)
+    add_custom_command(TARGET ${tool} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DMQ_TOOLS_BIN_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${tool}>" "${DMQ_TOOLS_BIN_DIR}"
+        VERBATIM)
+endforeach()

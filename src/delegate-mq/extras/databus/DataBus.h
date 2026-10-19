@@ -256,6 +256,12 @@ public:
     // AND all registered remote participants (full Publish). Use this only on bridge/relay nodes
     // where the explicit intent is to forward incoming data to other remote nodes.
     //
+    // The relay forwards only to participants that already list the topic as outgoing
+    // (AddRemoteTopic on the downstream participants, plus RegisterSerializer). The inbound
+    // participant is NOT made outgoing for the topic, so on a duplex link (one participant
+    // that both receives and is registered with AddParticipant) relayed data is not echoed
+    // back out the link it arrived on.
+    //
     // WARNING: Using AddRelayTopic on a node that also has the same topic as an outgoing
     // (RegisterSerializer + AddParticipant) AND receives from a node that also relays will
     // create an infinite relay loop. Use AddIncomingTopic instead for subscriber-only nodes.
@@ -264,7 +270,6 @@ public:
         participant.RegisterHandler(remoteId, serializer, [topic](const T& data) {
             Publish(topic, data);
         });
-        participant.AddRemoteTopic(topic, remoteId);
     }
 
     // Register a stringifier for a topic to enable spying/logging.

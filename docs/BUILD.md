@@ -47,7 +47,7 @@ include(FetchContent)
 FetchContent_Declare(
   delegatemq
   GIT_REPOSITORY https://github.com/DelegateMQ/DelegateMQ.git
-  GIT_TAG v2.1.0
+  GIT_TAG v2.2.0
 )
 FetchContent_MakeAvailable(delegatemq)
 
@@ -64,23 +64,34 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 ---
 
 ## Example Ecosystem (Sandbox)
-Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party libraries. We provide scripts to automate setting up a "Sandbox Workspace" where all dependencies are built as siblings of the main repository.
+Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party libraries. We provide scripts that fetch and build all dependencies into `external/` inside the repository (gitignored).
 
 ### Automated Workspace Sandbox Setup
-1. Create a parent workspace directory:
+1. Clone the repository:
    ```bash
-   mkdir DMQWorkspace && cd DMQWorkspace
    git clone https://github.com/DelegateMQ/DelegateMQ.git
    cd DelegateMQ
    ```
-2. Run the numbered scripts in order:
+2. Run all the steps in order:
    ```bash
-   python3 01_fetch_repos.py       # Clone 3rd-party dependencies
-   python3 02_build_libs.py        # Build dependencies as static libraries
-   python3 03_generate_samples.py  # Generate CMake files for all samples
-   python3 04_build_samples.py     # Compile all samples
-   python3 05_run_samples.py       # Execute all and report pass/fail
+   python3 build_all.py                # 01 -> 05; --from N resumes at step N
    ```
+   Or run the numbered scripts in `scripts/` one at a time:
+   ```bash
+   python3 scripts/01_fetch_repos.py       # Clone 3rd-party dependencies
+   python3 scripts/02_build_libs.py        # Build dependencies as static libraries
+   python3 scripts/03_generate_samples.py  # Generate CMake files for all samples
+   python3 scripts/04_build_samples.py     # Compile all samples
+   python3 scripts/05_run_samples.py       # Execute all and report pass/fail
+   ```
+   `build_all.py` stops if step 01 or 02 fails, and passes `--clang`, `--clean` and `--deps-dir` through to the scripts that take them.
+
+### Third-Party Directory (`DMQ_DEPS_DIR`)
+`01_fetch_repos.py` clones into `<repo>/external/` by default. To put the dependencies somewhere else, for example one copy shared by several clones or git worktrees, set the `DMQ_DEPS_DIR` environment variable, or pass `--deps-dir` to the `01`/`02` scripts and `-DDMQ_DEPS_DIR=<path>` to CMake. CMake resolves it in `src/delegate-mq/DepsDir.cmake`.
+
+`git clean -xdf` deletes `external/` along with build output, because it's gitignored. Use `git clean -xdf -e external` to keep it.
+
+Older versions cloned the dependencies next to the repository (`<parent>/zeromq`, `<parent>/FreeRTOS`, ...). That layout is no longer used: rerun `01_fetch_repos.py` and `02_build_libs.py`, then delete the old folders.
 
 ### Manual Sample Build
 If you want to build a specific sample without scripts, navigate to its directory (its third-party dependencies must already be built, e.g. by `02_build_libs.py`):

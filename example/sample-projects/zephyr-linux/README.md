@@ -20,7 +20,7 @@ Identical test suite to `freertos-bare-metal`/`freertos-linux`/`threadx-linux` â
 ## Prerequisites
 
 *   **Linux** with GCC (native_sim compiles natively with the host toolchain; there is no Windows or macOS build of this sample)
-*   **A west workspace with Zephyr.** Unlike ThreadX/FreeRTOS (plain sibling clones under the workspace root, handled by `01_fetch_repos.py`), Zephyr is not vendored automatically. Set one up once:
+*   **A west workspace with Zephyr.** Unlike ThreadX/FreeRTOS (plain clones under `external/`, handled by `01_fetch_repos.py`), Zephyr is not vendored automatically. Set one up once:
     ```bash
     pip install west
     west init -m https://github.com/zephyrproject-rtos/zephyr --mr v4.1.0 zephyrproject

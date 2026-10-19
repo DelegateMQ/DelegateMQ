@@ -26,10 +26,10 @@ Ensure these ports exist and are connected (e.g., via a physical null-modem cabl
 
 This project depends on `libserialport`. Since this library does not natively support CMake, you must build it manually using Visual Studio.
 
-Run `01_fetch_repos.py` to get the `libserialport` cloned to a workspace directory. 
+Run `01_fetch_repos.py` to get `libserialport` cloned to `external/libserialport`. 
 
 ### 1. Open the Solution
-1.  Navigate to `../../../../libserialport`.
+1.  Navigate to `../../../external/libserialport`.
 2.  Open **`libserialport.sln`** in Visual Studio.
 3.  In Visual Studio Solution Explorer pane, right click `libserialport` and select "Retarget Projects" and select a new "Retarget to Platform" selection and press Apply. 
 

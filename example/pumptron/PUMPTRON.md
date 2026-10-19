@@ -25,9 +25,9 @@ It is Cellutron's hardware sibling. Cellutron simulates three CPUs on one PC; Pu
 
 Pumptron builds and runs on **Windows** and **Linux**. Steps 1–3 run the whole system on the PC, with the controller on the FreeRTOS simulator. Steps 4–6 are optional: they move the controller onto a real STM32F4 Discovery board.
 
-1.  **Initialize Workspace**: Ensure `DelegateMQ` is placed inside a workspace directory (e.g., `DelegateMQWorkspace`). From the repository root, fetch the dependencies (FreeRTOS, FTXUI, libserialport):
+1.  **Initialize Workspace**: From the repository root, fetch the dependencies (FreeRTOS, FTXUI, libserialport):
     ```bash
-    python3 01_fetch_repos.py
+    python3 scripts/01_fetch_repos.py
     ```
 2.  **Build Pumptron**: From this directory (`example/pumptron/`), build the GUI and the simulated controller:
     ```bash
@@ -165,7 +165,7 @@ The commands are in [Quick Start](#quick-start); this section covers what they p
 
 Builds both the GUI and the controller to run on Windows or Linux, with the controller on the FreeRTOS simulator. No embedded hardware needed.
 
-Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. `run_pumptron.py` launches the Debug build by default; after a Release build (`cmake --build build --config Release`), pass it `--config Release`. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
+Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. `run_pumptron.py` launches whichever configuration is built, the newest if both are; pass `--config Debug` or `--config Release` to pick one. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
 
 ### STM32F4 Firmware
 
@@ -204,7 +204,7 @@ python run_pumptron.py --selftest              # simulation, headless end-to-end
 python run_pumptron.py --serial COM5 --selftest
 ```
 
-Options: `--baud <rate>` (default 115200), `--config Debug|Release` (default Debug), and `--spy` / `--plotjuggler` (see [Monitoring with dmq-spy](#monitoring-with-dmq-spy)).
+Options: `--baud <rate>` (default 115200), `--config Debug|Release` (default: whichever is built), and `--spy` / `--plotjuggler` (see [Monitoring with dmq-spy](#monitoring-with-dmq-spy)).
 
 ### Hardware
 
@@ -235,18 +235,18 @@ Cross TX to RX, leave the adapter's VCC unconnected (the board is powered over m
    pumptron_gui --serial COM5          # Windows
    pumptron_gui --serial /dev/ttyUSB0  # Linux
    ```
-   Run `pumptron_gui` with no arguments to list the serial ports it can see. On Linux, `--serial` needs libserialport (`libserialport-dev`, or a build in the workspace's `libserialport/`); without it the GUI builds UDP-only.
+   Run `pumptron_gui` with no arguments to list the serial ports it can see. On Linux, `--serial` needs libserialport (`libserialport-dev`, or a build in `external/libserialport/`); without it the GUI builds UDP-only.
 3. Optionally check the link first with `python run_pumptron.py --serial <port> --selftest`.
 
 ### Simulator (No Board)
 
 Run `python run_pumptron.py`, or start `pumptron_controller` and `pumptron_gui --udp` in separate terminals.
 
-> **Known issue: the FreeRTOS Windows simulator's clock is unreliable.** The Win32 port simulates the tick with `Sleep(1)` and suspends task threads with `SuspendThread`, and the controller's tasks make real Windows calls (UDP sockets, console output), which the FreeRTOS Win32 port documents as unsafe. Measured effects:
-> - In good runs, simulated time runs at a steady **~0.5× real time**. Priming, ramps and heartbeats look about 2× slower than on the board.
-> - In some runs, in both Debug and Release, the simulated tick slows to **~0.1× or nearly stops**. Run-time stats from one stalled run pointed at the timer-daemon task. The pump then appears stuck in PRIMING and the self-test fails.
+> **Simulator clock speed.** The FreeRTOS Win32 port simulates each tick with `Sleep(1)`, so simulated time runs at about **0.5× real time** on Windows. Priming, ramps and heartbeats look about 2× slower than on the board.
 >
-> The root cause has not been found yet. If a simulator run looks frozen, restart the controller. Console output is serialized through a FreeRTOS mutex (`controller/util/Logger.h`, the same approach as Cellutron); that removed one stall but not all of them. The STM32F4 hardware target does not use this port.
+> Windows 11 ignores a process's 1 ms timer request while its window is hidden behind other windows or minimized. The tick then takes about 15.6 ms, and the simulated clock drops to about **0.065×**, so the pump looks stuck in PRIMING and the self-test fails. The simulator mains opt out of this with `SetProcessInformation(ProcessPowerThrottling, PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION)` (`KeepFullSpeedInBackground()`). Builds from before that change speed up again when the console is brought to the front.
+>
+> The controller's tasks also make real Windows calls (UDP sockets, console output), which the FreeRTOS Win32 port documents as unsafe. Console output is serialized through a FreeRTOS mutex (`controller/util/Logger.h`, the same approach as Cellutron). If a run still looks frozen with its console in front, restart the controller. The STM32F4 hardware target does not use this port.
 
 ### Controls
 
@@ -269,7 +269,7 @@ python run_pumptron.py --selftest                 # simulator
 python run_pumptron.py --serial COM5 --selftest   # real board
 ```
 
-It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see the known issue above). On the STM32F4 board over the serial link it passes every step, with the controller clock at 1.00× real time and no retries.
+It measures the controller's clock against wall time first and scales its timeouts to match, so a steady half-speed simulator still passes. It fails if the simulator clock stalls (see Simulator clock speed above). On the STM32F4 board over the serial link it passes every step, with the controller clock at 1.00× real time and no retries.
 
 ### Monitoring with dmq-spy
 

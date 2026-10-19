@@ -174,12 +174,11 @@ public:
         // Note: os.str() still creates a copy. In a full zero-copy version,
         // we would use a custom streambuf that points to m_sendBuffer.
         auto payload = os.str();
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
-        
-        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
         uint16_t marker = htons(header.GetMarker());

@@ -17,15 +17,14 @@ get_filename_component(DMQ_SRC_DIR "${DMQ_INCLUDE_DIR}" DIRECTORY)
 set(TOOLS_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/bridge")
 set(TOOLS_SRC_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/net")
 
-# Paths for FTXUI
-set(WORKSPACE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
-set(FTXUI_DIR "${WORKSPACE_DIR}/ftxui")
+# Paths for FTXUI (DMQ_DEPS_DIR is set by DelegateMQ.cmake)
+set(FTXUI_DIR "${DMQ_DEPS_DIR}/ftxui")
 
 # --- FTXUI ---
 if(EXISTS "${FTXUI_DIR}/CMakeLists.txt")
     add_subdirectory("${FTXUI_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ftxui" EXCLUDE_FROM_ALL)
 else()
-    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run 01_fetch_repos.py first.")
+    message(FATAL_ERROR "FTXUI not found at ${FTXUI_DIR}. Run scripts/01_fetch_repos.py first.")
 endif()
 
 file(GLOB_RECURSE ALL_COMMON_SOURCES CONFIGURE_DEPENDS "${CELLUTRON_COMMON_DIR}/*.h" "${CELLUTRON_COMMON_DIR}/*.cpp" "${CELLUTRON_COMMON_DIR}/*.c")

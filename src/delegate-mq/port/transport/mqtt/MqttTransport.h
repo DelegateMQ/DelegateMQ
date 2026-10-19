@@ -8,6 +8,20 @@
 /// 
 /// Transport callable argument data to/from a remote using MQTT library. 
 /// https://github.com/eclipse-paho/paho.mqtt.c
+///
+/// Carries DelegateMQ binary frames between DelegateMQ apps on one MQTT topic.
+/// Other MQTT tools can't read these frames; to expose DataBus topics as
+/// readable JSON instead, see tools/bridge/mqtt/MqttBridge.
+///
+/// The broker defaults to a local one (tcp://localhost:1883, e.g. Mosquitto).
+/// Pass a broker URI to Create() to use another. Never point real traffic at
+/// a public test broker: anyone can read and publish on it.
+///
+/// @code
+/// MqttTransport t;
+/// t.Create(MqttTransport::Type::PUB);                                     // local broker, default topic
+/// t.Create(MqttTransport::Type::SUB, "tcp://10.0.0.5:1883", "plant/dmq"); // explicit broker and topic
+/// @endcode
 
 // Ensure network byte order functions are available
 #if defined(_WIN32) || defined(_WIN64)
@@ -25,6 +39,8 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
+#include <string>
+#include <random>
 #include <vector>
 #include <queue>
 #include <mutex>
@@ -43,12 +59,10 @@ public:
         SUB
     };
 
-    static constexpr const char* ADDRESS       = "tcp://broker.hivemq.com:1883";
-    static constexpr const char* TOPIC         = "Delegate_MQTT";
-    static constexpr int         QOS           = 1;
-    static constexpr long        TIMEOUT_MS    = 10000L;
-    static constexpr const char* PUB_CLIENTID  = "DelegatePub";
-    static constexpr const char* SUB_CLIENTID  = "DelegateSub";
+    static constexpr const char* DEFAULT_ADDRESS = "tcp://localhost:1883";
+    static constexpr const char* DEFAULT_TOPIC   = "dmq/delegate";
+    static constexpr int         QOS             = 1;
+    static constexpr long        TIMEOUT_MS      = 10000L;
 
     MqttTransport() = default;
 
@@ -57,20 +71,39 @@ public:
         Close();
     }
 
-    int Create(Type type)
+    /// Connect to the broker.
+    /// @param[in] type PUB publishes to topic; SUB subscribes to it.
+    /// @param[in] address Broker URI, e.g. "tcp://localhost:1883".
+    /// @param[in] topic MQTT topic carrying the frames. Both ends must use the same one.
+    /// @param[in] clientId MQTT client ID. Must be unique on the broker: a second
+    ///   client with the same ID disconnects the first. nullptr (default)
+    ///   generates a random one ("dmq-pub-xxxxxxxx" / "dmq-sub-xxxxxxxx").
+    /// @return 0 (MQTTCLIENT_SUCCESS) on success, otherwise a Paho error code.
+    int Create(Type type, const char* address = DEFAULT_ADDRESS,
+               const char* topic = DEFAULT_TOPIC, const char* clientId = nullptr)
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         int rc = EXIT_FAILURE;
-        printf("Using server at %s\n", ADDRESS);
+        if (address == nullptr || topic == nullptr || *topic == '\0')
+            return MQTTCLIENT_NULL_PARAMETER;
+
+        m_topic = topic;
+        const std::string id = clientId ? std::string(clientId) : MakeClientId(type);
+        printf("MqttTransport: broker %s, topic %s, client %s\n", address, m_topic.c_str(), id.c_str());
+
+        {
+            std::lock_guard<std::mutex> q_lock(m_queueMtx);
+            m_stop = false;
+        }
 
         MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
         m_type = type;
         if (m_type == Type::PUB)
         {
-            if ((rc = MQTTClient_create(&m_client, ADDRESS, PUB_CLIENTID,
+            if ((rc = MQTTClient_create(&m_client, address, id.c_str(),
                 MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS)
             {
-                // printf("Failed to create client, return code %d\n", rc);
+                m_client = nullptr;
                 return rc;
             }
 
@@ -78,24 +111,25 @@ public:
             conn_opts.cleansession = 1;
             if ((rc = MQTTClient_connect(m_client, &conn_opts)) != MQTTCLIENT_SUCCESS)
             {
-                // printf("Failed to connect, return code %d\n", rc);
+                MQTTClient_destroy(&m_client);
+                m_client = nullptr;
                 return rc;
             }
         }
         else if (m_type == Type::SUB)
         {
-            if ((rc = MQTTClient_create(&m_client, ADDRESS, SUB_CLIENTID,
+            if ((rc = MQTTClient_create(&m_client, address, id.c_str(),
                 MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS)
             {
-                // printf("Failed to create client, return code %d\n", rc);
+                m_client = nullptr;
                 return rc;
             }
 
             // Register callbacks to populate internal queue
             if ((rc = MQTTClient_setCallbacks(m_client, this, connlost, msgarrvd, delivered)) != MQTTCLIENT_SUCCESS)
             {
-                // printf("Failed to set callbacks, return code %d\n", rc);
                 MQTTClient_destroy(&m_client);
+                m_client = nullptr;
                 return rc;
             }
 
@@ -103,14 +137,16 @@ public:
             conn_opts.cleansession = 1;
             if ((rc = MQTTClient_connect(m_client, &conn_opts)) != MQTTCLIENT_SUCCESS)
             {
-                // printf("Failed to connect, return code %d\n", rc);
                 MQTTClient_destroy(&m_client);
+                m_client = nullptr;
                 return rc;
             }
 
-            if ((rc = MQTTClient_subscribe(m_client, TOPIC, QOS)) != MQTTCLIENT_SUCCESS)
+            if ((rc = MQTTClient_subscribe(m_client, m_topic.c_str(), QOS)) != MQTTCLIENT_SUCCESS)
             {
-                // printf("Failed to subscribe, return code %d\n", rc);
+                MQTTClient_disconnect(m_client, 1000);
+                MQTTClient_destroy(&m_client);
+                m_client = nullptr;
                 return rc;
             }
         }
@@ -124,7 +160,7 @@ public:
         {
             if (m_type == Type::SUB)
             {
-                MQTTClient_unsubscribe(m_client, TOPIC);
+                MQTTClient_unsubscribe(m_client, m_topic.c_str());
             }
             MQTTClient_disconnect(m_client, 1000);
             MQTTClient_destroy(&m_client);
@@ -147,11 +183,10 @@ public:
 
         // Get payload data without string copy if possible
         auto payload = os.str();
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
-        
-        if (payloadLen > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
+        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
         uint16_t marker = htons(header.GetMarker());
@@ -180,7 +215,7 @@ public:
         pubmsg.retained = 0;
 
         int rc;
-        if ((rc = MQTTClient_publishMessage(m_client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS)
+        if ((rc = MQTTClient_publishMessage(m_client, m_topic.c_str(), &pubmsg, &token)) != MQTTCLIENT_SUCCESS)
         {
             return EXIT_FAILURE;
         }
@@ -262,6 +297,17 @@ public:
     }
 
 private:
+    /// Random client ID, so two apps (or two runs) never share one by accident.
+    static std::string MakeClientId(Type type)
+    {
+        static const char hex[] = "0123456789abcdef";
+        std::random_device rd;
+        std::string id = (type == Type::PUB) ? "dmq-pub-" : "dmq-sub-";
+        for (int i = 0; i < 8; ++i)
+            id += hex[rd() & 0xF];
+        return id;
+    }
+
     static void delivered(void* context, MQTTClient_deliveryToken dt)
     {
         // printf("Message with token value %d delivery confirmed\n", dt);
@@ -296,6 +342,7 @@ private:
     }
 
     MQTTClient m_client = nullptr;
+    std::string m_topic = DEFAULT_TOPIC;
     ITransportMonitor* m_transportMonitor = nullptr;
     Type m_type = Type::PUB;
 

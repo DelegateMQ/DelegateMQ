@@ -29,6 +29,13 @@
 /// // From here, use DataBus::Subscribe / DataBus::Publish normally.
 /// @endcode
 ///
+/// A node can run several links on its one DataBus, e.g. a NetworkNode to Ethernet
+/// peers and a serial link to each MCU. Each link sends only the topics registered
+/// on it with Send(). A received topic reaches this node's subscribers only, unless
+/// it is received with Delivery::RELAY, which also forwards it out the other links
+/// that Send() it. Each peer takes two DataBus participants (reliable and
+/// unreliable) out of dmq::MAX_PARTICIPANTS, shared by all links in the process.
+///
 /// Topic ordering: Receive() and Send() may be called before or after Start() /
 /// AddPeer() in any order. NetworkNode defers registration and applies it
 /// retroactively when the participant is created.
@@ -82,6 +89,30 @@ enum class Reliability {
     UNRELIABLE, ///< Raw transport send — no ACK, no retry.
     RELIABLE,   ///< Transport send with ACK and automatic retry (RetryMonitor stack).
 };
+
+/// Where an incoming topic registered via NetworkNode::Receive() is delivered.
+enum class Delivery {
+    LOCAL, ///< This node's subscribers only (DataBus::AddIncomingTopic). The default; can't loop.
+    RELAY, ///< This node's subscribers, and forwarded out every link that Send()s the topic
+           ///< (DataBus::AddRelayTopic). For gateway nodes. Wire the topic one way: Send() it
+           ///< on the other link(s), not on the link it arrives on, or the originator gets
+           ///< it back (a duplicate, not a loop, as long as it receives the topic LOCAL).
+};
+
+namespace detail {
+/// Registers an incoming topic on a participant with the requested delivery.
+/// Shared by NetworkNode and other links with the same Receive() API.
+template <typename T>
+void AddReceivedTopic(void* serializer, const dmq::xstring& topic, dmq::DelegateRemoteId remoteId,
+                      Participant& participant, Delivery delivery)
+{
+    auto& ser = *static_cast<dmq::ISerializer<void(T)>*>(serializer);
+    if (delivery == Delivery::RELAY)
+        DataBus::AddRelayTopic<T>(topic, remoteId, participant, ser);
+    else
+        DataBus::AddIncomingTopic<T>(topic, remoteId, participant, ser);
+}
+} // namespace detail
 
 /// @brief Generic multi-peer DataBus network node.
 ///
@@ -159,7 +190,8 @@ public:
             m_inTopics[i].adder(m_inTopics[i].serializer,
                                 m_inTopics[i].topic,
                                 m_inTopics[i].remoteId,
-                                *m_recvParticipant);
+                                *m_recvParticipant,
+                                m_inTopics[i].delivery);
 
         m_thread.emplace(
             threadName, 100, dmq::os::FullPolicy::FAULT, dmq::DEFAULT_DISPATCH_TIMEOUT);
@@ -359,10 +391,14 @@ public:
     /// @param topic      DataBus topic string.
     /// @param remoteId   Wire ID embedded in the serialized frame.
     /// @param serializer Serializer instance for type T.
+    /// @param delivery   LOCAL (default): this node's subscribers only. RELAY: also
+    ///                   forwarded out every link that Send()s the topic, e.g. a
+    ///                   gateway passing Ethernet commands on to a serial MCU. See Delivery.
     template <typename T>
     void Receive(const dmq::xstring& topic,
                  dmq::DelegateRemoteId remoteId,
-                 dmq::ISerializer<void(T)>& serializer)
+                 dmq::ISerializer<void(T)>& serializer,
+                 Delivery delivery = Delivery::LOCAL)
     {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         DMQ_ASSERT_TRUE(m_inCount < MaxTopics);
@@ -370,15 +406,12 @@ public:
         // Store a type-erased adder so it can be replayed when Start() creates the participant.
         m_inTopics[m_inCount++] = {
             topic, remoteId, static_cast<void*>(&serializer),
-            [](void* ser, const dmq::xstring& t, dmq::DelegateRemoteId rid, Participant& p) {
-                DataBus::AddIncomingTopic<T>(t, rid, p,
-                    *static_cast<dmq::ISerializer<void(T)>*>(ser));
-            }
+            &detail::AddReceivedTopic<T>, delivery
         };
 
         // Apply immediately if Start() has already run.
         if (m_recvParticipant)
-            DataBus::AddIncomingTopic<T>(topic, remoteId, *m_recvParticipant, serializer);
+            detail::AddReceivedTopic<T>(&serializer, topic, remoteId, *m_recvParticipant, delivery);
     }
 
 private:
@@ -445,13 +478,14 @@ private:
 
     // Type-erased incoming-topic record. Avoids storing template arguments past
     // the Receive() call site while preserving type-safe AddIncomingTopic<T>.
-    using TopicAdder = void(*)(void*, const dmq::xstring&, dmq::DelegateRemoteId, Participant&);
+    using TopicAdder = void(*)(void*, const dmq::xstring&, dmq::DelegateRemoteId, Participant&, Delivery);
 
     struct IncomingTopic {
         dmq::xstring          topic;
         dmq::DelegateRemoteId remoteId   = 0;
         void*                 serializer = nullptr;
         TopicAdder            adder      = nullptr;
+        Delivery              delivery   = Delivery::LOCAL;
     };
 
     struct OutgoingTopic {

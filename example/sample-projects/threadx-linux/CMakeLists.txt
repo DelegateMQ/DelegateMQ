@@ -1,7 +1,7 @@
 # threadx-linux — DelegateMQ feature demo on ThreadX (Linux/GNU simulation port)
 #
 # Requires the ThreadX source tree fetched by 01_fetch_repos.py at
-# ../../../../threadx (i.e. sibling to the DelegateMQ workspace root).
+# ${DMQ_DEPS_DIR}/threadx (default: <DelegateMQ repo>/external/threadx).
 #
 # Linux/GCC only: the ThreadX Linux port implements scheduling on POSIX
 # threads/signals and requires an assembler; there is no MSVC build.

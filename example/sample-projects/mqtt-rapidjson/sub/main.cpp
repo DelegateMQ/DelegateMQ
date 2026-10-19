@@ -25,8 +25,11 @@ void DataCb(Data& data)
         cout << "DataUpdate incoming data error!" << endl;
 }
 
-int main() 
+// Usage: delegate_sub_app [broker-uri]   (default: tcp://localhost:1883)
+int main(int argc, char* argv[])
 {
+    const char* broker = (argc > 1) ? argv[1] : MqttTransport::DEFAULT_ADDRESS;
+
     // Start the thread that will run ProcessTimers
     std::thread timerThread(ProcessTimers);
 
@@ -34,7 +37,7 @@ int main()
     recvThread.CreateThread();
 
     // Create Receiver object
-    Receiver receiver;
+    Receiver receiver(broker);
     receiver.DataCb += dmq::MakeDelegate(&DataCb, recvThread);
 
     receiver.Start();

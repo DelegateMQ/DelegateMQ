@@ -23,6 +23,7 @@
   - [Internal Data Flow](#internal-data-flow)
   - [Remote Integration](#remote-integration)
     - [Setup Checklist](#setup-checklist)
+    - [Relay Nodes](#relay-nodes)
     - [Relay Loop Hazard](#relay-loop-hazard)
   - [Topologies](#topologies)
   - [Error & Status Reporting](#error--status-reporting)
@@ -154,13 +155,46 @@ Remote distribution requires these specific calls (silent failure if missed):
 2. `DataBus::AddIncomingTopic<T>(...)`: Registers the incoming network ID on the bus.
 3. **Polling Loop**: You must call `participant->ProcessIncoming()` in a loop (or use `NetworkNode`) to drive the receive side and dispatch data to local subscribers.
 
+### Relay Nodes
+A relay (gateway) node receives a topic on one link and forwards it out others, for example to bridge UDP to a local IPC link or UART to Ethernet. All of the node's links share its one DataBus; each link sends only the topics registered on it. Mark the topic as relayed where it comes in, and as outgoing on each link it should go out on:
+
+| Using | Inbound (relay) | Outgoing |
+|---|---|---|
+| `NetworkNode` (or a link with the same API, e.g. Pumptron's `SerialLink`) | `Receive<T>(topic, id, ser, Delivery::RELAY)` | `Send<T>(topic, id, ser)` on the other link(s) |
+| Bare `Participant`s | `DataBus::AddRelayTopic<T>(topic, id, participant, ser)` | `participant->AddRemoteTopic(topic, id)` + `RegisterSerializer<T>` |
+
+For example, a controller with Ethernet peers (GUI, Safety) and a serial MCU, passing MCU telemetry to the GUI and GUI commands to the MCU:
+
+```cpp
+m_mcu.Receive<TempMsg>(topics::MCU_TEMP, RID_MCU_TEMP, serTemp, Delivery::RELAY);  // in from the MCU...
+m_network.Send<TempMsg>(topics::MCU_TEMP, RID_MCU_TEMP, serTemp);                  // ...out to the peers
+
+m_network.Receive<PumpCmd>(topics::PUMP_CMD, RID_PUMP_CMD, serCmd, Delivery::RELAY); // in from the GUI...
+m_mcu.Send<PumpCmd>(topics::PUMP_CMD, RID_PUMP_CMD, serCmd, Reliability::RELIABLE);   // ...out to the MCU
+```
+
+- **The relay uses the data too.** `AddRelayTopic` does a full `Publish`, so relayed data also reaches the relay node's own local subscribers. A gateway can log, display or act on what it forwards with an ordinary `DataBus::Subscribe`.
+- **Transform before forwarding.** To filter or modify data on the way through, don't use `AddRelayTopic`. Receive the topic with `AddIncomingTopic`, subscribe to it, and publish the result on a different topic that is outgoing on the other link. It must be a different topic: a subscriber that republishes on its own topic receives that publish again, an endless local loop.
+- **Each hop is independent.** The relay deserializes each message and serializes it again, so it needs the message type and a serializer for each relayed topic. Remote IDs only have to match between the two ends of one hop. Reliability is per hop too: with `ReliableTransport`, an ACK means the relay received the message, not that the final destination did.
+- **The topic list is fixed.** The relay forwards only the topics registered in its code. There is no discovery across the bridge.
+- **Topic names are global on the bus.** Every link delivers into the same DataBus, so two MCUs that both send `temp` are indistinguishable at the relay and beyond. Give each source its own topic (`mcu1/temp`, `mcu2/temp`). Remote IDs, by contrast, only have to be unique per link.
+- **Participants are shared.** Every link's participants count against one `dmq::MAX_PARTICIPANTS` (`DMQ_MAX_PARTICIPANTS`, default 8). `NetworkNode` and `SerialLink` use two per peer (reliable and unreliable), so two Ethernet peers and two serial MCUs already use all 8. Raise it in the gateway's config; exceeding it reports `ERR_CAPACITY_EXCEEDED` and calls `FaultHandler`.
+- **One `NetworkNode` is one inbound link.** All of its peers arrive on a single receive participant. A topic relayed in from one of its peers and also `Send()` on the same `NetworkNode` goes back to every peer, including the sender. It isn't a loop (the sender receives it with `Delivery::LOCAL`), but the sender gets its own data back. Relay between different links.
+
+[`databus-relay`](../example/sample-projects/databus-relay/) is a worked example: a gateway relaying one topic each way between UDP and a named pipe (Windows) or Unix socket (Linux), and logging both.
+
 ### Relay Loop Hazard
 A relay loop occurs when a node re-broadcasts a message back to its originator.
-- **Prevention**: Use `AddIncomingTopic` (local dispatch only) for standard nodes. Use `AddRelayTopic` only on dedicated bridge/relay nodes that have no return path to the originator.
+- **Prevention**: Use `AddIncomingTopic` / `Delivery::LOCAL` (local dispatch only, the default) for standard nodes. Use `AddRelayTopic` / `Delivery::RELAY` only on dedicated bridge/relay nodes that have no return path to the originator.
+- `AddRelayTopic` forwards to the participants that list the topic as outgoing (`AddRemoteTopic`); it never makes the inbound participant outgoing for that topic, so relayed data is not echoed back out a duplex link it arrived on. Wire each relayed topic one way: inbound on one link, outgoing on the other(s). [`databus-relay`](../example/sample-projects/databus-relay/) is a worked example.
 
 ## Topologies
 
-`NetworkNode` doesn't impose a shape: a topology is just which nodes `AddPeer()` which other nodes, over any `ITransport`. Point-to-point, star, mesh, broadcast/multicast, bridging between different transports (e.g. UART ↔ Ethernet), same-box IPC, and broker-mediated setups are all just different `AddPeer()` wiring and transport choices, not distinct library features — including mixed reliability, since `Reliability::RELIABLE`/`UNRELIABLE` is a per-`Send()`-call choice, not a per-topology one. `example/cellutron`'s three-node mesh (see [`CELLUTRON.md`](../example/cellutron/CELLUTRON.md#hardware-topology)) is one concrete instance. The only hard constraint is that each node's peer/topic capacity (`MaxPeers`/`MaxTopics`, see [Template parameters](../src/delegate-mq/extras/databus/README.md#template-parameters)) is fixed at compile time, not grown dynamically as peers join.
+`NetworkNode` doesn't impose a shape: a topology is just which nodes `AddPeer()` which other nodes, over any `ITransport`. Point-to-point, star, mesh, broadcast/multicast, bridging between different transports (e.g. UART ↔ Ethernet), same-box IPC, and broker-mediated setups are all just different `AddPeer()` wiring and transport choices, not distinct library features — including mixed reliability, since `Reliability::RELIABLE`/`UNRELIABLE` is a per-`Send()`-call choice, not a per-topology one. `example/cellutron`'s three-node mesh (see [`CELLUTRON.md`](../example/cellutron/CELLUTRON.md#hardware-topology)) is one concrete instance. Bridging between transports is explicit: a node that receives a topic delivers it locally only, unless it receives that topic with `Delivery::RELAY` (`NetworkNode`) or `AddRelayTopic` (bare `Participant`); see [Relay Nodes](#relay-nodes) and [Relay Loop Hazard](#relay-loop-hazard). [`databus-relay`](../example/sample-projects/databus-relay/) is a three-node UDP ↔ local IPC example.
+
+`NetworkNode::AddPeer()` takes an address and port, so it fits UDP-style transports: one listen socket plus one socket per peer. A serial port carries both directions to a single peer and needs a different wrapper. The library doesn't ship one yet; Pumptron's [`SerialLink`](../example/pumptron/common/util/SerialLink.h) has the same `Send()`/`Receive()` API and status signals as `NetworkNode` and can be copied into an application.
+
+The hard constraints are compile-time capacities, not grown as peers join: each `NetworkNode`'s `MaxPeers`/`MaxTopics` (see [Template parameters](../src/delegate-mq/extras/databus/README.md#template-parameters)), and the process-wide `dmq::MAX_PARTICIPANTS`, which every link draws from (two participants per peer).
 
 ## Error & Status Reporting
 

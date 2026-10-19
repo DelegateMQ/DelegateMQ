@@ -6,11 +6,12 @@ Description:
     (generate) the build directories. This script compiles every project
     and reports pass/fail.
 
-    See Examples Setup within DETAILS.md before running script.
+    See "Example Ecosystem (Sandbox)" in docs/BUILD.md before running script.
 
 Key Features:
     1. Platform Awareness: Skips Windows-only projects on Linux and vice versa.
-    2. Client/Server Support: Builds client and server sub-projects independently.
+    2. Client/Server Support: Builds client and server sub-projects independently
+       (and each node of a MULTI_NODE project, e.g. databus-relay).
     3. Build Config: Builds Release configuration on both Windows (MSVC
        multi-config) and Linux (single-config generators).
     4. Summary Report: Prints a final pass/fail/skipped table.
@@ -39,7 +40,7 @@ Windows-only (skipped on Linux):
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
-    > python 04_build_samples.py
+    > python scripts/04_build_samples.py
 """
 
 import argparse
@@ -65,6 +66,12 @@ SKIP_ALWAYS = {
     "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
     "cmsis-rtos2-linux",       # needs `west build`, not a plain `cmake -B build`; see its README.md
     "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
+}
+
+# Projects made of more than two node apps, each in its own sub-directory with
+# its own CMakeLists.txt (client/server projects need no entry).
+MULTI_NODE = {
+    "databus-relay": ["gateway", "monitor", "sensor"],
 }
 
 WINDOWS_ONLY = {
@@ -212,23 +219,17 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
     def variant_label(suffix):
         return "" if suffix == "build" else suffix.replace("build-", "", 1)
 
-    client_dir = os.path.join(project_dir, "client")
-    server_dir = os.path.join(project_dir, "server")
+    # Node sub-projects: client/server by default, or a MULTI_NODE project's nodes.
+    roles = MULTI_NODE.get(os.path.basename(project_dir), ["client", "server"])
 
-    client_builds = [(s, os.path.join(client_dir, s)) for s in suffixes]
-    server_builds = [(s, os.path.join(server_dir, s)) for s in suffixes]
-
-    client_exist = [(s, p) for s, p in client_builds if os.path.isdir(p)]
-    server_exist = [(s, p) for s, p in server_builds if os.path.isdir(p)]
-
-    if client_exist or server_exist:
-        targets = []
-        for suffix, path in client_exist:
-            variant = variant_label(suffix)
-            targets.append((f"client ({variant})" if variant else "client", path))
-        for suffix, path in server_exist:
-            variant = variant_label(suffix)
-            targets.append((f"server ({variant})" if variant else "server", path))
+    targets = []
+    for role in roles:
+        for suffix in suffixes:
+            path = os.path.join(project_dir, role, suffix)
+            if os.path.isdir(path):
+                variant = variant_label(suffix)
+                targets.append((f"{role} ({variant})" if variant else role, path))
+    if targets:
         return targets
 
     targets = []
@@ -244,7 +245,7 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
 # ---------------------------------------------------------------------------
 
 def build_samples(use_clang=False):
-    repo_root    = os.path.dirname(os.path.abspath(__file__))
+    repo_root    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_dirs = [
         os.path.join(repo_root, "interop"),
         os.path.join(repo_root, "example", "sample-projects"),
@@ -453,8 +454,8 @@ if __name__ == "__main__":
 # Post-Build Executable Locations (Windows Release):
 # 1. Main test executable: 
 #    DelegateMQ/test/build/Release/delegate_app.exe
-# 2. Tools executables (dmq-spy, dmq-monitor, dmq-target):
-#    DelegateMQ/tools/build/Release/
+# 2. Tools executables (dmq-spy, dmq-monitor, dmq-thread, dmq-target):
+#    DelegateMQ/tools/bin/ (copied there after every tools build)
 # 3. Sample project executables:
 #    DelegateMQ/example/sample-projects/<project_name>/build/Release/
 #    (Note: For client/server samples, they are in the 'client' and 'server' sub-folders)

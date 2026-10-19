@@ -304,10 +304,28 @@ private:
 | Thread dispatch on receive | Manual (listener on DDS thread → queue → your thread) | Automatic (Poll runs on your thread) |
 | Discovery | Automatic (multicast/unicast, topic matching) | Partial (via Multicast group) |
 | QoS policies | Rich (reliability, durability, history, lifespan, ...) | LVC, Lifespan, Min Separation, Deadline Monitoring, Fixed-block, Reliable/Best-Effort |
-| Transport | RTPS over UDP/TCP, multicast, secure | Pluggable `dmq::transport::ITransport` — built-in: UDP (Win32/Linux/Zephyr/LwIP/NetX), TCP (Win32/Linux), ZeroMQ, NNG, MQTT, UART, Serial, Win32 Pipe |
+| Transport | RTPS over UDP/TCP, multicast, secure | Pluggable `dmq::transport::ITransport` — built-in: UDP (Win32/Linux/Zephyr/LwIP/NetX), TCP (Win32/Linux), ZeroMQ, NNG, MQTT, UART, Serial, Win32 Pipe, Linux Unix socket |
 | IDL / build tool required | Yes | No |
 | Embedded / RTOS support | Limited | Yes |
 | Interoperability standard | RTPS (vendor-interoperable) | No standard |
+| Forwarding between networks/transports | Separate router product, set up by configuration, type-agnostic | `DataBus::AddRelayTopic` in a gateway node, set up in code, one call per topic, type compiled in |
+
+**Bridging and routing between networks:**
+
+Forwarding data from one network or transport to another (Ethernet ↔ serial, LAN ↔ WAN, one domain to another) isn't part of the DDS standard. It comes from separate products: RTI Routing Service, eProsima DDS Router (open source), and the Zenoh DDS bridge. Within one participant, DDS can use several transports at once (shared memory, UDP, TCP), but that is transport selection per peer, not forwarding.
+
+| | DDS router | DelegateMQ relay node |
+|---|---|---|
+| Setup | Configuration file, no application code | `AddRelayTopic` + `AddRemoteTopic` per topic in a gateway node's code |
+| Message types | Not needed: types come from discovery (XTypes) | Compiled into the gateway, with a serializer per type |
+| Topics | Lists or wildcards; new topics need no rebuild | Fixed list; a new topic needs a code change |
+| Discovery across the bridge | Yes | No: peers and remote IDs are configured per hop |
+| Per-hop QoS changes, topic/domain remapping | Yes, by configuration | In code (subscribe, modify, publish on another topic) |
+| Gateway uses the data itself | Possible, as an extra DDS application | Built in: relayed data also reaches the gateway's local subscribers |
+| Delivery confirmation | Per hop | Per hop: a reliable-mode ACK confirms only the hop it was sent on |
+| Runs on an MCU | No | Yes, e.g. a UART ↔ Ethernet gateway on the device itself |
+
+For a fixed topology with a known topic list, which is the usual embedded gateway, a DelegateMQ relay is a few lines per topic. For large or changing systems where the gateway shouldn't need to know the message types, a DDS router does far more. See [Relay Nodes](DATABUS.md#relay-nodes) in DATABUS.md and the [`databus-relay`](../example/sample-projects/databus-relay/) sample.
 
 **Thread overhead comparison:**
 

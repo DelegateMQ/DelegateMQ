@@ -13,7 +13,7 @@ endmacro()
 # ZeroMQ library package
 # ---------------------------------------------------------------------------
 if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEROMQ")
-    set(ZMQ_ROOT "${DMQ_ROOT_DIR}/../../../zeromq/install")
+    set(ZMQ_ROOT "${DMQ_DEPS_DIR}/zeromq/install")
     list(APPEND CMAKE_PREFIX_PATH "${ZMQ_ROOT}")
 
     find_package(ZeroMQ CONFIG REQUIRED)
@@ -35,8 +35,8 @@ endif()
 if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_NNG")
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         # Fixed: Point to the 'install' folder where headers actually live after build
-        set_and_check(NNG_INCLUDE_DIR "${DMQ_ROOT_DIR}/../../../nng/install/include")
-        set_and_check(NNG_LIBRARY_DIR "${DMQ_ROOT_DIR}/../../../nng/install/lib")
+        set_and_check(NNG_INCLUDE_DIR "${DMQ_DEPS_DIR}/nng/install/include")
+        set_and_check(NNG_LIBRARY_DIR "${DMQ_DEPS_DIR}/nng/install/lib")
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         set_and_check(NNG_INCLUDE_DIR "/usr/local/include/nng")
         set_and_check(NNG_LIBRARY_DIR "/usr/local/include/nng")
@@ -48,7 +48,7 @@ endif()
 # ---------------------------------------------------------------------------
 if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_MQTT")
     # Define root relative to DelegateMQ source
-    set(MQTT_ROOT "${DMQ_ROOT_DIR}/../../../mqtt")
+    set(MQTT_ROOT "${DMQ_DEPS_DIR}/mqtt")
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         # 1. Headers
@@ -79,9 +79,7 @@ endif()
 # libserialport library
 # ---------------------------------------------------------------------------
 if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_SERIAL_PORT")
-    # Define the root of libserialport relative to the DelegateMQ source directory
-    # Structure: Workspace/DelegateMQ/src/delegate-mq/External.cmake -> Workspace/libserialport
-    set(SERIALPORT_ROOT "${DMQ_ROOT_DIR}/../../../libserialport")
+    set(SERIALPORT_ROOT "${DMQ_DEPS_DIR}/libserialport")
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         # 1. Header: Found in the root of the source folder (libserialport.h)
@@ -112,7 +110,7 @@ endif()
 if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ARM_LWIP_UDP" OR DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP")
     
     # Adjust this path if your lwIP root is different
-    set(LWIP_ROOT "${DMQ_ROOT_DIR}/../../../lwip")
+    set(LWIP_ROOT "${DMQ_DEPS_DIR}/lwip")
 
     # lwIP requires 3 main include directories for the socket API
     set_and_check(LWIP_INCLUDE_DIR_1 "${LWIP_ROOT}/src/include")
@@ -141,7 +139,7 @@ endif()
 # ---------------------------------------------------------------------------
 if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_THREADX_UDP")
     # Adjust this path to your NetX / NetX Duo root
-    set(NETX_ROOT "${DMQ_ROOT_DIR}/../../../netxduo")
+    set(NETX_ROOT "${DMQ_DEPS_DIR}/netxduo")
     
     # Verify root
     set_and_check(NETX_INCLUDE_DIR "${NETX_ROOT}/common/inc")
@@ -160,28 +158,28 @@ endif()
 # ---------------------------------------------------------------------------
 if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_MSGPACK")
     add_compile_definitions(MSGPACK_NO_BOOST)
-    set_and_check(MSGPACK_INCLUDE_DIR "${DMQ_ROOT_DIR}/../../../msgpack-c/include")
+    set_and_check(MSGPACK_INCLUDE_DIR "${DMQ_DEPS_DIR}/msgpack-c/include")
 endif()
 
 # ---------------------------------------------------------------------------
 # Cereal
 # ---------------------------------------------------------------------------
 if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_CEREAL")
-    set_and_check(CEREAL_INCLUDE_DIR "${DMQ_ROOT_DIR}/../../../cereal/include")
+    set_and_check(CEREAL_INCLUDE_DIR "${DMQ_DEPS_DIR}/cereal/include")
 endif()
 
 # ---------------------------------------------------------------------------
 # Bitsery
 # ---------------------------------------------------------------------------
 if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_BITSERY")
-    set_and_check(BITSERY_INCLUDE_DIR "${DMQ_ROOT_DIR}/../../../bitsery/include")
+    set_and_check(BITSERY_INCLUDE_DIR "${DMQ_DEPS_DIR}/bitsery/include")
 endif()
 
 # ---------------------------------------------------------------------------
 # RapidJSON
 # ---------------------------------------------------------------------------
 if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_RAPIDJSON")
-    set_and_check(RAPIDJSON_INCLUDE_DIR "${DMQ_ROOT_DIR}/../../../rapidjson/include")
+    set_and_check(RAPIDJSON_INCLUDE_DIR "${DMQ_DEPS_DIR}/rapidjson/include")
 
     # Globally silence C++17 std::iterator warnings on RapidJSON library
     if(MSVC)
@@ -193,7 +191,7 @@ endif()
 # FreeRTOS
 # ---------------------------------------------------------------------------
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
-    set_and_check(FREERTOS_ROOT_DIR "${DMQ_ROOT_DIR}/../../../FreeRTOS")
+    set_and_check(FREERTOS_ROOT_DIR "${DMQ_DEPS_DIR}/FreeRTOS")
     
     file(GLOB FREERTOS_SOURCES 
         "${FREERTOS_ROOT_DIR}/*.c"
@@ -236,7 +234,7 @@ endif()
 # ThreadX
 # ---------------------------------------------------------------------------
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
-    set_and_check(THREADX_ROOT_DIR "${DMQ_ROOT_DIR}/../../../threadx")
+    set_and_check(THREADX_ROOT_DIR "${DMQ_DEPS_DIR}/threadx")
 
     # ThreadX ships its own top-level CMakeLists.txt, which builds a real
     # "azrtos::threadx" target from THREADX_ARCH / THREADX_TOOLCHAIN. We link
@@ -311,7 +309,7 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_ZEPHYR")
     # isn't vendored as a plain sibling directory; its location is a west
     # workspace found via the ZEPHYR_BASE environment variable that
     # find_package(Zephyr) itself sets. Sanity-check against that instead
-    # of assuming a "../../../zephyr" sibling clone that doesn't apply here.
+    # of assuming a "${DMQ_DEPS_DIR}/zephyr" clone that doesn't apply here.
     if(NOT DEFINED ENV{ZEPHYR_BASE})
         message(WARNING "DelegateMQ: DMQ_THREAD_ZEPHYR is set, but ZEPHYR_BASE "
                          "is not defined -- ensure find_package(Zephyr) ran "
@@ -377,5 +375,5 @@ endif()
 # spdlog
 # ---------------------------------------------------------------------------
 if (DMQ_LOG STREQUAL "ON")
-    set_and_check(SPDLOG_INCLUDE_DIR "${DMQ_ROOT_DIR}/../../../spdlog/include")
+    set_and_check(SPDLOG_INCLUDE_DIR "${DMQ_DEPS_DIR}/spdlog/include")
 endif()

@@ -101,6 +101,7 @@ void System::OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteI
 void System::SetupNetwork() {
     SpyBridge::Start("127.0.0.1", 9999, "GUI");
     NodeBridge::StartMulticast("GUI", "239.1.1.1", 9998);
+    NodeBridge::Watch(m_network);   // link health in dmq-monitor's Health column
 
     m_dataBusErrorConn = dmq::databus::DataBus::SubscribeError(dmq::MakeDelegate(this, &System::OnDataBusError));
 

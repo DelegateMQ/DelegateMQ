@@ -20,7 +20,7 @@ from dmq_databus import DmqDataBus, SendStatus
 # 1. Configuration: Match these with the C++ Server settings
 SERVER_HOST = "127.0.0.1"
 DATA_RECV_PORT = 8000 # Server's multicast PUB port
-CMD_SEND_PORT = 8001  # Server's unicast SUB port
+CMD_SEND_PORT = 8002  # Server's unicast SUB port for this client (C# uses 8001)
 MULTICAST_GROUP = "239.1.1.50"  # Must match C++ server and C# client
 
 # Topic IDs (Must match C++ and C# definitions)
