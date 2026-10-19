@@ -16,6 +16,9 @@
 
 // SensorData is published over multicast so the C# and Python clients can both
 // receive it concurrently; Command stays unicast since the server is its only recipient.
+// Each client sends commands to its own port: a Participant filters retries by
+// sequence number, and two clients sharing one would each start at seq 1, so one
+// client's commands would be dropped as duplicates of the other's.
 #ifdef _WIN32
 #include "port/transport/win32-udp/Win32UdpTransport.h"
 #include "port/transport/win32-udp/MulticastTransport.h"
@@ -57,20 +60,23 @@ int main() {
 
     std::string localIP = dmq::util::NetworkContext::GetLocalAddress();
 
-    // 3. Setup Transport (multicast PUB on 8000, unicast SUB on 8001)
+    // 3. Setup Transport (multicast PUB on 8000, unicast SUB on 8001 for C# and 8002 for Python)
     auto pubTransport = std::make_unique<SensorDataTransportType>();
-    auto subTransport = std::make_unique<CommandTransportType>();
+    auto csharpSubTransport = std::make_unique<CommandTransportType>();
+    auto pythonSubTransport = std::make_unique<CommandTransportType>();
 
     if (pubTransport->Create(SensorDataTransportType::Type::PUB, MULTICAST_GROUP, 8000, localIP.c_str()) != 0 ||
-        subTransport->Create(CommandTransportType::Type::SUB, "", 8001) != 0) {
+        csharpSubTransport->Create(CommandTransportType::Type::SUB, "", 8001) != 0 ||
+        pythonSubTransport->Create(CommandTransportType::Type::SUB, "", 8002) != 0) {
         std::cerr << "Failed to create transports" << std::endl;
         return -1;
     }
 
     // Participants in DelegateMQ currently wrap a single ITransport. 
-    // We create one for outgoing (Publisher) and one for incoming (Subscriber).
+    // We create one for outgoing (Publisher) and one incoming (Subscriber) per client.
     auto pubParticipant = std::make_shared<Participant>(*pubTransport);
-    auto subParticipant = std::make_shared<Participant>(*subTransport);
+    auto csharpSubParticipant = std::make_shared<Participant>(*csharpSubTransport);
+    auto pythonSubParticipant = std::make_shared<Participant>(*pythonSubTransport);
 
     DataBus::AddParticipant(pubParticipant);
     // DataBus::AddParticipant(subParticipant); // Only needed if subParticipant had outgoing topics
@@ -85,7 +91,8 @@ int main() {
 
     // 5. Handle Incoming Commands from C#/Python
     static std::atomic<int> pollingRateMs{ 1000 };
-    DataBus::AddIncomingTopic<Command>("CommandTopic", CommandId, *subParticipant, cmdSer);
+    DataBus::AddIncomingTopic<Command>("CommandTopic", CommandId, *csharpSubParticipant, cmdSer);
+    DataBus::AddIncomingTopic<Command>("CommandTopic", CommandId, *pythonSubParticipant, cmdSer);
     
     auto cmdConn = DataBus::Subscribe<Command>("CommandTopic", [](Command cmd) {
         std::cout << "[RECV] Command: pollingRateMs=" << cmd.pollingRateMs << std::endl;
@@ -98,13 +105,15 @@ int main() {
         std::cout << "[ERROR] DataBus topic=" << topic << " error=" << static_cast<int>(err) << std::endl;
     });
 
-    // Start a thread to process incoming messages from subTransport
-    std::thread recvThread([&subParticipant]() {
-        while (true) {
-            subParticipant->ProcessIncoming();
-        }
-    });
-    recvThread.detach();
+    // Start a thread per client to process incoming messages from its subTransport
+    for (auto* subParticipant : { csharpSubParticipant.get(), pythonSubParticipant.get() }) {
+        std::thread recvThread([subParticipant]() {
+            while (true) {
+                subParticipant->ProcessIncoming();
+            }
+        });
+        recvThread.detach();
+    }
 
     // 6. Main Loop: Publish sensor data
     int id = 0;

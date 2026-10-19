@@ -33,7 +33,7 @@ namespace CsharpSample
         // Configuration: Match these with the C++ Server settings
         const string ServerHost = "127.0.0.1";
         const int DataRecvPort = 8000; // Server's multicast PUB port
-        const int CmdSendPort = 8001;  // Server's unicast SUB port
+        const int CmdSendPort = 8001;  // Server's unicast SUB port for this client (Python uses 8002)
         const string MulticastGroup = "239.1.1.50"; // Must match C++ server and Python client
 
         // Topic IDs (Must match C++ and Python definitions)
