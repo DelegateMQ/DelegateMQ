@@ -1,5 +1,12 @@
 # Port build options
 
+# Start each include from empty lists: only some branches below set these, so a
+# value left by an earlier include in this scope (or a parent's) would leak
+# into this configuration.
+foreach(_dmq_list THREAD SERIALIZE TRANSPORT OS DISPATCHER ALLOCATOR UTIL RPC FAULT DATABUS)
+    set(${_dmq_list}_SOURCES "")
+endforeach()
+
 if (DMQ_THREAD STREQUAL "DMQ_THREAD_STDLIB")
     dmq_compile_definitions(DMQ_THREAD_STDLIB)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
@@ -227,6 +234,19 @@ if (DMQ_DATABUS STREQUAL "ON")
     dmq_compile_definitions(DMQ_DATABUS)
     file(GLOB DATABUS_SOURCES CONFIGURE_DEPENDS "${DMQ_ROOT_DIR}/extras/databus/*.h")
     list(APPEND DMQ_EXTRAS_SOURCES ${DATABUS_SOURCES})
+endif()
+
+# DelegateOpt.h turns DataBus and its tools on for desktop builds unless
+# DMQ_DATABUS_OFF / DMQ_DATABUS_TOOLS_OFF is defined, so an explicit
+# set(... "OFF") must be passed on for it to take effect there. A default
+# Defaults.cmake filled in is left to DelegateOpt.h, as before.
+list(FIND _DMQ_AUTO_DEFAULTS DMQ_DATABUS _dmq_databus_auto)
+if (NOT DMQ_DATABUS AND _dmq_databus_auto EQUAL -1)
+    dmq_compile_definitions(DMQ_DATABUS_OFF)
+endif()
+list(FIND _DMQ_AUTO_DEFAULTS DMQ_DATABUS_TOOLS _dmq_tools_auto)
+if (NOT DMQ_DATABUS_TOOLS AND _dmq_tools_auto EQUAL -1)
+    dmq_compile_definitions(DMQ_DATABUS_TOOLS_OFF)
 endif()
 
 # Combined list for compilation

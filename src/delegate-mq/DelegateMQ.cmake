@@ -72,7 +72,9 @@ check("${DMQ_ROOT_DIR}/External.cmake")
 include ("${DMQ_ROOT_DIR}/External.cmake")
 
 if(DMQ_USER_CONFIG)
-    dmq_compile_definitions(DMQ_USER_CONFIG="${DMQ_USER_CONFIG}")
+    # Accept the name with or without surrounding quotes (-DDMQ_USER_CONFIG=\"x.h\")
+    string(REGEX REPLACE "^\"(.*)\"$" "\\1" _dmq_user_config "${DMQ_USER_CONFIG}")
+    dmq_compile_definitions(DMQ_USER_CONFIG="${_dmq_user_config}")
 endif()
 
 if(DMQ_FORCE_OPTIMIZE_DEBUG)

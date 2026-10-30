@@ -44,9 +44,9 @@ DelegateMQ isn't in vcpkg or Conan — its behavior is selected via compile-time
 
 ```cmake
 # Set any DMQ_* options (DMQ_THREAD, DMQ_TRANSPORT, DMQ_ALLOCATOR, etc.) before
-# DelegateMQ is added -- see "Configuration and Overrides" below.
-set(DMQ_TRANSPORT "DMQ_TRANSPORT_ZEROMQ")
-set(DMQ_SERIALIZE "DMQ_SERIALIZE_MSGPACK")
+# DelegateMQ is added -- see "Configuration and Overrides" below. The platform
+# defaults (stdlib threads, built-in serializer, UDP) need no third-party code.
+set(DMQ_ALLOCATOR "ON")
 
 include(FetchContent)
 FetchContent_Declare(
@@ -62,9 +62,11 @@ target_link_libraries(my_app PRIVATE DelegateMQ::DelegateMQ)
 
 When DelegateMQ isn't the top-level project, its root `CMakeLists.txt` builds only this static library: the tests, samples and tools are skipped. The target carries everything the selected options need as usage requirements: the `DMQ_*` compile definitions, the DelegateMQ include directory, the enabled third-party include directories (marked `SYSTEM`), and the libraries DelegateMQ can resolve itself (ZeroMQ, ThreadX, Qt, and `Threads::Threads` on Linux). Nothing is added to your own directory's compile definitions.
 
+**Third-party ports need `DMQ_DEPS_DIR`.** `external/` is empty in a fresh clone, so selecting a port that uses a third-party library (ZeroMQ, NNG, MQTT, MessagePack, Cereal, Bitsery, RapidJSON, spdlog, FreeRTOS, ThreadX, ...) stops configuration until `DMQ_DEPS_DIR` points at those libraries. Either run `scripts/01_fetch_repos.py` and `02_build_libs.py` once (see [Third-Party Directory](#third-party-directory-dmq_deps_dir)) and set `DMQ_DEPS_DIR` to the result, or lay out your own builds the same way.
+
 A few things stay with the application:
 - **NNG, MQTT and libserialport libraries.** Their include directories come with the target, but your project links the library itself, as the samples under `example/sample-projects/` do.
-- **RTOS config headers.** FreeRTOS, ThreadX, Zephyr, NuttX and CMSIS-RTOS2 ports compile against your `FreeRTOSConfig.h` (or equivalent), so add that directory to the target: `target_include_directories(DelegateMQ PUBLIC config/)`. Zephyr and NuttX builds also need the target linked to the RTOS build's own interface target.
+- **The RTOS kernel and its config headers.** FreeRTOS, ThreadX, Zephyr, NuttX and CMSIS-RTOS2 ports compile against your `FreeRTOSConfig.h` (or equivalent), so add that directory to the target: `target_include_directories(DelegateMQ PUBLIC config/)`. The target carries the FreeRTOS kernel headers and links ThreadX's own CMake target, but the FreeRTOS kernel sources (`FREERTOS_SOURCES` when using `DMQ_DEPS_DIR`) are built by your application, since they depend on your config, port and heap choice. Zephyr and NuttX builds also need the target linked to the RTOS build's own interface target.
 - **A user config header**, if you use one: set `DMQ_USER_CONFIG` and `DMQ_USER_CONFIG_DIR` (see [User Config File](#2-user-config-file-delegatemqconfigh)).
 
 ### Including `DelegateMQ.cmake` Directly
@@ -77,7 +79,7 @@ add_executable(my_app main.cpp ${DMQ_PORT_SOURCES})
 target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 ```
 
-This applies the `DMQ_*` definitions to the whole calling directory with `add_compile_definitions`. To get a target instead, call `dmq_add_library(<name>)` after the include. Each include captures its own options, so one build tree can hold several configurations (for example a FreeRTOS controller and a stdlib GUI), each with its own `dmq_add_library` target. Set `DMQ_NO_GLOBAL_DEFINITIONS ON` before the include to keep the definitions on the target only.
+This applies the `DMQ_*` definitions to the whole calling directory with `add_compile_definitions`. To get a target instead, call `dmq_add_library(<name>)` after the include. Each include captures its own options, so one build tree can hold several configurations (for example a FreeRTOS controller and a stdlib GUI), each with its own `dmq_add_library` target. Set `DMQ_NO_GLOBAL_DEFINITIONS ON` before the include to keep the definitions on the target only. A later include in the same directory, or in a subdirectory, starts from that include's options again: source lists, third-party paths and any defaults DelegateMQ filled in are recomputed, while variables you set yourself carry over as usual in CMake.
 
 `DelegateMQ.cmake` resolves its own paths from `CMAKE_CURRENT_LIST_DIR`, so it works identically whether it's reached via `FetchContent`, a git submodule, or a plain manual clone.
 

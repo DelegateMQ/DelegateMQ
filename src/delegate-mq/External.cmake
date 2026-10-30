@@ -9,6 +9,12 @@ macro(set_and_check _var _file)
     endif()
 endmacro()
 
+# Outputs below are only set for the selected ports; clear what an earlier
+# include in this scope (or a parent's) may have left.
+foreach(_dmq_var FREERTOS_SOURCES FREERTOS_LIBRARIES THREADX_LIBRARIES LWIP_SOURCES NETX_SOURCES)
+    set(${_dmq_var} "")
+endforeach()
+
 # ---------------------------------------------------------------------------
 # ZeroMQ library package
 # ---------------------------------------------------------------------------
@@ -351,23 +357,17 @@ endif()
 # Qt Framework
 # ---------------------------------------------------------------------------
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_QT")
-    dmq_compile_definitions(DMQ_THREAD_QT)
-    
+    # DMQ_THREAD_QT and the port/os/qt sources come from Port.cmake.
+
     # Find the Qt packages (Core is usually sufficient for QThread)
     find_package(Qt6 COMPONENTS Core REQUIRED)
     # Or Qt5: find_package(Qt5 COMPONENTS Core REQUIRED)
 
-    # Collect the source files
-    file(GLOB THREAD_SOURCES 
-        "${DMQ_ROOT_DIR}/port/os/qt/*.cpp" 
-        "${DMQ_ROOT_DIR}/port/os/qt/*.h" 
-    )
-    
     # Important: Enable CMAKE_AUTOMOC for the Qt Meta-Object system 
     # (needed for signals/slots in Thread.h)
     set(CMAKE_AUTOMOC ON)
     
-    # You might need to link Qt6::Core to your main target later:
+    # Link Qt6::Core to your target (dmq_add_library() targets link it already):
     # target_link_libraries(YourApp PRIVATE Qt6::Core)
 endif()
 
@@ -384,15 +384,36 @@ endif()
 # located by the application (NNG, MQTT, libserialport) are linked by the
 # application itself; their include directories are still carried.
 # ---------------------------------------------------------------------------
+# Each entry is gated on its own option, not on whether the variable is set:
+# an earlier include in this scope may have left another port's paths behind.
 set(DMQ_EXTERNAL_INCLUDE_DIRS "")
-foreach(_dmq_inc
-        ZeroMQ_INCLUDE_DIR NNG_INCLUDE_DIR MQTT_INCLUDE_DIR SERIALPORT_INCLUDE_DIR
-        LWIP_INCLUDE_DIRS NETX_INCLUDE_DIR MSGPACK_INCLUDE_DIR CEREAL_INCLUDE_DIR
-        BITSERY_INCLUDE_DIR RAPIDJSON_INCLUDE_DIR SPDLOG_INCLUDE_DIR)
-    if(${_dmq_inc})
-        list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${${_dmq_inc}})
-    endif()
-endforeach()
+if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEROMQ")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${ZeroMQ_INCLUDE_DIR})
+elseif(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_NNG")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${NNG_INCLUDE_DIR})
+elseif(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_MQTT")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${MQTT_INCLUDE_DIR})
+elseif(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_SERIAL_PORT")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${SERIALPORT_INCLUDE_DIR})
+elseif(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ARM_LWIP_UDP" OR DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${LWIP_INCLUDE_DIRS})
+elseif(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_THREADX_UDP")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${NETX_INCLUDE_DIR})
+endif()
+if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_MSGPACK")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${MSGPACK_INCLUDE_DIR})
+elseif(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_CEREAL")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${CEREAL_INCLUDE_DIR})
+elseif(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_BITSERY")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${BITSERY_INCLUDE_DIR})
+elseif(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_RAPIDJSON")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${RAPIDJSON_INCLUDE_DIR})
+endif()
+if(DMQ_LOG STREQUAL "ON")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${SPDLOG_INCLUDE_DIR})
+endif()
+# FreeRTOS kernel headers only. The kernel sources (FREERTOS_SOURCES) build
+# against the application's FreeRTOSConfig.h and stay in the application.
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
     list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS
         "${FREERTOS_ROOT_DIR}/include"
@@ -403,13 +424,13 @@ set(DMQ_LINK_LIBRARIES "")
 if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEROMQ" AND TARGET libzmq)
     list(APPEND DMQ_LINK_LIBRARIES libzmq)
 endif()
-if(THREADX_LIBRARIES)
+if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
+    list(APPEND DMQ_LINK_LIBRARIES ${FREERTOS_LIBRARIES})
+elseif(DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
     list(APPEND DMQ_LINK_LIBRARIES ${THREADX_LIBRARIES})
-endif()
-if(DMQ_THREAD STREQUAL "DMQ_THREAD_QT" AND TARGET Qt6::Core)
+elseif(DMQ_THREAD STREQUAL "DMQ_THREAD_QT" AND TARGET Qt6::Core)
     list(APPEND DMQ_LINK_LIBRARIES Qt6::Core)
-endif()
-if(UNIX AND (DMQ_THREAD STREQUAL "DMQ_THREAD_STDLIB" OR DMQ_THREAD STREQUAL "DMQ_THREAD_POSIX"))
+elseif(UNIX AND (DMQ_THREAD STREQUAL "DMQ_THREAD_STDLIB" OR DMQ_THREAD STREQUAL "DMQ_THREAD_POSIX"))
     find_package(Threads REQUIRED)
     list(APPEND DMQ_LINK_LIBRARIES Threads::Threads)
 endif()
