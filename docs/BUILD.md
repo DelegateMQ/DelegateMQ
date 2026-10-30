@@ -40,24 +40,44 @@ The output executable will be located in `build/delegate_app/`.
 ---
 
 ## Consuming as a Dependency (FetchContent)
-DelegateMQ isn't in vcpkg or Conan — its behavior is selected via compile-time options (`DMQ_THREAD_*`, `DMQ_SERIALIZE_*`, `DMQ_ALLOCATOR`, etc.), so there's no single prebuilt library target to hand a binary package manager. Instead, pull the source in with CMake's built-in `FetchContent` and build it as part of your own project, the same way `test/CMakeLists.txt` does internally:
+DelegateMQ isn't in vcpkg or Conan — its behavior is selected via compile-time options (`DMQ_THREAD_*`, `DMQ_SERIALIZE_*`, `DMQ_ALLOCATOR`, etc.), so there's no single prebuilt library to hand a binary package manager. Instead, pull the source in with CMake's built-in `FetchContent` (or `add_subdirectory` on a git submodule or clone) and link the `DelegateMQ::DelegateMQ` target:
 
 ```cmake
+# Set any DMQ_* options (DMQ_THREAD, DMQ_TRANSPORT, DMQ_ALLOCATOR, etc.) before
+# DelegateMQ is added -- see "Configuration and Overrides" below.
+set(DMQ_TRANSPORT "DMQ_TRANSPORT_ZEROMQ")
+set(DMQ_SERIALIZE "DMQ_SERIALIZE_MSGPACK")
+
 include(FetchContent)
 FetchContent_Declare(
   delegatemq
   GIT_REPOSITORY https://github.com/DelegateMQ/DelegateMQ.git
-  GIT_TAG v2.2.0
+  GIT_TAG master   # or a release tag newer than v2.2.0
 )
 FetchContent_MakeAvailable(delegatemq)
 
-# Set any DMQ_* options (DMQ_THREAD, DMQ_ALLOCATOR, etc.) before this include --
-# see "Configuration and Overrides" below.
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE DelegateMQ::DelegateMQ)
+```
+
+When DelegateMQ isn't the top-level project, its root `CMakeLists.txt` builds only this static library: the tests, samples and tools are skipped. The target carries everything the selected options need as usage requirements: the `DMQ_*` compile definitions, the DelegateMQ include directory, the enabled third-party include directories (marked `SYSTEM`), and the libraries DelegateMQ can resolve itself (ZeroMQ, ThreadX, Qt, and `Threads::Threads` on Linux). Nothing is added to your own directory's compile definitions.
+
+A few things stay with the application:
+- **NNG, MQTT and libserialport libraries.** Their include directories come with the target, but your project links the library itself, as the samples under `example/sample-projects/` do.
+- **RTOS config headers.** FreeRTOS, ThreadX, Zephyr, NuttX and CMSIS-RTOS2 ports compile against your `FreeRTOSConfig.h` (or equivalent), so add that directory to the target: `target_include_directories(DelegateMQ PUBLIC config/)`. Zephyr and NuttX builds also need the target linked to the RTOS build's own interface target.
+- **A user config header**, if you use one: set `DMQ_USER_CONFIG` and `DMQ_USER_CONFIG_DIR` (see [User Config File](#2-user-config-file-delegatemqconfigh)).
+
+### Including `DelegateMQ.cmake` Directly
+The older approach still works, and is what every sample in this repository uses: include `DelegateMQ.cmake` and add the source lists to your own target.
+
+```cmake
 include("${delegatemq_SOURCE_DIR}/src/delegate-mq/DelegateMQ.cmake")
 
 add_executable(my_app main.cpp ${DMQ_PORT_SOURCES})
 target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 ```
+
+This applies the `DMQ_*` definitions to the whole calling directory with `add_compile_definitions`. To get a target instead, call `dmq_add_library(<name>)` after the include. Each include captures its own options, so one build tree can hold several configurations (for example a FreeRTOS controller and a stdlib GUI), each with its own `dmq_add_library` target. Set `DMQ_NO_GLOBAL_DEFINITIONS ON` before the include to keep the definitions on the target only.
 
 `DelegateMQ.cmake` resolves its own paths from `CMAKE_CURRENT_LIST_DIR`, so it works identically whether it's reached via `FetchContent`, a git submodule, or a plain manual clone.
 
@@ -123,7 +143,7 @@ Passed via `-D` flags during configuration. These are the most common overrides:
 ### 2. User Config File (`DelegateMQConfig.h`)
 For fine-tuning numeric constants without editing library files:
 1. Copy `src/delegate-mq/delegate/DelegateMQConfig_Template.h` to your project and rename it `DelegateMQConfig.h`.
-2. Set the CMake variable `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`.
+2. Set the CMake variable `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`, and `DMQ_USER_CONFIG_DIR` to the directory holding it if that isn't already on the include path.
 3. Modify the constants as needed (e.g., `DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`).
 
 ---

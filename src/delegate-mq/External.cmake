@@ -23,7 +23,7 @@ if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEROMQ")
         if(TARGET libzmq-static AND NOT TARGET libzmq)
             add_library(libzmq ALIAS libzmq-static)
         endif()
-        add_compile_definitions(ZMQ_STATIC)
+        dmq_compile_definitions(ZMQ_STATIC)
     else()
         message(FATAL_ERROR "ZeroMQ not found in ${ZMQ_ROOT}")
     endif()
@@ -157,7 +157,7 @@ endif()
 # MessagePack
 # ---------------------------------------------------------------------------
 if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_MSGPACK")
-    add_compile_definitions(MSGPACK_NO_BOOST)
+    dmq_compile_definitions(MSGPACK_NO_BOOST)
     set_and_check(MSGPACK_INCLUDE_DIR "${DMQ_DEPS_DIR}/msgpack-c/include")
 endif()
 
@@ -183,7 +183,7 @@ if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_RAPIDJSON")
 
     # Globally silence C++17 std::iterator warnings on RapidJSON library
     if(MSVC)
-        add_compile_definitions(_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
+        dmq_compile_definitions(_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
     endif()
 endif()
 
@@ -351,7 +351,7 @@ endif()
 # Qt Framework
 # ---------------------------------------------------------------------------
 if(DMQ_THREAD STREQUAL "DMQ_THREAD_QT")
-    add_compile_definitions(DMQ_THREAD_QT)
+    dmq_compile_definitions(DMQ_THREAD_QT)
     
     # Find the Qt packages (Core is usually sufficient for QThread)
     find_package(Qt6 COMPONENTS Core REQUIRED)
@@ -376,4 +376,40 @@ endif()
 # ---------------------------------------------------------------------------
 if (DMQ_LOG STREQUAL "ON")
     set_and_check(SPDLOG_INCLUDE_DIR "${DMQ_DEPS_DIR}/spdlog/include")
+endif()
+
+# ---------------------------------------------------------------------------
+# Usage requirements for dmq_add_library(): third-party headers the selected
+# ports include, and libraries resolvable here. Transports whose library is
+# located by the application (NNG, MQTT, libserialport) are linked by the
+# application itself; their include directories are still carried.
+# ---------------------------------------------------------------------------
+set(DMQ_EXTERNAL_INCLUDE_DIRS "")
+foreach(_dmq_inc
+        ZeroMQ_INCLUDE_DIR NNG_INCLUDE_DIR MQTT_INCLUDE_DIR SERIALPORT_INCLUDE_DIR
+        LWIP_INCLUDE_DIRS NETX_INCLUDE_DIR MSGPACK_INCLUDE_DIR CEREAL_INCLUDE_DIR
+        BITSERY_INCLUDE_DIR RAPIDJSON_INCLUDE_DIR SPDLOG_INCLUDE_DIR)
+    if(${_dmq_inc})
+        list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS ${${_dmq_inc}})
+    endif()
+endforeach()
+if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
+    list(APPEND DMQ_EXTERNAL_INCLUDE_DIRS
+        "${FREERTOS_ROOT_DIR}/include"
+        "${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}")
+endif()
+
+set(DMQ_LINK_LIBRARIES "")
+if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEROMQ" AND TARGET libzmq)
+    list(APPEND DMQ_LINK_LIBRARIES libzmq)
+endif()
+if(THREADX_LIBRARIES)
+    list(APPEND DMQ_LINK_LIBRARIES ${THREADX_LIBRARIES})
+endif()
+if(DMQ_THREAD STREQUAL "DMQ_THREAD_QT" AND TARGET Qt6::Core)
+    list(APPEND DMQ_LINK_LIBRARIES Qt6::Core)
+endif()
+if(UNIX AND (DMQ_THREAD STREQUAL "DMQ_THREAD_STDLIB" OR DMQ_THREAD STREQUAL "DMQ_THREAD_POSIX"))
+    find_package(Threads REQUIRED)
+    list(APPEND DMQ_LINK_LIBRARIES Threads::Threads)
 endif()

@@ -9,6 +9,19 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+### Added
+- **`DelegateMQ::DelegateMQ` CMake target.** Pull DelegateMQ in with `FetchContent` or `add_subdirectory`, set any `DMQ_*` options first, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. It's a static library of the selected port and extras sources, and it carries the `DMQ_*` definitions, include directories (third-party ones as `SYSTEM`) and the dependencies DelegateMQ can resolve (ZeroMQ, ThreadX, Qt, `Threads::Threads`). Projects that include `DelegateMQ.cmake` directly can call `dmq_add_library(<name>)` for the same target, one per configuration, and set `DMQ_NO_GLOBAL_DEFINITIONS ON` to keep definitions off the calling directory. See BUILD.md "Consuming as a Dependency".
+- **`DMQ_USER_CONFIG_DIR`** adds the directory holding the user config header to the target's include path.
+
+### Fixed
+- **`FetchContent_MakeAvailable(delegatemq)` no longer builds DelegateMQ's test app** inside the consuming project. The tests, samples and tools are only added when DelegateMQ is the top-level project.
+- **`DMQ_USER_CONFIG` as a CMake variable now takes effect.** BUILD.md documented `-DDMQ_USER_CONFIG=...`, but nothing read it; it's now passed to the compiler. Samples that already set the `DMQ_USER_CONFIG` compile definition themselves are unaffected.
+- **`DMQ_FORCE_OPTIMIZE_DEBUG` on the top-level build reached nothing.** The root `CMakeLists.txt` added it after `test/` had already been configured. `DelegateMQ.cmake` now applies it.
+- **`DMQ_STRICT` on MSVC failed in third-party headers** (msgpack under `/analyze`). Strict mode now adds `/analyze:external-`, so code analysis covers DelegateMQ's own code, not external headers.
+
+### Changed
+- The root `CMakeLists.txt` now requires CMake 3.16, matching `test/` and the samples. Under 3.10 policy, `option()` ignored a parent project's plain `set(DMQ_STRICT ON)`.
+
 ## [2.2.0] - 2026-10-19
 
 ### Upgrading to 2.2.0
