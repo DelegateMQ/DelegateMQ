@@ -1,6 +1,6 @@
 # DelegateMQ
 
-DelegateMQ is a header-only C++17 library that invokes any callable (free function, member function, static function, lambda) synchronously, asynchronously across threads, or remotely across process/network boundaries — all through a single unified API. The same `dmq::MakeDelegate()` syntax works regardless of invocation mode; switching between sync, async, or remote is a one-line change.
+DelegateMQ is a C++17 library with a header-only core that invokes any callable (free function, member function, static function, lambda) synchronously, asynchronously across threads, or remotely across process/network boundaries — all through a single unified API. The same `dmq::MakeDelegate()` syntax works regardless of invocation mode; switching between sync, async, or remote is a one-line change.
 
 ## Core Abstractions
 
@@ -349,6 +349,7 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 - CMake is the primary build system; it auto-detects the platform and selects defaults.
 - As a dependency (FetchContent or `add_subdirectory`): set `DMQ_*` options first, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`; the static library target carries the port sources, definitions and include paths.
 - For async delegates or DataBus, also compile the `DMQ_PORT_SOURCES` for the target OS/thread port. (`include(DelegateMQ.cmake)` path; `dmq_add_library(<name>)` turns those into a target).
+- Without CMake (Keil, IAR, STM32CubeIDE, Makefiles): add `src/delegate-mq` to the include path and compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq` (not both); select ports/options with `#define`s in a `DelegateMQConfig.h` on the include path (copy `delegate/DelegateMQConfig_Template.h`).
 - Key CMake options: `DMQ_THREAD` (e.g., `DMQ_THREAD_STDLIB`, `DMQ_THREAD_FREERTOS`, `DMQ_THREAD_WIN32`), `DMQ_ALLOCATOR` (fixed-block allocator), `DMQ_ASSERTS`, `DMQ_TOOLS`.
 
 ## Diagnostic Tools (DMQ_TOOLS=ON)

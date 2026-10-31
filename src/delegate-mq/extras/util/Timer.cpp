@@ -6,7 +6,6 @@
 
 namespace dmq::util {
 
-using namespace std;
 
 std::atomic<bool> Timer::m_timerStopped{false};
 

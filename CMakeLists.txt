@@ -30,6 +30,10 @@ endif()
 # Add subdirectory for building delegate_app
 add_subdirectory(test ${CMAKE_BINARY_DIR}/delegate_app)
 
+# Make delegate_app the startup project in the top-level Visual Studio solution
+# (test/CMakeLists.txt sets it only for its own Delegate.sln).
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT delegate_app)
+
 # Optional: build diagnostic tools (dmq-spy, dmq-monitor, dmq-target)
 # Requires FTXUI, spdlog, and bitsery in the workspace.
 # Enable with: cmake -DDMQ_TOOLS=ON ...

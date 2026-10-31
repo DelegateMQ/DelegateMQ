@@ -29,6 +29,16 @@ To add a new allocator-gated type (e.g., `xunordered_map`):
 3. Add a `std::*` fallback alias in the `#else` block of `DelegateOpt.h`.
 4. Reference it in library code with no direct include — `DelegateOpt.h` is already transitively included everywhere via `DelegateRemote.h` → `DelegateOpt.h`.
 
+## Library `.cpp` Files — Self-Guarding
+
+Builds without CMake compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq`, so each library `.cpp` must compile to nothing unless the options select it:
+
+1. First line of code: `#include "delegate/DelegateSelect.h"` (macros only, so an unselected file adds no code or static objects), then `#if <condition>` around the whole file, closed with `#endif // <condition>`. Use the same condition `Port.cmake` uses to pick the file (e.g. `defined(DMQ_THREAD_FREERTOS)`, `defined(DMQ_ALLOCATOR)`, `defined(DMQ_HAS_THREADING)`). No `#error` for "this file wasn't selected". Files compiled on every port (currently only `extras/util/Timer.cpp`) need no guard.
+2. Add the file to `src/DelegateMQ.cpp`.
+3. Keep `Port.cmake`'s source selection in step; CMake still lists files explicitly.
+
+New option macros that decide whether code is compiled belong in `delegate/DelegateSelect.h`, not lower in `DelegateOpt.h`.
+
 ## Configuration Constants — No Buried Literals
 
 Any compile-time capacity, count, or timeout that an application might reasonably want to tune (array sizes, retry budgets, default timeouts, work-per-tick limits) must be a named `DMQ_*` macro in `DelegateMQConfig_Default.h` (with a matching entry in `DelegateMQConfig_Template.h`), exposed as a `dmq::` constant in `DelegateOpt.h` — never a bare numeric literal hardcoded at the point of use. Follow the existing `DMQ_MAX_PARTICIPANTS` → `dmq::MAX_PARTICIPANTS` pattern:

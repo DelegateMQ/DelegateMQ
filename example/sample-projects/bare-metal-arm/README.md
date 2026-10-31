@@ -43,6 +43,19 @@ Compile the application.
 
 This will produce an executable ELF file at build/delegate_app.
 
+### Build Without CMake (Makefile)
+The `Makefile` builds the same application the way a Makefile, Keil or IAR project would use DelegateMQ, with no CMake involved:
+
+* DelegateMQ is a single source file, `src/DelegateMQ.cpp`.
+* Options come from `config/DelegateMQConfig.h` (`DMQ_THREAD_NONE`, ...), which is picked up automatically because `config/` is on the include path. No `-D` flags are needed.
+
+```bash
+make        # builds build-make/delegate_app
+make run    # builds and runs it on QEMU
+```
+
+It needs GNU Make and a POSIX shell (Linux, macOS, or Git Bash/MSYS2 on Windows). See "Without CMake" in `docs/BUILD.md` for the general steps.
+
 ## Run Instructions
 
 This application is configured for the ARM MPS2-AN386 board (Cortex-M4). It uses Semihosting to pipe printf output directly from the emulated CPU to your console.

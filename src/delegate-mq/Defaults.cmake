@@ -76,7 +76,7 @@ endif()
 # metal targets that genuinely want DataBus (e.g. databus-freertos/server)
 # already opt in explicitly by setting DMQ_DATABUS "ON" themselves.
 #
-# This exclusion list must stay in sync with DelegateOpt.h's
+# This exclusion list must stay in sync with DelegateSelect.h's
 # DMQ_THREAD_IS_EMBEDDED_RTOS macro (FreeRTOS/ThreadX/Zephyr/CMSIS-RTOS2/
 # NuttX) -- adding a new DMQ_THREAD_* port there means adding it here too.
 # DMQ_THREAD_NONE (bare metal) is excluded as well: there is no host to

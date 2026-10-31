@@ -1,6 +1,7 @@
-#ifndef DMQ_THREAD_FREERTOS
-#error "port/os/freertos/FreeRTOSThread.cpp requires DMQ_THREAD_FREERTOS. Remove this file from your build configuration or define DMQ_THREAD_FREERTOS."
-#endif
+// Compiles to nothing unless DMQ_THREAD_FREERTOS is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_THREAD_FREERTOS)
 
 #include "DelegateMQ.h"
 #include "FreeRTOSThread.h"
@@ -598,3 +599,5 @@ FreeRTOSThread::ThreadStats FreeRTOSThread::SnapshotStats()
 #endif
 
 } // namespace dmq::os
+
+#endif // DMQ_THREAD_FREERTOS

@@ -1,3 +1,8 @@
+// Compiles to nothing unless DMQ_ALLOCATOR is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_ALLOCATOR)
+
 #include "Allocator.h"
 #include "xallocator.h"
 #include "delegate/DelegateOpt.h"
@@ -6,7 +11,6 @@
 #include <mutex>
 #include <new>
 
-using namespace std;
 
 #ifndef char_BIT
 #define char_BIT	8 
@@ -462,12 +466,14 @@ extern "C" void xalloc_stats()
 			break;
 
 		if (dmq::_allocators[i]->GetName() != NULL)
-			cout << dmq::_allocators[i]->GetName();
-		cout << " Block Size: " << dmq::_allocators[i]->GetBlockSize();
-		cout << " Block Count: " << dmq::_allocators[i]->GetBlockCount();
-		cout << " Blocks In Use: " << dmq::_allocators[i]->GetBlocksInUse();
-		cout << endl;
+			std::cout << dmq::_allocators[i]->GetName();
+		std::cout << " Block Size: " << dmq::_allocators[i]->GetBlockSize();
+		std::cout << " Block Count: " << dmq::_allocators[i]->GetBlockCount();
+		std::cout << " Blocks In Use: " << dmq::_allocators[i]->GetBlocksInUse();
+		std::cout << std::endl;
 	}
 
 	dmq::get_mutex().unlock();
 }
+
+#endif // DMQ_ALLOCATOR

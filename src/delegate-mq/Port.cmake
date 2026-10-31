@@ -236,10 +236,10 @@ if (DMQ_DATABUS STREQUAL "ON")
     list(APPEND DMQ_EXTRAS_SOURCES ${DATABUS_SOURCES})
 endif()
 
-# DelegateOpt.h turns DataBus and its tools on for desktop builds unless
+# DelegateSelect.h turns DataBus and its tools on for desktop builds unless
 # DMQ_DATABUS_OFF / DMQ_DATABUS_TOOLS_OFF is defined, so an explicit
 # set(... "OFF") must be passed on for it to take effect there. A default
-# Defaults.cmake filled in is left to DelegateOpt.h, as before.
+# Defaults.cmake filled in is left to DelegateSelect.h, as before.
 list(FIND _DMQ_AUTO_DEFAULTS DMQ_DATABUS _dmq_databus_auto)
 if (NOT DMQ_DATABUS AND _dmq_databus_auto EQUAL -1)
     dmq_compile_definitions(DMQ_DATABUS_OFF)

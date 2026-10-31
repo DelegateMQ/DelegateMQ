@@ -1,11 +1,13 @@
 # Build and Configuration Guide
 
-DelegateMQ is a header-only C++ library. The core functionality requires no pre-compilation; you simply include the headers in your project. However, the library includes a comprehensive ecosystem of examples, tests, and TUI tools that require a build environment.
+DelegateMQ is mostly headers. The delegates themselves are header-only; the OS ports, allocator, fault handler and a few utilities are a small set of `.cpp` files, built for you by CMake or added as a single file without it (see [Adding DelegateMQ to Your Project](#adding-delegatemq-to-your-project)). The repository also includes examples, tests and TUI tools, which need a build environment.
 
 ## Table of Contents
 - [Prerequisites](#prerequisites)
 - [Main Application Build](#main-application-build)
-- [Consuming as a Dependency (FetchContent)](#consuming-as-a-dependency-fetchcontent)
+- [Adding DelegateMQ to Your Project](#adding-delegatemq-to-your-project)
+  - [With CMake](#with-cmake)
+  - [Without CMake](#without-cmake)
 - [Example Ecosystem (Sandbox)](#example-ecosystem-sandbox)
   - [Automated Workspace Setup](#automated-workspace-sandbox-setup)
   - [Manual Sample Build](#manual-sample-build)
@@ -39,13 +41,21 @@ The output executable will be located in `build/delegate_app/`.
 
 ---
 
-## Consuming as a Dependency (FetchContent)
-DelegateMQ isn't in vcpkg or Conan — its behavior is selected via compile-time options (`DMQ_THREAD_*`, `DMQ_SERIALIZE_*`, `DMQ_ALLOCATOR`, etc.), so there's no single prebuilt library to hand a binary package manager. Instead, pull the source in with CMake's built-in `FetchContent` (or `add_subdirectory` on a git submodule or clone) and link the `DelegateMQ::DelegateMQ` target:
+## Adding DelegateMQ to Your Project
+There are two ways to add DelegateMQ to an application:
+
+- **[With CMake](#with-cmake):** link the `DelegateMQ::DelegateMQ` target, and set options in CMake.
+- **[Without CMake](#without-cmake)** (Keil, IAR, STM32CubeIDE, PlatformIO, Makefiles): add one source file or one folder, and set options in a header.
+
+DelegateMQ isn't in vcpkg or Conan. Its behavior is chosen with compile-time options (`DMQ_THREAD_*`, `DMQ_SERIALIZE_*`, `DMQ_ALLOCATOR`, ...), so there's no single prebuilt binary to package.
+
+### With CMake
+Pull the source in with `FetchContent` (or `add_subdirectory` on a submodule or clone), and link the target:
 
 ```cmake
-# Set any DMQ_* options (DMQ_THREAD, DMQ_TRANSPORT, DMQ_ALLOCATOR, etc.) before
-# DelegateMQ is added -- see "Configuration and Overrides" below. The platform
-# defaults (stdlib threads, built-in serializer, UDP) need no third-party code.
+# Set any DMQ_* options before DelegateMQ is added (see "Configuration and
+# Overrides" below). The defaults (stdlib threads, built-in serializer, UDP)
+# need no third-party code.
 set(DMQ_ALLOCATOR "ON")
 
 include(FetchContent)
@@ -60,17 +70,20 @@ add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE DelegateMQ::DelegateMQ)
 ```
 
-When DelegateMQ isn't the top-level project, its root `CMakeLists.txt` builds only this static library: the tests, samples and tools are skipped. The target carries everything the selected options need as usage requirements: the `DMQ_*` compile definitions, the DelegateMQ include directory, the enabled third-party include directories (marked `SYSTEM`), and the libraries DelegateMQ can resolve itself (ZeroMQ, ThreadX, Qt, and `Threads::Threads` on Linux). Nothing is added to your own directory's compile definitions.
+What you get:
+- Only the DelegateMQ static library is built. The tests, samples and tools are skipped.
+- The target carries what the selected options need: the `DMQ_*` definitions, the include directories (third-party ones marked `SYSTEM`), and the libraries DelegateMQ can resolve itself (ZeroMQ, ThreadX, Qt, `Threads::Threads` on Linux).
+- Nothing is added to your own directory's compile definitions.
 
-**Third-party ports need `DMQ_DEPS_DIR`.** `external/` is empty in a fresh clone, so selecting a port that uses a third-party library (ZeroMQ, NNG, MQTT, MessagePack, Cereal, Bitsery, RapidJSON, spdlog, FreeRTOS, ThreadX, ...) stops configuration until `DMQ_DEPS_DIR` points at those libraries. Either run `scripts/01_fetch_repos.py` and `02_build_libs.py` once (see [Third-Party Directory](#third-party-directory-dmq_deps_dir)) and set `DMQ_DEPS_DIR` to the result, or lay out your own builds the same way.
+**Third-party ports need `DMQ_DEPS_DIR`.** `external/` is empty in a fresh clone, so selecting a port that uses a third-party library (ZeroMQ, NNG, MQTT, MessagePack, FreeRTOS, ThreadX, ...) stops configuration until `DMQ_DEPS_DIR` points at those libraries. Run `scripts/01_fetch_repos.py` and `02_build_libs.py` once (see [Third-Party Directory](#third-party-directory-dmq_deps_dir)), or lay out your own builds the same way.
 
-A few things stay with the application:
-- **NNG, MQTT and libserialport libraries.** Their include directories come with the target, but your project links the library itself, as the samples under `example/sample-projects/` do.
-- **The RTOS kernel and its config headers.** FreeRTOS, ThreadX, Zephyr, NuttX and CMSIS-RTOS2 ports compile against your `FreeRTOSConfig.h` (or equivalent), so add that directory to the target: `target_include_directories(DelegateMQ PUBLIC config/)`. The target carries the FreeRTOS kernel headers and links ThreadX's own CMake target, but the FreeRTOS kernel sources (`FREERTOS_SOURCES` when using `DMQ_DEPS_DIR`) are built by your application, since they depend on your config, port and heap choice. Zephyr and NuttX builds also need the target linked to the RTOS build's own interface target.
+Your application still provides:
+- **NNG, MQTT and libserialport libraries.** The target has their include directories; your project links the library itself, as the samples do.
+- **The RTOS kernel and its config header.** Add the directory with your `FreeRTOSConfig.h` (or equivalent) to the target: `target_include_directories(DelegateMQ PUBLIC config/)`. Your application builds the FreeRTOS kernel sources (`FREERTOS_SOURCES` when using `DMQ_DEPS_DIR`), since they depend on your config, port and heap choice. ThreadX's own CMake target is linked for you. Zephyr and NuttX also need the target linked to the RTOS build's interface target.
 - **A user config header**, if you use one: set `DMQ_USER_CONFIG` and `DMQ_USER_CONFIG_DIR` (see [User Config File](#2-user-config-file-delegatemqconfigh)).
 
-### Including `DelegateMQ.cmake` Directly
-The older approach still works, and is what every sample in this repository uses: include `DelegateMQ.cmake` and add the source lists to your own target.
+#### Including `DelegateMQ.cmake` Directly
+The older approach, which every sample in this repository uses: include `DelegateMQ.cmake` and add the source lists to your own target.
 
 ```cmake
 include("${delegatemq_SOURCE_DIR}/src/delegate-mq/DelegateMQ.cmake")
@@ -79,9 +92,25 @@ add_executable(my_app main.cpp ${DMQ_PORT_SOURCES})
 target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 ```
 
-This applies the `DMQ_*` definitions to the whole calling directory with `add_compile_definitions`. To get a target instead, call `dmq_add_library(<name>)` after the include. Each include captures its own options, so one build tree can hold several configurations (for example a FreeRTOS controller and a stdlib GUI), each with its own `dmq_add_library` target. Set `DMQ_NO_GLOBAL_DEFINITIONS ON` before the include to keep the definitions on the target only. A later include in the same directory, or in a subdirectory, starts from that include's options again: source lists, third-party paths and any defaults DelegateMQ filled in are recomputed, while variables you set yourself carry over as usual in CMake.
+- The `DMQ_*` definitions apply to the whole calling directory (`add_compile_definitions`). Set `DMQ_NO_GLOBAL_DEFINITIONS ON` before the include to avoid that.
+- To get a target instead, call `dmq_add_library(<name>)` after the include.
+- One build tree can hold several configurations (for example a FreeRTOS controller and a stdlib GUI): include once per configuration, each with its own `dmq_add_library` target. Each include recomputes source lists, third-party paths and DelegateMQ's defaults; variables you set yourself carry over as usual in CMake.
+- One edge case: if, between includes, you set an option to the value DelegateMQ defaulted it to last time, it's treated as a default and may be recalculated. To pin a value across includes, set it before the first include or as a cache variable (`-DDMQ_DATABUS=OFF`).
+- `DelegateMQ.cmake` finds its own paths, so it works the same from `FetchContent`, a submodule or a plain clone.
 
-`DelegateMQ.cmake` resolves its own paths from `CMAKE_CURRENT_LIST_DIR`, so it works identically whether it's reached via `FetchContent`, a git submodule, or a plain manual clone.
+### Without CMake
+1. **Include path:** add `src/delegate-mq`.
+2. **Options:** copy `src/delegate-mq/delegate/DelegateMQConfig_Template.h` into your project as `DelegateMQConfig.h`, on the include path, and select ports and options there (`#define DMQ_THREAD_FREERTOS`, `#define DMQ_ALLOCATOR`, ...). It's found automatically, so no `-D` flags are needed. Anything left undefined is auto-selected: stdlib threads, the built-in serializer and UDP on Windows/Linux, nothing on bare metal.
+3. **Sources:** add **one** of these, not both:
+   - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal-arm/Makefile`.
+   - **Every `.cpp` in `src/delegate-mq`.** Best for IDEs that compile a whole folder (STM32CubeIDE, PlatformIO). Files for ports you didn't select compile to nothing, so there's nothing to exclude. Example: the STM32CubeIDE project in `example/sample-projects/stm32-freertos/server`.
+4. **Third-party and RTOS code:** add the include paths and libraries your ports need, e.g. FreeRTOS's `include/` and `portable/<port>` plus your `FreeRTOSConfig.h`. The RTOS kernel itself is part of your application.
+
+Requirements:
+- **The same options everywhere.** Keep them in `DelegateMQConfig.h` (or identical `-D` flags for the whole project), not in per-file settings.
+- **C++17 with RTTI.** Exceptions are optional; `DMQ_ASSERTS` routes errors to `FaultHandler()`.
+- **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal-arm`.
+- **Your own fault handler (optional):** define `DMQ_CUSTOM_FAULT_HANDLER`, and the library's `port/fault/Fault.cpp` compiles to nothing. Your application then defines `dmq::util::FaultHandler()`, the C `FaultHandler()` and `WatchdogHandler()`, and `InstallCrashHandlers()` if you call it. See `example/pumptron/controller/platform/f4/Fault.cpp`.
 
 ---
 
@@ -143,9 +172,9 @@ Passed via `-D` flags during configuration. These are the most common overrides:
 | `DMQ_FORCE_OPTIMIZE_DEBUG` | `OFF` | Force `-Os` template optimization in unoptimized GCC/Clang Debug builds to reduce embedded flash bloat (silent no-op on MSVC). |
 
 ### 2. User Config File (`DelegateMQConfig.h`)
-For fine-tuning numeric constants without editing library files:
+For fine-tuning numeric constants without editing library files (and, without CMake, for selecting ports; see [Without CMake](#without-cmake)):
 1. Copy `src/delegate-mq/delegate/DelegateMQConfig_Template.h` to your project and rename it `DelegateMQConfig.h`.
-2. Set the CMake variable `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`, and `DMQ_USER_CONFIG_DIR` to the directory holding it if that isn't already on the include path.
+2. Put its directory on the include path and it's used automatically. With the `DelegateMQ::DelegateMQ` target, `DMQ_USER_CONFIG_DIR` adds that directory for you. To name the file explicitly instead, set the CMake variable `DMQ_USER_CONFIG` (`-DDMQ_USER_CONFIG="DelegateMQConfig.h"`).
 3. Modify the constants as needed (e.g., `DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`).
 
 ---
