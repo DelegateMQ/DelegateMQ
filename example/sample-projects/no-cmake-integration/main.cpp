@@ -30,8 +30,11 @@ static void Increment(int n) { g_count += n; }
 template <class Pred>
 static bool WaitFor(Pred pred)
 {
-    for (int i = 0; i < 200 && !pred(); i++)
+    for (int i = 0; i < 200; i++) {
+        if (pred())
+            return true;
         std::this_thread::sleep_for(10ms);
+    }
     return pred();
 }
 

@@ -1,6 +1,8 @@
-# C++17 minimum. Don't override a standard the including project already chose
-# (e.g. set(CMAKE_CXX_STANDARD 20) before including DelegateMQ.cmake).
-if(NOT DEFINED CMAKE_CXX_STANDARD)
+# C++17 minimum. A newer standard the including project already chose (e.g.
+# set(CMAKE_CXX_STANDARD 20) before including DelegateMQ.cmake) is kept; an
+# older one is raised to 17, which DelegateMQ needs. 98 is listed explicitly
+# because it compares as greater than 17.
+if(NOT DEFINED CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD MATCHES "^(98|11|14)$")
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED True)
 endif()
