@@ -7,6 +7,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | Project Name | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
 | :--- | :--- | :--- | :--- |
 | **[clang-native](./clang-native/)** | All-features demo: sync, async, asyncwait, multicast, signal. Windows or Linux. | `std::thread` | Any C++17 compiler (Clang, GCC, MSVC) |
+| **[no-cmake-integration](./no-cmake-integration/)** | Builds DelegateMQ as a non-CMake project would: one source file (`src/DelegateMQ.cpp`) and options in `DelegateMQConfig.h`, without `DelegateMQ.cmake`. Checks sync, async, signal and timer. Windows or Linux. | `std::thread` | Any C++17 compiler |
 | **[atfe-armv7m-bare-metal](./atfe-armv7m-bare-metal/)** | ATfE (Clang/picolibc) bare-metal example for Armv7-M, runs on QEMU. | None | ATfE Clang, picolibc |
 | **[bare-metal-arm](./bare-metal-arm/)** | ARM GCC bare-metal example for Cortex-M4, runs on QEMU. | None | ARM GCC |
 | **[bare-metal-riscv](./bare-metal-riscv/)** | Bare-metal RISC-V (RV32IMC) example, runs on QEMU's `virt` machine (direct machine-mode boot, no SBI). Needs the xPack RISC-V Embedded GCC toolchain (see its README) -- Ubuntu's `gcc-riscv64-unknown-elf` apt package has no libstdc++ for this target. | None | xPack RISC-V GCC |
@@ -87,4 +88,4 @@ cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
 ```
 
-This applies to: `bare-metal-remote`, `clang-native`, `databus`, `databus-multicast`, `linux-tcp-serializer`, `linux-udp-serializer`, `system-architecture-no-deps`, and the ZeroMQ-based projects (if ZeroMQ is installed). Windows-only and embedded projects are not applicable.
+This applies to: `bare-metal-remote`, `clang-native`, `databus`, `databus-multicast`, `linux-tcp-serializer`, `linux-udp-serializer`, `no-cmake-integration`, `system-architecture-no-deps`, and the ZeroMQ-based projects (if ZeroMQ is installed). Windows-only and embedded projects are not applicable.

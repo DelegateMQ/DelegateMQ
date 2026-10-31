@@ -131,6 +131,7 @@ REQUIRED_OUTPUT = {
                                     "sensor":  "[sensor] setpoint received"},
     "system-architecture":         {"client": "Actuators:"},
     "system-architecture-no-deps": {"client": "Actuators:"},
+    "no-cmake-integration":        {"app": "ALL TESTS PASSED"},
     "system-architecture-python":  {"client": "[RECV] Data:"},
     "databus-interop":             {"client": "[RECV] DataMsg"},
 }

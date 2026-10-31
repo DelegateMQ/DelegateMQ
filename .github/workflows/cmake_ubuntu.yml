@@ -44,3 +44,14 @@ jobs:
 
     - name: Run delegate_app
       run: ./build/delegate_app/delegate_app  # Run the built executable (to run the tests)
+
+    # Builds DelegateMQ the way a non-CMake project does: src/DelegateMQ.cpp plus
+    # config/DelegateMQConfig.h, without DelegateMQ.cmake.
+    - name: Build no-cmake-integration sample
+      run: |
+        cmake -S example/sample-projects/no-cmake-integration -B build-no-cmake
+        cmake --build build-no-cmake
+
+    - name: Run no-cmake-integration sample
+      timeout-minutes: 2
+      run: ./build-no-cmake/delegate_app  # exits non-zero unless ALL TESTS PASSED

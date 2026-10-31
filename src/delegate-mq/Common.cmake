@@ -1,7 +1,9 @@
-# Set C++ standard 
-# C++17 minimum required
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+# C++17 minimum. Don't override a standard the including project already chose
+# (e.g. set(CMAKE_CXX_STANDARD 20) before including DelegateMQ.cmake).
+if(NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED True)
+endif()
 
 # Global silence for MSVC deprecation warnings (Standard for latest compilers)
 if (MSVC)

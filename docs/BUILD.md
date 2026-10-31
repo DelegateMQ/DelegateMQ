@@ -104,6 +104,8 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 3. **Sources:** add **one** of these, not both:
    - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal-arm/Makefile`.
    - **Every `.cpp` in `src/delegate-mq`.** Best for IDEs that compile a whole folder (STM32CubeIDE, PlatformIO). Files for ports you didn't select compile to nothing, so there's nothing to exclude. Example: the STM32CubeIDE project in `example/sample-projects/stm32-freertos/server`.
+
+   `example/sample-projects/no-cmake-integration` builds the single-file way on Windows and Linux, and `build_all.py` builds and runs it.
 4. **Third-party and RTOS code:** add the include paths and libraries your ports need, e.g. FreeRTOS's `include/` and `portable/<port>` plus your `FreeRTOSConfig.h`. The RTOS kernel itself is part of your application.
 
 Requirements:
