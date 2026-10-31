@@ -29,6 +29,8 @@ To add a new allocator-gated type (e.g., `xunordered_map`):
 3. Add a `std::*` fallback alias in the `#else` block of `DelegateOpt.h`.
 4. Reference it in library code with no direct include — `DelegateOpt.h` is already transitively included everywhere via `DelegateRemote.h` → `DelegateOpt.h`.
 
+`DelegateOpt.h` selects; it doesn't implement. It holds conditional includes, `using` aliases, `inline constexpr` constants and adapters of a few lines (e.g. `PortableLockGuard`). Anything larger goes in its own header under `port/` (OS-specific: `port/os/<os>/`; shared by several ports: `port/os/common/`) or `extras/`, and `DelegateOpt.h` includes it and adds the alias, as it does for `dmq::os::FreeRTOSMutex` → `dmq::Mutex` and `dmq::os::PortableScopedLock` → `dmq::ScopedLock`.
+
 ## Library `.cpp` Files — Self-Guarding
 
 Builds without CMake compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq`, so each library `.cpp` must compile to nothing unless the options select it:

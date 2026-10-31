@@ -30,11 +30,13 @@ jobs:
         cd build
         ./delegate_app/delegate_app  # Run your app to execute tests
         
-        # Collect code coverage data
-        lcov --capture --directory . --output-file coverage.info
-        
+        # Collect code coverage data. --ignore-errors inconsistent: GCC 15 with
+        # lcov 2.x reports some lambdas as "line hit but function not hit",
+        # which lcov 2.x treats as an error; it doesn't affect the totals.
+        lcov --capture --directory . --output-file coverage.info --ignore-errors inconsistent
+
         # Optionally, filter out system headers and unneeded files
-        lcov --remove coverage.info '/usr/*' '*/DmqSerializer.h' '*/msg_serialize.h' --output-file coverage_filtered.info
+        lcov --remove coverage.info '/usr/*' '*/DmqSerializer.h' '*/msg_serialize.h' --output-file coverage_filtered.info --ignore-errors inconsistent
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5  # Upload coverage report to Codecov
