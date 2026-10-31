@@ -144,7 +144,7 @@ private:
         msg.temp     = 20.0f + (m_iteration * 0.1f);
         m_iteration++;
         printf("[Server] Publishing sensor/temp: %.1f C (interval=%dms)\n",
-            msg.temp, m_intervalMs.load());
+            static_cast<double>(msg.temp), m_intervalMs.load());
         dmq::databus::DataBus::Publish<SensorMsg>(topics::SensorTemp, msg);
     }
 

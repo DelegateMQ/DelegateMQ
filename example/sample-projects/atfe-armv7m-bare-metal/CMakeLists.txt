@@ -8,10 +8,16 @@ set(ATFE_PATH "C:/ATfE-22.1.0-Windows-x86_64" CACHE PATH "Arm Toolchain for Embe
 set(RUNTIME_DIR "${ATFE_PATH}/lib/clang-runtimes/arm-none-eabi/armv7m_soft_nofp_exn_rtti_size")
 
 # --- ATfE CROSS-COMPILATION SETUP ---
+# Host executable suffix (CMAKE_EXECUTABLE_SUFFIX isn't set before project())
+if(CMAKE_HOST_WIN32)
+    set(ATFE_EXE ".exe")
+else()
+    set(ATFE_EXE "")
+endif()
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR arm)
-set(CMAKE_C_COMPILER   "${ATFE_PATH}/bin/clang.exe")
-set(CMAKE_CXX_COMPILER "${ATFE_PATH}/bin/clang++.exe")
+set(CMAKE_C_COMPILER   "${ATFE_PATH}/bin/clang${ATFE_EXE}")
+set(CMAKE_CXX_COMPILER "${ATFE_PATH}/bin/clang++${ATFE_EXE}")
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 # Target flags that select the armv7m_soft_nofp_exn_rtti_size multilib variant
@@ -54,7 +60,7 @@ target_compile_features(${DELEGATE_APP} PRIVATE cxx_std_17)
 #   ram        — 4 MB  @ 0x20000000
 target_link_options(${DELEGATE_APP} PRIVATE
     "--target=thumbv7m-unknown-none-eabi"
-    "-fuse-ld=${ATFE_PATH}/bin/ld.lld.exe"
+    "-fuse-ld=${ATFE_PATH}/bin/ld.lld${ATFE_EXE}"
     "-nostartfiles"       # prevent sysroot from auto-linking crt0.o; we supply crt0-semihost.o explicitly
     "-Wl,--defsym=__boot_flash=0x00000000"
     "-Wl,--defsym=__boot_flash_size=0x00001000"

@@ -22,6 +22,9 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **`DMQ_FORCE_OPTIMIZE_DEBUG` on the top-level build reached nothing.** The root `CMakeLists.txt` added it after `test/` had already been configured. `DelegateMQ.cmake` now applies it.
 - **`set(DMQ_DATABUS "OFF")` had no effect on desktop builds.** `DelegateOpt.h` turns DataBus on by default for Windows/Linux/macOS unless `DMQ_DATABUS_OFF` is defined, and CMake never defined it. Setting `DMQ_DATABUS` or `DMQ_DATABUS_TOOLS` to OFF now defines `DMQ_DATABUS_OFF` / `DMQ_DATABUS_TOOLS_OFF`. Builds that leave them at their defaults are unchanged.
 - **Including `DelegateMQ.cmake` twice in one directory, or in a parent and then a subdirectory, mixed the two configurations.** Source lists, third-party include paths and libraries, and defaults DelegateMQ filled in (such as `DMQ_DATABUS`, derived from `DMQ_THREAD`) carried over from the first include. Each include now starts from its own options. Sibling directories, as in Cellutron and Pumptron, were not affected.
+- **`bare-metal-arm` failed to link with newlib 4.4** (`undefined reference to '_getentropy'`, via libstdc++'s `std::random_device`). `retarget.c` now provides a `_getentropy` stub.
+- **`atfe-armv7m-bare-metal` only configured on Windows.** The ATfE tool paths no longer hardcode `.exe`; the README shows the Linux toolchain.
+- **`-Wsign-compare` in `ZephyrUdpTransport.h`**, plus `-Wreorder`/`-Wdouble-promotion` warnings in the `zephyr-udp-serializer` and `databus-zephyr` samples.
 - **`DMQ_STRICT` on MSVC failed in third-party headers** (msgpack under `/analyze`). Strict mode now adds `/analyze:external-`, so code analysis covers DelegateMQ's own code, not external headers.
 
 ### Changed
