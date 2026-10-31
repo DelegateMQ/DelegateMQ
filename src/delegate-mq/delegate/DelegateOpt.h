@@ -61,6 +61,10 @@
 #include <chrono>
 #if defined(DMQ_HAS_THREADING)
     #include <mutex>
+    #if !defined(__cpp_lib_scoped_lock)
+        // No std::scoped_lock on this toolchain; see dmq::ScopedLock below.
+        #include "port/os/common/PortableScopedLock.h"
+    #endif
 #endif
 
 // RTTI Detection Check
@@ -136,13 +140,18 @@ namespace dmq
     };
 
     // --- PORTABLE SCOPED LOCK ---
-    // Maps to std::scoped_lock on all known threaded ports (desktop + RTOS).
-    // All RTOS mutex types satisfy BasicLockable (lock/unlock), so std::scoped_lock
-    // works with them directly. Falls back to a no-op for DMQ_THREAD_NONE and for
-    // any unrecognized bare-metal build where no thread model is defined.
-#if defined(DMQ_HAS_THREADING)
+    // std::scoped_lock on threaded ports (desktop + RTOS); all RTOS mutex types
+    // satisfy BasicLockable (lock/unlock), so it works with them directly. Some
+    // bare-metal standard libraries lack std::scoped_lock without thread support
+    // (e.g. Arm GNU Toolchain 14); those get dmq::os::PortableScopedLock
+    // (port/os/common/PortableScopedLock.h). No-op for DMQ_THREAD_NONE and for
+    // any bare-metal build with no thread model.
+#if defined(DMQ_HAS_THREADING) && defined(__cpp_lib_scoped_lock)
     template <typename... M>
     using ScopedLock = std::scoped_lock<M...>;
+#elif defined(DMQ_HAS_THREADING)
+    template <typename... M>
+    using ScopedLock = dmq::os::PortableScopedLock<M...>;
 #else
     // No-op: DMQ_THREAD_NONE or no thread model defined (bare-metal, single-threaded)
     template <typename... M>
