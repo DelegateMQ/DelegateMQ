@@ -657,7 +657,8 @@ The sender sends the remote delegate. All function argument data is serialized a
 
 ```cpp
 // Dispatcher and serializer instances
-dmq::util::Dispatcher dispatcher;
+dmq::Dispatcher dispatcher;
+dispatcher.SetTransport(&transport);  // any dmq::transport::ITransport
 dmq::serialization::serializer::Serializer<void(int)> serializer;
 
 // Send delegate and registers dispatcher and serializer
