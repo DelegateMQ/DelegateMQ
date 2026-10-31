@@ -35,7 +35,7 @@
   <text x="400" y="140" class="classname">dmq::Signal&lt;Sig&gt;</text>
 
   <rect x="530" y="90" width="220" height="70" rx="5" class="lib-middleware-box"/>
-  <text x="640" y="120" class="text title">Remote RPC (P2P)</text>
+  <text x="640" y="120" class="text title">Remote (RPC)</text>
   <text x="640" y="140" class="classname">dmq::rpc::RemoteDispatcher</text>
 
   <!-- Core Layer (Part of Library) -->

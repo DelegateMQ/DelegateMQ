@@ -31,7 +31,7 @@ The subdirectories contain ready-to-use transport implementations for specific p
 
 ## Usage
 
-To use a specific transport, simply include the corresponding header in your application and inject it into your `dmq::util::Dispatcher` or `dmq::DelegateRemote`.
+To use a specific transport, simply include the corresponding header in your application and inject it into your `dmq::Dispatcher` or `dmq::DelegateRemote`.
 
 ```cpp
 // Example: Using UDP on Windows

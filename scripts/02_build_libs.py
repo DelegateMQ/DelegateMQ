@@ -22,6 +22,10 @@ Targets Built:
     - ZeroMQ (libzmq):  Static, No Tests, No Docs.
     - NNG:              Static, TLS Disabled (to reduce deps).
     - Eclipse Paho MQTT: Static, Samples Disabled.
+    - libserialport:    Windows only. Debug x64 DLL, built with MSBuild from its
+                        own Visual Studio project (it has no CMake build). Used
+                        by serialport-serializer and stm32-freertos/client. A
+                        failure here is a warning only: other samples don't need it.
 
 Usage:
     Run this script SECOND to compile the static libraries.
@@ -96,6 +100,54 @@ def fix_zeromq_conflict(deps_dir):
             print(f"[AUTO-FIX] Renamed conflicting file 'zeromq/INSTALL' to 'INSTALL.txt'")
         except Exception as e:
             print(f"[WARNING] Could not rename zeromq/INSTALL: {e}")
+
+# Visual Studio major version -> MSVC platform toolset. libserialport.vcxproj
+# asks for v142 (VS 2019); newer Visual Studio installs only have their own.
+VS_TOOLSETS = {16: "v142", 17: "v143", 18: "v145"}
+
+def find_msbuild():
+    """Return (MSBuild.exe path, toolset or None) for the newest Visual Studio, or (None, None)."""
+    vswhere = os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                           "Microsoft Visual Studio", "Installer", "vswhere.exe")
+    if not os.path.isfile(vswhere):
+        return None, None
+    def query(*args):
+        out = subprocess.run([vswhere, "-latest", "-products", "*",
+                              "-requires", "Microsoft.Component.MSBuild", *args],
+                             capture_output=True, text=True).stdout.strip()
+        return out.splitlines()[0] if out else ""
+    msbuild = query("-find", r"MSBuild\**\Bin\MSBuild.exe")
+    version = query("-property", "installationVersion")
+    toolset = VS_TOOLSETS.get(int(version.split(".")[0])) if version else None
+    return (msbuild or None), toolset
+
+def build_libserialport_windows(deps_dir):
+    """Build libserialport's Debug x64 DLL, where External.cmake looks for it.
+    Returns True on success. Failure only affects the serial-port samples."""
+    source_dir = os.path.join(deps_dir, "libserialport")
+    project = os.path.join(source_dir, "libserialport.vcxproj")
+    if not os.path.isfile(project):
+        print(f"[WARNING] Missing {project}; skipping libserialport.")
+        return False
+
+    print("--- Building libserialport (MSBuild, Debug x64) ---")
+    msbuild, toolset = find_msbuild()
+    if not msbuild:
+        print("    [WARNING] MSBuild not found (needs Visual Studio with C++ tools).\n")
+        return False
+
+    cmd = [msbuild, project, "-p:Configuration=Debug", "-p:Platform=x64",
+           "-m", "-nologo", "-v:minimal"]
+    if toolset:
+        cmd.append(f"-p:PlatformToolset={toolset}")
+    try:
+        subprocess.run(cmd, cwd=source_dir, check=True)
+        print("    Success!\n")
+        return True
+    except subprocess.CalledProcessError:
+        print("    [WARNING] libserialport failed to build; serialport-serializer "
+              "and stm32-freertos/client won't configure.\n")
+        return False
 
 def resolve_deps_dir():
     """Where 01_fetch_repos.py put the repos: --deps-dir, else the DMQ_DEPS_DIR
@@ -176,6 +228,10 @@ def build_deps():
         except subprocess.CalledProcessError:
             print(f"    [FAILED] {lib['name']}\n")
             failed.append(lib["name"])
+
+    # Not added to `failed`: only the serial-port samples need it.
+    if os.name == "nt":
+        build_libserialport_windows(deps_dir)
 
     if failed:
         print(f"FAILED: {', '.join(failed)}")

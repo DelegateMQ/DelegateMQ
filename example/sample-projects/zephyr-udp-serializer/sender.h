@@ -24,11 +24,11 @@ class Sender
 public:
     Sender(DelegateRemoteId id) :
         m_thread("Sender"),
-        m_sendDelegate(id),
         m_argStream(ios::in | ios::out | ios::binary),
         m_transportMonitor(std::chrono::milliseconds(500)),
         m_retryMonitor(m_transport, m_transportMonitor, 3),
-        m_reliableTransport(m_transport, m_retryMonitor)
+        m_reliableTransport(m_transport, m_retryMonitor),
+        m_sendDelegate(id)
     {
         // Link monitors
         m_transport.SetTransportMonitor(&m_transportMonitor);

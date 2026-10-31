@@ -64,7 +64,7 @@ The DelegateMQ C++ library enables function invocations on any callable, either 
 
 # Introduction
 
-DelegateMQ is a C++ header-only library for invoking any callable (e.g., function, method, lambda):
+DelegateMQ is a C++ library, with a header-only core, for invoking any callable (e.g., function, method, lambda):
 
 * Synchronously
 * Asynchronously (Blocking and non-blocking)
@@ -657,7 +657,8 @@ The sender sends the remote delegate. All function argument data is serialized a
 
 ```cpp
 // Dispatcher and serializer instances
-dmq::util::Dispatcher dispatcher;
+dmq::Dispatcher dispatcher;
+dispatcher.SetTransport(&transport);  // any dmq::transport::ITransport
 dmq::serialization::serializer::Serializer<void(int)> serializer;
 
 // Send delegate and registers dispatcher and serializer

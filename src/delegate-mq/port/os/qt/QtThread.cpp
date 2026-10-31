@@ -1,6 +1,7 @@
-#ifndef DMQ_THREAD_QT
-#error "port/os/qt/QtThread.cpp requires DMQ_THREAD_QT. Remove this file from your build configuration or define DMQ_THREAD_QT."
-#endif
+// Compiles to nothing unless DMQ_THREAD_QT is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_THREAD_QT)
 
 #include "DelegateMQ.h"
 #include "QtThread.h"
@@ -487,3 +488,5 @@ QtThread::ThreadStats QtThread::SnapshotStats()
 #endif
 
 } // namespace dmq::os
+
+#endif // DMQ_THREAD_QT

@@ -3,8 +3,20 @@
 # This module auto-selects default DelegateMQ build options based on the target platform.
 # Options can be overridden by setting the variables before including DelegateMQ.cmake.
 
+# Forget the defaults an earlier include in this scope (or a parent's) filled
+# in, so a second configuration recomputes them from its own options, e.g.
+# DMQ_DATABUS from a new DMQ_THREAD. A value the caller set, or changed since,
+# is kept.
+foreach(_dmq_var IN LISTS _DMQ_AUTO_DEFAULTS)
+    if("${${_dmq_var}}" STREQUAL "${_DMQ_AUTO_VALUE_${_dmq_var}}")
+        unset(${_dmq_var})
+    endif()
+endforeach()
+set(_DMQ_AUTO_DEFAULTS "")
+
 # --- Threading Defaults ---
 if(NOT DEFINED DMQ_THREAD)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_THREAD)
     if(WIN32 OR UNIX)
         set(DMQ_THREAD "DMQ_THREAD_STDLIB")
     elseif(FREERTOS OR FREE_RTOS)
@@ -24,6 +36,7 @@ endif()
 
 # --- Transport Defaults ---
 if(NOT DEFINED DMQ_TRANSPORT)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_TRANSPORT)
     if(WIN32)
         set(DMQ_TRANSPORT "DMQ_TRANSPORT_WIN32_UDP")
     elseif(UNIX AND NOT APPLE)
@@ -35,6 +48,7 @@ endif()
 
 # --- Serialization Defaults ---
 if(NOT DEFINED DMQ_SERIALIZE)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_SERIALIZE)
     if(WIN32 OR UNIX)
         set(DMQ_SERIALIZE "DMQ_SERIALIZE_SERIALIZE")
     else()
@@ -44,6 +58,7 @@ endif()
 
 # --- Utility Class Defaults ---
 if(NOT DEFINED DMQ_UTIL)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_UTIL)
     set(DMQ_UTIL "ON")
 endif()
 
@@ -61,12 +76,13 @@ endif()
 # metal targets that genuinely want DataBus (e.g. databus-freertos/server)
 # already opt in explicitly by setting DMQ_DATABUS "ON" themselves.
 #
-# This exclusion list must stay in sync with DelegateOpt.h's
+# This exclusion list must stay in sync with DelegateSelect.h's
 # DMQ_THREAD_IS_EMBEDDED_RTOS macro (FreeRTOS/ThreadX/Zephyr/CMSIS-RTOS2/
 # NuttX) -- adding a new DMQ_THREAD_* port there means adding it here too.
 # DMQ_THREAD_NONE (bare metal) is excluded as well: there is no host to
 # speak of.
 if(NOT DEFINED DMQ_DATABUS)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_DATABUS)
     if(DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS" OR DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX" OR
        DMQ_THREAD STREQUAL "DMQ_THREAD_ZEPHYR" OR DMQ_THREAD STREQUAL "DMQ_THREAD_CMSIS_RTOS2" OR
        DMQ_THREAD STREQUAL "DMQ_THREAD_NUTTX" OR
@@ -79,6 +95,7 @@ endif()
 
 # --- DataBus Tools Defaults ---
 if(NOT DEFINED DMQ_DATABUS_TOOLS)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_DATABUS_TOOLS)
     if(DMQ_DATABUS STREQUAL "ON" AND (WIN32 OR UNIX))
         set(DMQ_DATABUS_TOOLS "ON")
     else()
@@ -88,15 +105,23 @@ endif()
 
 # --- Allocator Defaults ---
 if(NOT DEFINED DMQ_ALLOCATOR)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_ALLOCATOR)
     set(DMQ_ALLOCATOR "OFF")
 endif()
 
 # --- Assert Defaults ---
 if(NOT DEFINED DMQ_ASSERTS)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_ASSERTS)
     set(DMQ_ASSERTS "OFF")
 endif()
 
 # --- Logging Defaults ---
 if(NOT DEFINED DMQ_LOG)
+    list(APPEND _DMQ_AUTO_DEFAULTS DMQ_LOG)
     set(DMQ_LOG "OFF")
 endif()
+
+# Remember what was filled in for the next include (see top of file)
+foreach(_dmq_var IN LISTS _DMQ_AUTO_DEFAULTS)
+    set(_DMQ_AUTO_VALUE_${_dmq_var} "${${_dmq_var}}")
+endforeach()

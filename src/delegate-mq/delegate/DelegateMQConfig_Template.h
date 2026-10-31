@@ -4,11 +4,30 @@
 /// @file
 /// @brief User configuration for the DelegateMQ library.
 ///
-/// Copy this file to your project, then point the compiler at it:
-///   -DDMQ_USER_CONFIG="DelegateMQConfig.h"
+/// Copy this file to your project as DelegateMQConfig.h. It is picked up
+/// automatically when its directory is on the include path, or point the
+/// compiler at it explicitly: -DDMQ_USER_CONFIG="DelegateMQConfig.h"
 ///
 /// Only define the values you want to change; any omitted values
 /// fall back to the defaults in DelegateMQConfig_Default.h.
+
+// --- Port and option selection (builds without CMake) ---
+// Without CMake, choose ports and options here instead of with -D flags.
+// Anything left undefined is auto-selected (see delegate/DelegateSelect.h):
+// stdlib threads, the built-in serializer and UDP on Windows/Linux, nothing
+// on bare metal. With CMake, set DMQ_THREAD etc. in CMake instead and leave
+// these commented out; defining a second port here is a compile error.
+//
+// #define DMQ_THREAD_FREERTOS          // or DMQ_THREAD_STDLIB, _WIN32, _POSIX, _THREADX,
+//                                      //    _ZEPHYR, _CMSIS_RTOS2, _NUTTX, _QT, _NONE
+// #define DMQ_SERIALIZE_NONE           // or DMQ_SERIALIZE_SERIALIZE, _MSGPACK, ...
+// #define DMQ_TRANSPORT_NONE           // or DMQ_TRANSPORT_STM32_UART, _ARM_LWIP_UDP, ...
+// #define DMQ_ALLOCATOR                // fixed-block allocator instead of the heap
+// #define DMQ_ASSERTS                  // FaultHandler() instead of exceptions
+// #define DMQ_DATABUS                  // DataBus on an RTOS (desktop default is on;
+// #define DMQ_DATABUS_OFF              //    DMQ_DATABUS_OFF turns it off there)
+// #define DMQ_CUSTOM_FAULT_HANDLER     // application defines FaultHandler()/WatchdogHandler()
+//                                      //    itself; port/fault/Fault.cpp compiles to nothing
 
 /// Timeout (seconds) used by the TIMEOUT queue-full policy on all threads.
 #define DMQ_DEFAULT_DISPATCH_TIMEOUT    2

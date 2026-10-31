@@ -9,7 +9,8 @@ It serves as a proof-of-concept for using synchronous delegates, multicast deleg
 1. **Arm Toolchain for Embedded (ATfE)**
    - Download: [github.com/ARM-software/toolchains](https://github.com/ARM-software/toolchains)
    - Download `ATfE-22.1.0-Windows-x86_64.zip` and extract to `C:\ATfE-22.1.0-Windows-x86_64`
-   - If installed to a different path, pass `-DATFE_PATH=<path>` to CMake
+   - Linux: download `ATfE-22.1.0-Linux-x86_64.tar.xz` and extract it anywhere
+   - If installed to a different path (or on Linux), pass `-DATFE_PATH=<path>` to CMake
 
 2. **CMake** 3.16 or later
 
@@ -47,6 +48,7 @@ Selected by the compiler flags `--target=thumbv7m-unknown-none-eabi -mfpu=none -
 ```bash
 # Configure
 cmake -B build -G "Ninja" -DATFE_PATH="C:/ATfE-22.1.0-Windows-x86_64"
+# Linux: cmake -B build -G "Ninja" -DATFE_PATH=/path/to/ATfE-22.1.0-Linux-x86_64
 
 # Build
 cmake --build build

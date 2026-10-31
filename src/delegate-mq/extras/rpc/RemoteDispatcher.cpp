@@ -1,3 +1,9 @@
+// Needs a real thread port (DMQ_HAS_THREADING) and compiles to nothing on bare
+// metal, so every DelegateMQ source file can be added to a build (see
+// src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_HAS_THREADING)
+
 #include "RemoteDispatcher.h"
 #include "extras/util/TimerDelegate.h"
 
@@ -5,7 +11,6 @@ namespace dmq::rpc {
 
 using namespace dmq;
 using namespace dmq::transport;
-using namespace std;
 using dmq::util::TransportMonitor;
 using dmq::util::RetryMonitor;
 
@@ -199,3 +204,5 @@ void RemoteDispatcher::InternalDeliveryFailedHandler(dmq::DelegateRemoteId id, u
 }
 
 } // namespace dmq::rpc
+
+#endif // DMQ_HAS_THREADING

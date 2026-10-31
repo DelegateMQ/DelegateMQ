@@ -9,6 +9,33 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+### Added
+- **`DelegateMQ::DelegateMQ` CMake target.** Pull DelegateMQ in with `FetchContent` or `add_subdirectory`, set any `DMQ_*` options first, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. It's a static library of the selected port and extras sources, and it carries the `DMQ_*` definitions, include directories (third-party ones as `SYSTEM`) and the dependencies DelegateMQ can resolve (ZeroMQ, ThreadX, Qt, `Threads::Threads`). Projects that include `DelegateMQ.cmake` directly can call `dmq_add_library(<name>)` for the same target, one per configuration, and set `DMQ_NO_GLOBAL_DEFINITIONS ON` to keep definitions off the calling directory. See BUILD.md "Consuming as a Dependency".
+- **`DMQ_USER_CONFIG_DIR`** adds the directory holding the user config header to the target's include path.
+- **Building without CMake: one source file or the whole folder.** For Keil, IAR, STM32CubeIDE, PlatformIO or Makefiles, add `src/delegate-mq` to the include path and either the single file `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq` (but not both). Each library `.cpp` now compiles to nothing unless the options select it, so there's no list of port files to pick from and nothing to exclude. See BUILD.md "Without CMake".
+- **`DelegateMQConfig.h` is picked up automatically** when it's on the include path (C++17 `__has_include`), and it can now select ports and options (`DMQ_THREAD_*`, `DMQ_ALLOCATOR`, ...) as well as tune constants, so a build without CMake needs no `-D` flags. `-DDMQ_USER_CONFIG=` still works; define `DMQ_NO_USER_CONFIG` to ignore the file. `DelegateMQConfig_Template.h` lists the options.
+- **`DMQ_CUSTOM_FAULT_HANDLER`.** Define it when the application provides its own `FaultHandler()`/`WatchdogHandler()`; `port/fault/Fault.cpp` then compiles to nothing instead of having to be left out of the build.
+
+### Fixed
+- **`FetchContent_MakeAvailable(delegatemq)` no longer builds DelegateMQ's test app** inside the consuming project. The tests, samples and tools are only added when DelegateMQ is the top-level project.
+- **`DMQ_USER_CONFIG` as a CMake variable now takes effect.** BUILD.md documented `-DDMQ_USER_CONFIG=...`, but nothing read it; it's now passed to the compiler. Samples that already set the `DMQ_USER_CONFIG` compile definition themselves are unaffected.
+- **`DMQ_FORCE_OPTIMIZE_DEBUG` on the top-level build reached nothing.** The root `CMakeLists.txt` added it after `test/` had already been configured. `DelegateMQ.cmake` now applies it.
+- **`set(DMQ_DATABUS "OFF")` had no effect on desktop builds.** `DelegateOpt.h` turns DataBus on by default for Windows/Linux/macOS unless `DMQ_DATABUS_OFF` is defined, and CMake never defined it. Setting `DMQ_DATABUS` or `DMQ_DATABUS_TOOLS` to OFF now defines `DMQ_DATABUS_OFF` / `DMQ_DATABUS_TOOLS_OFF`. Builds that leave them at their defaults are unchanged.
+- **Including `DelegateMQ.cmake` overrode the project's C++ standard.** `Common.cmake` always set `CMAKE_CXX_STANDARD` to 17, so a project that chose C++20 (`set(CMAKE_CXX_STANDARD 20)` or `-DCMAKE_CXX_STANDARD=20`) was compiled as C++17. It now keeps C++17 or newer as chosen, and still raises an unset or older standard to C++17. Projects that set none are unchanged.
+- **Including `DelegateMQ.cmake` twice in one directory, or in a parent and then a subdirectory, mixed the two configurations.** Source lists, third-party include paths and libraries, and defaults DelegateMQ filled in (such as `DMQ_DATABUS`, derived from `DMQ_THREAD`) carried over from the first include. Each include now starts from its own options. Sibling directories, as in Cellutron and Pumptron, were not affected.
+- **`bare-metal-arm` failed to link with newlib 4.4** (`undefined reference to '_getentropy'`, via libstdc++'s `std::random_device`). `retarget.c` now provides a `_getentropy` stub.
+- **`atfe-armv7m-bare-metal` only configured on Windows.** The ATfE tool paths no longer hardcode `.exe`; the README shows the Linux toolchain.
+- **`-Wsign-compare` in `ZephyrUdpTransport.h`**, plus `-Wreorder`/`-Wdouble-promotion` warnings in the `zephyr-udp-serializer` and `databus-zephyr` samples.
+- **`DMQ_STRICT` on MSVC failed in third-party headers** (msgpack under `/analyze`). Strict mode now adds `/analyze:external-`, so code analysis covers DelegateMQ's own code, not external headers.
+
+### Changed
+- **Library `.cpp` files no longer stop the build when compiled without their option.** The OS port files (`FreeRTOSThread.cpp`, `StdlibThread.cpp`, ...) used to `#error` unless their `DMQ_THREAD_*` was defined; they, the allocator, `RemoteDispatcher.cpp` and `ThreadMonitor.cpp` now compile to nothing instead. An existing project that lists exactly the right files builds the same code as before. `Win32Thread.cpp` still errors if `DMQ_THREAD_WIN32` is selected on a non-Windows target.
+- **Option selection moved to `delegate/DelegateSelect.h`**, included first by `DelegateOpt.h`. It holds the user config include, port auto-detection and derived macros (`DMQ_HAS_THREADING`, `DMQ_THREAD_IS_EMBEDDED_RTOS`, ...), and nothing else. Code that includes `DelegateOpt.h` is unaffected.
+- **A transport is now auto-selected when none is defined**, matching CMake's defaults: `DMQ_TRANSPORT_WIN32_UDP` on Windows, `DMQ_TRANSPORT_LINUX_UDP` on Linux, and `DMQ_TRANSPORT_NONE` for RTOS, bare-metal and other targets. Previously a build without CMake that defined no transport hit `#warning "Transport implementation not found."`, which MSVC rejects as an error. CMake builds always pass a transport and are unaffected.
+- **Defining two thread ports, serializers or transports is now a compile error** (`More than one DMQ_THREAD_* is defined...`). This catches a `DelegateMQConfig.h` that picks a different port than CMake's `DMQ_THREAD`/`DMQ_SERIALIZE`/`DMQ_TRANSPORT`, which used to build one port's sources while the headers used another.
+- **Builds without CMake now default to `DMQ_THREAD_NONE` on bare-metal compilers** (previously no thread port was selected, and `DelegateMQ.h` hit `#warning "Thread implementation not found."`). DataBus is no longer turned on by default under `DMQ_THREAD_NONE`, matching CMake; before, a `DMQ_THREAD_NONE` build on a desktop compiler without CMake failed to compile `ThreadMonitor.cpp`.
+- The root `CMakeLists.txt` now requires CMake 3.16, matching `test/` and the samples. Under 3.10 policy, `option()` ignored a parent project's plain `set(DMQ_STRICT ON)`.
+
 ## [2.2.0] - 2026-10-19
 
 ### Upgrading to 2.2.0

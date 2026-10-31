@@ -20,6 +20,19 @@
 #
 #   # Add include directory
 #   include_directories(${DMQ_INCLUDE_DIR})
+#
+# Or build a library target that carries the options with it:
+#
+#   dmq_add_library(dmq)
+#   target_link_libraries(my_app PRIVATE dmq)
+#
+# DMQ_COMPILE_DEFINITIONS, DMQ_COMPILE_OPTIONS, DMQ_EXTERNAL_INCLUDE_DIRS and
+# DMQ_LINK_LIBRARIES hold that target's usage requirements. Definitions are
+# also applied directory-wide (add_compile_definitions) unless
+# DMQ_NO_GLOBAL_DEFINITIONS is set before the include.
+#
+#   DMQ_USER_CONFIG     - optional user config header name (e.g. "DelegateMQConfig.h")
+#   DMQ_USER_CONFIG_DIR - optional directory holding it, added to the target's includes
 
 macro(check _file)
     if(NOT EXISTS "${_file}")
@@ -31,6 +44,10 @@ macro(set_and_check _var _file)
     set(${_var} "${_file}")
     check("${_file}")
 endmacro()
+
+# Reset per include so each configuration in one build tree starts clean.
+set(DMQ_COMPILE_DEFINITIONS "")
+set(DMQ_COMPILE_OPTIONS "")
 
 set_and_check(DMQ_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set_and_check(DMQ_INCLUDE_DIR "${DMQ_ROOT_DIR}")
@@ -53,6 +70,16 @@ include ("${DMQ_ROOT_DIR}/Port.cmake")
 
 check("${DMQ_ROOT_DIR}/External.cmake")
 include ("${DMQ_ROOT_DIR}/External.cmake")
+
+if(DMQ_USER_CONFIG)
+    # Accept the name with or without surrounding quotes (-DDMQ_USER_CONFIG=\"x.h\")
+    string(REGEX REPLACE "^\"(.*)\"$" "\\1" _dmq_user_config "${DMQ_USER_CONFIG}")
+    dmq_compile_definitions(DMQ_USER_CONFIG="${_dmq_user_config}")
+endif()
+
+if(DMQ_FORCE_OPTIMIZE_DEBUG)
+    dmq_compile_definitions(DMQ_FORCE_OPTIMIZE_DEBUG)
+endif()
 
 # New option (Default OFF)
 option(DMQ_STRICT "Enable strict DelegateMQ compiler warnings and errors" OFF)

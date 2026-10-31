@@ -37,7 +37,7 @@ class Dispatcher : public dmq::IDispatcher
     XALLOCATOR
 public:
     Dispatcher() = default;
-    ~Dispatcher() = default;
+    ~Dispatcher() override = default;
 
     void SetTransport(transport::ITransport* transport)
     {

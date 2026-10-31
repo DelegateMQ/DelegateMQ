@@ -1,6 +1,10 @@
-#ifndef _WIN32
-#error "port/os/win32/Win32Thread.cpp is Windows-only and must not be compiled on non-Windows targets. Remove this file from your build configuration."
+// Compiles to nothing unless DMQ_THREAD_WIN32 is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_THREAD_WIN32) && !defined(_WIN32)
+#error "DMQ_THREAD_WIN32 is Windows-only. Select another DMQ_THREAD_* port for this target."
 #endif
+#if defined(DMQ_THREAD_WIN32)
 
 #include "DelegateMQ.h"
 #include "Win32Thread.h"
@@ -597,3 +601,5 @@ Win32Thread::ThreadStats Win32Thread::SnapshotStats()
 #endif
 
 } // namespace dmq::os
+
+#endif // DMQ_THREAD_WIN32

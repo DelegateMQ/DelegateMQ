@@ -236,7 +236,7 @@ public:
             return -1;
         }
 
-        if (size < DmqHeader::HEADER_SIZE) {
+        if (static_cast<size_t>(size) < DmqHeader::HEADER_SIZE) {
             return -1;
         }
 

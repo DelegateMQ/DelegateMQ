@@ -1,10 +1,13 @@
-#include "ThreadMonitor.h"
-#include "DelegateMQ.h"
-
 // ThreadMonitor publishes per-thread stats gathered by Thread::SnapshotStats(),
 // which only exists when DMQ_DATABUS_TOOLS is enabled (desktop default; off on
-// embedded DataBus builds -- see DelegateOpt.h).
-#if defined(DMQ_DATABUS) && defined(DMQ_DATABUS_TOOLS)
+// embedded DataBus builds -- see DelegateSelect.h). Otherwise this file
+// compiles to nothing, so it can stay in a build that adds every DelegateMQ
+// source file (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_HAS_THREADING) && defined(DMQ_DATABUS) && defined(DMQ_DATABUS_TOOLS)
+
+#include "ThreadMonitor.h"
+#include "DelegateMQ.h"
 
 #include <array>
 #include <chrono>

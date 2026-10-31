@@ -1,6 +1,7 @@
-#ifndef DMQ_THREAD_ZEPHYR
-#error "port/os/zephyr/ZephyrThread.cpp requires DMQ_THREAD_ZEPHYR. Remove this file from your build configuration or define DMQ_THREAD_ZEPHYR."
-#endif
+// Compiles to nothing unless DMQ_THREAD_ZEPHYR is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_THREAD_ZEPHYR)
 
 #include "DelegateMQ.h"
 #include "ZephyrThread.h"
@@ -618,3 +619,5 @@ ZephyrThread::ThreadStats ZephyrThread::SnapshotStats()
 #endif
 
 } // namespace dmq::os
+
+#endif // DMQ_THREAD_ZEPHYR

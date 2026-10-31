@@ -1,6 +1,7 @@
-#ifndef DMQ_THREAD_POSIX
-#error "port/os/posix/PosixThread.cpp requires DMQ_THREAD_POSIX. Remove this file from your build configuration or define DMQ_THREAD_POSIX."
-#endif
+// Compiles to nothing unless DMQ_THREAD_POSIX is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_THREAD_POSIX)
 
 #include "DelegateMQ.h"
 #include "PosixThread.h"
@@ -672,3 +673,5 @@ PosixThread::ThreadStats PosixThread::SnapshotStats()
 #endif
 
 } // namespace dmq::os
+
+#endif // DMQ_THREAD_POSIX

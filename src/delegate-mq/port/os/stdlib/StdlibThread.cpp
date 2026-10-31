@@ -1,6 +1,7 @@
-#ifndef DMQ_THREAD_STDLIB
-#error "port/os/stdlib/StdlibThread.cpp requires DMQ_THREAD_STDLIB. Remove this file from your build configuration or define DMQ_THREAD_STDLIB."
-#endif
+// Compiles to nothing unless DMQ_THREAD_STDLIB is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_THREAD_STDLIB)
 
 #include "DelegateMQ.h"
 #include "StdlibThread.h"
@@ -19,7 +20,6 @@ static thread_local bool* t_self_exit = nullptr;
 
 namespace dmq::os {
 
-using namespace std;
 using namespace dmq::util;
 
 //----------------------------------------------------------------------------
@@ -72,7 +72,7 @@ bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             // Held until m_thread is fully constructed and named. Process() takes
             // this lock before running the start handler, which may call
             // IsCurrentThread() or dispatch to this thread (both read m_thread).
-            lock_guard<mutex> lock(m_mutex);
+            std::lock_guard<std::mutex> lock(m_mutex);
             m_thread.emplace(&StdlibThread::Process, this);
 
             auto handle = m_thread->native_handle();
@@ -130,7 +130,7 @@ std::thread::id StdlibThread::GetThreadId()
 //----------------------------------------------------------------------------
 std::thread::id StdlibThread::GetCurrentThreadId()
 {
-    return this_thread::get_id();
+    return std::this_thread::get_id();
 }
 
 //----------------------------------------------------------------------------
@@ -149,7 +149,7 @@ bool StdlibThread::IsCurrentThread()
 //----------------------------------------------------------------------------
 size_t StdlibThread::GetQueueSize()
 {
-    lock_guard<mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(m_mutex);
     return (m_highQueue.size() + m_normalQueue.size());
 }
 
@@ -191,7 +191,7 @@ void StdlibThread::ExitThread(ExitPolicy policy)
     decltype(m_normalQueue) discardedNormal;
 
     {
-        lock_guard<mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
 
         // Set exit flag INSIDE lock before notifying.
         // This ensures that when a blocked producer wakes up, it sees m_exit == true immediately.
@@ -238,7 +238,7 @@ void StdlibThread::ExitThread(ExitPolicy policy)
     }
 
     {
-        lock_guard<mutex> lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         m_thread.reset();
 
         // Normally empty. After a self-exit the loop returns without draining,
@@ -331,7 +331,7 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 #if defined(DMQ_DATABUS_TOOLS)
     // Update monitoring stats under the separate stats mutex
     {
-        lock_guard<mutex> lock(m_statsMutex);
+        std::lock_guard<std::mutex> lock(m_statsMutex);
         if (currentDepth > m_queueDepthMaxWindow) m_queueDepthMaxWindow = currentDepth;
         if (currentDepth > m_queueDepthMaxAll) m_queueDepthMaxAll = currentDepth;
     }
@@ -415,7 +415,7 @@ void StdlibThread::Process()
     ThreadIdleTimer idle(m_idleHandler, m_idleInterval);
 
     // Wait for CreateThread() to finish constructing m_thread
-    { lock_guard<mutex> lock(m_mutex); }
+    { std::lock_guard<std::mutex> lock(m_mutex); }
 
     // dmq::ThisThread::GetCurrent() returns this thread from here on. Declared
     // after exitGuard, so it is cleared again before the exit handler runs.
@@ -495,7 +495,7 @@ void StdlibThread::Process()
                 // Update latency stats before invoking
                 dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
                 {
-                    lock_guard<mutex> lock(m_statsMutex);
+                    std::lock_guard<std::mutex> lock(m_statsMutex);
                     m_latencyTotalWindow += latency;
                     m_latencyCountWindow++;
                     if (latency > m_latencyMaxWindow) m_latencyMaxWindow = latency;
@@ -547,7 +547,7 @@ void StdlibThread::Process()
 #if defined(DMQ_DATABUS_TOOLS)
                         dmq::Duration invokeTime = Timer::GetNow() - start;
                         if (!selfExit) {
-                            lock_guard<mutex> lock(m_statsMutex);
+                            std::lock_guard<std::mutex> lock(m_statsMutex);
                             m_invokeTotalWindow += invokeTime;
                             m_invokeCountWindow++;
                             if (invokeTime > m_invokeMaxWindow) m_invokeMaxWindow = invokeTime;
@@ -588,7 +588,7 @@ StdlibThread::ThreadStats StdlibThread::SnapshotStats()
     // Need m_mutex only for (m_highQueue.size() + m_normalQueue.size())
     size_t currentDepth = GetQueueSize();
 
-    lock_guard<mutex> lock(m_statsMutex);
+    std::lock_guard<std::mutex> lock(m_statsMutex);
     ThreadStats stats;
     stats.cpu_name = CPU_NAME;
     stats.thread_name = THREAD_NAME;
@@ -632,3 +632,5 @@ StdlibThread::ThreadStats StdlibThread::SnapshotStats()
 #endif
 
 } // namespace dmq::os
+
+#endif // DMQ_THREAD_STDLIB

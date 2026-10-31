@@ -67,3 +67,6 @@ int _read(int file, char *ptr, int len) { UNUSED(file); UNUSED(ptr); UNUSED(len)
 int _getpid(void) { return 1; }
 int _kill(int pid, int sig) { UNUSED(pid); UNUSED(sig); return -1; }
 void _exit(int status) { UNUSED(status); while (1); }
+
+/* newlib 4.4+: libstdc++'s std::random_device references getentropy(); no entropy source here */
+int _getentropy(void *buf, size_t len) { UNUSED(buf); UNUSED(len); errno = ENOSYS; return -1; }

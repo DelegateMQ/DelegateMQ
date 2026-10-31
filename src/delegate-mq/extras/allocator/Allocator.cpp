@@ -1,3 +1,8 @@
+// Compiles to nothing unless DMQ_ALLOCATOR is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_ALLOCATOR)
+
 #include "Allocator.h"
 #include "delegate/DelegateOpt.h"
 #include <new>
@@ -173,7 +178,4 @@ void* Allocator::Pop()
 
 } // namespace dmq
 
-
-
-
-
+#endif // DMQ_ALLOCATOR

@@ -11,6 +11,7 @@
 /// safe to destroy by itself; see the note in Signal.h.
 
 #include "MulticastDelegate.h"
+#include <algorithm>
 #include <array>
 
 DMQ_OPTIMIZE_ON
@@ -64,10 +65,7 @@ inline size_t MulticastSafeSnapshot(xlist<std::shared_ptr<DelegateBase>>& delega
     const dmq::LockGuard<RecursiveMutex> g(lock);
     size_t count = delegates.size();
     if (count <= smallCap) {
-        size_t i = 0;
-        for (auto& d : delegates) {
-            smallBuf[i++] = d;
-        }
+        std::copy(delegates.begin(), delegates.end(), smallBuf);
     } else {
         largeBuf = delegates;
     }

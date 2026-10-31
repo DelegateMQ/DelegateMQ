@@ -1,85 +1,92 @@
 # Port build options
 
+# Start each include from empty lists: only some branches below set these, so a
+# value left by an earlier include in this scope (or a parent's) would leak
+# into this configuration.
+foreach(_dmq_list THREAD SERIALIZE TRANSPORT OS DISPATCHER ALLOCATOR UTIL RPC FAULT DATABUS)
+    set(${_dmq_list}_SOURCES "")
+endforeach()
+
 if (DMQ_THREAD STREQUAL "DMQ_THREAD_STDLIB")
-    add_compile_definitions(DMQ_THREAD_STDLIB)
+    dmq_compile_definitions(DMQ_THREAD_STDLIB)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/port/os/stdlib/*.c*" 
         "${DMQ_ROOT_DIR}/port/os/stdlib/*.h" 
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_WIN32")
-    add_compile_definitions(DMQ_THREAD_WIN32)
+    dmq_compile_definitions(DMQ_THREAD_WIN32)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/port/os/win32/*.c*"
         "${DMQ_ROOT_DIR}/port/os/win32/*.h"
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_POSIX")
-    add_compile_definitions(DMQ_THREAD_POSIX)
+    dmq_compile_definitions(DMQ_THREAD_POSIX)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/port/os/posix/*.c*"
         "${DMQ_ROOT_DIR}/port/os/posix/*.h"
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_FREERTOS")
-    add_compile_definitions(DMQ_THREAD_FREERTOS)
+    dmq_compile_definitions(DMQ_THREAD_FREERTOS)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/port/os/freertos/*.c*" 
         "${DMQ_ROOT_DIR}/port/os/freertos/*.h" 
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
-    add_compile_definitions(DMQ_THREAD_THREADX)
+    dmq_compile_definitions(DMQ_THREAD_THREADX)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/port/os/threadx/*.c*" 
         "${DMQ_ROOT_DIR}/port/os/threadx/*.h" 
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_ZEPHYR")
-    add_compile_definitions(DMQ_THREAD_ZEPHYR)
+    dmq_compile_definitions(DMQ_THREAD_ZEPHYR)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/port/os/zephyr/*.c*" 
         "${DMQ_ROOT_DIR}/port/os/zephyr/*.h" 
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_CMSIS_RTOS2")
-    add_compile_definitions(DMQ_THREAD_CMSIS_RTOS2)
+    dmq_compile_definitions(DMQ_THREAD_CMSIS_RTOS2)
     file(GLOB THREAD_SOURCES
         "${DMQ_ROOT_DIR}/port/os/cmsis-rtos2/*.c*"
         "${DMQ_ROOT_DIR}/port/os/cmsis-rtos2/*.h"
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_NUTTX")
-    add_compile_definitions(DMQ_THREAD_NUTTX)
+    dmq_compile_definitions(DMQ_THREAD_NUTTX)
     file(GLOB THREAD_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/port/os/nuttx/*.c*"
         "${DMQ_ROOT_DIR}/port/os/nuttx/*.h"
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_QT")
-    add_compile_definitions(DMQ_THREAD_QT)
+    dmq_compile_definitions(DMQ_THREAD_QT)
     file(GLOB THREAD_SOURCES
         "${DMQ_ROOT_DIR}/port/os/qt/*.c*"
         "${DMQ_ROOT_DIR}/port/os/qt/*.h"
     )
 elseif (DMQ_THREAD STREQUAL "DMQ_THREAD_NONE")
-    add_compile_definitions(DMQ_THREAD_NONE)
+    dmq_compile_definitions(DMQ_THREAD_NONE)
 else()
     message(FATAL_ERROR "Must set DMQ_THREAD option.")
 endif()
 
 if (DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_NONE")
-    add_compile_definitions(DMQ_SERIALIZE_NONE)
+    dmq_compile_definitions(DMQ_SERIALIZE_NONE)
 elseif (DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_SERIALIZE")
-    add_compile_definitions(DMQ_SERIALIZE_SERIALIZE)
+    dmq_compile_definitions(DMQ_SERIALIZE_SERIALIZE)
     file(GLOB SERIALIZE_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/serialize/serialize/*.h")
 elseif (DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_RAPIDJSON")
-    add_compile_definitions(DMQ_SERIALIZE_RAPIDJSON)
+    dmq_compile_definitions(DMQ_SERIALIZE_RAPIDJSON)
     file(GLOB SERIALIZE_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/serialize/rapidjson/*.h")
 elseif (DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_MSGPACK")
-    add_compile_definitions(DMQ_SERIALIZE_MSGPACK)
+    dmq_compile_definitions(DMQ_SERIALIZE_MSGPACK)
     file(GLOB SERIALIZE_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/serialize/msgpack/*.h")
 elseif (DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_CEREAL")
-    add_compile_definitions(DMQ_SERIALIZE_CEREAL)
+    dmq_compile_definitions(DMQ_SERIALIZE_CEREAL)
     file(GLOB SERIALIZE_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/serialize/cereal/*.h")
 elseif (DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_BITSERY")
-    add_compile_definitions(DMQ_SERIALIZE_BITSERY)
+    dmq_compile_definitions(DMQ_SERIALIZE_BITSERY)
     file(GLOB SERIALIZE_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/serialize/bitsery/*.h")
 else()
@@ -87,65 +94,65 @@ else()
 endif()
 
 if (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_NONE")
-    add_compile_definitions(DMQ_TRANSPORT_NONE)
+    dmq_compile_definitions(DMQ_TRANSPORT_NONE)
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEROMQ")
-    add_compile_definitions(DMQ_TRANSPORT_ZEROMQ)
+    dmq_compile_definitions(DMQ_TRANSPORT_ZEROMQ)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/zeromq/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_NNG")
-    add_compile_definitions(DMQ_TRANSPORT_NNG)
+    dmq_compile_definitions(DMQ_TRANSPORT_NNG)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/nng/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_MQTT")
-    add_compile_definitions(DMQ_TRANSPORT_MQTT)
+    dmq_compile_definitions(DMQ_TRANSPORT_MQTT)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/mqtt/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_WIN32_PIPE")
-    add_compile_definitions(DMQ_TRANSPORT_WIN32_PIPE)
+    dmq_compile_definitions(DMQ_TRANSPORT_WIN32_PIPE)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/win32-pipe/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_WIN32_UDP")
-    add_compile_definitions(DMQ_TRANSPORT_WIN32_UDP)
+    dmq_compile_definitions(DMQ_TRANSPORT_WIN32_UDP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/win32-udp/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_WIN32_TCP")
-    add_compile_definitions(DMQ_TRANSPORT_WIN32_TCP)
+    dmq_compile_definitions(DMQ_TRANSPORT_WIN32_TCP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/win32-tcp/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_LINUX_UDP")
-    add_compile_definitions(DMQ_TRANSPORT_LINUX_UDP)
+    dmq_compile_definitions(DMQ_TRANSPORT_LINUX_UDP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/linux-udp/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_LINUX_UDS")
-    add_compile_definitions(DMQ_TRANSPORT_LINUX_UDS)
+    dmq_compile_definitions(DMQ_TRANSPORT_LINUX_UDS)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/linux-uds/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_LINUX_TCP")
-    add_compile_definitions(DMQ_TRANSPORT_LINUX_TCP)
+    dmq_compile_definitions(DMQ_TRANSPORT_LINUX_TCP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/linux-tcp/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_SERIAL_PORT")
-    add_compile_definitions(DMQ_TRANSPORT_SERIAL_PORT)
+    dmq_compile_definitions(DMQ_TRANSPORT_SERIAL_PORT)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/serial/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ARM_LWIP_UDP")
-    add_compile_definitions(DMQ_TRANSPORT_ARM_LWIP_UDP)
+    dmq_compile_definitions(DMQ_TRANSPORT_ARM_LWIP_UDP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/arm-lwip-udp/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP")
-    add_compile_definitions(DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP)
+    dmq_compile_definitions(DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/arm-lwip-netconn-udp/*.h")    
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_THREADX_UDP")
-    add_compile_definitions(DMQ_TRANSPORT_THREADX_UDP)
+    dmq_compile_definitions(DMQ_TRANSPORT_THREADX_UDP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/netx-udp/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_STM32_UART")
-    add_compile_definitions(DMQ_TRANSPORT_STM32_UART)
+    dmq_compile_definitions(DMQ_TRANSPORT_STM32_UART)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/stm32-uart/*.h")
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEPHYR_UDP")
-    add_compile_definitions(DMQ_TRANSPORT_ZEPHYR_UDP)
+    dmq_compile_definitions(DMQ_TRANSPORT_ZEPHYR_UDP)
     file(GLOB TRANSPORT_SOURCES CONFIGURE_DEPENDS
  "${DMQ_ROOT_DIR}/port/transport/zephyr-udp/*.h")
 else()
@@ -157,7 +164,7 @@ file(GLOB DISPATCHER_SOURCES CONFIGURE_DEPENDS
 )
 
 if (DMQ_ALLOCATOR STREQUAL "ON")
-    add_compile_definitions(DMQ_ALLOCATOR)
+    dmq_compile_definitions(DMQ_ALLOCATOR)
     file(GLOB ALLOCATOR_SOURCES CONFIGURE_DEPENDS
         "${DMQ_ROOT_DIR}/extras/allocator/*.c*" 
         "${DMQ_ROOT_DIR}/extras/allocator/*.h" 
@@ -201,11 +208,11 @@ file(GLOB FAULT_SOURCES CONFIGURE_DEPENDS
 )
 
 if (DMQ_ASSERTS STREQUAL "ON")
-    add_compile_definitions(DMQ_ASSERTS)
+    dmq_compile_definitions(DMQ_ASSERTS)
 endif()
 
 if (DMQ_LOG STREQUAL "ON")
-    add_compile_definitions(DMQ_LOG)
+    dmq_compile_definitions(DMQ_LOG)
 endif()
 
 # Port sources: OS/transport/serialization adapters (port/ directory)
@@ -224,9 +231,22 @@ list(APPEND DMQ_EXTRAS_SOURCES ${UTIL_SOURCES})
 list(APPEND DMQ_EXTRAS_SOURCES ${RPC_SOURCES})
 
 if (DMQ_DATABUS STREQUAL "ON")
-    add_compile_definitions(DMQ_DATABUS)
+    dmq_compile_definitions(DMQ_DATABUS)
     file(GLOB DATABUS_SOURCES CONFIGURE_DEPENDS "${DMQ_ROOT_DIR}/extras/databus/*.h")
     list(APPEND DMQ_EXTRAS_SOURCES ${DATABUS_SOURCES})
+endif()
+
+# DelegateSelect.h turns DataBus and its tools on for desktop builds unless
+# DMQ_DATABUS_OFF / DMQ_DATABUS_TOOLS_OFF is defined, so an explicit
+# set(... "OFF") must be passed on for it to take effect there. A default
+# Defaults.cmake filled in is left to DelegateSelect.h, as before.
+list(FIND _DMQ_AUTO_DEFAULTS DMQ_DATABUS _dmq_databus_auto)
+if (NOT DMQ_DATABUS AND _dmq_databus_auto EQUAL -1)
+    dmq_compile_definitions(DMQ_DATABUS_OFF)
+endif()
+list(FIND _DMQ_AUTO_DEFAULTS DMQ_DATABUS_TOOLS _dmq_tools_auto)
+if (NOT DMQ_DATABUS_TOOLS AND _dmq_tools_auto EQUAL -1)
+    dmq_compile_definitions(DMQ_DATABUS_TOOLS_OFF)
 endif()
 
 # Combined list for compilation

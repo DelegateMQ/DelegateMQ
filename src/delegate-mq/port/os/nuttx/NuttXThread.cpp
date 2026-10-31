@@ -1,6 +1,7 @@
-#ifndef DMQ_THREAD_NUTTX
-#error "port/os/nuttx/NuttXThread.cpp requires DMQ_THREAD_NUTTX. Remove this file from your build configuration or define DMQ_THREAD_NUTTX."
-#endif
+// Compiles to nothing unless DMQ_THREAD_NUTTX is selected, so every DelegateMQ source
+// file can be added to a build (see src/DelegateMQ.cpp).
+#include "delegate/DelegateSelect.h"
+#if defined(DMQ_THREAD_NUTTX)
 
 #include "DelegateMQ.h"
 #include "NuttXThread.h"
@@ -609,3 +610,5 @@ NuttXThread::ThreadStats NuttXThread::SnapshotStats()
 #endif
 
 } // namespace dmq::os
+
+#endif // DMQ_THREAD_NUTTX

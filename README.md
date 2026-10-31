@@ -12,30 +12,39 @@
 
 # Delegates in C++
 
-DelegateMQ is a modular C++ messaging library with a header-only core. It provides a unified, thread-safe API for invoking any callable (e.g., function, method, lambda) across different execution contexts:
+A delegate is a type-safe wrapper around any callable (free function, member function or lambda) that can be stored and invoked later. DelegateMQ lets you invoke it right here, on another thread, or on another processor, without changing the calling code:
 
-* **Synchronous & Asynchronous:** Local thread-safe callbacks, blocking or fire-and-forget.
-* **Signal / Slot:** Decoupled, multicast event handling with built-in async support.
-* **DataBus (DDS Lite):** Topic-based publish/subscribe with thread-safe async data distribution.
-* **Remote:** Inter-process (IPC) and inter-processor communication over any transport.
+```cpp
+#include "DelegateMQ.h"
 
-The library is lightweight, unit-tested, and ships as full source code under the MIT license. It scales from PC applications down to small RTOS and bare-metal microcontrollers (Windows, Linux, RTOS, bare metal), and lets you include only the features you need without unwanted overhead.
+void MsgOut(const std::string& msg) { std::cout << msg << std::endl; }
+
+int main()
+{
+    dmq::os::Thread worker("Worker");
+    worker.CreateThread();
+
+    auto sync  = dmq::MakeDelegate(&MsgOut);          // runs on the calling thread
+    auto async = dmq::MakeDelegate(&MsgOut, worker);  // runs on the worker thread
+
+    sync("Hello");
+    async("Hello");   // same call; DelegateMQ copies the argument across threads
+}
+```
+
+Remote delegates work the same way over a transport and serializer, so the call can run in another process or on another processor.
+
+DelegateMQ is a modular C++17 library with a header-only core, plus optional components you enable only if you need them:
+
+* **Delegates and signals:** synchronous calls with no OS required; asynchronous calls across threads, blocking or fire-and-forget; and thread-safe multicast signals.
+* **Remote (RPC):** function calls between processes and processors, over any transport and serializer.
+* **DataBus (DDS Lite):** topic-based publish/subscribe across threads, processes and processors, with quality-of-service options.
+
+It is lightweight, unit-tested, and ships as full source code under the MIT license. It scales from PC applications down to small RTOS and bare-metal microcontrollers.
 
 # Motivation
 
-Applications typically use one mechanism for callbacks, another for inter-thread messaging, and a third for inter-processor communication. Each brings its own API and data-passing rules, plus the hand-written queues, mutexes and message-packing code to go with it. Yet all three solve the same problem: move argument data to a target function and invoke it.
-
-DelegateMQ unifies them in a single library. Bind a delegate to any callable (free function, method or lambda) and invoke it synchronously, on another thread, or on another processor. The library handles the copying, marshalling and dispatch; the calling code stays the same. The DataBus applies the same idea to data: publishers and subscribers don't need to know whether the other side is on the same thread or a different CPU.
-
-# Library
-
-DelegateMQ is layered: a header-only core, plus optional components you enable only if you need them.
-
-| Component | Description |
-| --- | --- |
-| **Delegate Core** | Header-only. Synchronous delegates with no OS required, asynchronous delegates for cross-thread calls, and signals for async signalling. |
-| **RPC** | Remote function calls between processes and processors, over any transport and serializer. |
-| **DataBus** | Topic-based publish/subscribe across threads, processes and processors, with quality-of-service options. |
+Applications typically use one mechanism for callbacks, another for inter-thread messaging, and a third for inter-processor communication. Each brings its own API and data-passing rules, plus the hand-written queues, mutexes and message-packing code to go with it. Yet all three solve the same problem: move argument data to a target function and invoke it. DelegateMQ handles the copying, marshalling and dispatch in one library, and the calling code stays the same.
 
 # Advantages
 
@@ -43,12 +52,12 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 | Advantage | Description |
 | --- | --- |
-| One invocation model | Sync, async, and remote calls share the same `dmq::MakeDelegate` syntax — promoting a local callback to async or remote is a one-line change. |
+| One invocation model | Sync, async, and remote calls use the same calling code — moving a local callback onto another thread is a one-line change, and onto another processor needs only a channel. |
 | Targeted thread dispatch | Handlers specify the thread they run on; the library queues and dispatches the call, so code always executes in the correct thread context. |
 | Application owns every thread | The library creates no internal threads — scheduling, stack sizes, and watchdogs stay explicit and auditable. |
 | Off-target development | Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport. |
 | Location transparency | DataBus subscribers receive data identically whether the publisher is in the same thread, another process, or a remote processor. |
-| Less application code | The library moves data to its destination — including across threads and processors — with type-safe delivery, eliminating hand-coded message queues, mutexes, and transport plumbing at the call and receive handler sites. |
+| Less application code | No hand-coded message queues, mutexes or transport plumbing: the library delivers type-safe data to its destination, across threads and processors. |
 
 # Supported Integrations
 
@@ -57,6 +66,7 @@ Numerous platform, serialization, transport, and tool integrations are available
 | Category | Supported |
 | :--- | :--- |
 | **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
+| **Build** | [CMake](https://cmake.org/) (`FetchContent` or `add_subdirectory`); Keil, IAR, STM32CubeIDE, PlatformIO, Makefiles and other build systems (add `src/DelegateMQ.cpp`, which compiles the library's source files for you) |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
 | **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
@@ -64,17 +74,12 @@ Numerous platform, serialization, transport, and tool integrations are available
 # Example Use Cases
 
 - Async callback between a subsystem and the UI
-- Data passed between threads using Signals
-- Local and remote data distribution between threads and CPUs over Ethernet, serial, or both
-- Embedded development on a PC, with the same code running on the target via OS and transport abstraction
 - Blocking call into a worker thread with a timeout, returning its result
 - Thread-safe wrapper around a non-thread-safe library (database, HTTP client, file system)
-- Periodic tasks driven by timers, dispatched onto worker threads
-- Watchdog detection of hung or starved threads
-- Remote procedure calls between processes or processors
+- Data distribution between threads and CPUs over Ethernet, serial, or both
+- Embedded development on a PC, with the same code running on the target
 - C# or Python tools commanding and monitoring an embedded device
 - Bridging device data to MQTT as JSON, for dashboards and IoT platforms
-- On-target integration tests that call internal functions on their own threads
 
 # Getting Started
 
@@ -109,13 +114,18 @@ python3 build_all.py            # --from N resumes at step N
 
 See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individual steps and options.
 
+## Adding DelegateMQ to Your Project
+
+- **CMake:** `FetchContent` or `add_subdirectory()`, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. Options such as `DMQ_THREAD` are set in CMake. See [With CMake](docs/BUILD.md#with-cmake).
+- **Without CMake (Keil, IAR, STM32CubeIDE, Makefiles):** add `src/delegate-mq` to the include path, put your options in a `DelegateMQConfig.h`, and compile either `src/DelegateMQ.cpp` or every `.cpp` in `src/delegate-mq`. See [Without CMake](docs/BUILD.md#without-cmake).
+
 # Overview
 
-A delegate is a type-safe wrapper around any callable — function, method, or lambda — that can be stored and invoked later, in a different context or on a different thread. DelegateMQ builds everything on this one primitive: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.
+DelegateMQ builds everything on one primitive, the delegate: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.
 
 The OS, transport, and serializer sit behind small pure-virtual interfaces, so underlying technologies swap without changing application logic:
 
-<img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram" style="max-width: 800px; width: 100%;"><br>
+<img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram"><br>
 *DelegateMQ Layer Diagram*
 
 ## Key Concepts
@@ -349,54 +359,24 @@ auto conn2 = dmq::databus::DataBus::Subscribe<int>("status", [](int s) {
 
 # Remote Delegates
 
-Remote delegates send a function call across a process or network boundary. Both sides share a message ID; the receiver binds a handler function to it, and the sender's invocation is serialized, transported, and executed remotely — just like a normal function call.
+Remote delegates send a function call to another process or processor. The call's arguments are serialized and sent over a transport, and the receiver's handler runs as an ordinary function call. Both sides share a message ID.
 
 ```cpp
 constexpr dmq::DelegateRemoteId TEMPERATURE_ID = 1;
 
 void OnTemperature(float t) { std::cout << "Temp: " << t << "\n"; }
 
-// --- Receiver process: bind a handler to the ID ---
+// --- Receiver: bind a handler to the ID ---
 dmq::RemoteChannel<void(float)> rx(transport, serializer);
 rx.Bind(OnTemperature, TEMPERATURE_ID);
-dispatcher.RegisterEndpoint(TEMPERATURE_ID, rx.GetEndpoint());  // dispatcher: dmq::rpc::RemoteDispatcher, see below
+dispatcher.RegisterEndpoint(TEMPERATURE_ID, rx.GetEndpoint());
 
-// --- Sender process: invoke the channel to send ---
+// --- Sender: invoke the channel ---
 dmq::RemoteChannel<void(float)> tx(transport, serializer, TEMPERATURE_ID);
-tx(25.5f);  // invoke; argument is serialized and sent to the receiver
+tx(25.5f);  // serialized, sent, and runs OnTemperature() on the receiver
 ```
 
-Any transport (ZeroMQ, TCP, UDP, serial, ...) and serializer (MessagePack, Cereal, ...) can carry the call. See [Design Details](docs/DETAILS.md) for the complete pattern and [Example Projects](docs/BUILD.md#example-ecosystem-sandbox) for working programs with real transports.
-
-## Remote Dispatcher
-
-`RemoteChannel` is the wire-level primitive above; `dmq::rpc::RemoteDispatcher` is what an application actually holds to use it. It owns the network thread, the receive loop, and ACK/retry-status routing, and hands `RemoteChannel` the transport it needs:
-
-```cpp
-class NetworkMgr
-{
-public:
-    dmq::Signal<void(float)> OnTemperature;  // clients Connect() to this
-
-    int Create() {
-        m_dispatcher.Attach(m_transport, m_transport);
-        m_rxChannel.emplace(m_transport, m_serializer);
-        m_rxChannel->Bind(this, &NetworkMgr::ForwardTemperature, TEMPERATURE_ID);
-        m_dispatcher.RegisterEndpoint(TEMPERATURE_ID, m_rxChannel->GetEndpoint());
-        return 0;
-    }
-    void Start() { m_dispatcher.Start(); }
-    void Stop()  { m_dispatcher.Stop(); }
-
-private:
-    void ForwardTemperature(float t) { OnTemperature(t); }
-
-    dmq::rpc::RemoteDispatcher m_dispatcher;
-    dmq::transport::ZeroMqTransport m_transport;  // could be any dmq::transport::ITransport (TCP, UDP, serial, ...)
-    dmq::serialization::serializer::Serializer<void(float)> m_serializer;
-    std::optional<dmq::RemoteChannel<void(float)>> m_rxChannel;
-};
-```
+`dispatcher` is a `dmq::rpc::RemoteDispatcher`. It owns the network thread and receive loop, routes each incoming message to the channel registered for its ID, and reports ACK/retry status. Any transport (ZeroMQ, TCP, UDP, serial, ...) and serializer (MessagePack, Cereal, ...) can carry the call.
 
 # Error Handling
 

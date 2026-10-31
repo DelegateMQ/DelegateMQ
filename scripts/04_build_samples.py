@@ -27,7 +27,6 @@ Skip List (always excluded):
     - bare-metal-riscv        Embedded RISC-V target, requires xPack RISC-V GCC toolchain + QEMU (non-default -DRISCV_TOOLCHAIN_PATH)
     - bare-metal-arm          Embedded ARM target, requires cross-compiler
     - mqtt-rapidjson          Requires external MQTT broker (excluded from run)
-    - serialport-serializer   Requires physical serial port hardware
     - stm32-freertos          Embedded STM32 target, requires cross-compiler
     - system-architecture-python  Python-only client, no C++ build
     - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
@@ -37,6 +36,8 @@ Skip List (always excluded):
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
+    - serialport-serializer   libserialport is built by 02_build_libs.py on Windows only
+                              (built here; not run, since it needs serial port hardware)
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
@@ -59,7 +60,6 @@ SKIP_ALWAYS = {
     "bare-metal-riscv",        # requires xPack RISC-V GCC toolchain, non-default -DRISCV_TOOLCHAIN_PATH; see its README.md
     "bare-metal-arm",
     "mqtt-rapidjson",
-    "serialport-serializer",
     "stm32-freertos",
     "system-architecture-python",
     "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
@@ -77,6 +77,7 @@ MULTI_NODE = {
 WINDOWS_ONLY = {
     "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
     "freertos-bare-metal",
+    "serialport-serializer",   # libserialport is built by 02_build_libs.py on Windows only
     "win32-pipe-serializer",
     "win32-tcp-serializer",
     "win32-udp-serializer",
