@@ -241,9 +241,9 @@ def build_samples(use_clang=False, clean=False):
 
                     # --- SPECIAL HANDLING FOR SERIALPORT ---
                     if "serialport-serializer" in project_name:
-                        print(f"   >> NOTICE: This project requires manual dependency setup.")
-                        print(f"   >> Please read: {os.path.join(dirpath, 'README.md')}")
-                        print(f"   >> You likely need to build 'libserialport' manually first.\n")
+                        print(f"   >> NOTICE: This project needs libserialport.")
+                        print(f"   >> On Windows, 02_build_libs.py builds it; check that step's output.")
+                        print(f"   >> Otherwise see: {os.path.join(dirpath, 'README.md')}\n")
 
                     if e.stderr:
                         lines = e.stderr.split('\n')

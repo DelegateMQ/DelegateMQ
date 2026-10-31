@@ -24,19 +24,11 @@ Ensure these ports exist and are connected (e.g., via a physical null-modem cabl
 
 ## 🛠️ Step 1: Build Dependencies (libserialport)
 
-This project depends on `libserialport`. Since this library does not natively support CMake, you must build it manually using Visual Studio.
+This project depends on `libserialport`, which has no CMake build. `01_fetch_repos.py` clones it to `external/libserialport`.
 
-Run `01_fetch_repos.py` to get `libserialport` cloned to `external/libserialport`. 
+On Windows, `02_build_libs.py` (step 2 of `build_all.py`) builds it for you: it runs MSBuild on `libserialport.vcxproj` (Debug, x64) with your installed Visual Studio's toolset.
 
-### 1. Open the Solution
-1.  Navigate to `../../../external/libserialport`.
-2.  Open **`libserialport.sln`** in Visual Studio.
-3.  In Visual Studio Solution Explorer pane, right click `libserialport` and select "Retarget Projects" and select a new "Retarget to Platform" selection and press Apply. 
-
-### 2. Build the Library
-1.  Set the Solution Configuration to **Debug**.
-2.  Set the Platform to **x64**.
-3.  Right-click the **libserialport** project and select **Build**.
+To build it by hand instead: open `external/libserialport/libserialport.sln` in Visual Studio, retarget the project to your installed toolset if asked, and build **Debug | x64**.
 
 The project uses `SERIALPORT_INCLUDE_DIR` and `SERIALPORT_LIBRARY_DIR` within `External.cmake` to locate the include and library files. Update if necessary. 
 
