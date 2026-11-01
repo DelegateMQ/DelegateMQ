@@ -280,7 +280,7 @@ Internally, each dispatch carries a `DispatchToken` (a `shared_ptr`); the `Timer
 
 This prevents a slow handler from causing unbounded queue growth on the target thread, and means `ProcessTimers()` never waits on a `FullPolicy::TIMEOUT` queue while a dispatch is already pending. A `TimerDelegate` is meant to be invoked from a single `ProcessTimers()` context; it is not safe for concurrent invocation.
 
-Disconnecting the connection (or destroying/clearing the `TimerDelegate`) cancels a tick still waiting in the thread queue: the target is not called. A tick the worker thread has already started runs to completion, so a raw-pointer target must still outlive any handler that may be running.
+Disconnecting the connection (or destroying, clearing or reassigning the `TimerDelegate`) cancels a tick it queued that the worker hasn't started: the target is not called. Two cases still run: a tick the worker has already started, and one that `ProcessTimers()` queues while `Disconnect()` runs on another thread (`Signal` emits a snapshot of its connections). So disconnecting alone doesn't make it safe to free a raw-pointer target. Stop the timer, disconnect, and drain the worker (e.g. `ExitThread()`) first, as `NetworkNode::Stop()` does.
 
 ## Watchdog
 

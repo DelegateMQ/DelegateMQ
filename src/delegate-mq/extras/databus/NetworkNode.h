@@ -232,11 +232,11 @@ public:
         if (m_thread)
             m_thread->ExitThread();
 
-        // Only safe to disconnect (and thereby free) the TimerDelegate now that
-        // ExitThread() above has fully drained m_thread's queue. m_recvTimer.Stop()
-        // only prevents NEW ticks -- a tick Timer::ProcessTimers() already fired on
-        // another thread just before Stop() ran may still be queued on m_thread,
-        // referencing this same TimerDelegate.
+        // Disconnect only after ExitThread() above has drained m_thread's queue.
+        // Neither m_recvTimer.Stop() nor Disconnect() stops a tick that's already
+        // running, and a ProcessTimers() emit racing Stop() can still queue one.
+        // Draining first guarantees no ReceiverThread() call on `this` is left
+        // once Stop() returns, so the NetworkNode can be destroyed safely.
         m_recvConn.Disconnect();
 
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);

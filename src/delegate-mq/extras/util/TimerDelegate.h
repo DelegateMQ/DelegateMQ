@@ -106,10 +106,17 @@ struct TimerTarget {
 ///
 /// Prefer constructing via MakeTimerDelegate() rather than directly.
 ///
-/// Destroying or clearing a TimerDelegate (including disconnecting the Signal
-/// connection that owns it) cancels a tick still waiting in the thread queue: the
-/// target is not invoked. A tick the target thread has already started runs to
-/// completion.
+/// Destroying, clearing or reassigning a TimerDelegate (including disconnecting the
+/// Signal connection that owns it) cancels any tick it has queued that the target
+/// thread hasn't started: the target is not invoked. Two cases are not cancelled:
+///   - A tick the target thread has already started runs to completion.
+///   - Signal::operator() invokes a snapshot of its connections, so a Disconnect()
+///     on another thread while Timer::ProcessTimers() is emitting OnExpired can
+///     still queue one tick after Disconnect() returns.
+/// So disconnecting alone doesn't make it safe to destroy a raw-pointer target.
+/// Before freeing the target, stop the timer, disconnect, and let the target
+/// thread finish what's queued (e.g. ExitThread(), which drains the queue), as
+/// NetworkNode::Stop() does.
 ///
 /// @note Not intended for concurrent invocation. Safe when operator() is called
 ///       from a single ProcessTimers() context.
@@ -118,15 +125,14 @@ class TimerDelegate : public dmq::Delegate<void()>
     XALLOCATOR
 public:
     // Constructor for pre-formed Delegate<void()> subtypes (DelegateMember, DelegateFree, etc.).
-    // Direct clone into m_fn — no std::function wrapping.
+    // Stored directly as a delegate -- no std::function wrapping.
     TimerDelegate(const dmq::Delegate<void()>& func, dmq::IThread& thr,
                   dmq::UnicastDelegate<void()> onStuck = dmq::UnicastDelegate<void()>(),
                   dmq::Duration stuckTimeout = dmq::Duration(0))
-        : m_target(dmq::xmake_shared<detail::TimerTarget>())
-        , m_thread(&thr)
+        : m_thread(&thr)
         , m_stuckTimeout(stuckTimeout)
     {
-        m_target->fn = func;
+        m_fn = func;
         m_gate.OnStuck = std::move(onStuck);
     }
 
@@ -139,38 +145,78 @@ public:
     TimerDelegate(F&& func, dmq::IThread& thr,
                   dmq::UnicastDelegate<void()> onStuck = dmq::UnicastDelegate<void()>(),
                   dmq::Duration stuckTimeout = dmq::Duration(0))
-        : m_target(dmq::xmake_shared<detail::TimerTarget>())
-        , m_thread(&thr)
+        : m_thread(&thr)
         , m_stuckTimeout(stuckTimeout)
     {
-        m_target->fn = dmq::DelegateFunction<void()>(std::forward<F>(func));
+        m_fn = dmq::DelegateFunction<void()>(std::forward<F>(func));
         m_gate.OnStuck = std::move(onStuck);
     }
 
+    // A copy shares no state with the original: its own (lazily allocated) target
+    // and a fresh gate, so destroying either one cancels only its own queued ticks.
     TimerDelegate(const TimerDelegate& rhs)
         : m_thread(rhs.m_thread)
         , m_stuckTimeout(rhs.m_stuckTimeout)
     {
-        // A clone gets its own target state, so destroying either copy cancels
-        // only that copy's queued ticks.
-        if (rhs.m_target)
-        {
-            m_target = dmq::xmake_shared<detail::TimerTarget>();
-            m_target->fn = rhs.m_target->fn;
-        }
+        m_fn = rhs.Fn();
         m_gate.OnStuck = rhs.m_gate.OnStuck;
-        // m_gate.m_inFlight and m_pending intentionally not copied: clone starts fresh
+    }
+
+    TimerDelegate& operator=(const TimerDelegate& rhs)
+    {
+        if (this != &rhs)
+        {
+            Clear();    // cancels this delegate's queued ticks
+            m_fn = rhs.Fn();
+            m_thread = rhs.m_thread;
+            m_stuckTimeout = rhs.m_stuckTimeout;
+            m_gate.OnStuck = rhs.m_gate.OnStuck;
+        }
+        return *this;
+    }
+
+    // A move transfers the target and gate: ticks the source queued now belong to
+    // the destination, and the source is left empty.
+    TimerDelegate(TimerDelegate&& rhs) noexcept
+        : m_fn(std::move(rhs.m_fn))
+        , m_target(std::move(rhs.m_target))
+        , m_thread(rhs.m_thread)
+        , m_stuckTimeout(rhs.m_stuckTimeout)
+        , m_gate(std::move(rhs.m_gate))
+    {
+        rhs.Clear();
+    }
+
+    TimerDelegate& operator=(TimerDelegate&& rhs) noexcept
+    {
+        if (this != &rhs)
+        {
+            m_fn = std::move(rhs.m_fn);
+            m_target = std::move(rhs.m_target);    // releasing the old target cancels its ticks
+            m_thread = rhs.m_thread;
+            m_stuckTimeout = rhs.m_stuckTimeout;
+            m_gate = std::move(rhs.m_gate);
+            rhs.Clear();
+        }
+        return *this;
     }
 
     virtual void operator()() override
     {
         if (Empty())
             return;
+        // Allocated on the first tick rather than at construction, so the temporary
+        // that Signal::Connect() clones and discards never allocates.
+        if (!m_target)
+        {
+            m_target = dmq::xmake_shared<detail::TimerTarget>();
+            m_target->fn = std::move(m_fn);
+        }
         std::weak_ptr<detail::TimerTarget> target = m_target;
         dmq::IThread& thr = *m_thread;
         m_gate.TryFire([&target, &thr](std::shared_ptr<DispatchToken> token) {
             using DelegateType = dmq::DelegateFreeAsync<void(std::weak_ptr<detail::TimerTarget>, std::shared_ptr<DispatchToken>)>;
-            DelegateType(&TimerDelegate::InvokeTarget, thr)(target, std::move(token));
+            DelegateType(&TimerDelegate::InvokeTarget, thr)(std::move(target), std::move(token));
         }, m_stuckTimeout);
     }
 
@@ -185,19 +231,31 @@ public:
         if (!derived) return false;
         if (Empty() && derived->Empty()) return true;
         if (Empty() || derived->Empty()) return false;
-        if (!m_target->fn.GetDelegate() || !derived->m_target->fn.GetDelegate()) return false;
+        if (!Fn().GetDelegate() || !derived->Fn().GetDelegate()) return false;
         return m_thread == derived->m_thread &&
-               m_target->fn.GetDelegate()->Equal(*derived->m_target->fn.GetDelegate());
+               Fn().GetDelegate()->Equal(*derived->Fn().GetDelegate());
     }
 
     virtual bool operator==(std::nullptr_t) const noexcept override { return Empty(); }
     virtual bool operator!=(std::nullptr_t) const noexcept override { return !Empty(); }
 
-    bool Empty() const noexcept { return !m_target || m_target->fn.Empty() || !m_thread; }
-    void Clear() noexcept { m_target.reset(); m_thread = nullptr; }
+    bool Empty() const noexcept { return Fn().Empty() || !m_thread; }
+
+    /// Empties the delegate and cancels any tick it has queued that hasn't started.
+    void Clear() noexcept
+    {
+        m_fn.Clear();
+        m_target.reset();
+        m_thread = nullptr;
+        m_gate.Reset();
+        m_gate.OnStuck.Clear();
+    }
     void operator=(std::nullptr_t) noexcept { Clear(); }
 
 private:
+    // The callable: in m_fn until the first tick, then moved into m_target.
+    const dmq::UnicastDelegate<void()>& Fn() const noexcept { return m_target ? m_target->fn : m_fn; }
+
     // Runs on the target thread. Static so the queued message never refers to the
     // TimerDelegate itself; the token is held until the call returns.
     static void InvokeTarget(std::weak_ptr<detail::TimerTarget> target, std::shared_ptr<DispatchToken> token)
@@ -207,9 +265,10 @@ private:
             t->fn();
     }
 
+    dmq::UnicastDelegate<void()> m_fn;
     std::shared_ptr<detail::TimerTarget> m_target;
     dmq::IThread* m_thread = nullptr;
-    dmq::Duration m_stuckTimeout;
+    dmq::Duration m_stuckTimeout{0};
     PacedDispatch m_gate;
 };
 

@@ -319,6 +319,85 @@ static void TimerDelegate_DestroyedWhileInFlight_NoCallback()
     std::cout << "TimerDelegate_DestroyedWhileInFlight_NoCallback() complete!" << std::endl;
 }
 
+// Occupy s_thread until gate.release is set.
+static void BlockWorker(WorkerGate& gate)
+{
+    dmq::MakeDelegate(&gate, &WorkerGate::Block, s_thread)();
+    while (!gate.entered.load())
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+}
+
+// Copy assignment must not share state: b = a, then destroying a cancels a's
+// queued tick, and b's own first tick isn't skipped as "in flight".
+static void TimerDelegate_CopyAssign_DoesNotShareState()
+{
+    WorkerGate gate;
+    TDTarget target;
+    auto b = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+
+    BlockWorker(gate);
+    {
+        auto a = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+        a();                                          // a's tick queued
+        DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 1);
+        b = a;
+    }                                                 // a destroyed: its tick is cancelled
+
+    b();                                              // b's own tick: not blocked by a's gate
+    DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 2);
+
+    gate.release.store(true);
+    Drain(s_thread);
+    DMQ_ASSERT_TRUE(target.count.load() == 1);        // only b's tick ran
+    std::cout << "TimerDelegate_CopyAssign_DoesNotShareState() complete!" << std::endl;
+}
+
+// Clear() cancels a queued tick and resets the gate.
+static void TimerDelegate_Clear_CancelsQueuedTick()
+{
+    WorkerGate gate;
+    TDTarget target;
+    auto d = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+
+    BlockWorker(gate);
+    d();
+    DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 1);
+    d.Clear();
+    DMQ_ASSERT_TRUE(d.Empty());
+    d();                                              // empty: no dispatch, no crash
+    DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 1);
+
+    gate.release.store(true);
+    Drain(s_thread);
+    DMQ_ASSERT_TRUE(target.count.load() == 0);
+    std::cout << "TimerDelegate_Clear_CancelsQueuedTick() complete!" << std::endl;
+}
+
+// A move transfers the queued tick to the destination; destroying the
+// moved-from source doesn't cancel it.
+static void TimerDelegate_Move_TransfersQueuedTick()
+{
+    WorkerGate gate;
+    TDTarget target;
+    auto dst = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+
+    BlockWorker(gate);
+    {
+        auto src = MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread);
+        src();
+        DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 1);
+        dst = std::move(src);
+        DMQ_ASSERT_TRUE(src.Empty());
+        dst();                                        // still in flight: skipped
+        DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 1);
+    }
+
+    gate.release.store(true);
+    Drain(s_thread);
+    DMQ_ASSERT_TRUE(target.count.load() == 1);
+    std::cout << "TimerDelegate_Move_TransfersQueuedTick() complete!" << std::endl;
+}
+
 // =============================================================================
 // TimerDelegate::Equal() / Empty() / nullptr comparisons
 // =============================================================================
@@ -484,6 +563,9 @@ void TimerDelegateTests()
     TimerDelegate_SharedPtr_SkipsDestroyedObject();
     TimerDelegate_DisconnectWhileInFlight_NoCallback();
     TimerDelegate_DestroyedWhileInFlight_NoCallback();
+    TimerDelegate_CopyAssign_DoesNotShareState();
+    TimerDelegate_Clear_CancelsQueuedTick();
+    TimerDelegate_Move_TransfersQueuedTick();
 
     TimerDelegate_Equal_SameUnderlyingAndThread();
     TimerDelegate_Equal_DifferentTargetObject();
