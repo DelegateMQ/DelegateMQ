@@ -188,12 +188,6 @@ inline RecursiveMutex& AsyncWaitResultLock() {
 /// `DelegateFunctionAsyncWait` instantiation composes this one definition instead of each
 /// generating its own copy of these five fields plus their Assign()/Equal()/move-ctor
 /// plumbing.
-/// @note `m_sync` deliberately stays outside this class (declared on each owning class
-/// instead) — it is never copied/assigned/moved between instances, only ever reset to
-/// `false` on a fresh object, which is exactly what leaving it out of Assign()/the copy
-/// ctor already achieved before this refactor. Folding it in here would require a custom
-/// (non-default) copy assignment operator to preserve that; simpler and safer to leave it
-/// where the "never copied" behavior falls out for free.
 class AsyncWaitDispatchState {
 public:
     AsyncWaitDispatchState() = default;
@@ -490,14 +484,6 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        // Synchronously invoke the target function? Only true on the per-call clone,
-        // while Invoke() runs it on the destination thread (the member-pointer call
-        // there dispatches virtually to this override). The clone's result starts
-        // empty and only that thread touches it, so it needs no reset here.
-        if (m_sync) {
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
         std::any retVal;
@@ -551,9 +537,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -564,12 +547,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.CloneRetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value.
+                m_state.CloneRetVal() = std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -658,11 +647,6 @@ private:
     /// Destination thread, message priority, timeout, and last async call's result. Not
     /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };
@@ -920,14 +904,6 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        // Synchronously invoke the target function? Only true on the per-call clone,
-        // while Invoke() runs it on the destination thread (the member-pointer call
-        // there dispatches virtually to this override). The clone's result starts
-        // empty and only that thread touches it, so it needs no reset here.
-        if (m_sync) {
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
         std::any retVal;
@@ -981,9 +957,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -994,12 +967,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.CloneRetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value.
+                m_state.CloneRetVal() = std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -1088,11 +1067,6 @@ private:
     /// Destination thread, message priority, timeout, and last async call's result. Not
     /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };
@@ -1267,14 +1241,6 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        // Synchronously invoke the target function? Only true on the per-call clone,
-        // while Invoke() runs it on the destination thread (the member-pointer call
-        // there dispatches virtually to this override). The clone's result starts
-        // empty and only that thread touches it, so it needs no reset here.
-        if (m_sync) {
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
         std::any retVal;
@@ -1328,9 +1294,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -1341,12 +1304,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.CloneRetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value.
+                m_state.CloneRetVal() = std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -1435,11 +1404,6 @@ private:
     /// Destination thread, message priority, timeout, and last async call's result. Not
     /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };
@@ -1616,14 +1580,6 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        // Synchronously invoke the target function? Only true on the per-call clone,
-        // while Invoke() runs it on the destination thread (the member-pointer call
-        // there dispatches virtually to this override). The clone's result starts
-        // empty and only that thread touches it, so it needs no reset here.
-        if (m_sync) {
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
         std::any retVal;
@@ -1677,9 +1633,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -1690,12 +1643,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.CloneRetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value.
+                m_state.CloneRetVal() = std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -1784,11 +1743,6 @@ private:
     /// Destination thread, message priority, timeout, and last async call's result. Not
     /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };
