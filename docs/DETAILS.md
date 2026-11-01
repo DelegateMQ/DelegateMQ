@@ -1027,10 +1027,10 @@ decltype(auto) store_async_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& he
 {
     if constexpr (std::is_reference_v<Param>) {
         auto& lv = arg;     // heap copy; the tuple element refers to it
-        return std::get<0>(tuple_append(heapArgs, std::tuple<>(), lv));
+        return heap_copy_arg(heapArgs, lv);
     } else if constexpr (std::is_pointer_v<Param>) {
         auto& lv = arg;     // heap copy of the pointee
-        Param heapPtr = std::get<0>(tuple_append(heapArgs, std::tuple<>(), lv));
+        Param heapPtr = heap_copy_arg(heapArgs, lv);
         return heapPtr;
     } else {
         return std::forward<A>(arg);    // by value: stored in the tuple, no heap copy
@@ -1038,34 +1038,34 @@ decltype(auto) store_async_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& he
 }
 ```
 
-The pack expansion `store_async_arg<Args>(...)...` handles any number of arguments of any mix of types. The heap copies are made by the `dmq::tuple_append()` overloads in `make_tuple_heap.h`, one each for pointer, pointer to pointer and reference arguments. Each allocates the copy, copies the data, and adds a deleter to `m_heapMem` so the copy is freed once the target function has been invoked. The target thread uses `std::apply()` to invoke the bound function with the tuple of arguments.
+The pack expansion `store_async_arg<Args>(...)...` handles any number of arguments of any mix of types. The heap copies are made by the `dmq::heap_copy_arg()` overloads in `make_tuple_heap.h`, one each for pointer, pointer to pointer and reference arguments. Each allocates the copy, copies the data, and adds a deleter to `m_heapMem` so the copy is freed once the target function has been invoked. The target thread uses `std::apply()` to invoke the bound function with the tuple of arguments.
 
-The pointer argument `dmq::tuple_append()` implementation is shown below. It creates dynamic memory for the argument, argument data copied, adds to a deleter list for subsequent later cleanup after the target function is invoked, and finally returns the appended tuple.
+The pointer argument `dmq::heap_copy_arg()` implementation is shown below. It allocates a copy of the pointee, registers a deleter in `heapArgs` so the copy is freed after the target function is invoked, and returns the copy.
 
 ```cpp
-/// @brief Append a pointer argument to the tuple
-template <typename Arg, typename... TupleElem>
-auto tuple_append(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg* arg)
+/// @brief Heap-copy a pointer argument's pointee.
+template <typename Arg>
+Arg* heap_copy_arg(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, Arg* arg)
 {
     Arg* heap_arg = nullptr;
+    Arg* del_arg = nullptr;
     if (arg != nullptr) {
-        heap_arg = new(std::nothrow) Arg(*arg);  // Only create a new Arg if arg is not nullptr
+        heap_arg = dmq::xnew<Arg>(*arg);
         if (!heap_arg) {
-            dmq::BAD_ALLOC();
+            BAD_ALLOC();    // never returns
+        } else {
+            del_arg = heap_arg;
         }
     }
-    std::shared_ptr<dmq::heap_arg_deleter_base> deleter(new(std::nothrow) dmq::heap_arg_deleter<Arg*>(heap_arg));
+    auto deleter = dmq::xmake_shared<dmq::heap_arg_deleter<Arg*>>(del_arg);
     if (!deleter) {
-        dmq::BAD_ALLOC();
+        if (del_arg) {
+            dmq::xdelete(del_arg);
+        }
+        BAD_ALLOC();
     }
-    try {
-        heapArgs.push_back(deleter);
-        return std::tuple_cat(tup, std::make_tuple(heap_arg));
-    }
-    catch (...) {
-        dmq::BAD_ALLOC();
-        throw;
-    }
+    heapArgs.push_back(deleter);    // if this throws, `deleter` frees the copy
+    return heap_arg;
 }
 ```
 
