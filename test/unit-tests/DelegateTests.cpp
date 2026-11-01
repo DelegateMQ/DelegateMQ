@@ -826,11 +826,47 @@ static void DelegateFunctionTests()
     }
 }
 
+namespace Sync
+{
+    // Callable too large for std::function's small buffer, counting its copies.
+    struct CopyCountingFunctor
+    {
+        static int copies;
+        char pad[256] = {};
+        CopyCountingFunctor() = default;
+        CopyCountingFunctor(const CopyCountingFunctor&) { copies++; }
+        CopyCountingFunctor(CopyCountingFunctor&&) noexcept {}
+        int operator()(int x) const { return x + 1; }
+    };
+    int CopyCountingFunctor::copies = 0;
+}
+
+// DelegateFunction's noexcept move constructor and move assignment must move the
+// std::function, not copy it: a copy can allocate (and std::terminate on failure).
+static void DelegateFunctionMoveTests()
+{
+    using Del = DelegateFunction<int(int)>;
+    Del a{ std::function<int(int)>(Sync::CopyCountingFunctor{}) };
+    const int before = Sync::CopyCountingFunctor::copies;
+
+    Del b(std::move(a));
+    DMQ_ASSERT_TRUE(Sync::CopyCountingFunctor::copies == before);
+    DMQ_ASSERT_TRUE(a.Empty());
+    DMQ_ASSERT_TRUE(b(1) == 2);
+
+    Del c;
+    c = std::move(b);
+    DMQ_ASSERT_TRUE(Sync::CopyCountingFunctor::copies == before);
+    DMQ_ASSERT_TRUE(b.Empty());
+    DMQ_ASSERT_TRUE(c(1) == 2);
+}
+
 void DelegateTests()
 {
     DelegateFreeTests();
     DelegateMemberTests();
     DelegateMemberSharedTests();    // Tests raw DelegateMember with shared_ptr passed in
     DelegateMemberSpTests();        // Tests the actual WeakPtr delegate
+    DelegateFunctionMoveTests();
     DelegateFunctionTests();
 }
