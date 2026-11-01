@@ -90,6 +90,41 @@ namespace detail {
         dmq::UnicastDelegate<bool(const T&)> m_predicate;
     };
 
+    // Holds an async subscriber's delegate for the life of its subscription.
+    //
+    // An async subscription is connected as a DelegateMemberAsync holding a
+    // shared_ptr to this holder. Every publish clones that delegate to queue the
+    // call; the clone copies only the shared_ptr. The subscriber used to be
+    // wrapped in a std::function (DelegateFunctionAsync) instead, and each clone
+    // then copied the std::function. libstdc++ (and libc++) keep a callable
+    // inline only if it's trivially copyable, which UnicastDelegate isn't, so on
+    // GCC/Clang toolchains every publish to an async subscriber made a global
+    // heap allocation outside DMQ_ALLOCATOR. MSVC kept it inline, which hid it.
+    //
+    // The holder is allocated once per subscription (xmake_shared). Every clone
+    // runs on the subscriber's own thread, so calls through it are sequential.
+    template <typename Arg>
+    class AsyncSubscriber {
+        XALLOCATOR
+    public:
+        explicit AsyncSubscriber(dmq::UnicastDelegate<void(const Arg&)> func)
+            : m_func(std::move(func)) {}
+
+        void Invoke(const Arg& data) { m_func(data); }
+
+    private:
+        dmq::UnicastDelegate<void(const Arg&)> m_func;
+    };
+
+    // Build the async delegate for a subscriber on `thread` (see AsyncSubscriber).
+    template <typename Arg>
+    dmq::DelegateMemberAsync<AsyncSubscriber<Arg>, void(const Arg&)>
+    MakeAsyncSubscriber(dmq::UnicastDelegate<void(const Arg&)> func, dmq::IThread& thread) {
+        auto holder = dmq::xmake_shared<AsyncSubscriber<Arg>>(std::move(func));
+        return dmq::DelegateMemberAsync<AsyncSubscriber<Arg>, void(const Arg&)>(
+            holder, &AsyncSubscriber<Arg>::Invoke, thread);
+    }
+
 }
 
 // The DataBus is a central registry for topic-based communication.
@@ -306,7 +341,7 @@ public:
         // Establish connection OUTSIDE the global DataBus lock to prevent
         // lock inversion deadlocks. Signal::Connect() is already thread-safe.
         if (thread) {
-            auto del = dmq::MakeDelegate(std::function<void(const SpyPacket&)>(std::move(ud)), *thread);
+            auto del = detail::MakeAsyncSubscriber<SpyPacket>(std::move(ud), *thread);  // see detail::AsyncSubscriber
             del.SetPriority(priority);
             return instance.m_monitorSignal.Connect(std::move(del));
         } else {
@@ -442,10 +477,11 @@ private:
         // DataBus lock and acquiring the Signal lock. However, both use RecursiveMutex
         // and InternalPublish also snapshots signals outside its lock, so this is
         // architecturally consistent with the "lock-free dispatch" pattern used elsewhere.
-        using AsyncDelType = dmq::DelegateFunctionAsync<void(const T&)>;
+        using AsyncDelType = dmq::DelegateMemberAsync<detail::AsyncSubscriber<T>, void(const T&)>;
         std::optional<AsyncDelType> asyncDel;
         if (thread) {
-            asyncDel.emplace(dmq::MakeDelegate(std::function<void(const T&)>(std::move(typedFunc)), *thread));
+            // No std::function here: see detail::AsyncSubscriber.
+            asyncDel.emplace(detail::MakeAsyncSubscriber<T>(std::move(typedFunc), *thread));
             conn = signal->Connect(*asyncDel);
         } else {
             conn = signal->Connect(typedFunc);
