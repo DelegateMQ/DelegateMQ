@@ -31,7 +31,7 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
-#include <mutex>
+#include <chrono>
 
 namespace dmq::transport {
 
@@ -60,7 +60,7 @@ public:
     /// @return 0 on success, -1 on failure
     int Create(Type type, const char* addr, uint16_t port)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
         m_remotePort = port;
 
@@ -100,7 +100,7 @@ public:
     /// Clean up the netconn resources
     void Close()
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_conn)
         {
             netconn_delete(m_conn);
@@ -110,7 +110,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_conn)
         {
             netconn_set_recvtimeout(m_conn, static_cast<int>(timeout.count()));
@@ -119,7 +119,7 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail() || !m_conn) {
             return -1;
         }
@@ -181,7 +181,7 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_recvTransport != this || !m_conn) {
             return -1;
         }

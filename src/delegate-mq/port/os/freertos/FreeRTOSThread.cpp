@@ -165,13 +165,12 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     else
     {
         // --- DYNAMIC ALLOCATION (Heap) ---
-        // Increase default stack to 4096 words (16KB) for safety
-        const uint32_t DYNAMIC_STACK_SIZE = dmq::FREERTOS_STACK_WORDS; // DMQ_FREERTOS_STACK_WORDS
-        
+        // m_stackSize is the DMQ_FREERTOS_STACK_WORDS default here: SetStackMem()
+        // changes it only together with a static buffer (the branch above).
         BaseType_t xReturn = xTaskCreate(
             (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
-            DYNAMIC_STACK_SIZE, 
+            m_stackSize,
             this,
             m_priority,
             &m_thread);

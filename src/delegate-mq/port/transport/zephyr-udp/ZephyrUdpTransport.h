@@ -51,9 +51,9 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
+#include <chrono>
 #include <cstdlib>
 #include <cerrno>
-#include <mutex>
 
 namespace dmq::transport {
 
@@ -77,7 +77,7 @@ public:
 
     int Create(Type type, const char* addr, uint16_t port)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
 
         // Create UDP socket. zsock_* (not the bare BSD names) so this
@@ -144,7 +144,7 @@ public:
 
     void Close()
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket >= 0)
         {
             // zsock_shutdown helps wake up blocked threads
@@ -156,7 +156,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket >= 0)
         {
             struct timeval tv;
@@ -168,7 +168,7 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail() || m_socket < 0) {
             return -1;
         }
@@ -216,7 +216,7 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_recvTransport != this || m_socket < 0) {
             return -1;
         }

@@ -32,7 +32,6 @@
 #include <cstring>
 #include <cstdlib>
 #include <cerrno> 
-#include <mutex>
 
 // Ensure lwIP is configured correctly
 #if !defined(LWIP_SO_RCVTIMEO) || LWIP_SO_RCVTIMEO == 0
@@ -61,7 +60,7 @@ public:
 
     int Create(Type type, const char* addr, uint16_t port)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         m_type = type;
 
         // Create lwIP UDP socket
@@ -123,7 +122,7 @@ public:
 
     void Close()
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket >= 0)
         {
             lwip_close(m_socket);
@@ -133,7 +132,7 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail() || m_socket < 0) {
             return -1;
         }
@@ -182,7 +181,7 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_recvTransport != this || m_socket < 0) {
             return -1;
         }
@@ -204,7 +203,7 @@ public:
             return -1; 
         }
 
-        if (size < DmqHeader::HEADER_SIZE) {
+        if (static_cast<size_t>(size) < DmqHeader::HEADER_SIZE) {  // size >= 0 here (checked above)
             return -1;
         }
 
