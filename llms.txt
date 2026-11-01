@@ -115,6 +115,7 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 - Each DataBus topic has exactly one C++ type; a type mismatch between publisher and subscriber triggers a fault at runtime.
 - `Signal` is thread-safe for concurrent connect/disconnect/emit, but a synchronous subscriber connected to a `Signal` runs inline on the emitting thread (potential priority inversion).
 - Message dispatch order on a thread is by priority queue, not strict FIFO. Use explicit sequencing if ordering across multiple sources matters.
+- Don't delete a `dmq::os::Thread` from one of its own callbacks: on ThreadX and Zephyr it faults, since the thread's stack can't be freed while it runs on it. Call `ExitThread()` from the callback and delete the object from another thread.
 - **LVC rewind (out-of-order delivery):** when a subscriber connects to a Last Value Cache topic with a worker thread, it may receive a fresh live value followed by a stale cached value delivered slightly late. The DataBus dispatches the LVC value outside its internal lock to prevent deadlocks, which opens a narrow window for a concurrent publisher to push a newer value first. The fix is an application-level sequence number: embed a `uint32_t seq` in every message (stamp it at publish time with an atomic counter) and guard the subscriber with `dmq::util::MonotonicGuard<uint32_t>::IsNewer(msg.seq)` — stale arrivals are silently discarded. `MonotonicGuard` handles `uint32_t` rollover correctly via signed-difference comparison.
 
 ## Timer

@@ -479,7 +479,7 @@ void FreeRTOSThread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    DMQ_ASSERT_TRUE(success);
+                    if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;

@@ -51,6 +51,16 @@ ZephyrThread::ZephyrThread(const char* threadName, size_t maxQueueSize, FullPoli
 //----------------------------------------------------------------------------
 ZephyrThread::~ZephyrThread()
 {
+    // Deleting a ZephyrThread from one of its own callbacks is not supported: the
+    // destructor would free the stack and control block the thread is still
+    // running on, and ThreadX/Zephyr (unlike FreeRTOS, whose idle task frees a
+    // self-deleted task's stack) have no way to free them afterwards. Fault
+    // immediately instead of corrupting memory. To stop a thread from inside
+    // its own callback, call ExitThread() and delete the object from another
+    // thread.
+    if (m_stackMemory && k_current_get() == &m_thread)
+        DMQ_ASSERT();
+
     ExitThread();
 
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
@@ -173,7 +183,8 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         // cannot k_thread_join() itself. Set the flag and return immediately;
         // the actual cleanup (queue drain/destroy, k_thread_join, stack free)
         // is deferred to a later ExitThread() call made from a different
-        // thread context -- typically ~ZephyrThread() -- once m_selfExited
+        // thread context -- typically ~ZephyrThread(), which must itself run on
+        // another thread (it faults if run on this one) -- once m_selfExited
         // tells that call it's safe to skip the message/semaphore handshake
         // below (the thread already returned/is returning on its own) and go
         // straight to the join+free.
@@ -503,7 +514,7 @@ void ZephyrThread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    DMQ_ASSERT_TRUE(success);
+                    if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;

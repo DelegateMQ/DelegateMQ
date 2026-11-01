@@ -289,7 +289,7 @@ The end-to-end dispatch latency is primarily dominated by the destination thread
 
 ### Message Queueing
 
-High-priority delegate messages jump to the front of the line, but the mechanism is port-specific: FreeRTOS/ThreadX send to the front of their native queue; CMSIS-RTOS2 passes priority directly via `osMessageQueuePut`'s `msg_prio` argument; stdlib/Win32/Qt keep two queues (high, normal) and always drain high first; Zephyr's `k_msgq` has no native priority-send, so it also uses the two-queue approach (see `ZephyrDelegateQueue.h`).
+High-priority delegate messages jump ahead of normal ones, while each priority stays FIFO. Every port does this with two queues (high, normal), new messages always appended, and the high queue drained first: stdlib/Win32/Qt use two `std::deque`s and one condition variable; Zephyr two `k_msgq`s drained with `k_poll` (see `ZephyrDelegateQueue.h`); FreeRTOS, ThreadX and CMSIS-RTOS2 two native queues woken by one counting semaphore (see `FreeRTOSDelegateQueue.h`). Don't send to the front of a single queue (that makes consecutive high-priority messages LIFO), and don't rely on CMSIS-RTOS2's `msg_prio` (implementations may ignore it; Zephyr's does).
 
 #### dmq::FullPolicy (Back Pressure / Drop)
 

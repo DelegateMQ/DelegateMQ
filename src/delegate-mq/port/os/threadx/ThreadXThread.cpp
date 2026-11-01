@@ -52,6 +52,16 @@ ThreadXThread::ThreadXThread(const char* threadName, size_t maxQueueSize, FullPo
 //----------------------------------------------------------------------------
 ThreadXThread::~ThreadXThread()
 {
+    // Deleting a ThreadXThread from one of its own callbacks is not supported: the
+    // destructor would free the stack and control block the thread is still
+    // running on, and ThreadX/Zephyr (unlike FreeRTOS, whose idle task frees a
+    // self-deleted task's stack) have no way to free them afterwards. Fault
+    // immediately instead of corrupting memory. To stop a thread from inside
+    // its own callback, call ExitThread() and delete the object from another
+    // thread.
+    if (m_thread.tx_thread_id != 0 && tx_thread_identify() == &m_thread)
+        DMQ_ASSERT();
+
     ExitThread();
 
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
@@ -217,11 +227,36 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         // to be queued in that case: Run()'s dispatch loop already checks
         // m_selfExitPtr immediately after the current callback invoke
         // returns, and unwinds without touching 'this' again.
+        //
+        // A self-exiting thread must also NOT do the cleanup below: it is still
+        // running on m_stackMemory with m_thread linked in the kernel, so
+        // deleting the queue, wiping m_thread or freeing the stack here would
+        // corrupt ThreadX state. Set the flags and return; the cleanup runs in a
+        // later ExitThread() from another thread (typically ~ThreadXThread()),
+        // which sees m_selfExited and waits for the thread to finish instead of
+        // doing the exit-message handshake. Same approach as ZephyrThread.
         TX_THREAD* currentThread = tx_thread_identify();
         bool isSelfExit = (currentThread == &m_thread);
 
         if (isSelfExit) {
+            m_selfExited.store(true);
             if (m_selfExitPtr) *m_selfExitPtr = true;
+            return;
+        }
+
+        if (m_selfExited.load()) {
+            // The thread self-exited earlier and is returning (or has returned)
+            // from Run() on its own, possibly still running its exit handler.
+            // Wait until ThreadX marks it finished before terminating/deleting
+            // it below. Not from an ISR: there it can't block, as above.
+            if (currentThread != nullptr) {
+                UINT state = TX_READY;
+                while (tx_thread_info_get(&m_thread, nullptr, &state, nullptr, nullptr, nullptr,
+                                          nullptr, nullptr, nullptr) == TX_SUCCESS
+                       && state != TX_COMPLETED && state != TX_TERMINATED) {
+                    tx_thread_sleep(1);
+                }
+            }
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
@@ -239,12 +274,12 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
                 // Wait for Run() to signal completion
                 tx_semaphore_get(&m_exitSem, TX_WAIT_FOREVER);
             }
-
-            // Force terminate if still running (safety net)
-            // tx_thread_terminate returns TX_SUCCESS if terminated or TX_THREAD_ERROR if already terminated
-            tx_thread_terminate(&m_thread);
-            tx_thread_delete(&m_thread);
         }
+
+        // Force terminate if still running (safety net)
+        // tx_thread_terminate returns TX_SUCCESS if terminated or TX_THREAD_ERROR if already terminated
+        tx_thread_terminate(&m_thread);
+        tx_thread_delete(&m_thread);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -258,6 +293,7 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
 
         // Clear control block so CreateThread could potentially be called again
         memset(&m_thread, 0, sizeof(m_thread));
+        m_selfExited.store(false);
     }
 }
 
@@ -549,7 +585,7 @@ void ThreadXThread::Run()
             bool success = false;
             try {
                 success = invoker->Invoke(delegateMsg);
-                DMQ_ASSERT_TRUE(success);
+                if (!selfExit) DMQ_ASSERT_TRUE(success);
             }
             catch (const std::bad_alloc& e) {
                 std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;

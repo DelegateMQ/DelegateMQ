@@ -265,6 +265,10 @@ private:
     std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     bool* m_selfExitPtr = nullptr;
 
+    // Set when ExitThread() is called from this thread itself (see ExitThread()):
+    // the cleanup is then deferred to a later ExitThread() from another thread.
+    std::atomic<bool> m_selfExited{false};
+
     // Stack memory required by ThreadX (Managed by RAII)
     // Using ULONG[] ensures correct alignment for the ThreadX stack
     std::unique_ptr<ULONG[]> m_stackMemory;

@@ -59,6 +59,8 @@ When a fixed-size container is full, the default is `DMQ_ASSERT_TRUE(condition)`
 - **The app already controls the policy for this container** (e.g. a `dmq::os::Thread` message queue): expose it via `FullPolicy` (`FAULT`/`DROP`/`TIMEOUT`) instead of hard-coding a fault. `FAULT` stays the default.
 - **The cap is hit mid-drain of a batch, not a fixed-capacity data member** (e.g. `TransportMonitor::Process()`, `Timer::ProcessTimers()`): loop across multiple bounded passes until the backlog is empty instead of faulting — see `TransportMonitor::Process()` for the reference pattern.
 
+A `dmq::os::Thread` must never free its own stack or control block while running on them. On a self-exit (`ExitThread()` called from the thread itself) a port only sets its exit flags and returns; the cleanup runs in a later `ExitThread()` from another thread, which waits for the thread to finish first (`ZephyrThread`, `ThreadXThread`). Deleting the `Thread` object from its own callback is unsupported on ports whose kernel can't free a self-deleted thread's stack later (ThreadX, Zephyr): the destructor faults (`DMQ_ASSERT`) rather than corrupt memory. FreeRTOS's idle task does free it, so FreeRTOS doesn't need this.
+
 A thread that drops a `DelegateMsg` it already accepted into its queue (at exit, `ExitPolicy::DISCARD`, or clearing leftovers) must cancel it first — `CancelThreadMsg()`/`CancelAll()` in `port/os/common/ThreadMsg.h`, which call `DelegateMsg::Cancel()`. Otherwise an async-wait sender blocked on that message waits out its full timeout (forever with `WAIT_INFINITE`). Rejecting a message in `DispatchDelegate()` (`FullPolicy::DROP`) needs no cancel: the sender sees the `false` return.
 
 ## Exception vs. Assert (`DMQ_ASSERTS` / `BAD_ALLOC`)

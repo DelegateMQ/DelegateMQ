@@ -28,10 +28,11 @@ namespace dmq {
 // the consumer draining the HIGH lane before the NORMAL lane:
 //   - StdlibThread / Win32Thread: two std::deque, one shared mutex+condition_variable.
 //   - ZephyrDelegateQueue:        two k_msgq,       drained via k_poll on both.
-//   - CmsisRtos2: native osMessageQueuePut msg_prio gives this directly (no dual lane needed).
-//   - FreeRTOSDelegateQueue / ThreadXDelegateQueue: two native queues, woken by
+//   - FreeRTOSDelegateQueue / ThreadXDelegateQueue / CmsisRtos2DelegateQueue: two native queues, woken by
 //     one shared counting semaphore "doorbell" (the RTOS-native stand-in for
-//     the stdlib condition_variable, since neither queue API exposes one).
+//     the stdlib condition_variable, since none of these queue APIs exposes one).
+//     CMSIS-RTOS2's osMessageQueuePut msg_prio is not used: implementations may
+//     ignore it (Zephyr's does).
 enum class Priority
 {
 	NORMAL,

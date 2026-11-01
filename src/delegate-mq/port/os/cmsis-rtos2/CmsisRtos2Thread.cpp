@@ -91,9 +91,13 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         m_discard.store(false);
 
         // 1. Create Exit Semaphore (Max 1, Initial 0)
-        // We use this to wait for the thread to shut down gracefully.
-        m_exitSem = osSemaphoreNew(1, 0, NULL);
-        DMQ_ASSERT_TRUE(m_exitSem != NULL);
+        // We use this to wait for the thread to shut down gracefully. Created
+        // once and reused across ExitThread()/CreateThread() cycles (ExitThread()
+        // doesn't delete it; the destructor does), so a restart doesn't leak one.
+        if (m_exitSem == NULL) {
+            m_exitSem = osSemaphoreNew(1, 0, NULL);
+            DMQ_ASSERT_TRUE(m_exitSem != NULL);
+        }
 
         // 2. Create Message Queue
         DMQ_ASSERT_TRUE(m_queue.Create(m_queueSize));
@@ -288,7 +292,7 @@ bool CmsisRtos2Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         timeout = 0;  // DROP and FAULT: non-blocking
 
-    // High priority uses osMessageQueuePut's native msg_prio argument.
+    // High priority goes to the queue's HIGH lane, drained first (see CmsisRtos2DelegateQueue).
     bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::HIGH, timeout);
     if (!sent)
     {
@@ -496,7 +500,7 @@ void CmsisRtos2Thread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    DMQ_ASSERT_TRUE(success);
+                    if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;

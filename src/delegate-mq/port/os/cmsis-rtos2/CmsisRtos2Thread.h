@@ -21,11 +21,12 @@
 /// * **Task Integration:** Wraps `osThreadNew` to establish a dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities (uses `osMessageQueuePut`'s
-///   native `msg_prio` argument, via `CmsisRtos2DelegateQueue::Send`'s highPriority flag).
+/// * **Priority Support:** Normal and High priorities, as two queue lanes drained
+///   HIGH first (see `CmsisRtos2DelegateQueue` for why `osMessageQueuePut`'s
+///   `msg_prio` isn't relied on).
 /// * **Queue-Based Dispatch:** Uses `CmsisRtos2DelegateQueue` (a thin RAII wrapper
-///   around an `osMessageQueue`) to receive and process incoming delegate
-///   messages in a thread-safe manner.
+///   around two `osMessageQueue` lanes and a counting `osSemaphore`) to receive
+///   and process incoming delegate messages in a thread-safe manner.
 /// * **Priority Control:** Supports runtime priority configuration via `SetThreadPriority`
 ///   using standard `osPriority_t` levels.
 /// * **Graceful Shutdown:** Implements robust termination logic using semaphores to ensure
