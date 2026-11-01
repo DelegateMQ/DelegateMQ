@@ -250,6 +250,75 @@ static void TimerDelegate_SharedPtr_SkipsDestroyedObject()
     std::cout << "TimerDelegate_SharedPtr_SkipsDestroyedObject() complete!" << std::endl;
 }
 
+// Holds the worker thread inside a handler until released, so messages
+// dispatched meanwhile stay queued.
+struct WorkerGate
+{
+    std::atomic<bool> entered{ false };
+    std::atomic<bool> release{ false };
+    void Block()
+    {
+        entered.store(true);
+        while (!release.load())
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+};
+
+// Regression: the queued tick used to call back into the TimerDelegate through a
+// raw `this`. Disconnecting deletes the Signal's TimerDelegate clone, so a tick
+// still in the queue then ran InvokeTarget() on freed memory. A disconnected
+// TimerDelegate must not invoke its target, even for a tick already queued.
+static void TimerDelegate_DisconnectWhileInFlight_NoCallback()
+{
+    WorkerGate gate;
+    TDTarget target;
+
+    dmq::MakeDelegate(&gate, &WorkerGate::Block, s_thread)();
+    while (!gate.entered.load())
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    {
+        dmq::Signal<void()> onExpired;
+        dmq::ScopedConnection conn = onExpired.Connect(
+            MakeTimerDelegate(&target, &TDTarget::OnTick, s_thread));
+
+        onExpired();                                  // tick queued behind the gate
+        DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 1);
+
+        conn.Disconnect();                            // deletes the TimerDelegate
+    }
+
+    gate.release.store(true);
+    Drain(s_thread);
+
+    DMQ_ASSERT_TRUE(target.count.load() == 0);
+    std::cout << "TimerDelegate_DisconnectWhileInFlight_NoCallback() complete!" << std::endl;
+}
+
+// Same hazard for a TimerDelegate destroyed directly (not via a Signal), and
+// with a shared_ptr target that is still alive.
+static void TimerDelegate_DestroyedWhileInFlight_NoCallback()
+{
+    WorkerGate gate;
+    auto target = std::make_shared<TDTarget>();
+
+    dmq::MakeDelegate(&gate, &WorkerGate::Block, s_thread)();
+    while (!gate.entered.load())
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    {
+        auto d = MakeTimerDelegate(target, &TDTarget::OnTick, s_thread);
+        d();
+        DMQ_ASSERT_TRUE(s_thread.GetQueueSize() == 1);
+    }                                                 // d destroyed, tick still queued
+
+    gate.release.store(true);
+    Drain(s_thread);
+
+    DMQ_ASSERT_TRUE(target->count.load() == 0);
+    std::cout << "TimerDelegate_DestroyedWhileInFlight_NoCallback() complete!" << std::endl;
+}
+
 // =============================================================================
 // TimerDelegate::Equal() / Empty() / nullptr comparisons
 // =============================================================================
@@ -413,6 +482,8 @@ void TimerDelegateTests()
     TimerDelegate_FiresAgainAfterCompletion();
     TimerDelegate_SharedPtr_Dispatches();
     TimerDelegate_SharedPtr_SkipsDestroyedObject();
+    TimerDelegate_DisconnectWhileInFlight_NoCallback();
+    TimerDelegate_DestroyedWhileInFlight_NoCallback();
 
     TimerDelegate_Equal_SameUnderlyingAndThread();
     TimerDelegate_Equal_DifferentTargetObject();

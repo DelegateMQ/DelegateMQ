@@ -280,6 +280,8 @@ Internally, each dispatch carries a `DispatchToken` (a `shared_ptr`); the `Timer
 
 This prevents a slow handler from causing unbounded queue growth on the target thread, and means `ProcessTimers()` never waits on a `FullPolicy::TIMEOUT` queue while a dispatch is already pending. A `TimerDelegate` is meant to be invoked from a single `ProcessTimers()` context; it is not safe for concurrent invocation.
 
+Disconnecting the connection (or destroying/clearing the `TimerDelegate`) cancels a tick still waiting in the thread queue: the target is not called. A tick the worker thread has already started runs to completion, so a raw-pointer target must still outlive any handler that may be running.
+
 ## Watchdog
 
 The watchdog is built into every `dmq::os::Thread`. It detects threads that deadlock, spin indefinitely, or become unresponsive. There is no separate Watchdog class — it is an optional feature of `Thread`.

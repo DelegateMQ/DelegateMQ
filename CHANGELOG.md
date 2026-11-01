@@ -17,6 +17,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **`DMQ_CUSTOM_FAULT_HANDLER`.** Define it when the application provides its own `FaultHandler()`/`WatchdogHandler()`; `port/fault/Fault.cpp` then compiles to nothing instead of having to be left out of the build.
 
 ### Fixed
+- **`TimerDelegate` use-after-free when its connection was dropped with a tick still queued.** The queued message called back into the `TimerDelegate` through a raw pointer, but disconnecting the `Signal` connection (or destroying the delegate) deletes it, so the worker thread then ran on freed memory. Queued ticks now hold only a `weak_ptr` to the target; once the `TimerDelegate` is destroyed or cleared, a tick still waiting in the queue is skipped and the target is not called. A tick the worker has already started still runs to completion.
 - **`FetchContent_MakeAvailable(delegatemq)` no longer builds DelegateMQ's test app** inside the consuming project. The tests, samples and tools are only added when DelegateMQ is the top-level project.
 - **`DMQ_USER_CONFIG` as a CMake variable now takes effect.** BUILD.md documented `-DDMQ_USER_CONFIG=...`, but nothing read it; it's now passed to the compiler. Samples that already set the `DMQ_USER_CONFIG` compile definition themselves are unaffected.
 - **`DMQ_FORCE_OPTIMIZE_DEBUG` on the top-level build reached nothing.** The root `CMakeLists.txt` added it after `test/` had already been configured. `DelegateMQ.cmake` now applies it.
