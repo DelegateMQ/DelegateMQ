@@ -242,7 +242,7 @@ private:
     bool* m_selfExitPtr = nullptr;
     
     // Configurable sizes
-    static const uint32_t STACK_SIZE = 2048; // Bytes
+    static const uint32_t STACK_SIZE = static_cast<uint32_t>(dmq::CMSIS_RTOS2_STACK_BYTES); // Bytes, DMQ_CMSIS_RTOS2_STACK_BYTES
     static const uint32_t START_FLAG = 0x1U; // Thread flag: CreateThread() has stored m_thread
 
     // Watchdog related members

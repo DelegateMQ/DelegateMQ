@@ -241,7 +241,7 @@ private:
     // pthread_create(); NuttX allocates and frees the stack itself, unlike
     // the Zephyr/CMSIS-RTOS2 ports which must k_aligned_alloc()/k_free() it
     // manually.
-    static const size_t STACK_SIZE = 8192;
+    static const size_t STACK_SIZE = dmq::NUTTX_STACK_BYTES; // DMQ_NUTTX_STACK_BYTES
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;

@@ -93,6 +93,10 @@ public:
         UINT msgSizeWords = (sizeof(ThreadMsg*) + sizeof(ULONG) - 1) / sizeof(ULONG);
         ULONG queueMemSizeWords = static_cast<ULONG>(capacity) * msgSizeWords;
 
+        // Queue buffers use new (std::nothrow) for the same reason as the thread
+        // stack (see ThreadXThread::CreateThread()): ThreadX needs caller-supplied
+        // memory, and multi-KB buffers don't belong in the fixed-block allocator.
+        //
         // On any failure below, Destroy() deletes whatever was already created
         // and frees the buffers, so a later Create() never re-creates a live
         // queue or frees memory a live queue still uses.

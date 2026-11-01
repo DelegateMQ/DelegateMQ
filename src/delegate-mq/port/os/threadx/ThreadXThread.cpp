@@ -44,7 +44,7 @@ ThreadXThread::ThreadXThread(const char* threadName, size_t maxQueueSize, FullPo
 #endif
 
     // Default Priority
-    m_priority = 10;
+    m_priority = static_cast<UINT>(dmq::THREADX_THREAD_PRIORITY); // DMQ_THREADX_THREAD_PRIORITY
 }
 
 //----------------------------------------------------------------------------
@@ -64,7 +64,7 @@ ThreadXThread::~ThreadXThread()
 
     ExitThread();
 
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     ThreadXThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
@@ -124,6 +124,13 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Stack Size Rounding
         ULONG stackSizeWords = (STACK_SIZE + sizeof(ULONG) - 1) / sizeof(ULONG);
 
+        // ThreadX requires the caller to supply this memory. It's allocated with
+        // new (std::nothrow) on purpose (the CLAUDE.md "no new" rule allows a
+        // justified exception): the fixed-block allocator is sized for small
+        // objects and has a limited number of size classes
+        // (DMQ_XALLOCATOR_MAX_ALLOCATORS), so multi-KB buffers would exhaust it,
+        // and a ThreadX byte pool would require the application to create one.
+        // Allocated once per CreateThread(), freed by ExitThread()/the destructor.
         m_stackMemory.reset(new (std::nothrow) ULONG[stackSizeWords]);
         if (!m_stackMemory)
             BAD_ALLOC();
@@ -143,7 +150,7 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             // Register before resuming: the thread must never be able to run
             // (and call Process()) before its registry entry exists.
             {
-                const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+                const dmq::LockGuard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
                 GetInstanceRegistry()[&m_thread] = this;
             }
             tx_thread_resume(&m_thread);
@@ -161,7 +168,7 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         {
             m_watchdogTimeout = watchdogTimeout.value();
 
-            const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
 
             // Add to watchdog registry if not already present
             bool found = false;
@@ -287,7 +294,7 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         // Remove the registry entry before clearing/reusing the control block
         // (see GetInstanceRegistry() for why this exists).
         {
-            const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
             GetInstanceRegistry().erase(&m_thread);
         }
 
@@ -400,7 +407,7 @@ void ThreadXThread::Process(ULONG /*instance*/)
 {
     ThreadXThread* thread = nullptr;
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
         auto it = GetInstanceRegistry().find(tx_thread_identify());
         if (it != GetInstanceRegistry().end())
             thread = it->second;
@@ -442,7 +449,7 @@ void ThreadXThread::ThreadCheck()
 //----------------------------------------------------------------------------
 void ThreadXThread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     ThreadXThread* p = GetWatchdogHead();
     while (p != nullptr)
     {

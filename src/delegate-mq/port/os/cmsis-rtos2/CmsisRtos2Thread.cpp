@@ -47,7 +47,7 @@ CmsisRtos2Thread::~CmsisRtos2Thread()
 {
     ExitThread();
 
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     CmsisRtos2Thread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
@@ -144,7 +144,7 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         {
             m_watchdogTimeout = watchdogTimeout.value();
 
-            const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
 
             // Add to watchdog registry if not already present
             bool found = false;
@@ -371,7 +371,7 @@ void CmsisRtos2Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 void CmsisRtos2Thread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     CmsisRtos2Thread* p = GetWatchdogHead();
     while (p != nullptr)
     {

@@ -288,6 +288,27 @@ namespace dmq
     /// Override via DMQ_DEFAULT_QUEUE_SIZE in delegatemqconfig.h.
     inline constexpr size_t DEFAULT_QUEUE_SIZE = DMQ_DEFAULT_QUEUE_SIZE;
 
+    /// @brief Stack size of each dmq::os::Thread on the RTOS ports, in each
+    /// port's native unit (FreeRTOS: words, for dynamically allocated stacks;
+    /// the others: bytes).
+    /// Override via DMQ_FREERTOS_STACK_WORDS, DMQ_THREADX_STACK_BYTES,
+    /// DMQ_ZEPHYR_STACK_BYTES, DMQ_CMSIS_RTOS2_STACK_BYTES and
+    /// DMQ_NUTTX_STACK_BYTES in delegatemqconfig.h.
+    inline constexpr uint32_t FREERTOS_STACK_WORDS = DMQ_FREERTOS_STACK_WORDS;
+    inline constexpr size_t THREADX_STACK_BYTES = DMQ_THREADX_STACK_BYTES;
+    inline constexpr size_t ZEPHYR_STACK_BYTES = DMQ_ZEPHYR_STACK_BYTES;
+    inline constexpr size_t CMSIS_RTOS2_STACK_BYTES = DMQ_CMSIS_RTOS2_STACK_BYTES;
+    inline constexpr size_t NUTTX_STACK_BYTES = DMQ_NUTTX_STACK_BYTES;
+
+    /// @brief Default dmq::os::Thread priority on the ThreadX, Zephyr (passed to
+    /// K_PRIO_PREEMPT()) and NuttX (SCHED_FIFO) ports. SetThreadPriority()
+    /// overrides it per thread.
+    /// Override via DMQ_THREADX_THREAD_PRIORITY, DMQ_ZEPHYR_THREAD_PRIORITY and
+    /// DMQ_NUTTX_THREAD_PRIORITY in delegatemqconfig.h.
+    inline constexpr int THREADX_THREAD_PRIORITY = DMQ_THREADX_THREAD_PRIORITY;
+    inline constexpr int ZEPHYR_THREAD_PRIORITY = DMQ_ZEPHYR_THREAD_PRIORITY;
+    inline constexpr int NUTTX_THREAD_PRIORITY = DMQ_NUTTX_THREAD_PRIORITY;
+
     /// @brief Fallback queue size (maxQueueSize == 0) for the desktop
     /// stdlib/Win32 Thread ports only, which back their queue with a plain
     /// std::deque and would otherwise grow without bound if the destination

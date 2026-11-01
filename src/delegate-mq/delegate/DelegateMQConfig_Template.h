@@ -48,6 +48,24 @@
 /// the backing queue primitive requires a fixed capacity at creation.
 #define DMQ_DEFAULT_QUEUE_SIZE          20
 
+/// Stack size of each dmq::os::Thread on the RTOS ports, in each port's native
+/// unit. FreeRTOS counts words and applies to dynamically allocated stacks
+/// (FreeRTOSThread::SetStackMem() supplies a static stack instead); the others
+/// count bytes.
+#define DMQ_FREERTOS_STACK_WORDS        4096
+#define DMQ_THREADX_STACK_BYTES         2048
+#define DMQ_ZEPHYR_STACK_BYTES          2048
+#define DMQ_CMSIS_RTOS2_STACK_BYTES     2048
+#define DMQ_NUTTX_STACK_BYTES           8192
+
+/// Default dmq::os::Thread priority on the RTOS ports whose default is a plain
+/// number. SetThreadPriority() overrides it per thread. ThreadX: 0 is highest.
+/// Zephyr: passed to K_PRIO_PREEMPT(). NuttX: SCHED_FIFO priority. (FreeRTOS and
+/// CMSIS-RTOS2 derive their defaults from configMAX_PRIORITIES / osPriorityNormal.)
+#define DMQ_THREADX_THREAD_PRIORITY     10
+#define DMQ_ZEPHYR_THREAD_PRIORITY      5
+#define DMQ_NUTTX_THREAD_PRIORITY       100
+
 /// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32 Thread
 /// ports only. A high-water-mark safety net (not a throughput limiter) against
 /// unbounded growth if the destination thread is dead/stuck -- large enough to

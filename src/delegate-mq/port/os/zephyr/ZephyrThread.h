@@ -245,7 +245,7 @@ private:
     std::unique_ptr<char, ZephyrDeleter> m_stackMemory{nullptr, k_free};
 
     // Stack size in bytes
-    static const size_t STACK_SIZE = 2048;
+    static const size_t STACK_SIZE = dmq::ZEPHYR_STACK_BYTES; // DMQ_ZEPHYR_STACK_BYTES
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;

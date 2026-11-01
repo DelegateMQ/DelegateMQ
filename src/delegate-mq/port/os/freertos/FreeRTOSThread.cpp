@@ -48,7 +48,7 @@ FreeRTOSThread::~FreeRTOSThread()
     ExitThread();
 
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
         FreeRTOSThread** pp = &GetWatchdogHead();
         while (*pp != nullptr)
         {
@@ -117,7 +117,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     {
         m_watchdogTimeout.store(static_cast<uint32_t>(watchdogTimeout.value().count()));
 
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
         
         // Add to watchdog registry if not already present
         bool found = false;
@@ -166,7 +166,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     {
         // --- DYNAMIC ALLOCATION (Heap) ---
         // Increase default stack to 4096 words (16KB) for safety
-        const uint32_t DYNAMIC_STACK_SIZE = 4096; 
+        const uint32_t DYNAMIC_STACK_SIZE = dmq::FREERTOS_STACK_WORDS; // DMQ_FREERTOS_STACK_WORDS
         
         BaseType_t xReturn = xTaskCreate(
             (TaskFunction_t)&FreeRTOSThread::Process,
@@ -343,7 +343,7 @@ void FreeRTOSThread::Process(void* instance)
 //----------------------------------------------------------------------------
 void FreeRTOSThread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     FreeRTOSThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
@@ -458,7 +458,7 @@ void FreeRTOSThread::Run()
                 int64_t latNs = std::chrono::duration_cast<std::chrono::nanoseconds>(latency).count();
                 
                 {
-                    const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+                    const dmq::LockGuard<dmq::RecursiveMutex> lock(m_statsLock);
                     m_latencyTotalWindow += latNs;
                     m_latencyCountWindow += 1;
                     if (latNs > m_latencyMaxWindow) m_latencyMaxWindow = latNs;
@@ -515,7 +515,7 @@ void FreeRTOSThread::Run()
                 dmq::Duration invokeTime = Timer::GetNow() - start;
                 int64_t invokeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(invokeTime).count();
                 {
-                    const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+                    const dmq::LockGuard<dmq::RecursiveMutex> lock(m_statsLock);
                     m_invokeTotalWindow += invokeNs;
                     m_invokeCountWindow += 1;
                     if (invokeNs > m_invokeMaxWindow) m_invokeMaxWindow = invokeNs;
@@ -560,7 +560,7 @@ FreeRTOSThread::ThreadStats FreeRTOSThread::SnapshotStats()
     stats.queue_size_limit = m_queueSize;
     
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_statsLock);
         uint32_t count = m_latencyCountWindow;
         m_latencyCountWindow = 0;
         int64_t total = m_latencyTotalWindow;

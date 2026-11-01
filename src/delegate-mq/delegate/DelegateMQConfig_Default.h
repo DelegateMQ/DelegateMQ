@@ -29,6 +29,35 @@
     #define DMQ_DEFAULT_QUEUE_SIZE          20
 #endif
 
+// Stack size of each dmq::os::Thread on the RTOS ports, in each port's native unit.
+#ifndef DMQ_FREERTOS_STACK_WORDS
+    #define DMQ_FREERTOS_STACK_WORDS        4096    // words; dynamic stacks (SetStackMem() overrides)
+#endif
+#ifndef DMQ_THREADX_STACK_BYTES
+    #define DMQ_THREADX_STACK_BYTES         2048
+#endif
+#ifndef DMQ_ZEPHYR_STACK_BYTES
+    #define DMQ_ZEPHYR_STACK_BYTES          2048
+#endif
+#ifndef DMQ_CMSIS_RTOS2_STACK_BYTES
+    #define DMQ_CMSIS_RTOS2_STACK_BYTES     2048
+#endif
+#ifndef DMQ_NUTTX_STACK_BYTES
+    #define DMQ_NUTTX_STACK_BYTES           8192
+#endif
+
+// Default dmq::os::Thread priority on the RTOS ports whose default is a plain number
+// (SetThreadPriority() overrides per thread).
+#ifndef DMQ_THREADX_THREAD_PRIORITY
+    #define DMQ_THREADX_THREAD_PRIORITY     10      // 0 = highest
+#endif
+#ifndef DMQ_ZEPHYR_THREAD_PRIORITY
+    #define DMQ_ZEPHYR_THREAD_PRIORITY      5       // passed to K_PRIO_PREEMPT()
+#endif
+#ifndef DMQ_NUTTX_THREAD_PRIORITY
+    #define DMQ_NUTTX_THREAD_PRIORITY       100     // SCHED_FIFO
+#endif
+
 // Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32 Thread ports
 // only. Unlike DMQ_DEFAULT_QUEUE_SIZE (sized for real RTOS RAM constraints), these
 // ports back their queue with a plain std::deque, so maxQueueSize == 0 otherwise

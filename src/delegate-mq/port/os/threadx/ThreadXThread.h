@@ -274,7 +274,7 @@ private:
     std::unique_ptr<ULONG[]> m_stackMemory;
 
     // Configurable stack size (bytes)
-    static const ULONG STACK_SIZE = 2048;
+    static const ULONG STACK_SIZE = static_cast<ULONG>(dmq::THREADX_STACK_BYTES); // DMQ_THREADX_STACK_BYTES
 
     // Watchdog related members
     std::atomic<dmq::TimePoint> m_lastAliveTime;

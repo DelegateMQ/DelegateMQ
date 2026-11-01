@@ -31,7 +31,7 @@ ZephyrThread::ZephyrThread(const char* threadName, size_t maxQueueSize, FullPoli
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
-    m_priority = K_PRIO_PREEMPT(5); // Default priority
+    m_priority = K_PRIO_PREEMPT(dmq::ZEPHYR_THREAD_PRIORITY); // Default priority, DMQ_ZEPHYR_THREAD_PRIORITY
 
     // Initialize objects to zero (m_queue zeroes its own control blocks in
     // ZephyrDelegateQueue's constructor)
@@ -63,7 +63,7 @@ ZephyrThread::~ZephyrThread()
 
     ExitThread();
 
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     ZephyrThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
@@ -132,7 +132,7 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         {
             m_watchdogTimeout = watchdogTimeout.value();
 
-            const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
 
             // Add to watchdog registry if not already present
             bool found = false;
@@ -394,7 +394,7 @@ void ZephyrThread::ThreadCheck()
 //----------------------------------------------------------------------------
 void ZephyrThread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     ZephyrThread* p = GetWatchdogHead();
     while (p != nullptr)
     {

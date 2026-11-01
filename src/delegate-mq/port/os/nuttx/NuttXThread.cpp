@@ -32,7 +32,7 @@ NuttXThread::NuttXThread(const char* threadName, size_t maxQueueSize, FullPolicy
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
-    m_priority = 100; // Default SCHED_FIFO priority (NuttX default range is typically 1-255)
+    m_priority = dmq::NUTTX_THREAD_PRIORITY; // Default SCHED_FIFO priority (typically 1-255), DMQ_NUTTX_THREAD_PRIORITY
 
     sem_init(&m_exitSem, 0, 0);
     sem_init(&m_goSem, 0, 0);
@@ -58,7 +58,7 @@ NuttXThread::~NuttXThread()
     pthread_mutex_destroy(&m_statMutex);
 #endif
 
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     NuttXThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
@@ -120,7 +120,7 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         {
             m_watchdogTimeout = watchdogTimeout.value();
 
-            const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
 
             // Add to watchdog registry if not already present
             bool found = false;
@@ -370,7 +370,7 @@ void NuttXThread::ThreadCheck()
 //----------------------------------------------------------------------------
 void NuttXThread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     NuttXThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
