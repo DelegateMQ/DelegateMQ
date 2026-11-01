@@ -129,6 +129,11 @@ Timer& GetTimer()
 //------------------------------------------------------------------------------
 // main
 //------------------------------------------------------------------------------
+#if defined(DMQ_ALLOC_TRACK)
+// Global new/delete tracking, see AllocTrack.cpp
+namespace alloctrack { void SetLoop(int); void Report(const char*); }
+#endif
+
 int main(void)
 {
     try
@@ -172,6 +177,10 @@ int main(void)
         // Run all test code
         for (int i = 0; i < 3; i++)
         {
+#if defined(DMQ_ALLOC_TRACK)
+            // Loop 1 warms up the fixed-block pools; track loops 2 and 3
+            alloctrack::SetLoop(i == 0 ? 0 : i + 1);
+#endif
             RunSimpleExamples();
             RunRemoteChannelExamples();
             RunPubSubExamples();
@@ -184,6 +193,9 @@ int main(void)
             RunDataBusTests();
 #endif
         }
+#if defined(DMQ_ALLOC_TRACK)
+        alloctrack::Report("alloc_report.txt");
+#endif
 
         // Ensure the threads complete before main exits
         processTimerExit.store(true);

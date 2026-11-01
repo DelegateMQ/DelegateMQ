@@ -5,6 +5,7 @@ DelegateMQ is mostly headers. The delegates themselves are header-only; the OS p
 ## Table of Contents
 - [Prerequisites](#prerequisites)
 - [Main Application Build](#main-application-build)
+  - [Checking for Heap Use Outside the Fixed-Block Allocator](#checking-for-heap-use-outside-the-fixed-block-allocator)
 - [Adding DelegateMQ to Your Project](#adding-delegatemq-to-your-project)
   - [With CMake](#with-cmake)
   - [Without CMake](#without-cmake)
@@ -38,6 +39,19 @@ cmake --build build
 ```
 
 The output executable will be located in `build/delegate_app/`.
+
+### Checking for Heap Use Outside the Fixed-Block Allocator
+
+With `DMQ_ALLOCATOR`, the library should allocate through the fixed-block allocator, not global `operator new`. `test/AllocTrack.cpp` checks this (Windows/MSVC only, off unless `DMQ_ALLOC_TRACK` is defined). It replaces global `new`/`delete` with `malloc`/`free`, records the call stack of every global `new` during the 2nd and 3rd pass of the test loop in `test/main.cpp` (the 1st pass warms up the allocator pools), and writes `alloc_report.txt`, grouped by the innermost DelegateMQ or test frame:
+
+```bash
+cmake -S test -B build-alloctrack -A x64 -DDMQ_ALLOCATOR=ON "-DCMAKE_CXX_FLAGS=-DWIN32 -D_WINDOWS -EHsc -DDMQ_ALLOC_TRACK" "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -Ob0 -Zi -DNDEBUG"
+cmake --build build-alloctrack --config RelWithDebInfo
+cd build-alloctrack/RelWithDebInfo
+./delegate_app.exe
+```
+
+`-Ob0` turns off inlining so every frame and line number shows up. In the report, `LIBRARY` groups are library code allocating with global `new`. `LIBRARY desktop-only port` groups are the stdlib/Win32 thread ports and desktop transports, which may use `std::` allocation. `TEST/SAMPLE` groups are test code, including user-owned types (`std::string`, `std::vector`) passed through the library.
 
 ---
 
