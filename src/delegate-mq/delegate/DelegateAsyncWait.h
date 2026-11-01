@@ -64,7 +64,6 @@
 #include <atomic>
 #include <optional>
 #include <tuple>
-#include <any>
 #include <chrono>
 
 DMQ_OPTIMIZE_ON
@@ -180,7 +179,8 @@ inline RecursiveMutex& AsyncWaitResultLock() {
 }
 
 /// @brief Non-template holder for a `DelegateXAsyncWait<...>` instance's dispatch state
-/// (destination thread, message priority, timeout, and the last async call's result).
+/// (destination thread, message priority, timeout, and whether the last async call
+/// succeeded). The last call's return value is stored, typed, on the owning delegate.
 /// None of this depends on the bound function's signature or target class, so every
 /// `DelegateFreeAsyncWait`/`DelegateMemberAsyncWait`/`DelegateMemberAsyncWaitSp`/
 /// `DelegateFunctionAsyncWait` instantiation composes this one definition instead of each
@@ -216,28 +216,16 @@ public:
         return m_success;
     }
 
-    /// Copy of the last call's return value.
-    std::any RetValCopy() const {
-        const dmq::LockGuard<RecursiveMutex> lock(AsyncWaitResultLock());
-        return m_retVal;
-    }
-
-    /// Unlocked access for the per-call clone only: Invoke() writes it on the
-    /// destination thread, and the caller reads it after taking the message lock.
-    std::any& CloneRetVal() noexcept { return m_retVal; }
-
-    /// Reset the result of the last call.
+    /// Reset the last call's success flag.
     void ResetResult() noexcept {
         const dmq::LockGuard<RecursiveMutex> lock(AsyncWaitResultLock());
-        m_retVal.reset();
         m_success = false;
     }
 
-    /// Record the result of a completed call.
-    void SetResult(bool success, const std::any& retVal) {
+    /// Record whether the last call succeeded.
+    void SetSuccess(bool success) noexcept {
         const dmq::LockGuard<RecursiveMutex> lock(AsyncWaitResultLock());
         m_success = success;
-        m_retVal = retVal;
     }
 
     bool Equal(const AsyncWaitDispatchState& rhs) const noexcept {
@@ -249,7 +237,6 @@ private:
     Priority m_priority = Priority::NORMAL;
     Duration m_timeout = WAIT_INFINITE;
     bool m_success = false;
-    std::any m_retVal;
 };
 
 /// @brief Builds the argument message, dispatches it to `thread`, and waits (up to
@@ -380,6 +367,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -411,6 +399,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -484,12 +473,12 @@ public:
     virtual RetType operator()(Args... args) override {
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? RetFromAny(std::move(retVal)) : RetType();
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
@@ -500,14 +489,14 @@ public:
     /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == true) {
             return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            return success ? std::optional<RetType>(RetFromAny(std::move(retVal))) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -553,10 +542,10 @@ public:
                 std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
                     delegateMsg->GetArgs());
             } else {
-                // As above, and keep the return value.
-                m_state.CloneRetVal() = std::apply(
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
                     [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
-                    delegateMsg->GetArgs());
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -576,7 +565,14 @@ public:
     /// @return The destination thread target function return value
     /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        return RetFromAny(m_state.RetValCopy());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
+        }
     }
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
@@ -588,10 +584,13 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
     /// Dispatch to the destination thread and wait (up to the timeout) for the call.
     /// @param[out] retVal The target function's return value, set when this returns `true`.
     /// @return `true` if the target function was invoked and completed.
-    bool DispatchWait(std::any& retVal, Args&&... args) {
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
         if (this->Empty())
             return false;
 
@@ -612,39 +611,38 @@ private:
             m_state.GetTimeout(), std::forward<Args>(args)...);
         if (success) {
             // Invoke() (running as the clone, on the destination thread) wrote the
-            // target function's return value into the clone's own state.
-            retVal = std::move(rawClone->m_state.CloneRetVal());
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
         }
         return success;
     }
 
-    /// Extract the return value from `v`, or a default value if it holds none.
-    static RetType RetFromAny(std::any&& v) noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&v);
-        if (p) return std::move(*p);
-
-        // Optional: If you want to trap this error in debug mode
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
 #if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
 #endif
         return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(std::move(v));
-        }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
 
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
+
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };
@@ -800,6 +798,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -831,6 +830,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -904,12 +904,12 @@ public:
     virtual RetType operator()(Args... args) override {
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? RetFromAny(std::move(retVal)) : RetType();
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
@@ -920,14 +920,14 @@ public:
     /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == true) {
             return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            return success ? std::optional<RetType>(RetFromAny(std::move(retVal))) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -973,10 +973,10 @@ public:
                 std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
                     delegateMsg->GetArgs());
             } else {
-                // As above, and keep the return value.
-                m_state.CloneRetVal() = std::apply(
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
                     [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
-                    delegateMsg->GetArgs());
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -996,7 +996,14 @@ public:
     /// @return The destination thread target function return value
     /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        return RetFromAny(m_state.RetValCopy());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
+        }
     }
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
@@ -1008,10 +1015,13 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
     /// Dispatch to the destination thread and wait (up to the timeout) for the call.
     /// @param[out] retVal The target function's return value, set when this returns `true`.
     /// @return `true` if the target function was invoked and completed.
-    bool DispatchWait(std::any& retVal, Args&&... args) {
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
         if (this->Empty())
             return false;
 
@@ -1032,39 +1042,38 @@ private:
             m_state.GetTimeout(), std::forward<Args>(args)...);
         if (success) {
             // Invoke() (running as the clone, on the destination thread) wrote the
-            // target function's return value into the clone's own state.
-            retVal = std::move(rawClone->m_state.CloneRetVal());
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
         }
         return success;
     }
 
-    /// Extract the return value from `v`, or a default value if it holds none.
-    static RetType RetFromAny(std::any&& v) noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&v);
-        if (p) return std::move(*p);
-
-        // Optional: If you want to trap this error in debug mode
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
 #if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
 #endif
         return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(std::move(v));
-        }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
 
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
+
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };
@@ -1137,6 +1146,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -1168,6 +1178,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -1241,12 +1252,12 @@ public:
     virtual RetType operator()(Args... args) override {
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? RetFromAny(std::move(retVal)) : RetType();
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
@@ -1257,14 +1268,14 @@ public:
     /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == true) {
             return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            return success ? std::optional<RetType>(RetFromAny(std::move(retVal))) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -1310,10 +1321,10 @@ public:
                 std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
                     delegateMsg->GetArgs());
             } else {
-                // As above, and keep the return value.
-                m_state.CloneRetVal() = std::apply(
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
                     [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
-                    delegateMsg->GetArgs());
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -1333,7 +1344,14 @@ public:
     /// @return The destination thread target function return value
     /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        return RetFromAny(m_state.RetValCopy());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
+        }
     }
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
@@ -1345,10 +1363,13 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
     /// Dispatch to the destination thread and wait (up to the timeout) for the call.
     /// @param[out] retVal The target function's return value, set when this returns `true`.
     /// @return `true` if the target function was invoked and completed.
-    bool DispatchWait(std::any& retVal, Args&&... args) {
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
         if (this->Empty())
             return false;
 
@@ -1369,39 +1390,38 @@ private:
             m_state.GetTimeout(), std::forward<Args>(args)...);
         if (success) {
             // Invoke() (running as the clone, on the destination thread) wrote the
-            // target function's return value into the clone's own state.
-            retVal = std::move(rawClone->m_state.CloneRetVal());
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
         }
         return success;
     }
 
-    /// Extract the return value from `v`, or a default value if it holds none.
-    static RetType RetFromAny(std::any&& v) noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&v);
-        if (p) return std::move(*p);
-
-        // Optional: If you want to trap this error in debug mode
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
 #if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
 #endif
         return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(std::move(v));
-        }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
 
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
+
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };
@@ -1476,6 +1496,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -1507,6 +1528,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -1580,12 +1602,12 @@ public:
     virtual RetType operator()(Args... args) override {
         // The result lives in locals, so concurrent callers sharing this instance
         // (e.g. one Signal emitted from two threads) each get their own return value.
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? RetFromAny(std::move(retVal)) : RetType();
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
@@ -1596,14 +1618,14 @@ public:
     /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
-        std::any retVal;
+        std::optional<RetStorage> retVal;
         bool success = DispatchWait(retVal, std::forward<Args>(args)...);
-        m_state.SetResult(success, retVal);
+        SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == true) {
             return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            return success ? std::optional<RetType>(RetFromAny(std::move(retVal))) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -1649,10 +1671,10 @@ public:
                 std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
                     delegateMsg->GetArgs());
             } else {
-                // As above, and keep the return value.
-                m_state.CloneRetVal() = std::apply(
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
                     [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
-                    delegateMsg->GetArgs());
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -1672,7 +1694,14 @@ public:
     /// @return The destination thread target function return value
     /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        return RetFromAny(m_state.RetValCopy());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
+        }
     }
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
@@ -1684,10 +1713,13 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
     /// Dispatch to the destination thread and wait (up to the timeout) for the call.
     /// @param[out] retVal The target function's return value, set when this returns `true`.
     /// @return `true` if the target function was invoked and completed.
-    bool DispatchWait(std::any& retVal, Args&&... args) {
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
         if (this->Empty())
             return false;
 
@@ -1708,39 +1740,38 @@ private:
             m_state.GetTimeout(), std::forward<Args>(args)...);
         if (success) {
             // Invoke() (running as the clone, on the destination thread) wrote the
-            // target function's return value into the clone's own state.
-            retVal = std::move(rawClone->m_state.CloneRetVal());
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
         }
         return success;
     }
 
-    /// Extract the return value from `v`, or a default value if it holds none.
-    static RetType RetFromAny(std::any&& v) noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&v);
-        if (p) return std::move(*p);
-
-        // Optional: If you want to trap this error in debug mode
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
 #if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
 #endif
         return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(std::move(v));
-        }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
 
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
+
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };

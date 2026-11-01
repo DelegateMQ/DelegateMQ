@@ -118,7 +118,7 @@
 // -----------------------------------------------------------------------------
 // 4. Asynchronous "Blocking" Delegates (Wait for Result)
 // -----------------------------------------------------------------------------
-// Depends on Semaphore/Mutex and C++17 (std::any, std::optional).
+// Depends on Semaphore/Mutex and C++17 (std::optional).
 // Valid for StdLib/Win32 (Windows/Linux), Qt, ThreadX, FreeRTOS (if C++17
 // enabled), Zephyr, and CMSIS-RTOS2 -- the latter two via their native
 // k_sem/osSemaphore-backed dmq::Semaphore, not the generic condvar+mutex
