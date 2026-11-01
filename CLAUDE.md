@@ -137,6 +137,14 @@ Under `DMQ_ALLOCATOR` these use the fixed-block allocator for internal buffers. 
 - Do not call `SetErrorHandler` (or any handler-registration function) on an already-configured channel on every send. Attach handlers once at channel creation.
 - Avoid redundant per-participant lock acquisitions; one pass per publish is the target.
 
+## Lambdas in Library Internals
+
+Lambdas are fine in application code, but library internals and middleware glue (DataBus, Participant, RAII helpers) avoid capturing lambdas. `MakeDelegate()` stores a lambda in a `std::function` (`DelegateFunction`), and a capture that outgrows `std::function`'s small-buffer optimization is a hidden heap allocation.
+
+- **Member delegates over capturing lambdas.** If a callback needs `this` or other state, move the logic into a private member function and bind it with `dmq::MakeDelegate(this, &Class::Method)`. Member-function delegates are fixed-size and never allocate.
+- **Closure state goes in a helper class.** When a delegate needs real state (e.g. QoS rate limiting or filtering), put it in a dedicated class in a `detail` namespace, owned by a `shared_ptr`, and capture only that `shared_ptr` in a thin lambda if a lambda is needed at all.
+- **Long-lived connections use weak-pointer delegates.** Prefer `DelegateMemberSp` (`std::shared_ptr` target, held as `std::weak_ptr`) over a lambda capturing `this`: it expires when the object is destroyed instead of calling through a dangling pointer.
+
 ## Template Instantiation Cost
 
 `AttachErrorHandler<T>`, `GetOrCreateChannel<T>`, and similar templated helpers instantiate once per message type `T`. On flash-constrained targets this matters. Do not introduce new template helpers on the send path unless necessary.
