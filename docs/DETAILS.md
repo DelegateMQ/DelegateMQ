@@ -337,7 +337,7 @@ Target callable invocation and argument handling based on the delegate type.
 | Synchronization | Caller is blocked by synchronous execution. | None. Fire-and-forget. | Semaphore + Mutex. Caller blocks on semaphore; mutex protects return value. | None. Fire-and-forget (library level). Blocking depends on transport implementation. | 
 | Execution Thread | Caller Thread. | Target Thread. | Target Thread. | Remote Process. |
 | Blocking Behavior¹ | Yes. | No. | Yes. | No. |
-| Arguments (In) | Stack Access. Passed directly via registers/stack. | Deep Heap Copy. Arguments cloned to heap. | Stack Reference. References point to caller's stack (safe because caller blocks). | Serialization. Arguments marshaled to a stream and sent via external transport.|
+| Arguments (In) | Stack Access. Passed directly via registers/stack. | Copied. By-value arguments are stored in the message; data behind reference/pointer arguments is copied to the heap. | Stack Reference. References point to caller's stack (safe because caller blocks). | Serialization. Arguments marshaled to a stream and sent via external transport.|
 | Arguments (Out) | Supported. | Not Supported.	| Supported. Target writes directly to caller's stack reference variables. | Not supported. |
 | Return Value | Yes. Immediate. | No. Ignored. | Yes. Returned after target callable completes. | No. Not supported. |
 
@@ -1001,37 +1001,44 @@ Some degree of code duplication exists within the delegate inheritance hierarchy
 
 ## Heap Template Parameter Pack
 
-Non-blocking asynchronous invocations means that all argument data must be copied into the heap for transport to the destination thread. Arguments come in different styles: by value, by reference, pointer and pointer to pointer. For non-blocking delegates, the data is copied to the heap to ensure the data is valid on the destination thread. The key to being able to save each parameter into `dmq::DelegateAsyncMsg<>` is the `make_tuple_heap()` function. This template metaprogramming function creates a `tuple` of arguments where each tuple element is created on the heap.
+Non-blocking asynchronous invocations mean that all argument data must be copied for transport to the destination thread, since the caller doesn't wait. Arguments come in different styles: by value, by reference, pointer and pointer to pointer. `dmq::DelegateAsyncMsg<>` stores them in a `std::tuple` built one argument at a time by `dmq::store_async_arg<Param>()`, which decides from the bound function's declared parameter type:
+
+- **By value:** the argument is moved into the message's tuple. The tuple element is its own copy, so no heap copy is needed.
+- **Reference, pointer, pointer to pointer:** the data is copied to the heap, and the tuple element refers to that copy, so it stays valid after the caller's stack frame is gone.
+
+The choice is made with `if constexpr` on the declared type, not by overloading on the argument's value category, so it doesn't change with how the argument happens to be passed along. The target thread then calls the bound function with the stored arguments, moving by-value ones out of the message (each message is invoked once). The result is one copy per by-value argument, the same as a synchronous call.
 
 ```cpp
-/// @brief Terminate the template metaprogramming argument loop
-template<typename... Ts>
-auto make_tuple_heap(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup)
+template <class... Args>
+class DelegateAsyncMsg : public DelegateMsg
 {
-    return tup;
-}
+public:
+    DelegateAsyncMsg(std::shared_ptr<IThreadInvoker> invoker, Priority priority, Args... args) :
+        DelegateMsg(invoker, priority),
+        m_args{ store_async_arg<Args>(m_heapMem, std::forward<Args>(args))... } {}
+    // ...
+private:
+    xlist<std::shared_ptr<heap_arg_deleter_base>> m_heapMem;  // frees the heap copies
+    std::tuple<Args...> m_args;
+};
 
-/// @brief Creates a tuple with all tuple elements created on the heap using
-/// operator new. Call with an empty list and empty tuple. The empty tuple is concatenated
-/// with each heap element. The list contains heap_arg_deleter_base objects for each 
-/// argument heap memory block that will be automatically deleted after the bound
-/// function is invoked on the target thread. 
-template<typename Arg1, typename... Args, typename... Ts>
-auto make_tuple_heap(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1 arg1, Args... args)
+template <typename Param, typename A>
+decltype(auto) store_async_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, A&& arg)
 {
-    static_assert(!(
-        (dmq::is_shared_ptr<Arg1>::value && (std::is_lvalue_reference_v<Arg1> || std::is_pointer_v<Arg1>))),
-        "std::shared_ptr reference argument not allowed");
-    static_assert(!std::is_same<Arg1, void*>::value, "void* argument not allowed");
-
-    auto new_tup = dmq::tuple_append(heapArgs, tup, arg1);
-    return dmq::make_tuple_heap(heapArgs, new_tup, args...);
+    if constexpr (std::is_reference_v<Param>) {
+        auto& lv = arg;     // heap copy; the tuple element refers to it
+        return std::get<0>(tuple_append(heapArgs, std::tuple<>(), lv));
+    } else if constexpr (std::is_pointer_v<Param>) {
+        auto& lv = arg;     // heap copy of the pointee
+        Param heapPtr = std::get<0>(tuple_append(heapArgs, std::tuple<>(), lv));
+        return heapPtr;
+    } else {
+        return std::forward<A>(arg);    // by value: stored in the tuple, no heap copy
+    }
 }
 ```
 
-Template metaprogramming uses the C++ template system to perform compile-time computations within the code. Notice the recursive compiler call of `dmq::make_tuple_heap()` as the `Arg1` template parameter gets consumed by the function until no arguments remain and the recursion is terminated. The snippet above shows the concatenation of heap allocated tuple function arguments. This allows for the arguments to be copied into dynamic memory for transport to the target thread through a message queue.</p>
-
-This bit of code inside `make_tuple_heap.h` was tricky to create in that each argument must have memory allocated, data copied, appended to the tuple, then subsequently deallocated all based on its type. To further complicate things, this all has to be done generically with N number of disparate template argument parameters. This was the key to getting a template parameter pack of arguments through a message queue. `dmq::DelegateAsyncMsg<>` then stores the tuple parameters for easy usage by the target thread. The target thread uses `std::apply()` to invoke the bound function with the heap allocated tuple argument(s).
+The pack expansion `store_async_arg<Args>(...)...` handles any number of arguments of any mix of types. The heap copies are made by the `dmq::tuple_append()` overloads in `make_tuple_heap.h`, one each for pointer, pointer to pointer and reference arguments. Each allocates the copy, copies the data, and adds a deleter to `m_heapMem` so the copy is freed once the target function has been invoked. The target thread uses `std::apply()` to invoke the bound function with the tuple of arguments.
 
 The pointer argument `dmq::tuple_append()` implementation is shown below. It creates dynamic memory for the argument, argument data copied, adds to a deleter list for subsequent later cleanup after the target function is invoked, and finally returns the appended tuple.
 
@@ -1082,7 +1089,7 @@ private:
 
 ### Argument Heap Copy
 
-Asynchronous non-blocking delegate invocations mean that all argument data must be copied to the heap for transport to the destination thread. All arguments, regardless of their type, will be duplicated, including: value, pointer, pointer to pointer, and reference. If your data is not plain old data (POD) and cannot be bitwise copied, be sure to implement an appropriate copy constructor to handle the copying yourself.
+Asynchronous non-blocking delegate invocations mean that all argument data must be copied for transport to the destination thread. All arguments, regardless of their type, will be duplicated, including: value, pointer, pointer to pointer, and reference. By-value arguments are stored in the message itself; the data behind pointer, pointer to pointer and reference arguments is copied to the heap. If your data is not plain old data (POD) and cannot be bitwise copied, be sure to implement an appropriate copy constructor to handle the copying yourself.
 
 For instance, invoking this function asynchronously the argument `TestStruct` will be copied.
 

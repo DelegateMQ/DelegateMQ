@@ -4,6 +4,9 @@
 #include <iostream>
 #include <set>
 #include <cstring>
+#include <string>
+#include <thread>
+#include <chrono>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -809,6 +812,121 @@ static void DelegateFunctionAsyncTests()
     }
 }
 
+namespace AsyncCopies
+{
+    // Counts copies of an argument as it travels through a non-blocking async call.
+    struct Counted
+    {
+        static std::atomic<int> copies;
+        int v = 0;
+        explicit Counted(int x) : v(x) {}
+        Counted(const Counted& o) : v(o.v) { copies++; }
+        Counted(Counted&& o) noexcept : v(o.v) {}
+        Counted& operator=(const Counted& o) { v = o.v; copies++; return *this; }
+        Counted& operator=(Counted&& o) noexcept { v = o.v; return *this; }
+    };
+    std::atomic<int> Counted::copies{ 0 };
+
+    static std::atomic<int> calls{ 0 };
+    static std::atomic<int> sum{ 0 };
+    static void ByValue(Counted c) { sum += c.v; calls++; }
+    static void ByConstRef(const Counted& c) { sum += c.v; calls++; }
+    static void TwoByValue(Counted a, Counted b) { sum += a.v + b.v; calls++; }
+    static int ByValueRet(Counted c) { calls++; return c.v; }
+
+    static void WaitCalls(int n)
+    {
+        while (calls.load() < n)
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    // Holds the worker until released, so the caller can change its variables
+    // while the call is still queued.
+    struct Gate
+    {
+        std::atomic<bool> entered{ false };
+        std::atomic<bool> release{ false };
+        void Block()
+        {
+            entered = true;
+            while (!release)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    };
+
+    static int seenRef = 0, seenPtr = 0, seenPtrPtr = 0;
+    static std::string seenStr;
+    static void Capture(const int& r, int* p, int** pp, std::string s)
+    {
+        seenRef = r;
+        seenPtr = *p;
+        seenPtrPtr = **pp;
+        seenStr = s;
+        calls++;
+    }
+}
+
+// The number of times an argument is copied on its way through an async call:
+// the minimum is one per by-value argument (caller's lvalue into the parameter,
+// as for a sync call) and one per reference argument (the heap copy). Values used
+// to be heap-copied and then copied again (4 copies for one by-value argument).
+static void AsyncArgumentCopyTests()
+{
+    using namespace AsyncCopies;
+    Counted a(1), b(2);
+
+    auto byValue = MakeDelegate(&ByValue, workerThread);
+    calls = 0; Counted::copies = 0;
+    byValue(a);
+    WaitCalls(1);
+    DMQ_ASSERT_TRUE(Counted::copies.load() == 1);
+
+    auto byConstRef = MakeDelegate(&ByConstRef, workerThread);
+    calls = 0; Counted::copies = 0;
+    byConstRef(a);
+    WaitCalls(1);
+    DMQ_ASSERT_TRUE(Counted::copies.load() == 1);
+
+    auto twoByValue = MakeDelegate(&TwoByValue, workerThread);
+    calls = 0; Counted::copies = 0;
+    twoByValue(a, b);
+    WaitCalls(1);
+    DMQ_ASSERT_TRUE(Counted::copies.load() == 2);
+
+    auto byValueWait = MakeDelegate(&ByValueRet, workerThread, WAIT_INFINITE);
+    calls = 0; Counted::copies = 0;
+    DMQ_ASSERT_TRUE(byValueWait(a) == 1);
+    DMQ_ASSERT_TRUE(Counted::copies.load() == 1);
+}
+
+// Reference and pointer arguments must still be copied when the call is made:
+// changing the caller's variables while the call is queued must not affect what
+// the target sees.
+static void AsyncArgumentSnapshotTests()
+{
+    using namespace AsyncCopies;
+    Gate gate;
+    MakeDelegate(&gate, &Gate::Block, workerThread)();
+    while (!gate.entered)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    int r = 10, p = 20, pp = 30;
+    int* ppInner = &pp;
+    std::string str = "before";
+    auto capture = MakeDelegate(&Capture, workerThread);
+    calls = 0;
+    capture(r, &p, &ppInner, str);
+
+    r = -1; p = -1; pp = -1; str = "after";   // caller's data changes while queued
+    gate.release = true;
+    WaitCalls(1);
+
+    DMQ_ASSERT_TRUE(seenRef == 10);
+    DMQ_ASSERT_TRUE(seenPtr == 20);
+    DMQ_ASSERT_TRUE(seenPtrPtr == 30);
+    DMQ_ASSERT_TRUE(seenStr == "before");
+}
+
 void DelegateAsyncTests()
 {
     workerThread.CreateThread();
@@ -818,6 +936,8 @@ void DelegateAsyncTests()
     DelegateMemberSpAsyncTests();
     DelegateMemberAsyncSpTests();
     DelegateFunctionAsyncTests();
+    AsyncArgumentCopyTests();
+    AsyncArgumentSnapshotTests();
 
     workerThread.ExitThread();
 }

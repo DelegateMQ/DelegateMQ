@@ -92,7 +92,7 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 
 - No internal threads are created by the library; every thread is explicitly constructed by the application.
 - Async delegates are queued to the target thread's priority queue; the thread's `Process()` loop dequeues and invokes.
-- Non-blocking async (`DelegateAsync`) deep-copies all arguments to the heap so the caller can return immediately without stack lifetime risk.
+- Non-blocking async (`DelegateAsync`) copies all arguments so the caller can return immediately without stack lifetime risk: by-value arguments are stored in the message (one copy, as for a sync call), and the data behind reference and pointer arguments is copied to the heap.
 - Blocking async (`DelegateAsyncWait`) passes arguments on the stack; the caller blocks until the target thread completes.
 - Thread constructor parameters `threadName` and `cpuName` are `const char*` at the binary interface (with `std::string` inline overloads).
 - Thread queue full policy is configurable per thread via `dmq::FullPolicy` (aliased as `dmq::os::FullPolicy`): `DROP` (discard), `TIMEOUT` (wait then drop), or `FAULT` (assert/halt, the default).
@@ -192,7 +192,7 @@ For applications running on MCUs with limited RAM (e.g., 64KB–512KB), follow t
 
 1. **Enable `DMQ_ALLOCATOR`**: This is the most critical step. It replaces the standard `malloc`/`free` with DelegateMQ's fixed-block allocator for all internal library structures (DataBus topics, connections, async messages). This eliminates fragmentation and makes memory usage predictable.
 2. **Prefer Class Member Delegates**: Use `dmq::MakeDelegate(this, &Class::Method)` instead of capturing lambdas for internal plumbing or long-lived connections. Member function delegates are fixed-size and never allocate, whereas a lambda is stored in a `std::function` and a large capture can silently exceed its small-buffer optimization and allocate.
-3. **Be Mindful of Async Arguments**: When using `DelegateAsync`, every argument is deep-copied to the heap. 
+3. **Be Mindful of Async Arguments**: When using `DelegateAsync`, every argument is copied: by-value arguments into the message, the data behind reference and pointer arguments to the heap. 
     - **Avoid**: Passing large structs or strings by value.
     - **Prefer**: Passing by `const T&` if the object's lifetime is guaranteed (e.g., a singleton or global).
     - **Prefer**: Using `std::shared_ptr<T>` to share ownership; only the smart pointer is copied, not the underlying data.

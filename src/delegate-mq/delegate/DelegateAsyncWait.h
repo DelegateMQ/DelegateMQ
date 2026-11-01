@@ -146,9 +146,6 @@ public:
     void SetInvokeSucceeded(bool invokeSucceeded) { m_invokeSucceeded = invokeSucceeded; }
 
 private:
-    /// An empty starting tuple
-    std::tuple<> m_start;
-
     /// A tuple with each function argument element 
     std::tuple<Args...> m_args;
 

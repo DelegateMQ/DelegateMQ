@@ -59,7 +59,8 @@ DMQ_OPTIMIZE_ON
 namespace dmq {
 
 /// @brief Stores all function arguments suitable for non-blocking asynchronous calls.
-/// Argument data is stored in the heap.
+/// By-value arguments are stored in the message itself; the data behind reference and
+/// pointer arguments is copied to the heap, so it outlives the caller's stack.
 /// @tparam Args The argument types of the bound delegate function.
 template <class...Args>
 class DelegateAsyncMsg : public DelegateMsg
@@ -69,9 +70,9 @@ public:
     /// @param[in] invoker - the invoker instance
     /// @param[in] priority - the delegate message priority
     /// @param[in] args - a parameter pack of all target function arguments
-    /// @throws std::bad_alloc If make_tuble_heap() fails to obtain memory and DMQ_ASSERTS not defined.
+    /// @throws std::bad_alloc If a heap copy of a reference or pointer argument fails and DMQ_ASSERTS not defined.
     DelegateAsyncMsg(std::shared_ptr<IThreadInvoker> invoker, Priority priority, Args... args) : DelegateMsg(invoker, priority),
-        m_args(make_tuple_heap(m_heapMem, m_start, std::forward<Args>(args)...)) {
+        m_args{ store_async_arg<Args>(m_heapMem, std::forward<Args>(args))... } {
     }
 
     /// Delete the default constructor
@@ -97,10 +98,9 @@ private:
     /// A list of heap allocated argument memory blocks
     xlist<std::shared_ptr<heap_arg_deleter_base>> m_heapMem;
 
-    /// An empty starting tuple
-    std::tuple<> m_start;
-
-    /// A tuple with each element stored within the heap
+    /// The arguments: by-value ones held here, reference/pointer ones referring to
+    /// heap copies owned by `m_heapMem`. Declared after `m_heapMem`, so it is
+    /// constructed after it and destroyed before it.
     std::tuple<Args...> m_args;
 };
 

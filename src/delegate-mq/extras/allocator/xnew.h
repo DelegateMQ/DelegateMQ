@@ -14,7 +14,7 @@
 ///
 /// These are the pool-aware counterparts of new(std::nothrow) / delete
 /// for types that do not carry the XALLOCATOR macro (e.g. user argument
-/// types marshalled through make_tuple_heap).
+/// types copied for async delegates, see store_async_arg()).
 
 #include "xallocator.h"
 
