@@ -218,7 +218,7 @@ seq = bus.send(COMMAND_ID, [250])   # matches the seq in status callbacks
 
 ### C# / .NET
 - **Location**: `interop/csharp/`
-- **Requirement**: .NET 6+ or .NET 8+
+- **Requirement**: .NET 10 SDK (the projects target `net10.0`)
 - **Usage**: Reference the `DelegateMQ.Interop` project and use the `DmqDataBus` class. It is `IDisposable` and provides a strongly-typed `RegisterCallback<T>` method, `SetReliability`, `RegisterStatusCallback`, and `Send` returning the sequence number.
 
 ### Python

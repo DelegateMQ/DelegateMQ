@@ -216,9 +216,9 @@ void StressTestTask(void* pvParameters)
 
         printf("----------------------------------\n");
         printf("Report:\n");
-        printf("  Fired: %lu\n", fired);
-        printf("  Sync : %lu / %lu\n", actSync, expSync);
-        printf("  Async: %lu / %lu\n", actAsync, expAsync);
+        printf("  Fired: %lu\n", (unsigned long)fired);
+        printf("  Sync : %lu / %lu\n", (unsigned long)actSync, (unsigned long)expSync);
+        printf("  Async: %lu / %lu\n", (unsigned long)actAsync, (unsigned long)expAsync);
 
         if (actSync == expSync && actAsync == expAsync) {
             BSP_LED_On(LED6); // Blue = Pass
