@@ -8,6 +8,10 @@ on:
     branches:
       - master
 
+# Least privilege for GITHUB_TOKEN: these jobs only check out code.
+permissions:
+  contents: read
+
 jobs:
   ubuntu-clang:
     name: Ubuntu (Clang)
