@@ -28,12 +28,11 @@
 /// it seamlessly at the call site, since dmq::Duration is itself a
 /// std::chrono::duration specialization.
 ///
-/// @note osSemaphoreAcquire()'s timeout parameter is in RTOS kernel ticks,
-/// not literally milliseconds -- like CmsisRtos2Clock.h, this assumes a
-/// 1ms tick (the common CMSIS-RTOS2 default). If your target's tick rate
-/// differs, convert accordingly before calling Wait().
+/// @note osSemaphoreAcquire()'s timeout is in kernel ticks; Wait() converts
+/// with CmsisRtos2ToTicks() (CmsisRtos2Ticks.h), so any tick rate works.
 
 #include "cmsis_os2.h"
+#include "CmsisRtos2Ticks.h"
 #include <cassert>
 #include <chrono>
 
@@ -63,15 +62,7 @@ namespace dmq::os {
         template<typename Rep, typename Period>
         bool Wait(const std::chrono::duration<Rep, Period>& timeout) {
             if (!m_id) return false;
-            using DurationT = std::chrono::duration<Rep, Period>;
-            uint32_t ticks;
-            if (timeout == DurationT::max()) {
-                ticks = osWaitForever;
-            } else {
-                ticks = static_cast<uint32_t>(
-                    std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
-            }
-            return osSemaphoreAcquire(m_id, ticks) == osOK;
+            return osSemaphoreAcquire(m_id, CmsisRtos2ToTicks(timeout)) == osOK;
         }
 
         /// Called to signal a semaphore.

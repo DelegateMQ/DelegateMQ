@@ -5,6 +5,7 @@
 
 #include "DelegateMQ.h"
 #include "CmsisRtos2Thread.h"
+#include "CmsisRtos2Ticks.h"
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
@@ -288,7 +289,7 @@ bool CmsisRtos2Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // 2. Send pointer to queue
     uint32_t timeout;
     if (FULL_POLICY == FullPolicy::TIMEOUT)
-        timeout = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
+        timeout = CmsisRtos2ToTicks(m_dispatchTimeout);
     else
         timeout = 0;  // DROP and FAULT: non-blocking
 
@@ -442,14 +443,15 @@ void CmsisRtos2Thread::Run()
         uint32_t waitOption = osWaitForever;
         if (watchdogTimeout.count() > 0)
         {
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
-            waitOption = static_cast<uint32_t>(ms / 4);
-            if (waitOption == 0) waitOption = 1;
+            // Divide in microseconds so a 1-3 ms watchdog doesn't truncate to 0;
+            // CmsisRtos2ToTicks() rounds any nonzero wait up to at least 1 tick.
+            waitOption = CmsisRtos2ToTicks(
+                std::chrono::duration_cast<std::chrono::microseconds>(watchdogTimeout) / 4);
         }
         if (idle.Enabled())
         {
-            auto ms = std::chrono::ceil<std::chrono::milliseconds>(idle.WaitTime(dmq::Duration(-1))).count();
-            if (static_cast<uint32_t>(ms) < waitOption) waitOption = static_cast<uint32_t>(ms);
+            uint32_t idleTicks = CmsisRtos2ToTicks(idle.WaitTime(dmq::Duration(-1)));
+            if (idleTicks < waitOption) waitOption = idleTicks;
         }
 
         // Block for a message or timeout

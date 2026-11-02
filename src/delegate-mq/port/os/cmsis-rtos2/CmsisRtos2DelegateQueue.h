@@ -83,7 +83,7 @@ public:
     /// Send a message pointer. 'highPriority' routes to the HIGH lane, which
     /// Receive() always drains first; otherwise the NORMAL lane. Both lanes are
     /// always appended to. 'waitOption' is 0 for non-blocking, osWaitForever to
-    /// block forever, or a finite timeout (CMSIS-RTOS2 timeouts are kernel ticks);
+    /// block forever, or a finite timeout in kernel ticks (see CmsisRtos2ToTicks());
     /// it applies only to waiting for room in the lane.
     /// @return true if the message was enqueued.
     bool Send(ThreadMsg* msg, bool highPriority, uint32_t waitOption)
