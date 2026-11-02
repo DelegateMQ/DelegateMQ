@@ -21,8 +21,8 @@
 #include <bitsery/traits/vector.h>
 #include <bitsery/traits/list.h>
 
-#include <sstream>
-#include <iostream>
+#include <istream>
+#include <ostream>
 #include <type_traits>
 
 namespace dmq::serialization::bitsery {
@@ -38,50 +38,40 @@ public:
     using OutputAdapter = ::bitsery::OutputStreamAdapter;
     using InputAdapter = ::bitsery::InputStreamAdapter;
 
-    // Write: Changed 'Args... args' to 'const Args&... args' for efficiency
+    // No try/catch here: this adapter must build without exceptions (-fno-exceptions),
+    // the common embedded setting. Failures are reported through the stream state,
+    // which DelegateRemote checks (ERR_DESERIALIZE / ERR_STREAM_NOT_GOOD).
     virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
-        try {
-            // Reset stream position.
-            os.seekp(0, std::ios::beg);
+        // Reset stream position.
+        os.seekp(0, std::ios::beg);
 
-            // Clear stringstreams explicitly to avoid appending new data to old data.
-            // DelegateMQ often reuses the stream object.
-            if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os)) {
-                ss->str("");
-            }
-
-            // Construct the adapter properly passing the stream
-            ::bitsery::Serializer<OutputAdapter> writer{ OutputAdapter{os} };
-
-            // Serialize each argument using C++17 fold expression
-            (writer.object(args), ...);
-
-            // Ensure buffer is flushed to the stream
-            writer.adapter().flush();
+        // Clear stringstreams explicitly to avoid appending new data to old data.
+        // DelegateMQ often reuses the stream object.
+        if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os)) {
+            ss->str("");
         }
-        catch (const std::exception& e) {
-            std::cerr << "Bitsery serialize error: " << e.what() << std::endl;
-            throw;
-        }
+
+        // Construct the adapter properly passing the stream
+        ::bitsery::Serializer<OutputAdapter> writer{ OutputAdapter{os} };
+
+        // Serialize each argument using C++17 fold expression
+        (writer.object(args), ...);
+
+        // Ensure buffer is flushed to the stream
+        writer.adapter().flush();
         return os;
     }
 
     virtual std::istream& Read(std::istream& is, Args&... args) override {
-        try {
-            // Construct the adapter properly passing the stream
-            ::bitsery::Deserializer<InputAdapter> reader{ InputAdapter{is} };
+        // Construct the adapter properly passing the stream
+        ::bitsery::Deserializer<InputAdapter> reader{ InputAdapter{is} };
 
-            // Deserialize each argument using fold expression
-            (reader.object(args), ...);
+        // Deserialize each argument using fold expression
+        (reader.object(args), ...);
 
-            // Optional: Check for deserialization errors
-            if (reader.adapter().error() != ::bitsery::ReaderError::NoError) {
-                throw std::runtime_error("Bitsery reported a read error");
-            }
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Bitsery deserialize error: " << e.what() << std::endl;
-            throw;
+        // A truncated or malformed message: fail the stream.
+        if (reader.adapter().error() != ::bitsery::ReaderError::NoError) {
+            is.setstate(std::ios::failbit);
         }
         return is;
     }

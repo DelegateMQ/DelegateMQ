@@ -65,7 +65,10 @@ public:
             // Read entire stream into memory buffer
             std::vector<char> buffer_data((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
 
+            // No data for the arguments: fail, so the caller reports a
+            // deserialize error instead of invoking with default values.
             if (buffer_data.empty() && sizeof...(Args) > 0) {
+                is.setstate(std::ios::failbit);
                 return is;
             }
 

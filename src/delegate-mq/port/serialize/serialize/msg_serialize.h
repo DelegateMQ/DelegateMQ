@@ -395,18 +395,44 @@ public:
         {
             uint16_t size = 0;
             read(is, size, false);
-            if (check_stream(is) && check_slength(is, size))
+            if (!check_stream(is) || !check_pointer(is, str))
+                return is;
+            if (maxLen == 0)
             {
-                if (check_pointer(is, str))
+                raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
+                is.setstate(std::ios::failbit);
+                return is;
+            }
+            // An empty std::string is sent with size 0 and no bytes.
+            if (size == 0)
+            {
+                str[0] = '\0';
+                return is;
+            }
+            if (!check_slength(is, size))
+                return is;
+            if (size > maxLen)
+            {
+                raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
+                is.setstate(std::ios::failbit);
+                return is;
+            }
+            parseStatus(typeid(str), size);
+            read_internal(is, str, size, true);
+
+            // write(const char*) sends the terminator; write(std::string) doesn't.
+            // Terminate here if the data didn't, failing if there's no room.
+            if (str[size - 1] != '\0')
+            {
+                if (size < maxLen)
                 {
-                    if (size > maxLen)
-                    {
-                        raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-                        is.setstate(std::ios::failbit);
-                        return is;
-                    }
-                    parseStatus(typeid(str), size);
-                    read_internal(is, str, size, true);
+                    str[size] = '\0';
+                }
+                else
+                {
+                    str[maxLen - 1] = '\0';
+                    raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
+                    is.setstate(std::ios::failbit);
                 }
             }
         }
@@ -628,6 +654,10 @@ public:
                 std::is_class<typename std::remove_pointer<T>::type>::value)),
             "T cannot be a pointer to a built-in or custom data type. Use values instead.");
 
+        // Same check as write(): any other class type would be cast to I* below.
+        static_assert(!std::is_class<T>::value || std::is_base_of<serialize::I, T>::value,
+            "T must inherit from serialize::I");
+
         if (check_stop_parse(is))
             return is;
 
@@ -831,7 +861,7 @@ public:
         {
             for (const auto& item : container)
             {
-                write(os, item, false);
+                write_element(os, item);
             }
         }
         return os;
@@ -861,7 +891,7 @@ public:
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     T t;
-                    read(is, t, false);
+                    read_element(is, t);
                     container.push_back(t);
                 }
             }
@@ -976,8 +1006,8 @@ public:
         {
             for (const auto& entry : container)
             {
-                write(os, entry.first, false);
-                write(os, entry.second, false);
+                write_element(os, entry.first);
+                write_element(os, entry.second);
             }
         }
         return os;
@@ -1008,8 +1038,8 @@ public:
                 {
                     K key;
                     V value;
-                    read(is, key, false);
-                    read(is, value, false);
+                    read_element(is, key);
+                    read_element(is, value);
                     container[key] = value;
                 }
             }
@@ -1040,7 +1070,7 @@ public:
         {
             for (auto& entry : container)
             {
-                write(os, entry.first, false);
+                write_element(os, entry.first);
 
                 if (entry.second != nullptr)
                 {
@@ -1084,7 +1114,7 @@ public:
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     K key;
-                    read(is, key, false);
+                    read_element(is, key);
                     bool notNULL;
                     read(is, notNULL, false);
                     if (notNULL)
@@ -1127,7 +1157,7 @@ public:
         {
             for (const auto& item : container)
             {
-                write(os, item, false);
+                write_element(os, item);
             }
         }
         return os;
@@ -1157,7 +1187,7 @@ public:
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     T t;
-                    read(is, t, false);
+                    read_element(is, t);
                     container.insert(t);
                 }
             }
@@ -1270,7 +1300,7 @@ public:
         {
             for (const auto& item : container)
             {
-                write(os, item, false);
+                write_element(os, item);
             }
         }
         return os;
@@ -1300,7 +1330,7 @@ public:
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     T t;
-                    read(is, t, false);
+                    read_element(is, t);
                     container.push_back(t);
                 }
             }
@@ -1407,6 +1437,34 @@ public:
     }
 
 private:
+    /// Write/read one container element (or map key). Strings go to the string
+    /// overloads; everything else to write()/read() without a type prefix.
+    /// A 3-argument write(os, s, false) on a string would pick the generic
+    /// template instead, which only handles literals and serialize::I types.
+    template <typename C, typename Traits, typename Alloc>
+    std::ostream& write_element(std::ostream& os, const std::basic_string<C, Traits, Alloc>& s)
+    {
+        return write(os, s);
+    }
+
+    template <typename T>
+    std::ostream& write_element(std::ostream& os, const T& t_)
+    {
+        return write(os, t_, false);
+    }
+
+    template <typename C, typename Traits, typename Alloc>
+    std::istream& read_element(std::istream& is, std::basic_string<C, Traits, Alloc>& s)
+    {
+        return read(is, s);
+    }
+
+    template <typename T>
+    std::istream& read_element(std::istream& is, T& t_)
+    {
+        return read(is, t_, false);
+    }
+
     /// Read from stream into caller's character buffer.
     /// Wire format is little-endian. On a big-endian host the bytes are reversed
     /// after the read so that multi-byte values are correctly stored in memory.

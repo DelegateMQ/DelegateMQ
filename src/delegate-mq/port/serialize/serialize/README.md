@@ -7,7 +7,7 @@ A robust, header-only C++ binary serialization library designed for DelegateMQ. 
 - **Header-Only**: No external dependencies beyond the C++ Standard Library.
 - **Endianness Aware**: Uses a little-endian wire format. Automatically handles byte-swapping on big-endian hosts.
 - **STL Support**: Native support for `std::vector`, `std::list`, `std::map`, `std::set`, `std::string`, and `std::wstring`.
-- **Custom Allocators**: Fully compatible with custom allocators, including DelegateMQ's `xlist`, `xvector`, etc.
+- **Custom Allocators**: Fully compatible with custom allocators, including DelegateMQ's `xstring`, `xlist`, `xmap` and `xset`. Declare message fields with these types and `DMQ_ALLOCATOR` switches them between the fixed-block allocator and the heap, with no serializer changes.
 - **Versioning**: Supports forward and backward compatibility for user-defined objects.
 - **Type Safety**: Uses compile-time checks to ensure only supported types are serialized.
 - **Pointer Support**: Supports serializing containers of pointers with automatic memory allocation during deserialization.

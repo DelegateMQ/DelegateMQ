@@ -391,6 +391,156 @@ static void CharArrayTests()
         DMQ_ASSERT_TRUE(iss.fail());
         DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
     }
+
+    // Sent as std::string (no null terminator on the wire): read must terminate
+    {
+        std::string src = "hello";
+        char dst[16];
+        std::memset(dst, 'X', sizeof(dst));
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst, sizeof(dst));
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(std::strcmp(dst, "hello") == 0);
+    }
+
+    // std::string exactly filling the buffer leaves no room for the terminator:
+    // read fails, and the buffer is still terminated
+    {
+        std::string src = "abcd";
+        char dst[4];
+        std::memset(dst, 'X', sizeof(dst));
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.clearLastError();
+        ser.read(iss, dst, sizeof(dst));
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
+        DMQ_ASSERT_TRUE(dst[sizeof(dst) - 1] == '\0');
+    }
+
+    // Empty std::string: read gives an empty C string
+    {
+        std::string src;
+        char dst[8];
+        std::memset(dst, 'X', sizeof(dst));
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst, sizeof(dst));
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst[0] == '\0');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Containers of strings
+// ---------------------------------------------------------------------------
+
+/// Container elements and map keys that are strings. The element loops used to
+/// call write/read(x, false), which for a string picked the generic template:
+/// writing didn't compile and reading cast the string to serialize::I*.
+static void ContainerStringTests()
+{
+    serialize ser;
+
+    {
+        std::vector<std::string> src{ "alpha", "", "gamma" };
+        std::vector<std::string> dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        DMQ_ASSERT_TRUE(oss.good());
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
+    }
+    {
+        std::list<std::string> src{ "one", "two" };
+        std::list<std::string> dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
+    }
+    {
+        std::set<std::string> src{ "x", "y", "z" };
+        std::set<std::string> dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
+    }
+    {
+        std::map<std::string, int32_t> src{ { "a", 1 }, { "bb", 2 } };
+        std::map<std::string, int32_t> dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
+    }
+    {
+        std::map<int32_t, std::string> src{ { 1, "one" }, { 2, "two" } };
+        std::map<int32_t, std::string> dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
+    }
+    {
+        std::vector<std::wstring> src{ L"wide", L"strings" };
+        std::vector<std::wstring> dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
+    }
+    // String keys with pointer values
+    {
+        SimpleMsg* m = new SimpleMsg();
+        m->id = 7;
+        std::map<std::string, SimpleMsg*> src{ { "k", m }, { "null", nullptr } };
+        std::map<std::string, SimpleMsg*> dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst.size() == 2);
+        DMQ_ASSERT_TRUE(dst["k"] != nullptr && dst["k"]->id == 7);
+        DMQ_ASSERT_TRUE(dst["null"] == nullptr);
+        delete m;
+        delete dst["k"];
+    }
+    // dmq:: allocator-aware types: fixed-block under DMQ_ALLOCATOR, std otherwise.
+    // Without DMQ_ALLOCATOR, xlist used to be a class derived from std::list,
+    // which the list overloads didn't accept.
+    {
+        dmq::xlist<dmq::xstring> src{ "p", "q" };
+        dmq::xlist<dmq::xstring> dst;
+        dmq::xmap<int32_t, dmq::xstring> msrc{ { 1, "m" } };
+        dmq::xmap<int32_t, dmq::xstring> mdst;
+        dmq::xstringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        ser.write(ss, src);
+        ser.write(ss, msrc);
+        ser.read(ss, dst);
+        ser.read(ss, mdst);
+        DMQ_ASSERT_TRUE(!ss.fail());
+        DMQ_ASSERT_TRUE(dst == src);
+        DMQ_ASSERT_TRUE(mdst == msrc);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -987,6 +1137,7 @@ void SerializeTests()
     UserDefinedObjectTests();
     VersioningTests();
     ContainerValueTests();
+    ContainerStringTests();
     ContainerPointerTests();
     EndiannessTests();
     ErrorTests();

@@ -539,12 +539,10 @@ namespace dmq
         template <typename T>
         using stl_allocator = std::allocator<T>;
 
+        // An alias, like xmap/xset here and xlist under DMQ_ALLOCATOR, so code
+        // overloaded on std::list (e.g. msg_serialize.h) accepts it in both builds.
         template <typename T, typename Alloc = stl_allocator<T>>
-        class xlist : public std::list<T, Alloc> {
-        public:
-            using std::list<T, Alloc>::list; // Inherit constructors
-            using std::list<T, Alloc>::operator=;
-        };
+        using xlist = std::list<T, Alloc>;
 
         typedef std::basic_ostringstream<char, std::char_traits<char>, stl_allocator<char>> xostringstream;
         typedef std::basic_stringstream<char, std::char_traits<char>, stl_allocator<char>> xstringstream;
