@@ -1507,14 +1507,39 @@ public:
     }
 
 private:
-    /// Write/read one container element (or map key). Strings go to the string
-    /// overloads; everything else to write()/read() without a type prefix.
-    /// A 3-argument write(os, s, false) on a string would pick the generic
+    /// Write/read one container element (or map key). Strings and nested
+    /// containers go to their own overloads (with their type prefix and size);
+    /// everything else to write()/read() without a type prefix. A 3-argument
+    /// write(os, x, false) on a string or container would pick the generic
     /// template instead, which only handles literals and serialize::I types.
     template <typename C, typename Traits, typename Alloc>
     std::ostream& write_element(std::ostream& os, const std::basic_string<C, Traits, Alloc>& s)
     {
         return write(os, s);
+    }
+
+    template <class T, class Alloc>
+    std::ostream& write_element(std::ostream& os, const std::vector<T, Alloc>& c)
+    {
+        return write(os, c);
+    }
+
+    template <class T, class Alloc>
+    std::ostream& write_element(std::ostream& os, const std::list<T, Alloc>& c)
+    {
+        return write(os, c);
+    }
+
+    template <class T, class P, class Alloc>
+    std::ostream& write_element(std::ostream& os, const std::set<T, P, Alloc>& c)
+    {
+        return write(os, c);
+    }
+
+    template <class K, class V, class P, class Alloc>
+    std::ostream& write_element(std::ostream& os, const std::map<K, V, P, Alloc>& c)
+    {
+        return write(os, c);
     }
 
     template <typename T>
@@ -1527,6 +1552,30 @@ private:
     std::istream& read_element(std::istream& is, std::basic_string<C, Traits, Alloc>& s)
     {
         return read(is, s);
+    }
+
+    template <class T, class Alloc>
+    std::istream& read_element(std::istream& is, std::vector<T, Alloc>& c)
+    {
+        return read(is, c);
+    }
+
+    template <class T, class Alloc>
+    std::istream& read_element(std::istream& is, std::list<T, Alloc>& c)
+    {
+        return read(is, c);
+    }
+
+    template <class T, class P, class Alloc>
+    std::istream& read_element(std::istream& is, std::set<T, P, Alloc>& c)
+    {
+        return read(is, c);
+    }
+
+    template <class K, class V, class P, class Alloc>
+    std::istream& read_element(std::istream& is, std::map<K, V, P, Alloc>& c)
+    {
+        return read(is, c);
     }
 
     template <typename T>

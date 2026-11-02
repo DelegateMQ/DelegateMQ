@@ -606,6 +606,75 @@ static void ConstContainerTests()
 }
 
 // ---------------------------------------------------------------------------
+// Nested containers
+// ---------------------------------------------------------------------------
+
+/// Containers as container elements or map values. Elements used to go through
+/// write/read(x, false), the generic template, which doesn't handle containers.
+static void NestedContainerTests()
+{
+    {
+        const std::vector<std::vector<int32_t>> src{ { 1, 2 }, {}, { 3 } };
+        std::vector<std::vector<int32_t>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::vector<std::vector<std::vector<int32_t>>> src{ { { 1 }, { 2, 3 } }, { { 4 } } };
+        std::vector<std::vector<std::vector<int32_t>>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::list<std::vector<std::string>> src{ { "a", "b" }, { "c" } };
+        std::list<std::vector<std::string>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::set<std::vector<int32_t>> src{ { 1, 2 }, { 3 } };
+        std::set<std::vector<int32_t>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::map<std::string, std::vector<int32_t>> src{ { "x", { 1, 2 } }, { "y", {} } };
+        std::map<std::string, std::vector<int32_t>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::vector<std::map<int32_t, std::string>> src{ { { 1, "one" } }, { { 2, "two" }, { 3, "three" } } };
+        std::vector<std::map<int32_t, std::string>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::vector<std::vector<bool>> src{ { true, false }, { true } };
+        std::vector<std::vector<bool>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::map<int32_t, std::list<int32_t>> src{ { 1, { 5, 6 } } };
+        std::map<int32_t, std::list<int32_t>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    // Inner container over the limit fails the whole write
+    {
+        const std::vector<std::vector<int32_t>> src{ std::vector<int32_t>(dmq::SERIALIZE_MAX_CONTAINER_SIZE + 1, 0) };
+        std::vector<std::vector<int32_t>> dst;
+        DMQ_ASSERT_TRUE(!RoundTripConst(src, dst));
+    }
+    // Truncated nested payload: read fails
+    {
+        serialize ser;
+        const std::vector<std::vector<int32_t>> src{ { 1, 2, 3 } };
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::string wire = oss.str();
+        wire.resize(wire.size() - 3);
+        std::istringstream iss(wire);
+        std::vector<std::vector<int32_t>> dst;
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(iss.fail());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Containers of strings
 // ---------------------------------------------------------------------------
 
@@ -1309,6 +1378,7 @@ void SerializeTests()
     ContainerValueTests();
     ContainerStringTests();
     ConstContainerTests();
+    NestedContainerTests();
     ContainerPointerTests();
     EndiannessTests();
     ErrorTests();
