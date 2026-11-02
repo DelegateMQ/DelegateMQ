@@ -6,7 +6,7 @@ A robust, header-only C++ binary serialization library designed for DelegateMQ. 
 
 - **Header-Only**: No external dependencies beyond the C++ Standard Library.
 - **Endianness Aware**: Uses a little-endian wire format. Automatically handles byte-swapping on big-endian hosts.
-- **STL Support**: Native support for `std::vector`, `std::list`, `std::map`, `std::set`, `std::string`, and `std::wstring`.
+- **STL Support**: Native support for `std::vector`, `std::array`, `std::list`, `std::map`, `std::set`, `std::string`, and `std::wstring`, including nested containers (e.g. `std::vector<std::vector<int>>`, `std::map<std::string, std::list<int>>`).
 - **Custom Allocators**: Fully compatible with custom allocators, including DelegateMQ's `xstring`, `xlist`, `xmap` and `xset`. Declare message fields with these types and `DMQ_ALLOCATOR` switches them between the fixed-block allocator and the heap, with no serializer changes.
 - **Versioning**: Supports forward and backward compatibility for user-defined objects.
 - **Type Safety**: Uses compile-time checks to ensure only supported types are serialized.
@@ -87,6 +87,21 @@ ms.write(ss, myList);
 xlist<int> outList;
 ms.read(ss, outList);
 ```
+
+### Choosing Containers on Embedded Targets
+
+What a message type's fields allocate matters more on an MCU than how they're serialized. With `DMQ_ALLOCATOR`, memory comes from fixed-block pools, one pool per power-of-two block size, and blocks are kept for reuse rather than returned to the heap.
+
+| Field type | Allocation | Embedded use |
+|---|---|---|
+| `std::array<T, N>`, `char[N]` | None | **Best.** Fixed size, no heap and no pool. |
+| `xlist`, `xmap`, `xset` | One same-size node per element, from one fixed-block pool | **Good.** Freed nodes are reused exactly. |
+| `xstring` | One block sized to the string, from a fixed-block pool | **Good**, bounded by `DMQ_SERIALIZE_MAX_STRING_SIZE`. |
+| `std::vector` | One contiguous block that is reallocated larger as it grows | **Host-side only.** Each growth step needs a new, larger block size, so a vector touches several pools and each keeps its blocks. In static-pool mode the largest block is 4096 bytes. |
+
+- On the MCU, declare message fields with `std::array`, `xlist`/`xmap`/`xset` and `xstring`. On desktop or gateway nodes, `std::vector` is fine.
+- `std::array<T, N>` deliberately uses the vector type marker rather than a separate array type, so its bytes match a vector's (marker, count, elements) and one node can use `std::vector<T>` while the other uses `std::array<T, N>` for the same field. The count on the wire catches a mismatch: reading into a `std::array` fails with `INVALID_INPUT` unless exactly `N` elements arrive, and a list, set or map fails with `TYPE_MISMATCH`. As with vectors, the marker identifies the container kind, not the element type.
+- Reading into a `std::vector` reserves the received count first, so it makes one allocation of the final size rather than regrowing per element.
 
 ## Advanced Features
 

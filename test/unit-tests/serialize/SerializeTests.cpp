@@ -17,6 +17,7 @@
 #include <sstream>
 #include <cstring>
 #include <cstdint>
+#include <array>
 #include <vector>
 #include <list>
 #include <map>
@@ -671,6 +672,97 @@ static void NestedContainerTests()
         std::vector<std::vector<int32_t>> dst;
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(iss.fail());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// std::array, and vector reserve
+// ---------------------------------------------------------------------------
+
+static void ArrayTests()
+{
+    {
+        const std::array<int32_t, 3> src{ { 1, 2, 3 } };
+        std::array<int32_t, 3> dst{};
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        std::array<std::string, 2> src{ { "a", "bc" } };    // non-const write
+        std::array<std::string, 2> dst{};
+        serialize ser;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail() && dst == src);
+    }
+    {
+        std::array<SimpleMsg, 2> src;
+        src[0].id = 1;
+        src[1].id = 2;
+        const auto& csrc = src;
+        std::array<SimpleMsg, 2> dst;
+        serialize ser;
+        std::ostringstream oss;
+        ser.write(oss, csrc);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail() && dst[0].id == 1 && dst[1].id == 2);
+    }
+    // Same wire format as a vector: vector -> array and array -> vector
+    {
+        serialize ser;
+        const std::vector<int32_t> v{ 4, 5 };
+        std::ostringstream oss;
+        ser.write(oss, v);
+        std::istringstream iss(oss.str());
+        std::array<int32_t, 2> a{};
+        ser.read(iss, a);
+        DMQ_ASSERT_TRUE(!iss.fail() && a[0] == 4 && a[1] == 5);
+
+        std::ostringstream oss2;
+        ser.write(oss2, a);
+        std::istringstream iss2(oss2.str());
+        std::vector<int32_t> v2;
+        ser.read(iss2, v2);
+        DMQ_ASSERT_TRUE(!iss2.fail() && v2 == v);
+    }
+    // Received count differs from N: read fails, array unchanged
+    {
+        serialize ser;
+        const std::vector<int32_t> v{ 1, 2, 3 };
+        std::ostringstream oss;
+        ser.write(oss, v);
+        std::istringstream iss(oss.str());
+        std::array<int32_t, 2> a{ { 9, 9 } };
+        ser.clearLastError();
+        ser.read(iss, a);
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::INVALID_INPUT);
+        DMQ_ASSERT_TRUE(a[0] == 9 && a[1] == 9);
+    }
+    // Nested: arrays in containers, containers in arrays
+    {
+        const std::vector<std::array<int32_t, 2>> src{ { { 1, 2 } }, { { 3, 4 } } };
+        std::vector<std::array<int32_t, 2>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::array<std::vector<int32_t>, 2> src{ { { 1 }, { 2, 3 } } };
+        std::array<std::vector<int32_t>, 2> dst{};
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::map<int32_t, std::array<int32_t, 2>> src{ { 1, { { 7, 8 } } } };
+        std::map<int32_t, std::array<int32_t, 2>> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    // vector read reserves the received count: one allocation, no regrowth
+    {
+        const std::vector<int32_t> src(50, 1);
+        std::vector<int32_t> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+        DMQ_ASSERT_TRUE(dst.capacity() == src.size());
     }
 }
 
@@ -1379,6 +1471,7 @@ void SerializeTests()
     ContainerStringTests();
     ConstContainerTests();
     NestedContainerTests();
+    ArrayTests();
     ContainerPointerTests();
     EndiannessTests();
     ErrorTests();

@@ -131,6 +131,7 @@ namespace serialize_traits
 /// by pointer. C++ containers supported are:
 ///
 ///     vector
+///     array (std::array, uses the VECTOR type so it interoperates with vector)
 ///     list
 ///     map
 ///     set
@@ -473,6 +474,8 @@ public:
             if (check_stream(is) && check_container_size(is, size))
             {
                 parseStatus(typeid(container), size);
+                // One allocation of the final size instead of regrowing per element.
+                container.reserve(size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     bool t;
@@ -910,6 +913,8 @@ public:
             if (check_stream(is) && check_container_size(is, size))
             {
                 parseStatus(typeid(container), size);
+                // One allocation of the final size instead of regrowing per element.
+                container.reserve(size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     T t;
@@ -984,6 +989,8 @@ public:
             if (check_stream(is) && check_container_size(is, size))
             {
                 parseStatus(typeid(container), size);
+                // One allocation of the final size instead of regrowing per element.
+                container.reserve(size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     bool notNULL = false;
@@ -1443,6 +1450,66 @@ public:
         return is;
     }
 
+    /// Write a std::array. Uses the VECTOR type marker on purpose (no separate ARRAY
+    /// type), so the bytes match a std::vector and one side can declare the field as
+    /// std::vector<T> while the other uses std::array<T, N>. The element count on the
+    /// wire is what catches a mismatch: the array read requires exactly N. A fixed-size
+    /// array needs no allocation, which suits fixed-block / no-heap targets.
+    /// @param[in] os - the output stream
+    /// @param[in] container - the array to write
+    /// @return The output stream
+    template <class T, size_t N>
+    std::ostream& write(std::ostream& os, const std::array<T, N>& container)
+    {
+        static_assert(N <= MAX_CONTAINER_SIZE, "std::array larger than DMQ_SERIALIZE_MAX_CONTAINER_SIZE");
+        static_assert(!std::is_pointer<T>::value, "std::array of pointers is not supported");
+        write_type(os, Type::VECTOR);
+        uint16_t size = static_cast<uint16_t>(N);
+        write(os, size, false);
+        if (check_stream(os))
+        {
+            for (const auto& item : container)
+                write_element(os, item);
+        }
+        return os;
+    }
+
+    /// Read into a std::array. Accepts the VECTOR type marker, so it reads data
+    /// written from a std::vector or a std::array. The received element count must
+    /// equal N; otherwise the read fails (INVALID_INPUT) and the array is unchanged.
+    /// A list, set or map fails with TYPE_MISMATCH.
+    /// @param[in] is - the input stream
+    /// @param[in] container - the array to read into
+    /// @return The input stream
+    template <class T, size_t N>
+    std::istream& read(std::istream& is, std::array<T, N>& container)
+    {
+        static_assert(N <= MAX_CONTAINER_SIZE, "std::array larger than DMQ_SERIALIZE_MAX_CONTAINER_SIZE");
+        static_assert(!std::is_pointer<T>::value, "std::array of pointers is not supported");
+
+        if (check_stop_parse(is))
+            return is;
+
+        if (read_type(is, Type::VECTOR))
+        {
+            uint16_t size = 0;
+            read(is, size, false);
+            if (check_stream(is) && check_container_size(is, size))
+            {
+                if (size != N)
+                {
+                    raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
+                    is.setstate(std::ios::failbit);
+                    return is;
+                }
+                parseStatus(typeid(container), size);
+                for (auto& item : container)
+                    read_element(is, item);
+            }
+        }
+        return is;
+    }
+
     // Non-const containers forward to the const overloads above. Without these,
     // a non-const container binds better to the generic write(os, T&, bool)
     // template than to a const overload, and fails its static_assert.
@@ -1489,6 +1556,12 @@ public:
     std::ostream& write(std::ostream& os, std::list<T*, Alloc>& container)
     {
         return write(os, static_cast<const std::list<T*, Alloc>&>(container));
+    }
+
+    template <class T, size_t N>
+    std::ostream& write(std::ostream& os, std::array<T, N>& container)
+    {
+        return write(os, static_cast<const std::array<T, N>&>(container));
     }
 
     typedef void (*ErrorHandler)(ParsingError error, int line, const char* file);
@@ -1542,6 +1615,12 @@ private:
         return write(os, c);
     }
 
+    template <class T, size_t N>
+    std::ostream& write_element(std::ostream& os, const std::array<T, N>& c)
+    {
+        return write(os, c);
+    }
+
     template <typename T>
     std::ostream& write_element(std::ostream& os, const T& t_)
     {
@@ -1574,6 +1653,12 @@ private:
 
     template <class K, class V, class P, class Alloc>
     std::istream& read_element(std::istream& is, std::map<K, V, P, Alloc>& c)
+    {
+        return read(is, c);
+    }
+
+    template <class T, size_t N>
+    std::istream& read_element(std::istream& is, std::array<T, N>& c)
     {
         return read(is, c);
     }
