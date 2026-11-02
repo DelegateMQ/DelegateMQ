@@ -126,4 +126,18 @@
     #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
 #endif
 
+// serialize (msg_serialize.h, DMQ_SERIALIZE_SERIALIZE) limits. Longer strings or
+// larger containers fail with STRING_TOO_LONG / CONTAINER_TOO_MANY, on write and
+// on read. Both must be <= 65535 (16-bit length field on the wire).
+#ifndef DMQ_SERIALIZE_MAX_STRING_SIZE
+    #define DMQ_SERIALIZE_MAX_STRING_SIZE   1024
+#endif
+#ifndef DMQ_SERIALIZE_MAX_CONTAINER_SIZE
+    #define DMQ_SERIALIZE_MAX_CONTAINER_SIZE 64
+#endif
+// Max depth of serialize::I objects nested inside each other (NESTING_TOO_DEEP beyond).
+#ifndef DMQ_SERIALIZE_MAX_NESTING
+    #define DMQ_SERIALIZE_MAX_NESTING       5
+#endif
+
 #endif // _DELEGATEMQ_CONFIG_DEFAULT_H

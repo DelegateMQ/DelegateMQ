@@ -45,11 +45,12 @@
 #include <stdint.h>
 #include <string.h>
 #include <algorithm>
-#include "extras/util/Fault.h"
+#include "delegate/DelegateOpt.h"   // DMQ_ASSERT_TRUE, dmq::SERIALIZE_* limits
 #include <limits>
 #include <type_traits>
 #include <typeinfo>
-#include <iostream>
+#include <istream>
+#include <ostream>
 #include <memory>
 #include <array>
 #include <vector>
@@ -345,6 +346,11 @@ public:
                 s.resize(size);
                 parseStatus(typeid(s), s.size());
                 read_internal(is, &s[0], size, true);
+
+                // write(const char*) sends its terminator; drop it so "hello"
+                // reads back as "hello", the same as when sent as std::string.
+                if (!s.empty() && s.back() == '\0')
+                    s.pop_back();
             }
         }
         return is;
@@ -403,12 +409,11 @@ public:
                 is.setstate(std::ios::failbit);
                 return is;
             }
+            // Leave str a valid (empty) C string on every early return below.
             // An empty std::string is sent with size 0 and no bytes.
+            str[0] = '\0';
             if (size == 0)
-            {
-                str[0] = '\0';
                 return is;
-            }
             if (!check_slength(is, size))
                 return is;
             if (size > maxLen)
@@ -419,6 +424,14 @@ public:
             }
             parseStatus(typeid(str), size);
             read_internal(is, str, size, true);
+
+            // Truncated stream: is.read() stopped early, so str[gcount()..size-1]
+            // is uninitialized. Report the stream error, not STRING_TOO_LONG.
+            if (!check_stream(is))
+            {
+                str[0] = '\0';
+                return is;
+            }
 
             // write(const char*) sends the terminator; write(std::string) doesn't.
             // Terminate here if the data didn't, failing if there's no room.
@@ -601,7 +614,16 @@ public:
     {
         if (check_pointer(os, str))
         {
-            uint16_t size = static_cast<uint16_t>(strlen(str)) + 1;
+            // Check before narrowing: a length of 65535 or more would wrap the
+            // 16-bit size and silently send an empty string.
+            const size_t len = strlen(str);
+            if (len + 1 > MAX_STRING_SIZE)
+            {
+                raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
+                os.setstate(std::ios::failbit);
+                return os;
+            }
+            uint16_t size = static_cast<uint16_t>(len + 1);
             write_type(os, Type::STRING);
             write(os, size, false);
             if (check_stream(os) && check_slength(os, size))
@@ -620,7 +642,7 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] container - the vector container to write
     /// @return The output stream
-    std::ostream& write(std::ostream& os, std::vector<bool>& container)
+    std::ostream& write(std::ostream& os, const std::vector<bool>& container)
     {
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
@@ -845,7 +867,7 @@ public:
     /// @param[in] container - the vector container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::vector<T, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::vector<T, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
@@ -905,7 +927,7 @@ public:
     /// @param[in] container - the vector container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::vector<T*, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::vector<T*, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
@@ -990,7 +1012,7 @@ public:
     /// @param[in] container - the map container to write
     /// @return The output stream
     template <class K, class V, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::map<K, V, P, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::map<K, V, P, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<V>::value, "Type V must not be a shared_ptr type");
 
@@ -1053,7 +1075,7 @@ public:
     /// @param[in] container - the map container to write
     /// @return The output stream
     template <class K, class V, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::map<K, V*, P, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::map<K, V*, P, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, V>::value, "Type V must be derived from serialize::I");
 
@@ -1068,7 +1090,7 @@ public:
 
         if (check_stream(os) && check_container_size(os, size))
         {
-            for (auto& entry : container)
+            for (const auto& entry : container)
             {
                 write_element(os, entry.first);
 
@@ -1140,7 +1162,7 @@ public:
     /// @param[in] container - the set container to write
     /// @return The output stream
     template <class T, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::set<T, P, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::set<T, P, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
@@ -1201,7 +1223,7 @@ public:
     /// @param[in] container - the set container to write
     /// @return The output stream
     template <class T, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::set<T*, P, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::set<T*, P, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
@@ -1283,7 +1305,7 @@ public:
     /// @param[in] container - the list container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::list<T, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::list<T, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
@@ -1344,7 +1366,7 @@ public:
     /// @param[in] container - the list container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::list<T*, Alloc>& container)
+    std::ostream& write(std::ostream& os, const std::list<T*, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
@@ -1419,6 +1441,54 @@ public:
             }
         }
         return is;
+    }
+
+    // Non-const containers forward to the const overloads above. Without these,
+    // a non-const container binds better to the generic write(os, T&, bool)
+    // template than to a const overload, and fails its static_assert.
+    std::ostream& write(std::ostream& os, std::vector<bool>& container)
+    {
+        return write(os, static_cast<const std::vector<bool>&>(container));
+    }
+    template <class T, class Alloc>
+    std::ostream& write(std::ostream& os, std::vector<T, Alloc>& container)
+    {
+        return write(os, static_cast<const std::vector<T, Alloc>&>(container));
+    }
+    template <class T, class Alloc>
+    std::ostream& write(std::ostream& os, std::vector<T*, Alloc>& container)
+    {
+        return write(os, static_cast<const std::vector<T*, Alloc>&>(container));
+    }
+    template <class K, class V, class P, class Alloc>
+    std::ostream& write(std::ostream& os, std::map<K, V, P, Alloc>& container)
+    {
+        return write(os, static_cast<const std::map<K, V, P, Alloc>&>(container));
+    }
+    template <class K, class V, class P, class Alloc>
+    std::ostream& write(std::ostream& os, std::map<K, V*, P, Alloc>& container)
+    {
+        return write(os, static_cast<const std::map<K, V*, P, Alloc>&>(container));
+    }
+    template <class T, class P, class Alloc>
+    std::ostream& write(std::ostream& os, std::set<T, P, Alloc>& container)
+    {
+        return write(os, static_cast<const std::set<T, P, Alloc>&>(container));
+    }
+    template <class T, class P, class Alloc>
+    std::ostream& write(std::ostream& os, std::set<T*, P, Alloc>& container)
+    {
+        return write(os, static_cast<const std::set<T*, P, Alloc>&>(container));
+    }
+    template <class T, class Alloc>
+    std::ostream& write(std::ostream& os, std::list<T, Alloc>& container)
+    {
+        return write(os, static_cast<const std::list<T, Alloc>&>(container));
+    }
+    template <class T, class Alloc>
+    std::ostream& write(std::ostream& os, std::list<T*, Alloc>& container)
+    {
+        return write(os, static_cast<const std::list<T*, Alloc>&>(container));
     }
 
     typedef void (*ErrorHandler)(ParsingError error, int line, const char* file);
@@ -1525,15 +1595,15 @@ private:
         return os;
     }
 
-    // Maximum sizes allowed by parser
-    static const uint16_t MAX_STRING_SIZE = 1024;
-    static const uint16_t MAX_CONTAINER_SIZE = 64;
+    // Maximum sizes allowed by parser (DMQ_SERIALIZE_* in DelegateMQConfig.h)
+    static constexpr uint16_t MAX_STRING_SIZE = dmq::SERIALIZE_MAX_STRING_SIZE;
+    static constexpr uint16_t MAX_CONTAINER_SIZE = dmq::SERIALIZE_MAX_CONTAINER_SIZE;
 
     // Keep wchar_t serialize size consistent on any platform
     static const size_t WCHAR_SIZE = 2;
 
     // LIFO stack used to track stop-parse positions for versioned object reads.
-    static const size_t MAX_PARSE_STACK_DEPTH = 5;
+    static constexpr size_t MAX_PARSE_STACK_DEPTH = dmq::SERIALIZE_MAX_NESTING;
     std::array<std::streampos, MAX_PARSE_STACK_DEPTH> stopParsePosStack;
     size_t stopParsePosIdx = 0;
 

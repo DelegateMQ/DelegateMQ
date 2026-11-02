@@ -18,6 +18,16 @@ A robust, header-only C++ binary serialization library designed for DelegateMQ. 
 - **Seekable**: The library requires seekable streams (e.g., `std::stringstream`, `std::fstream`) to handle object versioning and size backfilling. Non-seekable streams (like sockets or `std::cout`) will trigger a runtime error.
 - **Binary Mode**: Always open files or streams in **binary mode** (`std::ios::binary`). Failure to do so may lead to data corruption due to automatic newline translations (especially on Windows).
 
+## Limits
+
+Set in `DelegateMQConfig.h` (defaults in `DelegateMQConfig_Default.h`). They apply on write and on read, so a received message can't make the receiver allocate more than this. Exceeding one fails the stream with the error shown.
+
+| Setting | Default | Limits | Error |
+|---|---|---|---|
+| `DMQ_SERIALIZE_MAX_STRING_SIZE` | 1024 | String length (a `char*` counts its terminator); at most 65535 | `STRING_TOO_LONG` |
+| `DMQ_SERIALIZE_MAX_CONTAINER_SIZE` | 64 | Elements in a vector, list, set or map; at most 65535 | `CONTAINER_TOO_MANY` |
+| `DMQ_SERIALIZE_MAX_NESTING` | 5 | Depth of `serialize::I` objects nested inside each other | `NESTING_TOO_DEEP` |
+
 ## Basic Usage
 
 ### Serializing Primitives

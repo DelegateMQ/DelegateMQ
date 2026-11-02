@@ -12,6 +12,7 @@
 #include "DelegateMQ.h"
 #include "UnitTestCommon.h"
 #include "port/serialize/serialize/msg_serialize.h"
+#include "port/serialize/serialize/DmqSerializer.h"
 
 #include <sstream>
 #include <cstring>
@@ -421,6 +422,72 @@ static void CharArrayTests()
         DMQ_ASSERT_TRUE(dst[sizeof(dst) - 1] == '\0');
     }
 
+    // const char* of 65535+ chars: the length used to wrap to 16 bits and send
+    // an empty string; now write fails before writing anything
+    {
+        std::string longStr(70000, 'L');
+        std::ostringstream oss;
+        ser.clearLastError();
+        ser.write(oss, longStr.c_str());
+        DMQ_ASSERT_TRUE(oss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
+        DMQ_ASSERT_TRUE(oss.str().empty());
+    }
+
+    // const char* just over the limit (terminator counts): write fails
+    {
+        std::string over(dmq::SERIALIZE_MAX_STRING_SIZE, 'O');
+        std::ostringstream oss;
+        ser.clearLastError();
+        ser.write(oss, over.c_str());
+        DMQ_ASSERT_TRUE(oss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
+    }
+
+    // Sent as const char* (terminator on the wire), read into std::string:
+    // the terminator is dropped
+    {
+        std::string dst;
+        std::ostringstream oss;
+        ser.write(oss, "hello");
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == "hello" && dst.size() == 5);
+    }
+
+    // Truncated stream: payload shorter than its length field. Read must report
+    // the stream error (not STRING_TOO_LONG) and leave dst an empty C string,
+    // not read the bytes is.read() never filled.
+    {
+        std::string src = "abcd";
+        char dst[4];
+        std::memset(dst, 'X', sizeof(dst));
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::string wire = oss.str();
+        wire.resize(wire.size() - 2);   // drop the last 2 payload bytes
+        std::istringstream iss(wire);
+        ser.clearLastError();
+        ser.read(iss, dst, sizeof(dst));
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STREAM_ERROR);
+        DMQ_ASSERT_TRUE(dst[0] == '\0');
+    }
+
+    // Too long for the buffer: dst is still left an empty C string
+    {
+        const char* src = "toolong";
+        char dst[4];
+        std::memset(dst, 'X', sizeof(dst));
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst, sizeof(dst));
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(dst[0] == '\0');
+    }
+
     // Empty std::string: read gives an empty C string
     {
         std::string src;
@@ -432,6 +499,109 @@ static void CharArrayTests()
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst[0] == '\0');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// const containers
+// ---------------------------------------------------------------------------
+
+/// Writing a const container. The container write() overloads took non-const
+/// references, so a const container (e.g. a remote delegate argument, which
+/// DmqSerializer passes as const Args&) fell to the generic template and failed
+/// to compile.
+template <typename C>
+static bool RoundTripConst(const C& src, C& dst)
+{
+    serialize ser;
+    std::ostringstream oss;
+    ser.write(oss, src);
+    if (!oss.good())
+        return false;
+    std::istringstream iss(oss.str());
+    ser.read(iss, dst);
+    return !iss.fail();
+}
+
+static void ConstContainerTests()
+{
+    {
+        const std::vector<int32_t> src{ 1, 2, 3 };
+        std::vector<int32_t> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::vector<bool> src{ true, false, true };
+        std::vector<bool> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::list<std::string> src{ "a", "b" };
+        std::list<std::string> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::set<int32_t> src{ 5, 6 };
+        std::set<int32_t> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    {
+        const std::map<std::string, int32_t> src{ { "x", 1 } };
+        std::map<std::string, int32_t> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst) && dst == src);
+    }
+    // Pointer containers
+    {
+        SimpleMsg a;
+        a.id = 11;
+        const std::vector<SimpleMsg*> src{ &a, nullptr };
+        std::vector<SimpleMsg*> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst));
+        DMQ_ASSERT_TRUE(dst.size() == 2 && dst[0] && dst[0]->id == 11 && dst[1] == nullptr);
+        delete dst[0];
+    }
+    {
+        SimpleMsg a;
+        a.id = 12;
+        const std::list<SimpleMsg*> src{ &a };
+        std::list<SimpleMsg*> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst));
+        DMQ_ASSERT_TRUE(dst.size() == 1 && dst.front()->id == 12);
+        delete dst.front();
+    }
+    {
+        SimpleMsg a;
+        a.id = 13;
+        const std::set<SimpleMsg*> src{ &a };
+        std::set<SimpleMsg*> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst));
+        DMQ_ASSERT_TRUE(dst.size() == 1 && (*dst.begin())->id == 13);
+        delete *dst.begin();
+    }
+    {
+        SimpleMsg a;
+        a.id = 14;
+        const std::map<int32_t, SimpleMsg*> src{ { 1, &a } };
+        std::map<int32_t, SimpleMsg*> dst;
+        DMQ_ASSERT_TRUE(RoundTripConst(src, dst));
+        DMQ_ASSERT_TRUE(dst.size() == 1 && dst[1]->id == 14);
+        delete dst[1];
+    }
+    // A container as a remote delegate argument, through DmqSerializer
+    {
+        dmq::serialization::serializer::Serializer<void(std::vector<int32_t>, std::map<std::string, int32_t>)> s;
+        dmq::xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+        const std::vector<int32_t> v{ 7, 8 };
+        const std::map<std::string, int32_t> m{ { "k", 9 } };
+        s.Write(os, v, m);
+        DMQ_ASSERT_TRUE(os.good());
+        // str() is an xstring under DMQ_ALLOCATOR; copy into a std::string
+        const auto wire = os.str();
+        std::istringstream is(std::string(wire.data(), wire.size()));
+        std::vector<int32_t> v2;
+        std::map<std::string, int32_t> m2;
+        s.Read(is, v2, m2);
+        DMQ_ASSERT_TRUE(!is.fail() && v2 == v && m2 == m);
     }
 }
 
@@ -1138,6 +1308,7 @@ void SerializeTests()
     VersioningTests();
     ContainerValueTests();
     ContainerStringTests();
+    ConstContainerTests();
     ContainerPointerTests();
     EndiannessTests();
     ErrorTests();

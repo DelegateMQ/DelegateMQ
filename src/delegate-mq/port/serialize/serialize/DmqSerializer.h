@@ -4,13 +4,18 @@
 /// @file DmqSerializer.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
-/// 
+///
 /// Serialize callable argument data using serialize class for transport
-/// to a remote. Endinaness correctly handled by serialize class. 
+/// to a remote. Endianness correctly handled by serialize class.
+///
+/// Errors are reported through the stream state (and any exception from a
+/// user type's read()/write() propagates); DelegateRemote reports them as
+/// ERR_SERIALIZE / ERR_DESERIALIZE. No try/catch here, per the library rules.
 
 #include "delegate/ISerializer.h"
+#include <istream>
+#include <ostream>
 #include "msg_serialize.h"
-#include <iostream>
 
 namespace dmq::serialization::serializer {
 
@@ -28,37 +33,14 @@ public:
         if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os))
             ss->str("");
         ::serialize ser;
-#if defined(__cpp_exceptions)
-        try {
-            (ser.write(os, args), ...);  // C++17 fold expression to serialize each argument
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Serialize error: " << e.what() << std::endl;
-            throw;
-        }
-#else
-        // STM32 / No Exceptions
-        (ser.write(os, args), ...);
-#endif
+        (ser.write(os, args), ...);  // C++17 fold expression to serialize each argument
         return os;
     }
 
     // Read arguments from a stream
     virtual std::istream& Read(std::istream& is, Args&... args) override {
-#if defined(__cpp_exceptions)
-        try {
-            ::serialize ser;
-            (ser.read(is, args), ...);  // C++17 fold expression to unserialize each argument
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Deserialize error: " << e.what() << std::endl;
-            throw;
-        }
-#else
-        // STM32 / No Exceptions
         ::serialize ser;
-        (ser.read(is, args), ...);
-#endif
+        (ser.read(is, args), ...);  // C++17 fold expression to unserialize each argument
         return is;
     }
 };

@@ -330,6 +330,17 @@ namespace dmq
     /// Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.
     inline constexpr size_t MAX_PARTICIPANTS = DMQ_MAX_PARTICIPANTS;
 
+    /// @brief serialize (msg_serialize.h) limits: max string length, max container
+    /// element count and max nesting depth of serialize::I objects.
+    /// Override via DMQ_SERIALIZE_MAX_STRING_SIZE, DMQ_SERIALIZE_MAX_CONTAINER_SIZE
+    /// and DMQ_SERIALIZE_MAX_NESTING in delegatemqconfig.h.
+    inline constexpr uint16_t SERIALIZE_MAX_STRING_SIZE = DMQ_SERIALIZE_MAX_STRING_SIZE;
+    inline constexpr uint16_t SERIALIZE_MAX_CONTAINER_SIZE = DMQ_SERIALIZE_MAX_CONTAINER_SIZE;
+    inline constexpr size_t SERIALIZE_MAX_NESTING = DMQ_SERIALIZE_MAX_NESTING;
+    static_assert(DMQ_SERIALIZE_MAX_STRING_SIZE <= 65535 && DMQ_SERIALIZE_MAX_CONTAINER_SIZE <= 65535,
+        "serialize length fields are 16 bits");
+    static_assert(DMQ_SERIALIZE_MAX_NESTING >= 1, "DMQ_SERIALIZE_MAX_NESTING must be at least 1");
+
     /// @brief Default max remote peers per NetworkNode instance (fixed allocation).
     /// Override via DMQ_NETWORK_NODE_MAX_PEERS in delegatemqconfig.h, or per-instantiation
     /// via NetworkNode's MaxPeers template parameter.

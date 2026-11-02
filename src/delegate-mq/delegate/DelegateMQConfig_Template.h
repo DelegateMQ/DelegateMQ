@@ -105,4 +105,14 @@
 /// Default per-message ACK timeout (seconds) for TransportMonitor.
 #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
 
+/// serialize (msg_serialize.h, DMQ_SERIALIZE_SERIALIZE): max string length and max
+/// container element count, on write and on read. Both must be <= 65535 (16-bit
+/// length field on the wire). Raising them also raises how much a received message
+/// can make the receiver allocate.
+#define DMQ_SERIALIZE_MAX_STRING_SIZE   1024
+#define DMQ_SERIALIZE_MAX_CONTAINER_SIZE 64
+
+/// serialize: max depth of serialize::I objects nested inside each other.
+#define DMQ_SERIALIZE_MAX_NESTING       5
+
 #endif // _DELEGATEMQ_CONFIG_H
