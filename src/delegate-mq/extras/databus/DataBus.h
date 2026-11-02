@@ -218,8 +218,12 @@ public:
             predUD = dmq::DelegateFunction<bool(const T&)>(std::forward<P>(predicate));
 
         auto filter = dmq::xmake_shared<detail::Filter<T>>(std::move(funcUD), std::move(predUD));
-        // Capture filter by shared_ptr so the Filter stays alive for the connection's lifetime.
-        return GetInstance().InternalSubscribe<T>(topic, dmq::DelegateFunction<void(const T&)>([filter](const T& data) { filter->Invoke(data); }), thread, qos);
+        // DelegateMember holds the shared_ptr strongly, so the Filter lives as long as the
+        // connection. No lambda: wrapping one that captures a shared_ptr in a std::function
+        // heap-allocates on GCC/Clang (not trivially copyable), see detail::AsyncSubscriber.
+        return GetInstance().InternalSubscribe<T>(topic,
+            dmq::DelegateMember<detail::Filter<T>, void(const T&)>(std::move(filter), &detail::Filter<T>::Invoke),
+            thread, qos);
     }
 
     /// @brief Publish data to a topic — delivered to every local subscriber
@@ -443,9 +447,11 @@ private:
         if (qos.minSeparation.has_value()) {
             auto minSepRep = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(qos.minSeparation.value()).count());
             auto limiter = dmq::xmake_shared<detail::RateLimiter<T>>(std::move(typedFunc), minSepRep);
-            // Capture limiter by shared_ptr so the RateLimiter stays alive for the connection's lifetime.
-            // MakeDelegate(limiter.get(), ...) would store a raw pointer; the shared_ptr must be in the closure.
-            typedFunc = dmq::DelegateFunction<void(const T&)>([limiter](const T& data) { limiter->Invoke(data); });
+            // DelegateMember holds the shared_ptr strongly (not MakeDelegate(limiter.get(), ...),
+            // which would store a raw pointer), so the RateLimiter lives as long as the
+            // connection. No lambda/std::function, as for the Filter above.
+            typedFunc = dmq::DelegateMember<detail::RateLimiter<T>, void(const T&)>(
+                std::move(limiter), &detail::RateLimiter<T>::Invoke);
         }
 
         T* cachedValPtr = nullptr;
