@@ -52,7 +52,9 @@ public:
     /// Signal emitted when a message is permanently abandoned: either a synchronous
     /// send attempt failed immediately (TransportMonitor::Add() or ITransport::Send()
     /// itself failed, before any retry could be attempted) or the message exhausted
-    /// its retry budget without being ACKed. Subscribers receive: (remoteId, seqNum);
+    /// its retry budget without being ACKed. A send rejected because its sequence
+    /// number is still in use by an earlier in-flight message is reported only by
+    /// SendWithRetry()'s -1 return. Subscribers receive: (remoteId, seqNum);
     /// no further retries or status callbacks will occur for this seqNum.
     /// Fired outside the internal lock so subscribers may call back into RetryMonitor safely.
     dmq::Signal<void(dmq::DelegateRemoteId, uint16_t)> OnDeliveryFailed;
@@ -87,6 +89,9 @@ public:
         m_retryStore.clear();
     }
 
+    /// @brief Resends after the first attempt before a message is abandoned.
+    int GetMaxRetries() const { return m_maxRetries; }
+
     /// @brief Sends a message and tracks it for potential retries.
     /// @return 0 on success, -1 on immediate transport failure.
     int SendWithRetry(dmq::xostringstream& os, const dmq::transport::DmqHeader& header)
@@ -95,14 +100,30 @@ public:
         // Critical Section: Store the packet for retry before sending.
         // If Send() fails we remove the entry immediately so it doesn't leak.
         uint32_t key = (static_cast<uint32_t>(header.GetId()) << 16) | header.GetSeqNum();
+        bool collision = false;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
-            RetryEntry entry;
-            entry.attemptsRemaining = m_maxRetries;
-            entry.header = header;
-            entry.packetData = os.str(); // Copy data
-            entry.isSent = false;        // Mark as NOT yet sent to physical transport
-            m_retryStore[key] = entry;
+
+            // The 16-bit sequence number wrapped while an earlier message with the
+            // same key is still awaiting its ACK. Reject the new send and leave the
+            // earlier entry alone: overwriting it would lose its retry data.
+            collision = m_retryStore.find(key) != m_retryStore.end();
+            if (!collision) {
+                RetryEntry entry;
+                entry.attemptsRemaining = m_maxRetries;
+                entry.header = header;
+                entry.packetData = os.str(); // Copy data
+                entry.isSent = false;        // Mark as NOT yet sent to physical transport
+                m_retryStore[key] = entry;
+            }
+        }
+        if (collision) {
+            // Reported only through the -1 return (the sender's delegate raises
+            // ERR_DISPATCH). Not through OnDeliveryFailed: that is keyed by
+            // (remoteId, seqNum), which here names the earlier message, still in
+            // flight. Firing it would report that message as failed.
+            LOG_ERROR("RetryMonitor: SeqNum wraparound collision for seq {}", header.GetSeqNum());
+            return -1;
         }
 
         // Non-Critical Section: Send via Transport.
@@ -133,12 +154,17 @@ public:
         {
             if (m_monitor)
                 m_monitor->Cancel(header.GetSeqNum(), header.GetId());
+            size_t erased = 0;
             {
                 dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
-                m_retryStore.erase(key);
+                erased = m_retryStore.erase(key);
             }
-            LOG_ERROR("RetryMonitor: immediate Send() failure for seq {}", header.GetSeqNum());
-            OnDeliveryFailed(header.GetId(), header.GetSeqNum());
+            // erased == 0: OnStatusChanged() already abandoned the entry and
+            // reported it (failed re-register while this Send() was running).
+            if (erased > 0) {
+                LOG_ERROR("RetryMonitor: immediate Send() failure for seq {}", header.GetSeqNum());
+                OnDeliveryFailed(header.GetId(), header.GetSeqNum());
+            }
         }
         else
         {
@@ -247,7 +273,21 @@ private:
 
         if (shouldReregister && m_monitor)
         {
-            m_monitor->Add(retryHeader.GetSeqNum(), retryHeader.GetId());
+            if (!m_monitor->Add(retryHeader.GetSeqNum(), retryHeader.GetId())) {
+                // Nothing is tracking this message any more, so no further status
+                // will arrive for it. Abandon it now rather than leak the entry.
+                // SendWithRetry() may still be inside Send(); it finds the entry
+                // gone and doesn't report again.
+                size_t erased = 0;
+                {
+                    dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
+                    erased = m_retryStore.erase(key);
+                }
+                if (erased > 0) {
+                    LOG_ERROR("RetryMonitor: TransportMonitor::Add() failed while re-registering seq {}", seqNum);
+                    OnDeliveryFailed(id, seqNum);
+                }
+            }
         }
 
         if (shouldReportFailure)

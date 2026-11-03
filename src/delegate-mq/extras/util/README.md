@@ -48,7 +48,7 @@ dmq::util::Timer myTimer;
 auto conn = myTimer.OnExpired.Connect(dmq::MakeDelegate(&myClass, &MyClass::OnTimeout));
 myTimer.Start(std::chrono::milliseconds(1000)); // 1-second periodic timer
 
-// Drive all timers periodically (main loop, high-priority task, or timer ISR)
+// Drive all timers periodically (main loop or high-priority task; an ISR only on bare metal)
 dmq::util::Timer::ProcessTimers();
 ```
 

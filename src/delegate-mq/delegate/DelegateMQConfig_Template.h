@@ -84,6 +84,17 @@
 /// Larger values catch more out-of-order duplicates; reduce on RAM-constrained targets.
 #define DMQ_SEQ_HISTORY_SIZE            8
 
+/// How long (ms) a received sequence number counts toward duplicate detection.
+/// Should cover the sender's whole retry window: (retries + 1) x ACK timeout.
+/// Older entries are ignored so a restarted peer's reused numbers aren't dropped.
+#define DMQ_SEQ_HISTORY_EXPIRY_MS       ((DMQ_RETRY_MONITOR_MAX_RETRIES + 1) * DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC * 1000)
+
+/// This node's ID, sent in every message header (1-255). Give every node on a
+/// network a unique ID when more than one node publishes the same topic.
+/// 0 = unset (duplicates tracked by remote ID alone). Run-time override:
+/// dmq::transport::DmqHeader::SetLocalNodeId().
+#define DMQ_NODE_ID                     0
+
 /// Max number of remote Participants the DataBus can hold without heap allocation.
 #define DMQ_MAX_PARTICIPANTS            8
 

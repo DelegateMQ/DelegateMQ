@@ -79,7 +79,10 @@ using dmq::util::Timer;
 class RemoteDispatcher
 {
 public:
-    RemoteDispatcher();
+    /// @param ackTimeout How long a sent message waits for its ACK before
+    /// TIMEOUT (the internal TransportMonitor's timeout). Defaults to
+    /// dmq::TRANSPORT_MONITOR_TIMEOUT (DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC).
+    explicit RemoteDispatcher(dmq::Duration ackTimeout = dmq::TRANSPORT_MONITOR_TIMEOUT);
     ~RemoteDispatcher();
 
     RemoteDispatcher(const RemoteDispatcher&) = delete;
@@ -122,6 +125,9 @@ public:
     /// RetryMonitor/ReliableTransport on top of its transport for ACK/retry
     /// reliability. Skip this call for a self-reliable transport (e.g.
     /// ZeroMQ) that has no RetryMonitor.
+    /// Once attached, RemoteInvokeWait() treats a TIMEOUT as a retry in
+    /// progress and waits for the final ACK or delivery failure, so the
+    /// RetryMonitor must be built on GetTransportMonitor().
     /// @param retryMonitor  The independently-owned RetryMonitor whose
     ///                      OnDeliveryFailed signal should forward here.
     void AttachRetryMonitor(RetryMonitor& retryMonitor);
@@ -212,10 +218,15 @@ public:
     /// @brief Generic helper function to synchronously invoke a remote
     /// delegate.
     ///
-    /// @details This function blocks the calling thread until one of two
-    /// conditions is met:
-    /// 1. The remote endpoint acknowledges receipt of the message (ACK).
-    /// 2. The operation times out (as defined by `RECV_TIMEOUT`).
+    /// @details Blocks the calling thread until the message's final outcome:
+    /// 1. The remote endpoint acknowledges it (ACK): returns `true`.
+    /// 2. It is abandoned: returns `false`. With a RetryMonitor attached
+    ///    (AttachRetryMonitor()) that means its retries ran out
+    ///    (`OnDeliveryFailed`); intermediate TIMEOUTs are retries in progress
+    ///    and don't end the wait. Without one, the first TIMEOUT is final.
+    ///
+    /// The wait is bounded by GetInvokeWaitLimit(), which covers the whole
+    /// retry window. Use RemoteInvokeWaitFor() for a shorter limit.
     ///
     /// **Thread Synchronization Logic:**
     /// * **If called from the Network Thread:** The send operation executes
@@ -240,7 +251,22 @@ public:
     bool RemoteInvokeWait(dmq::DelegateMemberRemote<TClass, RetType(Args...)>& endpoint, Args&&... args)
     {
         return RemoteInvokeWaitInternal<dmq::DelegateMemberRemote<TClass, RetType(Args...)>, Args...>(
-            endpoint, std::forward<Args>(args)...);
+            endpoint, GetInvokeWaitLimit(), std::forward<Args>(args)...);
+    }
+
+    /// @brief RemoteInvokeWait() with a caller-supplied limit on the wait.
+    /// @details If `timeout` expires before the final outcome, returns `false`
+    /// though the message may still be delivered: retries continue in the
+    /// background. Use it when the caller can't block for the whole retry window.
+    /// @param endpoint  The specific `RemoteEndpoint` instance to invoke.
+    /// @param timeout   The most the caller waits.
+    /// @param args      The arguments to forward to the remote function.
+    /// @return `true` if the remote acknowledged the message within `timeout`.
+    template <class TClass, class RetType, class... Args>
+    bool RemoteInvokeWaitFor(dmq::DelegateMemberRemote<TClass, RetType(Args...)>& endpoint, dmq::Duration timeout, Args&&... args)
+    {
+        return RemoteInvokeWaitInternal<dmq::DelegateMemberRemote<TClass, RetType(Args...)>, Args...>(
+            endpoint, timeout, std::forward<Args>(args)...);
     }
 
     /// @brief Overload of RemoteInvokeWait that accepts a RemoteChannel
@@ -260,8 +286,27 @@ public:
     bool RemoteInvokeWait(dmq::RemoteChannel<RetType(Args...)>& channel, Args&&... args)
     {
         return RemoteInvokeWaitInternal<dmq::RemoteChannel<RetType(Args...)>, Args...>(
-            channel, std::forward<Args>(args)...);
+            channel, GetInvokeWaitLimit(), std::forward<Args>(args)...);
     }
+
+    /// @brief RemoteInvokeWait() on a RemoteChannel with a caller-supplied limit.
+    /// @details See the DelegateMemberRemote overload of RemoteInvokeWaitFor().
+    template <class RetType, class... Args>
+    bool RemoteInvokeWaitFor(dmq::RemoteChannel<RetType(Args...)>& channel, dmq::Duration timeout, Args&&... args)
+    {
+        return RemoteInvokeWaitInternal<dmq::RemoteChannel<RetType(Args...)>, Args...>(
+            channel, timeout, std::forward<Args>(args)...);
+    }
+
+    /// @brief Default limit for RemoteInvokeWait():
+    /// (retries + 1) x (ACK timeout + TIMEOUT_POLL_INTERVAL) + ACK timeout / 2.
+    /// Each attempt's TIMEOUT can be reported up to one poll interval late; the
+    /// half ACK timeout is scheduling slack. Retries are 0 without a
+    /// RetryMonitor attached. With the defaults (2 s, 3 retries): 9.4 s.
+    dmq::Duration GetInvokeWaitLimit() const;
+
+    /// How often the network thread checks for ACK timeouts.
+    static constexpr std::chrono::milliseconds TIMEOUT_POLL_INTERVAL{ 100 };
 
 private:
     dmq::os::Thread m_thread;
@@ -271,18 +316,33 @@ private:
 
     /// @brief Shared synchronization state for RemoteInvokeWaitInternal().
     /// @details All fields are guarded by `mtx`. The dispatched sequence number
-    /// is not known until the send executes on the network thread, but the ACK
-    /// (or timeout) status can arrive on the receive/timer thread first — e.g.
-    /// on a loopback transport. Statuses that arrive before the seq is recorded
-    /// are buffered in `early` and reconciled by the send lambda, so a fast ACK
-    /// is never lost.
+    /// is not known until the send executes on the network thread, but the final
+    /// outcome (ACK, final TIMEOUT, or delivery failure) can arrive first — e.g.
+    /// on a loopback transport, or an immediate send failure inside the send.
+    /// Outcomes that arrive before the seq is recorded are buffered in `early`
+    /// and reconciled by the send lambda, so a fast one is never lost.
     struct InvokeWaitState {
-        bool complete = false;      ///< Terminal status received for expectedSeq
-        bool success = false;       ///< Terminal status was SUCCESS
+        bool complete = false;      ///< Final outcome received for expectedSeq
+        bool success = false;       ///< Final outcome was an ACK
         bool seqSet = false;        ///< expectedSeq is valid
         uint16_t expectedSeq = 0;   ///< Seq assigned to the dispatched message
-        /// Statuses received before seqSet land here.
-        dmq::xmap<uint16_t, TransportMonitor::Status> early;
+        /// Final outcomes (true = ACKed) received before seqSet, by seq.
+        dmq::xmap<uint16_t, bool> early;
+
+        /// @brief Record a final outcome for `seq`.
+        /// @return true if it completed the wait, so the caller must Signal().
+        bool Report(uint16_t seq, bool acked) {
+            dmq::LockGuard<dmq::Mutex> lock(mtx);
+            if (!seqSet) {
+                early.emplace(seq, acked);   // keep the first outcome per seq
+                return false;
+            }
+            if (complete || seq != expectedSeq)
+                return false;
+            complete = true;
+            success = acked;
+            return true;
+        }
         dmq::Mutex mtx;              // Generic Mutex
         dmq::Semaphore sem;          // Portable wake signal (DMQ_HAS_SEMAPHORE is
                                      // available everywhere this file is included --
@@ -297,7 +357,7 @@ private:
     ///                 GetError(), and GetLastSeqNum() -- i.e.
     ///                 DelegateMemberRemote or RemoteChannel.
     template <class Target, class... Args>
-    bool RemoteInvokeWaitInternal(Target& target, Args&&... args)
+    bool RemoteInvokeWaitInternal(Target& target, dmq::Duration timeout, Args&&... args)
     {
         // [Network Thread] Already on the correct thread: send immediately,
         // no blocking wait is possible (we would deadlock waiting on ourselves).
@@ -311,32 +371,32 @@ private:
         auto state = dmq::xmake_shared<InvokeWaitState>();
         dmq::DelegateRemoteId remoteId = target.GetRemoteId();
 
-        // 2. [Caller Thread] Define the status callback that wakes us up later.
-        // Fires on the receive thread (ACK) or timer thread (timeout).
+        // 2. [Caller Thread] Define the callbacks that report the final outcome.
+        // With a RetryMonitor attached, a TIMEOUT only means a retry follows; the
+        // message is final on SUCCESS or on the RetryMonitor's delivery failure.
+        // Without one, the first TIMEOUT is final.
+        const bool retrying = (m_retryMonitor != nullptr);
         std::function<void(dmq::DelegateRemoteId, uint16_t, TransportMonitor::Status)> statusCbFunc =
-            [state, remoteId](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
+            [state, remoteId, retrying](dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
                 if (id != remoteId)
                     return;
-                bool notify = false;
-                {
-                    dmq::LockGuard<dmq::Mutex> lock(state->mtx);
-                    if (!state->seqSet) {
-                        // Send thread has not recorded the seq yet; buffer the
-                        // status so the send lambda can reconcile it.
-                        state->early[seq] = status;
-                    }
-                    else if (!state->complete && seq == state->expectedSeq) {
-                        state->complete = true;
-                        state->success = (status == TransportMonitor::Status::SUCCESS);
-                        notify = true;
-                    }
-                }
-                if (notify)
+                const bool acked = (status == TransportMonitor::Status::SUCCESS);
+                if (!acked && retrying)
+                    return;
+                if (state->Report(seq, acked))
+                    state->sem.Signal();
+            };
+        std::function<void(dmq::DelegateRemoteId, uint16_t)> failedCbFunc =
+            [state, remoteId](dmq::DelegateRemoteId id, uint16_t seq) {
+                if (id == remoteId && state->Report(seq, false))
                     state->sem.Signal();
             };
 
-        // 3. [Caller Thread] Register the callback.
+        // 3. [Caller Thread] Register the callbacks.
         dmq::ScopedConnection conn = m_transportMonitor.OnSendStatus.Connect(dmq::MakeDelegate(statusCbFunc));
+        dmq::ScopedConnection failedConn;
+        if (retrying)
+            failedConn = OnDeliveryFailed.Connect(dmq::MakeDelegate(failedCbFunc));
 
         // 4. [Caller Thread] Define the "Send" logic lambda.
         auto* targetPtr = &target;
@@ -348,11 +408,11 @@ private:
                 state->expectedSeq = targetPtr->GetLastSeqNum();
                 state->seqSet = true;
 
-                // Reconcile any status that arrived before the seq was known
+                // Reconcile an outcome that arrived before the seq was known
                 auto it = state->early.find(state->expectedSeq);
                 if (it != state->early.end()) {
                     state->complete = true;
-                    state->success = (it->second == TransportMonitor::Status::SUCCESS);
+                    state->success = it->second;
                     notify = true;
                 }
 
@@ -384,7 +444,7 @@ private:
             // dmq::Semaphore retains its signaled state (see delegate/Semaphore.h).
             // If Wait() times out, state->success is still correctly read below --
             // it was initialized false and nothing sets it without also signaling.
-            state->sem.Wait(RECV_TIMEOUT);
+            state->sem.Wait(timeout);
             dmq::LockGuard<dmq::Mutex> lock(state->mtx);
             return state->success;
         }
@@ -418,7 +478,9 @@ private:
     dmq::ScopedConnection m_statusConn;
     dmq::ScopedConnection m_deliveryFailedConn;
 
-    static const std::chrono::milliseconds RECV_TIMEOUT;
+    /// Set by AttachRetryMonitor(); not owned. Decides whether a TIMEOUT is
+    /// final for RemoteInvokeWait() and sizes GetInvokeWaitLimit().
+    RetryMonitor* m_retryMonitor = nullptr;
 };
 
 } // namespace dmq::rpc

@@ -181,16 +181,9 @@ public:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy header to start of send buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         // Copy payload after header
         if (payloadLen > 0) {
@@ -232,18 +225,9 @@ public:
         }
 
         // 1. Read Header directly from m_buffer (Network Byte Order)
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, m_buffer, 2);
-        memcpy(&id,     m_buffer + 2, 2);
-        memcpy(&seqNum, m_buffer + 4, 2);
-        memcpy(&length, m_buffer + 6, 2);
+        header.Decode(m_buffer);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER)
+        if (!header.IsValid())
         {
             return -1;
         }
@@ -266,16 +250,9 @@ public:
         else if (m_sendTransport && m_type == Type::SUB)
         {
             // Send ACK using a small stack buffer to avoid any heap
-            uint16_t a_marker = htons(DmqHeader::MARKER);
-            uint16_t a_id     = htons(dmq::ACK_REMOTE_ID);
-            uint16_t a_seqNum = htons(header.GetSeqNum());
-            uint16_t a_length = 0;
-
+            DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
             char ackBuf[DmqHeader::HEADER_SIZE];
-            memcpy(ackBuf, &a_marker, 2);
-            memcpy(ackBuf + 2, &a_id, 2);
-            memcpy(ackBuf + 4, &a_seqNum, 2);
-            memcpy(ackBuf + 6, &a_length, 2);
+            ack.Encode(ackBuf);
 
             // Use the subscriber's m_addr which was set by recvfrom if m_type == SUB
             sockaddr_in targetAddr = (m_type == Type::SUB) ? fromAddr : m_addr;

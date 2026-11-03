@@ -151,15 +151,9 @@ public:
         DmqHeader headerCopy = header;
         headerCopy.SetLength((uint16_t)payload.length());
 
-        uint8_t packet[DmqHeader::HEADER_SIZE];
-        auto to_net = [](uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); };
-        
         // Serialize Header (Network Byte Order)
-        uint16_t val;
-        val = to_net(headerCopy.GetMarker()); memcpy(&packet[0], &val, 2);
-        val = to_net(headerCopy.GetId());     memcpy(&packet[2], &val, 2);
-        val = to_net(headerCopy.GetSeqNum()); memcpy(&packet[4], &val, 2);
-        val = to_net(headerCopy.GetLength()); memcpy(&packet[6], &val, 2);
+        uint8_t packet[DmqHeader::HEADER_SIZE];
+        headerCopy.Encode(packet);
 
         // 2. Send Header
         if (HAL_UART_Transmit(m_huart, packet, DmqHeader::HEADER_SIZE, 100) != HAL_OK) {
@@ -208,14 +202,9 @@ public:
         }
 
         // Deserialize Header
-        auto from_net = [](uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); };
-        uint16_t val;
-        memcpy(&val, &headerBuf[0], 2); header.SetMarker(from_net(val));
-        memcpy(&val, &headerBuf[2], 2); header.SetId(from_net(val));
-        memcpy(&val, &headerBuf[4], 2); header.SetSeqNum(from_net(val));
-        memcpy(&val, &headerBuf[6], 2); header.SetLength(from_net(val));
+        header.Decode(headerBuf);
 
-        if (header.GetMarker() != DmqHeader::MARKER) return -1;
+        if (!header.IsValid()) return -1;
 
         // 3. Read Payload
         uint16_t len = header.GetLength();

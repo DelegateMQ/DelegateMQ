@@ -86,6 +86,10 @@ def on_data_msg(payload: bytes):
 
 if __name__ == "__main__":
     bus = DmqDataBus()
+    # Node ID sent in every header. The C# and Python clients send the same
+    # command IDs to one server, so each needs its own ID for the server's
+    # duplicate filter to tell them apart.
+    bus.set_node_id(11)
     bus.register_callback(DATA_MSG_ID, on_data_msg)
     bus.start(SERVER_HOST, DATA_RECV_PORT, CMD_SEND_PORT, MULTICAST_GROUP)
 

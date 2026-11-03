@@ -83,6 +83,20 @@
     #define DMQ_SEQ_HISTORY_SIZE            8
 #endif
 
+// How long a received sequence number counts toward duplicate detection. A real
+// duplicate (a retry after a lost ACK) arrives within the sender's retry window;
+// older entries are ignored so a restarted peer's reused numbers aren't dropped.
+#ifndef DMQ_SEQ_HISTORY_EXPIRY_MS
+    #define DMQ_SEQ_HISTORY_EXPIRY_MS       ((DMQ_RETRY_MONITOR_MAX_RETRIES + 1) * DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC * 1000)
+#endif
+
+// This node's ID, sent in every DmqHeader (1-255). 0 = unset: receivers then
+// track duplicates by remote ID alone, which is only correct with one sender
+// per topic. Can be changed at run time with DmqHeader::SetLocalNodeId().
+#ifndef DMQ_NODE_ID
+    #define DMQ_NODE_ID                     0
+#endif
+
 #ifndef DMQ_MAX_PARTICIPANTS
     #define DMQ_MAX_PARTICIPANTS            8
 #endif

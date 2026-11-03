@@ -18,4 +18,8 @@
 #define DMQ_NETWORK_NODE_MAX_PEERS      1
 #define DMQ_NETWORK_NODE_MAX_TOPICS     8
 
+// Unique per Pumptron node (controller 1, gui 2): receivers filter retried
+// duplicates per (node ID, remote ID).
+#define DMQ_NODE_ID                     1
+
 #endif // _DELEGATEMQ_CONFIG_H

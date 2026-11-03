@@ -30,6 +30,10 @@ Output: `build/lib/libDmqInterop.so`
 // Optional, before Start: outgoing reliability (default: on, 2 s timeout, 3 retries)
 int DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries);
 
+// Optional, before Start: this client's node ID (1-255, default 0 = unset).
+// Give each client a unique ID when several send the same remote IDs to one peer.
+int DmqInterop_SetNodeId(uint8_t nodeId);
+
 // Starts the transports and native threads
 int DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup);
 

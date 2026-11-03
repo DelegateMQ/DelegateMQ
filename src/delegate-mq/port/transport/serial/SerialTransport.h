@@ -16,7 +16,7 @@
 /// 1. **Thread-Safe Access**: Uses a recursive mutex to serialize access to the 
 ///    underlying serial port, allowing concurrent Send/Receive calls from different threads.
 /// 2. **Data Framing**: Encapsulates delegate arguments in a binary-safe frame structure:
-///    `[Header (8 bytes)] + [Payload (N bytes)] + [CRC16 (2 bytes)]`.
+///    `[Header (10 bytes)] + [Payload (N bytes)] + [CRC16 (2 bytes)]`.
 /// 3. **Data Integrity**: Automatically calculates and verifies a 16-bit CRC for every 
 ///    packet to detect transmission errors common in serial communication.
 /// 4. **Reliability**: Integrates with `TransportMonitor` to track sequence numbers and 
@@ -82,9 +82,6 @@ public:
         }
     }
 
-    // Helper: Swap Little Endian <-> Big Endian
-    static uint16_t swap16(uint16_t v) { return (v << 8) | (v >> 8); }
-
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
     {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -98,19 +95,9 @@ public:
         dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
 
         // SERIALIZE HEADER (Big Endian)
-        uint16_t val;
-
-        val = swap16(headerCopy.GetMarker());
-        ss.write((char*)&val, 2);
-
-        val = swap16(headerCopy.GetId());
-        ss.write((char*)&val, 2);
-
-        val = swap16(headerCopy.GetSeqNum());
-        ss.write((char*)&val, 2);
-
-        val = swap16(headerCopy.GetLength());
-        ss.write((char*)&val, 2);
+        char headerBuf[DmqHeader::HEADER_SIZE];
+        headerCopy.Encode(headerBuf);
+        ss.write(headerBuf, DmqHeader::HEADER_SIZE);
 
         // Payload
         ss.write(payload.data(), payload.size());
@@ -141,10 +128,10 @@ public:
             // Short timeout for Sync, but non-blocking check
             if (sp_blocking_read(m_port, &b, 1, 10) <= 0) return -1;
 
-            if ((uint8_t)b == 0xAA) {
+            if ((uint8_t)b == (uint8_t)(DmqHeader::MARKER >> 8)) {
                 char next_b = 0;
                 if (sp_blocking_read(m_port, &next_b, 1, 100) > 0) {
-                    if ((uint8_t)next_b == 0x55) {
+                    if ((uint8_t)next_b == (uint8_t)(DmqHeader::MARKER & 0xFF)) {
                         headerBuf[0] = b;
                         headerBuf[1] = next_b;
                         break;
@@ -159,13 +146,9 @@ public:
             return -1;
 
         // 3. Deserialize
-        uint16_t val;
-        memcpy(&val, &headerBuf[0], 2); header.SetMarker(swap16(val));
-        memcpy(&val, &headerBuf[2], 2); header.SetId(swap16(val));
-        memcpy(&val, &headerBuf[4], 2); header.SetSeqNum(swap16(val));
-        memcpy(&val, &headerBuf[6], 2); header.SetLength(swap16(val));
+        header.Decode(headerBuf);
 
-        if (header.GetMarker() != DmqHeader::MARKER) return -1;
+        if (!header.IsValid()) return -1;
 
         // 4. Payload
         uint16_t len = header.GetLength();

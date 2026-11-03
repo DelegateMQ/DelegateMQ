@@ -304,7 +304,7 @@ auto conn = heartbeat.OnExpired.Connect(
 heartbeat.Start(std::chrono::milliseconds(1000));          // periodic
 // heartbeat.Start(std::chrono::milliseconds(500), true);  // one-shot
 
-// Drive all timers (e.g. main loop, RTOS task, or SysTick ISR)
+// Drive all timers (e.g. main loop or RTOS task; an ISR only on bare metal)
 while (running) {
     dmq::util::Timer::ProcessTimers();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));

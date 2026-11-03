@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <memory>
+#include <mutex>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -540,6 +541,118 @@ static void Timer_ProcessTimers_DrainsMultiplePasses()
     std::cout << "Timer_ProcessTimers_DrainsMultiplePasses() complete!" << std::endl;
 }
 
+static void Timer_DestroyedDuringProcessTimers()
+{
+    // ProcessTimers() finds expired timers under its critical section but copies
+    // their subscribers after leaving it (that copy takes OS mutexes). Timers
+    // destroyed on other threads in that window must not be touched afterwards.
+    // A use-after-free here shows up under the sanitizer build.
+    std::atomic<bool> exit{ false };
+    std::atomic<int> fireCount{ 0 };
+
+    std::thread processor([&exit]() {
+        while (!exit.load())
+            Timer::ProcessTimers();
+    });
+
+    std::vector<std::thread> workers;
+    for (int w = 0; w < 4; ++w) {
+        workers.emplace_back([&exit, &fireCount]() {
+            while (!exit.load()) {
+                auto timer = std::make_unique<Timer>();
+                dmq::ScopedConnection conn = timer->OnExpired.Connect(
+                    dmq::MakeDelegate([&fireCount]() { fireCount.fetch_add(1); }));
+                timer->Start(std::chrono::milliseconds(1));
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                timer.reset();    // destroy while still connected and due
+            }
+        });
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    exit.store(true);
+    for (auto& t : workers)
+        t.join();
+    processor.join();
+
+    DMQ_ASSERT_TRUE(fireCount.load() > 0);
+    std::cout << "Timer_DestroyedDuringProcessTimers() complete!" << std::endl;
+}
+
+static void Timer_CallbackWaitsForOtherThreadToDestroyTimer()
+{
+    // The lock that keeps timers alive during ProcessTimers() must be released
+    // before callbacks run. Here a callback waits for another thread to destroy
+    // a timer; if the lock were still held, ~Timer() would block on it and the
+    // wait would time out.
+    std::atomic<bool> destroyed{ false };
+    std::atomic<bool> callbackDone{ false };
+    auto victim = std::make_unique<Timer>();
+
+    Timer trigger;
+    dmq::ScopedConnection conn = trigger.OnExpired.Connect(dmq::MakeDelegate(
+        [&victim, &destroyed, &callbackDone]() {
+            if (callbackDone.exchange(true))
+                return;
+            std::thread killer([&victim, &destroyed]() {
+                victim.reset();
+                destroyed.store(true);
+            });
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            while (!destroyed.load() && std::chrono::steady_clock::now() < deadline)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            DMQ_ASSERT_TRUE(destroyed.load());    // faults here instead of hanging below
+            killer.join();
+        }));
+
+    trigger.Start(std::chrono::milliseconds(1), /*once=*/true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    Timer::ProcessTimers();
+
+    // The test runner's own ProcessTimers() thread may have fired it first.
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (!destroyed.load() && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    DMQ_ASSERT_TRUE(destroyed.load());
+    std::cout << "Timer_CallbackWaitsForOtherThreadToDestroyTimer() complete!" << std::endl;
+}
+
+static void Timer_FallenBehind_DoesNotFireBackToBack()
+{
+    // A periodic timer that misses several periods must skip them and expire one
+    // full period later, not fire again on the very next ProcessTimers() call.
+    // Relies on the test runner's ProcessTimers() thread (5 ms loop) being the
+    // only caller: the blocker's callback stalls it long enough for the victim
+    // to fall more than a period behind.
+    const auto period = std::chrono::milliseconds(200);
+
+    std::mutex mtx;
+    std::vector<std::chrono::steady_clock::time_point> fires;
+
+    Timer blocker;
+    dmq::ScopedConnection blockerConn = blocker.OnExpired.Connect(dmq::MakeDelegate([]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
+    }));
+
+    Timer victim;
+    dmq::ScopedConnection victimConn = victim.OnExpired.Connect(dmq::MakeDelegate([&mtx, &fires]() {
+        std::lock_guard<std::mutex> lock(mtx);
+        fires.push_back(std::chrono::steady_clock::now());
+    }));
+
+    blocker.Start(std::chrono::milliseconds(20), /*once=*/true);
+    victim.Start(period);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    victim.Stop();
+
+    std::lock_guard<std::mutex> lock(mtx);
+    DMQ_ASSERT_TRUE(fires.size() >= 2);
+    for (size_t i = 1; i < fires.size(); ++i)
+        DMQ_ASSERT_TRUE(fires[i] - fires[i - 1] >= std::chrono::milliseconds(50));
+    std::cout << "Timer_FallenBehind_DoesNotFireBackToBack() complete!" << std::endl;
+}
+
 // =============================================================================
 // Test runner
 // =============================================================================
@@ -576,6 +689,9 @@ void TimerDelegateTests()
 
     TimerDelegate_WithTimer_DispatchesToThread();
     Timer_ProcessTimers_DrainsMultiplePasses();
+    Timer_DestroyedDuringProcessTimers();
+    Timer_CallbackWaitsForOtherThreadToDestroyTimer();
+    Timer_FallenBehind_DoesNotFireBackToBack();
 
     std::cout << "TimerDelegateTests() complete!" << std::endl;
 }

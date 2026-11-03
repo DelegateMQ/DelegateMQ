@@ -7,9 +7,11 @@ SERVER_IP = "localhost"
 SEND_PORT = 5556  # Port the C++ Server Listens on (We send here)
 RECV_PORT = 5555  # Port the C++ Server Publishes on (We receive here)
 
-# Sync Marker
-# The C++ server expects the marker 0x55AA. 
+# Wire header (see DmqHeader.h): marker, node ID, protocol version
 DMQ_MARKER = 0xAA55
+DMQ_VERSION = 1
+DMQ_HEADER_SIZE = 10
+DMQ_NODE_ID = 0   # This client's node ID (1-255). 0 = unset.
 
 # ------------------------------------------------------------------------------
 # Protocol IDs

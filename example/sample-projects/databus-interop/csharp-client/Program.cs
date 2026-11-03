@@ -56,6 +56,10 @@ static void OnDataMsg(byte[] payload)
 // Main
 // ---------------------------------------------------------------------------
 using var bus = new DmqDataBus();
+// Node ID sent in every header. The C# and Python clients send the same
+// command IDs to one server, so each needs its own ID for the server's
+// duplicate filter to tell them apart.
+bus.SetNodeId(10);
 bus.RegisterCallback(DataMsgId, OnDataMsg);
 bus.Start(ServerHost, DataRecvPort, CmdSendPort, MulticastGroup);
 

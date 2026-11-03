@@ -129,14 +129,16 @@ struct CommandMsg {
 
 ## Protocol
 
-Each UDP datagram starts with an 8-byte big-endian header (`DmqHeader`):
+Each UDP datagram starts with a 10-byte big-endian header (`DmqHeader`):
 
 ```
 Offset  Size  Field
 0       2     Marker   (always 0xAA55)
-2       2     ID       (message type ID, e.g. 100 or 101)
-4       2     SeqNum   (wraps at 65536)
-6       2     Length   (payload length in bytes)
+2       1     NodeId   (sender's node ID, 0 = unset)
+3       1     Version  (wire protocol version, currently 1)
+4       2     ID       (message type ID, e.g. 100 or 101)
+6       2     SeqNum   (wraps at 65536)
+8       2     Length   (payload length in bytes)
 ```
 
 The header is immediately followed by `Length` bytes of MessagePack-encoded

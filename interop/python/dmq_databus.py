@@ -83,6 +83,8 @@ class DmqDataBus:
         # Define C-API signatures
         self._dll.DmqInterop_SetReliability.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
         self._dll.DmqInterop_SetReliability.restype = ctypes.c_int
+        self._dll.DmqInterop_SetNodeId.argtypes = [ctypes.c_uint8]
+        self._dll.DmqInterop_SetNodeId.restype = ctypes.c_int
         self._dll.DmqInterop_Start.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
         self._dll.DmqInterop_Start.restype = ctypes.c_int
         self._dll.DmqInterop_RegisterCallback.argtypes = [ctypes.c_uint16, _MESSAGE_CB, ctypes.c_void_p]
@@ -123,6 +125,17 @@ class DmqDataBus:
         """
         if self._dll.DmqInterop_SetReliability(1 if enabled else 0, timeout_ms, max_retries) != 0:
             raise RuntimeError("set_reliability() must be called before start()")
+
+    def set_node_id(self, node_id):
+        """
+        Set this client's node ID (1-255, 0 = unset), sent in every message header.
+        Call before start(). Give each client a unique ID when several send the
+        same remote IDs to one peer, so the peer's duplicate filter keeps them apart.
+        """
+        if not 0 <= node_id <= 255:
+            raise ValueError("node_id must be 0-255")
+        if self._dll.DmqInterop_SetNodeId(node_id) != 0:
+            raise RuntimeError("set_node_id() must be called before start()")
 
     def start(self, remote_host, recv_port, send_port, multicast_group):
         """

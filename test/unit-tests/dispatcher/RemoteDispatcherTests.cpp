@@ -3,6 +3,7 @@
 #include "extras/rpc/RemoteDispatcher.h"
 #include "extras/util/RetryMonitor.h"
 #include "extras/util/TransportMonitor.h"
+#include "extras/util/ReliableTransport.h"
 #include <atomic>
 #include <chrono>
 #include <mutex>
@@ -78,6 +79,32 @@ bool WaitFor(Pred pred, std::chrono::milliseconds timeout,
     }
     return pred();
 }
+
+// Send side for the RemoteInvokeWait tests. Never ACKs unless told to: with
+// `ackOnSend` = N, the Nth Send() (counting retries) is ACKed by removing it
+// from `monitor`, as a real transport does when the peer's ACK arrives. With
+// `addOnSend`, Send() registers the message itself, as a raw transport with a
+// TransportMonitor does when no RetryMonitor is in the stack.
+class AckTestTransport : public ITransport {
+public:
+    std::atomic<int> sendCount{ 0 };
+    int ackOnSend = 0;
+    bool addOnSend = false;
+    TransportMonitor* monitor = nullptr;
+
+    int Send(xostringstream&, const DmqHeader& header) override {
+        const int n = ++sendCount;
+        if (addOnSend && monitor)
+            monitor->Add(header.GetSeqNum(), header.GetId());
+        if (monitor && n == ackOnSend)
+            monitor->Remove(header.GetSeqNum(), header.GetId());
+        return 0;
+    }
+    int Receive(xstringstream&, DmqHeader&) override {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        return 0;
+    }
+};
 
 } // namespace
 
@@ -208,12 +235,111 @@ static void RemoteDispatcher_AttachRetryMonitor_ForwardsDeliveryFailed()
     std::cout << "RemoteDispatcher_AttachRetryMonitor_ForwardsDeliveryFailed() complete!" << std::endl;
 }
 
+// With a RetryMonitor attached, a TIMEOUT is a retry in progress, not the
+// outcome: an ACK for the retry must make RemoteInvokeWait() return true.
+static void RemoteDispatcher_InvokeWait_AckedOnRetry_ReturnsTrue()
+{
+    AckTestTransport transport;
+    RemoteDispatcher dispatcher(std::chrono::milliseconds(50));
+    RetryMonitor retry(transport, dispatcher.GetTransportMonitor(), /*maxRetries=*/2);
+    ReliableTransport reliable(transport, retry);
+    transport.monitor = &dispatcher.GetTransportMonitor();
+    transport.ackOnSend = 2;                 // first attempt lost, retry ACKed
+    dispatcher.Attach(reliable, transport);
+    dispatcher.AttachRetryMonitor(retry);
+    dispatcher.Start();
+
+    Serializer<void(int)> ser;
+    RemoteChannel<void(int)> channel(dispatcher.GetSendTransport(), ser, 61);
+    DMQ_ASSERT_TRUE(dispatcher.RemoteInvokeWait(channel, 5) == true);
+    DMQ_ASSERT_TRUE(transport.sendCount.load() == 2);
+
+    dispatcher.Stop();
+    std::cout << "RemoteDispatcher_InvokeWait_AckedOnRetry_ReturnsTrue() complete!" << std::endl;
+}
+
+// Retries exhausted: RemoteInvokeWait() returns false only once the RetryMonitor
+// gives up, after every attempt was sent.
+static void RemoteDispatcher_InvokeWait_RetriesExhausted_ReturnsFalse()
+{
+    AckTestTransport transport;
+    RemoteDispatcher dispatcher(std::chrono::milliseconds(50));
+    RetryMonitor retry(transport, dispatcher.GetTransportMonitor(), /*maxRetries=*/1);
+    ReliableTransport reliable(transport, retry);
+    dispatcher.Attach(reliable, transport);
+    dispatcher.AttachRetryMonitor(retry);
+    dispatcher.Start();
+
+    std::atomic<int> failedCount{ 0 };
+    auto conn = dispatcher.OnDeliveryFailed.Connect(dmq::MakeDelegate(
+        [&failedCount](dmq::DelegateRemoteId, uint16_t) { failedCount++; }));
+
+    Serializer<void(int)> ser;
+    RemoteChannel<void(int)> channel(dispatcher.GetSendTransport(), ser, 62);
+    DMQ_ASSERT_TRUE(dispatcher.RemoteInvokeWait(channel, 5) == false);
+    DMQ_ASSERT_TRUE(transport.sendCount.load() == 2);   // first attempt + 1 retry
+    DMQ_ASSERT_TRUE(failedCount.load() == 1);           // ended on the final failure
+
+    dispatcher.Stop();
+    std::cout << "RemoteDispatcher_InvokeWait_RetriesExhausted_ReturnsFalse() complete!" << std::endl;
+}
+
+// No RetryMonitor: nothing will resend, so the first TIMEOUT is final and
+// RemoteInvokeWait() returns false right away, not after a retry window.
+static void RemoteDispatcher_InvokeWait_NoRetryMonitor_FirstTimeoutFinal()
+{
+    AckTestTransport transport;
+    RemoteDispatcher dispatcher(std::chrono::milliseconds(50));
+    transport.monitor = &dispatcher.GetTransportMonitor();
+    transport.addOnSend = true;
+    dispatcher.Attach(transport, transport);
+    dispatcher.Start();
+
+    Serializer<void(int)> ser;
+    RemoteChannel<void(int)> channel(dispatcher.GetSendTransport(), ser, 63);
+    auto start = std::chrono::steady_clock::now();
+    DMQ_ASSERT_TRUE(dispatcher.RemoteInvokeWait(channel, 5) == false);
+    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - start < std::chrono::seconds(1));
+    DMQ_ASSERT_TRUE(transport.sendCount.load() == 1);
+
+    dispatcher.Stop();
+    std::cout << "RemoteDispatcher_InvokeWait_NoRetryMonitor_FirstTimeoutFinal() complete!" << std::endl;
+}
+
+// RemoteInvokeWaitFor(): the caller's limit ends the wait early, well before
+// the retry window (4 x (200 + 100) ms + 100 ms) runs out.
+static void RemoteDispatcher_InvokeWaitFor_CallerLimit()
+{
+    AckTestTransport transport;
+    RemoteDispatcher dispatcher(std::chrono::milliseconds(200));
+    RetryMonitor retry(transport, dispatcher.GetTransportMonitor(), /*maxRetries=*/3);
+    ReliableTransport reliable(transport, retry);
+    dispatcher.Attach(reliable, transport);
+    dispatcher.AttachRetryMonitor(retry);
+    dispatcher.Start();
+
+    DMQ_ASSERT_TRUE(dispatcher.GetInvokeWaitLimit() == std::chrono::milliseconds(1300));
+
+    Serializer<void(int)> ser;
+    RemoteChannel<void(int)> channel(dispatcher.GetSendTransport(), ser, 64);
+    auto start = std::chrono::steady_clock::now();
+    DMQ_ASSERT_TRUE(dispatcher.RemoteInvokeWaitFor(channel, std::chrono::milliseconds(50), 5) == false);
+    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(500));
+
+    dispatcher.Stop();
+    std::cout << "RemoteDispatcher_InvokeWaitFor_CallerLimit() complete!" << std::endl;
+}
+
 void RemoteDispatcherTests()
 {
     RemoteDispatcher_AttachStartStop_Lifecycle();
     RemoteDispatcher_RegisterEndpoint_DispatchesIncoming();
     RemoteDispatcher_TransportError_FiresOnError();
     RemoteDispatcher_AttachRetryMonitor_ForwardsDeliveryFailed();
+    RemoteDispatcher_InvokeWait_AckedOnRetry_ReturnsTrue();
+    RemoteDispatcher_InvokeWait_RetriesExhausted_ReturnsFalse();
+    RemoteDispatcher_InvokeWait_NoRetryMonitor_FirstTimeoutFinal();
+    RemoteDispatcher_InvokeWaitFor_CallerLimit();
 
     std::cout << "RemoteDispatcherTests() complete!" << std::endl;
 }

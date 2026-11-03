@@ -137,16 +137,9 @@ public:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy header to start of send buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         // Copy payload after header
         if (payloadLen > 0) {
@@ -189,18 +182,9 @@ public:
             return -1;
 
         // 1. Read Header directly from m_buffer (Network Byte Order)
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, m_buffer, 2);
-        memcpy(&id,     m_buffer + 2, 2);
-        memcpy(&seqNum, m_buffer + 4, 2);
-        memcpy(&length, m_buffer + 6, 2);
+        header.Decode(m_buffer);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER) {
+        if (!header.IsValid()) {
             return -1;
         }
 

@@ -94,6 +94,11 @@ def main():
     # Commands are reliable by default: tracked until the server ACKs them and
     # resent on timeout (defaults: 2 s timeout, 3 retries). To change:
     # bus.set_reliability(timeout_ms=1000, max_retries=5)
+
+    # Node ID sent in every header. The C# and Python clients send the same
+    # command IDs to one server, so each needs its own ID for the server's
+    # duplicate filter to tell them apart.
+    bus.set_node_id(11)
     
     try:
         # Start the background native receive loop

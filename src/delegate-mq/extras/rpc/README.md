@@ -69,7 +69,7 @@ private:
 
 ## Key Components
 
-* **`dmq::rpc::RemoteDispatcher.h`**: Manages the internal network thread and marshals calls onto it automatically. `RemoteInvokeWait()` blocks the caller until the remote ACKs or times out — the one capability `DataBus::Publish()` (inherently async/fire-and-forget) doesn't provide.
+* **`dmq::rpc::RemoteDispatcher.h`**: Manages the internal network thread and marshals calls onto it automatically. `RemoteInvokeWait()` blocks the caller until the message's final outcome — the one capability `DataBus::Publish()` (inherently async/fire-and-forget) doesn't provide. `true` means the remote ACKed it. With a RetryMonitor attached (`AttachRetryMonitor()`), a timeout means a retry follows, so the call waits through the retries and `false` means they ran out; without one, the first timeout returns `false`. The wait is bounded by `GetInvokeWaitLimit()` (9.4 s with the defaults); `RemoteInvokeWaitFor(channel, timeout, args...)` sets a shorter limit, in which case `false` can also mean "not ACKed yet" while retries continue.
   * `Attach(sendTransport, recvTransport)` — call once (typically from the owning class's `Create()`, after its own transport member exists) to hand `RemoteDispatcher` the `ITransport&` it sends/receives through.
   * `AttachRetryMonitor(retryMonitor)` — call once, after `Attach()`, only if the owning class layered `RetryMonitor`/`ReliableTransport` on top of its transport. Skip it for a self-reliable transport (e.g. ZeroMQ) that has no `RetryMonitor`.
   * `SetCloseHandler(handler)` — supply a delegate that closes the concrete transport(s) the owning class owns; `ITransport` itself has no `Close()`. Called by `Stop()` before the receive thread is joined. Optional: if never set, this is a no-op.

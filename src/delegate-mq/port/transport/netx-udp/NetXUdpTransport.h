@@ -32,18 +32,6 @@
 #include <cstring>
 #include <cstdlib>
 
-// Helper to check for standard endian headers
-#if defined(__GNUC__) || defined(__clang__)
-    #define NETX_HTONS(x) __builtin_bswap16(x)
-    #define NETX_NTOHS(x) __builtin_bswap16(x)
-#else
-    inline uint16_t netx_swap16(uint16_t val) {
-        return (val << 8) | (val >> 8);
-    }
-    #define NETX_HTONS(x) netx_swap16(x)
-    #define NETX_NTOHS(x) netx_swap16(x)
-#endif
-
 namespace dmq::transport {
 
 class NetXUdpTransport : public ITransport
@@ -180,23 +168,12 @@ public:
         DmqHeader headerCopy = header;
         headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
-        uint16_t marker = NETX_HTONS(headerCopy.GetMarker());
-        uint16_t id     = NETX_HTONS(headerCopy.GetId());
-        uint16_t seqNum = NETX_HTONS(headerCopy.GetSeqNum());
-        uint16_t length = NETX_HTONS(headerCopy.GetLength());
+        UCHAR headerBuf[DmqHeader::HEADER_SIZE];
+        headerCopy.Encode(headerBuf);
 
         // 3. Append Data (With Error Checks)
         // Check return value of every append. If one fails, the packet is corrupted/partial.
-        if (nx_packet_data_append(packet_ptr, &marker, sizeof(marker), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
-            goto cleanup_and_fail;
-
-        if (nx_packet_data_append(packet_ptr, &id, sizeof(id), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
-            goto cleanup_and_fail;
-
-        if (nx_packet_data_append(packet_ptr, &seqNum, sizeof(seqNum), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
-            goto cleanup_and_fail;
-
-        if (nx_packet_data_append(packet_ptr, &length, sizeof(length), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
+        if (nx_packet_data_append(packet_ptr, headerBuf, sizeof(headerBuf), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
             goto cleanup_and_fail;
 
         if (nx_packet_data_append(packet_ptr, (VOID*)payload.data(), payload.size(), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
@@ -275,13 +252,9 @@ public:
         }
 
         // Parse Header
-        uint16_t* ptr16 = (uint16_t*)buffer;
-        header.SetMarker(NETX_NTOHS(ptr16[0]));
-        header.SetId(NETX_NTOHS(ptr16[1]));
-        header.SetSeqNum(NETX_NTOHS(ptr16[2]));
-        header.SetLength(NETX_NTOHS(ptr16[3]));
+        header.Decode(buffer);
 
-        if (header.GetMarker() != DmqHeader::MARKER) {
+        if (!header.IsValid()) {
             tx_mutex_put(&m_mutex);
             return -1;
         }

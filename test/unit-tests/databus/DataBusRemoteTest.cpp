@@ -37,6 +37,11 @@ public:
         return 0;
     }
 
+    /// Queue a message as if received from another node.
+    void Inject(const DmqHeader& header, const xstring& payload) {
+        m_queue.push({header, std::vector<char>(payload.begin(), payload.end())});
+    }
+
 private:
     std::queue<Packet> m_queue;
 };
@@ -250,6 +255,98 @@ int DataBusRemoteTestMain() {
         DMQ_ASSERT_TRUE(sendCalledOnWorker == true);
 
         sendWorker.ExitThread();
+    }
+
+    // 5. DmqHeader wire format: 10 bytes, big-endian, node ID and version.
+    {
+        DmqHeader h(0x1234, 0x5678, 0x9ABC);
+        h.SetNodeId(7);
+        uint8_t buf[DmqHeader::HEADER_SIZE] = {};
+        h.Encode(buf);
+        const uint8_t expected[DmqHeader::HEADER_SIZE] =
+            { 0xAA, 0x55, 7, DmqHeader::VERSION, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC };
+        for (size_t i = 0; i < DmqHeader::HEADER_SIZE; ++i)
+            DMQ_ASSERT_TRUE(buf[i] == expected[i]);
+
+        DmqHeader d;
+        d.Decode(buf);
+        DMQ_ASSERT_TRUE(d.IsValid());
+        DMQ_ASSERT_TRUE(d.GetNodeId() == 7);
+        DMQ_ASSERT_TRUE(d.GetId() == 0x1234);
+        DMQ_ASSERT_TRUE(d.GetSeqNum() == 0x5678);
+        DMQ_ASSERT_TRUE(d.GetLength() == 0x9ABC);
+
+        buf[3] = DmqHeader::VERSION + 1;   // well-formed frame, unknown version
+        d.Decode(buf);
+        DMQ_ASSERT_TRUE(d.HasValidMarker());
+        DMQ_ASSERT_TRUE(!d.IsValid());
+
+        // New headers carry this process's node ID.
+        const uint8_t saved = DmqHeader::GetLocalNodeId();
+        DmqHeader::SetLocalNodeId(42);
+        DMQ_ASSERT_TRUE(DmqHeader(1, 2).GetNodeId() == 42);
+        DmqHeader::SetLocalNodeId(saved);
+    }
+
+    // 6. Duplicate filtering is per sending node. Two nodes may use the same
+    //    sequence number for the same remote ID; only a repeat from the same node
+    //    (a retry) is a duplicate.
+    {
+        DataBus::ResetForTesting();
+        DataBusLoopbackTransport transport;
+        dmq::serialization::serializer::Serializer<void(int)> serializer;
+
+        auto receiver = std::make_shared<Participant>(transport);
+        int count = 0;
+        int last = 0;
+        receiver->RegisterHandler<int>(300, serializer, [&](int val) {
+            count++;
+            last = val;
+        });
+
+        auto inject = [&](uint8_t node, uint16_t seq, int value) {
+            xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+            serializer.Write(os, value);
+            DmqHeader h(300, seq);
+            h.SetNodeId(node);
+            transport.Inject(h, os.str());
+            receiver->ProcessIncoming();
+        };
+
+        inject(1, 5, 10);
+        DMQ_ASSERT_TRUE(count == 1 && last == 10);
+
+        inject(2, 5, 20);                  // other node, same seq: delivered
+        DMQ_ASSERT_TRUE(count == 2 && last == 20);
+
+        inject(1, 5, 10);                  // same node, same seq: retry, dropped
+        DMQ_ASSERT_TRUE(count == 2);
+
+        inject(1, 6, 11);                  // same node, next seq: delivered
+        DMQ_ASSERT_TRUE(count == 3 && last == 11);
+
+        // A header with an unknown version is rejected, not delivered.
+        {
+            xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+            serializer.Write(os, 99);
+            DmqHeader h(300, 7);
+            h.SetNodeId(1);
+            h.SetVersion(DmqHeader::VERSION + 1);
+            transport.Inject(h, os.str());
+            receiver->ProcessIncoming();
+            DMQ_ASSERT_TRUE(count == 3);
+        }
+
+        // History expires: once the retry window has passed, the same number
+        // from the same node is a restarted sender, not a retry.
+        receiver->SetSeqHistoryExpiry(std::chrono::milliseconds(50));
+        inject(3, 9, 30);
+        DMQ_ASSERT_TRUE(count == 4);
+        inject(3, 9, 30);                  // within the window: dropped
+        DMQ_ASSERT_TRUE(count == 4);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        inject(3, 9, 31);                  // after the window: delivered
+        DMQ_ASSERT_TRUE(count == 5 && last == 31);
     }
 
     std::cout << "DataBusRemoteTest PASSED!" << std::endl;

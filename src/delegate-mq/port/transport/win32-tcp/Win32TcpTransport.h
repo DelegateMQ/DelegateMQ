@@ -207,16 +207,9 @@ private:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy header to start of send buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         // Copy payload after header
         if (payloadLen > 0) {
@@ -303,18 +296,9 @@ private:
         if (!ReadExact(s, headerBuf, DmqHeader::HEADER_SIZE)) return -2; // Disconnected
 
         // Parse Header (Convert Network -> Host)
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, headerBuf, 2);
-        memcpy(&id,     headerBuf + 2, 2);
-        memcpy(&seqNum, headerBuf + 4, 2);
-        memcpy(&length, headerBuf + 6, 2);
+        header.Decode(headerBuf);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER) return -1;
+        if (!header.IsValid()) return -1;
 
         // 2. Read Payload
         uint16_t payloadSize = header.GetLength();
@@ -331,16 +315,9 @@ private:
         }
         else if (m_transportMonitor && m_sendTransport) {
             // Send ACK using a small stack buffer
-            uint16_t a_marker = htons(DmqHeader::MARKER);
-            uint16_t a_id     = htons(dmq::ACK_REMOTE_ID);
-            uint16_t a_seqNum = htons(header.GetSeqNum());
-            uint16_t a_length = 0;
-
+            DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
             char ackBuf[DmqHeader::HEADER_SIZE];
-            memcpy(ackBuf, &a_marker, 2);
-            memcpy(ackBuf + 2, &a_id, 2);
-            memcpy(ackBuf + 4, &a_seqNum, 2);
-            memcpy(ackBuf + 6, &a_length, 2);
+            ack.Encode(ackBuf);
 
             send(s, ackBuf, DmqHeader::HEADER_SIZE, 0);
         }

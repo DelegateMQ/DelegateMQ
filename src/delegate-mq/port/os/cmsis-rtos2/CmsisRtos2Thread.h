@@ -34,7 +34,7 @@
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
 ///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   — typically a hardware timer ISR or the highest-priority task in the system.
+///   — the highest-priority task in the system, not an ISR (see Timer.h).
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"

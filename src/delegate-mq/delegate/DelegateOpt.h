@@ -365,6 +365,15 @@ namespace dmq
     /// via TransportMonitor's timeout constructor parameter.
     inline constexpr Duration TRANSPORT_MONITOR_TIMEOUT = std::chrono::seconds(DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC);
 
+    /// @brief How long a received sequence number counts toward duplicate detection.
+    /// Override via DMQ_SEQ_HISTORY_EXPIRY_MS in delegatemqconfig.h.
+    inline constexpr Duration SEQ_HISTORY_EXPIRY = std::chrono::milliseconds(DMQ_SEQ_HISTORY_EXPIRY_MS);
+
+    /// @brief Default node ID sent in every DmqHeader (0 = unset).
+    /// Override via DMQ_NODE_ID in delegatemqconfig.h.
+    static_assert(DMQ_NODE_ID >= 0 && DMQ_NODE_ID <= 255, "DMQ_NODE_ID must be 0-255");
+    inline constexpr uint8_t NODE_ID = DMQ_NODE_ID;
+
     /// @brief Max number of pending messages the TransportMonitor can track.
     /// Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.
     inline constexpr size_t MAX_TRANSPORT_MONITOR_PENDING = DMQ_TRANSPORT_MONITOR_MAX_PENDING;

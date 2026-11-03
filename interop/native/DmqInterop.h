@@ -91,6 +91,15 @@ extern "C" {
     /// @return 0 on success, -1 if already started.
     DMQ_EXPORT int DMQ_CALL DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries);
 
+    /// @brief Set this client's node ID, sent in every message header. Call before
+    /// DmqInterop_Start().
+    /// @details Receivers filter retried duplicates per (node ID, remote ID). When several
+    /// clients send the same remote IDs to one peer, give each a unique ID so their
+    /// sequence numbers don't collide. Default: the DLL's DMQ_NODE_ID (0 = unset).
+    /// @param nodeId 1-255, or 0 for unset.
+    /// @return 0 on success, -1 if already started.
+    DMQ_EXPORT int DMQ_CALL DmqInterop_SetNodeId(uint8_t nodeId);
+
     /// @brief Initialize and start the transports and background threads.
     /// @param remoteHost IP address of the remote peer (used for the unicast send/command channel).
     /// @param recvPort Local port to bind/join for incoming messages.

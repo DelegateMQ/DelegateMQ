@@ -36,7 +36,7 @@ Numerous predefined platforms are already supported — Windows, Linux, POSIX, F
    - *Optional:* Implement `dmq::transport::ITransportMonitor` if your application layer requires command acknowledgments (ACKs).
    - See [Sample Projects](../example/sample-projects/README.md) for numerous remote delegate examples.
 4. **Check System Clock** — ensure `std::chrono::steady_clock` is supported on your target hardware, as it is required for timers and transport timeouts. Otherwise, change `dmq::Clock` in `DelegateOpt.h` to a new clock type.
-5. **Call `dmq::util::Timer::ProcessTimers()`** — periodically call `ProcessTimers()` (e.g., from a main loop or hardware timer ISR) to support timers and thread watchdogs.
+5. **Call `dmq::util::Timer::ProcessTimers()`** — periodically call `ProcessTimers()` (e.g., from a main loop or a high-priority task) to support timers and thread watchdogs. On an RTOS it must run in a task, not an ISR: it takes OS mutexes. Only bare metal (`DMQ_THREAD_NONE`) can call it from a hardware timer ISR.
 6. **Configure Build Options** — set CMake DMQ library build options within `CMakeLists.txt`.
    - Example: `DMQ_ASSERTS` for debug assertions.
    - Example: `DMQ_ALLOCATOR` to switch between standard heap (`new`/`delete`) and the deterministic Fixed Block Allocator.
@@ -369,7 +369,7 @@ The mechanism uses a single `dmq::util::Timer` object — no additional OS threa
 The worker thread's `Run()` loop updates `m_lastAliveTime` directly at the top of every iteration. When a watchdog timeout is configured, the queue-receive call uses a finite wait of `timeout/4`, so the loop cycles and refreshes the timestamp even when the thread is completely idle. No queue messages are needed to maintain liveness — there is no cross-thread dispatch involved in the watchdog path.
 
 ```
-ProcessTimers() caller (ISR or high-priority task)
+ProcessTimers() caller (highest-priority task; ISR on bare metal only)
    │
    └─ m_watchdogTimer fires (timeout/2)
         └─ WatchdogCheck() runs inline — reads m_lastAliveTime atomically
@@ -391,20 +391,9 @@ The watchdog **only catches CPU-spinning runaway threads** if `dmq::util::Timer:
 | Idle thread (waiting for messages) | Any — `Run()` loops every `timeout/4` even with no messages |
 | CPU-spinning runaway (infinite loop in callback) | **Must be higher** than the watched thread |
 
-Two acceptable approaches for embedded targets:
+On an RTOS (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX), `ProcessTimers()` must run in a task, not an ISR: it takes OS mutexes to copy each expired timer's subscribers, and RTOS mutexes can't be taken from an ISR. That leaves the highest-priority task:
 
-**Option 1 — Hardware timer ISR (recommended):** Call `dmq::util::Timer::ProcessTimers()` from a SysTick or similar periodic ISR. ISRs preempt all tasks regardless of priority, so the watchdog fires even if the highest-priority task runs away.
-
-```cpp
-// FreeRTOS / CMSIS-RTOS2 example: SysTick ISR
-extern "C" void SysTick_Handler(void)
-{
-    dmq::util::Timer::ProcessTimers();  // preempts all tasks — watchdog always fires
-    // ... other SysTick work
-}
-```
-
-**Option 2 — Highest-priority task:** Dedicate the system's highest-priority task to calling `dmq::util::Timer::ProcessTimers()` in a tight loop. This task must be strictly higher priority than any thread it is watching — a runaway task at equal or lower priority will starve it and defeat the watchdog.
+**Highest-priority task (RTOS ports):** Dedicate the system's highest-priority task to calling `dmq::util::Timer::ProcessTimers()` in a tight loop. This task must be strictly higher priority than any thread it is watching — a runaway task at equal or lower priority will starve it and defeat the watchdog.
 
 ```cpp
 // FreeRTOS example: dedicated watchdog task at highest priority
@@ -430,7 +419,7 @@ xTaskCreate(WatchdogTask, "Watchdog", 512, nullptr, configMAX_PRIORITIES - 1, nu
 
 **2. `ProcessTimers()` context must remain alive.**  
 `WatchdogCheck()` runs in whichever context calls `dmq::util::Timer::ProcessTimers()`. If that context itself deadlocks, starves, or is never scheduled, the watchdog timer never fires and no fault is detected. Mitigations:
-- Call `ProcessTimers()` from a hardware timer ISR (e.g., SysTick) so it preempts all tasks unconditionally.
+- Run `ProcessTimers()` in the system's highest-priority task, so only an equal- or higher-priority runaway can starve it. (Bare metal can call it from a hardware timer ISR, e.g. SysTick, which preempts everything.)
 - For a final backstop against total system freeze, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) kicked inside `WatchdogCheck()`. The software watchdog detects soft stalls; the hardware watchdog catches a completely frozen `ProcessTimers()` context.
 
 **3. Priority requirement on single-core RTOS (see table above).**  
