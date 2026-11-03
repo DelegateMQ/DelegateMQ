@@ -285,6 +285,39 @@ int NetworkNodeTestMain() {
         srcTransport.Close();
     }
 
+    // ------------------------------------------------------------------
+    // 5. ITransport::Receive() contract on the UDP transport: nothing arriving
+    //    within the receive timeout is RECEIVE_NO_DATA (not an error), and a
+    //    valid datagram is delivered with its payload.
+    // ------------------------------------------------------------------
+    {
+        using T = NetworkNodeTestTransport;
+        T sub;
+        DMQ_ASSERT_TRUE(sub.Create(T::Type::SUB, "127.0.0.1", 15320) == 0);
+        sub.SetRecvTimeout(std::chrono::milliseconds(50));
+
+        xstringstream is(std::ios::in | std::ios::out | std::ios::binary);
+        transport::DmqHeader header;
+        DMQ_ASSERT_TRUE(sub.Receive(is, header) == transport::ITransport::RECEIVE_NO_DATA);
+
+        T pub;
+        DMQ_ASSERT_TRUE(pub.Create(T::Type::PUB, "127.0.0.1", 15320) == 0);
+        xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+        os << "hello";
+        DMQ_ASSERT_TRUE(pub.Send(os, transport::DmqHeader(77, 1)) == 0);
+
+        int result = transport::ITransport::RECEIVE_NO_DATA;
+        for (int i = 0; i < 20 && result == transport::ITransport::RECEIVE_NO_DATA; ++i)
+            result = sub.Receive(is, header);
+        DMQ_ASSERT_TRUE(result == 0);
+        DMQ_ASSERT_TRUE(header.GetId() == 77);
+        DMQ_ASSERT_TRUE(header.GetLength() == 5);
+        DMQ_ASSERT_TRUE(is.str() == "hello");
+
+        pub.Close();
+        sub.Close();
+    }
+
     std::cout << "NetworkNodeTest PASSED!" << std::endl;
 #endif
     return 0;

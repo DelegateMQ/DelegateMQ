@@ -41,6 +41,7 @@
 #include <sstream>
 #include <cstdio>
 #include <cstring>
+#include <cerrno>
 #include <mutex>
 #include <iostream> // For std::cout/cerr
 
@@ -244,6 +245,12 @@ public:
 
         int size = zmq_recv(m_zmq, m_buffer, BUFFER_SIZE, 0);
         if (size == -1) {
+            return (zmq_errno() == EAGAIN) ? RECEIVE_NO_DATA : -1;  // EAGAIN: ZMQ_RCVTIMEO expired
+        }
+
+        // zmq_recv() truncates a message longer than the buffer but returns its
+        // full length. Drop it: only BUFFER_SIZE bytes were stored.
+        if (size > BUFFER_SIZE) {
             return -1;
         }
 
@@ -259,9 +266,11 @@ public:
         }
 
         // 2. Write payload
+        // One message per ZeroMQ message: the header length must match exactly. Anything
+        // else is malformed and must not be delivered (cut short) or ACKed.
         uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+        if (payloadSize != static_cast<size_t>(size) - DmqHeader::HEADER_SIZE)
+            return -1;
 
         if (payloadSize > 0) {
             is.clear();
@@ -277,7 +286,10 @@ public:
         }
         else
         {
-            if (m_transportMonitor && m_sendTransport)
+            // ACK whenever a send path exists, whether or not this transport also
+            // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
+            // has no monitor but must still ACK the sender's RELIABLE messages.
+            if (m_sendTransport)
             {
                 // Send header with received seqNum as the ack message
                 dmq::xostringstream ss_ack;

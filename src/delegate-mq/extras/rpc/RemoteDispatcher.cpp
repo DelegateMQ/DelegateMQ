@@ -169,13 +169,12 @@ void RemoteDispatcher::RecvThread()
             // Release our local reference so a new one is allocated next iteration
             arg_data.reset();
         }
-        else if (error && !m_recvThreadExit)
+        else if (error < 0 && !m_recvThreadExit)
         {
-            // Receive() blocks indefinitely here (no recv timeout is ever set on
-            // these transports), so a non-zero result is a genuine transport fault
-            // (bad frame, socket error) rather than a routine "no data yet" poll
-            // result. The m_recvThreadExit guard excludes the one expected
-            // non-fault case: Stop() closing the socket to unblock this call.
+            // Negative is a genuine transport fault (bad frame, socket error);
+            // ITransport::RECEIVE_NO_DATA (a receive timeout) is not reported.
+            // The m_recvThreadExit guard excludes the one expected non-fault
+            // case: Stop() closing the socket to unblock this call.
             InternalErrorHandler(dmq::INVALID_REMOTE_ID, dmq::DelegateError::ERR_TRANSPORT_RECEIVE, error);
         }
     }

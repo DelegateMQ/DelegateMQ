@@ -253,11 +253,19 @@ public:
         
         // Receive with 100ms timeout (set in Create)
         int err = nng_recv(m_nngSocket, m_buffer, &size, 0);
+        if (err == NNG_ETIMEDOUT || err == NNG_EAGAIN) {
+            return RECEIVE_NO_DATA;
+        }
         if (err != 0) {
-            return -1; // EAGAIN or fatal
+            return -1;
         }
 
         if (size < DmqHeader::HEADER_SIZE) {
+            return -1;
+        }
+
+        // Never trust a size beyond what the buffer holds.
+        if (size > sizeof(m_buffer)) {
             return -1;
         }
 
@@ -269,9 +277,11 @@ public:
         }
 
         // 2. Write payload
+        // One message per NNG message: the header length must match exactly. Anything
+        // else is malformed and must not be delivered (cut short) or ACKed.
         uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+        if (payloadSize != size - DmqHeader::HEADER_SIZE)
+            return -1;
 
         if (payloadSize > 0) {
             is.clear();
@@ -287,7 +297,10 @@ public:
         }
         else
         {
-            if (m_transportMonitor && m_sendTransport)
+            // ACK whenever a send path exists, whether or not this transport also
+            // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
+            // has no monitor but must still ACK the sender's RELIABLE messages.
+            if (m_sendTransport)
             {
                 // Send header with received seqNum as the ack message
                 dmq::xostringstream ss_ack;

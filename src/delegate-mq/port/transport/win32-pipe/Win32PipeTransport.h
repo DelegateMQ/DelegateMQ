@@ -171,14 +171,21 @@ public:
 
             // If not connected yet, we can't read.
             if (connected == FALSE && GetLastError() == ERROR_NO_DATA) {
-                 return -1;
+                 return RECEIVE_NO_DATA;
             }
         }
 
         DWORD size = 0;
         BOOL success = ReadFile(m_hPipe, m_buffer, BUFFER_SIZE, &size, NULL);
 
-        if (success == FALSE || size < DmqHeader::HEADER_SIZE)
+        if (success == FALSE) {
+            // PIPE_NOWAIT: no message waiting, or no client connected yet.
+            const DWORD err = GetLastError();
+            if (err == ERROR_NO_DATA || err == ERROR_PIPE_LISTENING)
+                return RECEIVE_NO_DATA;
+            return -1;  // includes ERROR_MORE_DATA: message larger than the buffer
+        }
+        if (size < DmqHeader::HEADER_SIZE)
             return -1;
 
         // 1. Read Header directly from m_buffer (Network Byte Order)
@@ -188,10 +195,11 @@ public:
             return -1;
         }
 
-        // 2. Write payload to provided stream
+        // 2. Write payload to provided stream. Message-mode pipe: one message
+        // per read, so the header length must match exactly.
         uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+        if (payloadSize != size - DmqHeader::HEADER_SIZE)
+            return -1;
 
         if (payloadSize > 0) {
             is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);

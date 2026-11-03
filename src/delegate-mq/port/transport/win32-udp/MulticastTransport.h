@@ -116,15 +116,20 @@ public:
         int addrLen = sizeof(m_addr);
         int size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, (sockaddr*)&m_addr, &addrLen);
         
-        if (size == SOCKET_ERROR) return -1;
+        if (size == SOCKET_ERROR) {
+            const int err = WSAGetLastError();
+            // WSAEMSGSIZE (datagram larger than the buffer) stays an error
+            return (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK) ? RECEIVE_NO_DATA : -1;
+        }
         if (size < (int)DmqHeader::HEADER_SIZE) return -1;
 
         header.Decode(m_buffer);
 
         if (!header.IsValid()) return -1;
 
-        int payloadSize = size - DmqHeader::HEADER_SIZE;
-        if (header.GetLength() > payloadSize) return -1;
+        // One datagram is one message: the header length must match exactly.
+        int payloadSize = size - static_cast<int>(DmqHeader::HEADER_SIZE);
+        if (header.GetLength() != payloadSize) return -1;
         is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }

@@ -104,9 +104,14 @@ public:
     virtual int Receive(xstringstream& is, DmqHeader& header) override {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::SUB) return -1;
-        ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, NULL, NULL);
+        // MSG_TRUNC: return the datagram's real length, so one larger than the
+        // buffer is detected and dropped rather than delivered cut short.
+        ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), MSG_TRUNC, NULL, NULL);
+        if (size < 0)
+            return (errno == EAGAIN || errno == EWOULDBLOCK) ? RECEIVE_NO_DATA : -1;
 
         if (size < (ssize_t)DmqHeader::HEADER_SIZE) return -1;
+        if (size > (ssize_t)sizeof(m_buffer)) return -1;   // truncated
 
         header.Decode(m_buffer);
 
@@ -115,8 +120,9 @@ public:
             return -1;
         }
 
-        int payloadSize = size - DmqHeader::HEADER_SIZE;
-        if (header.GetLength() > payloadSize) return -1;
+        // One datagram is one message: the header length must match exactly.
+        int payloadSize = static_cast<int>(size) - static_cast<int>(DmqHeader::HEADER_SIZE);
+        if (header.GetLength() != payloadSize) return -1;
         is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }

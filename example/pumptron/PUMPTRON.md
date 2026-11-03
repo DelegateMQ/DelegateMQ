@@ -89,7 +89,7 @@ LEDs:
 
 | LED | Meaning |
 |:---|:---|
-| **Orange** solid / blinking | Powered / link degraded (`LINK_DEGRADED`: delivery failures, dropped frames or a retry backlog in the last 10 s) |
+| **Orange** solid / blinking | Powered / link degraded (`LINK_DEGRADED`: delivery failures, dropped frames or a retry backlog in the last 10 s, while the GUI is connected; errors with no GUI, or in the first `LINK_UP_GRACE` (9 s) after it connects, are logged only) |
 | **Green** | Priming or running |
 | **Blue** | Toggles on every telemetry frame |
 | **Red** solid | Pump fault latched, or an initialization error (board halted) |
@@ -436,7 +436,7 @@ Read it from the bottom up. The Pump thread's control timer fired, and DelegateM
 | `DIVBYZERO`, `UNALIGNED` | Only when trapping is enabled; the CubeIDE debug launch can enable it (Startup tab, exception settings) |
 | `STKERR` / `MSTKERR` | Fault while stacking: usually a stack overflow |
 
-HFSR `FORCED` means a lower-priority fault escalated to HardFault; CFSR still has the original cause. HFSR `DEBUGEVT` with a PC in RAM (`0x2000xxxx`) is not an application crash: the debugger's flash loader hit a breakpoint without a debugger attached, typically during an interrupted flash or debug launch.
+HFSR `FORCED` means a lower-priority fault escalated to HardFault; CFSR still has the original cause. HFSR `DEBUGEVT` with a PC in RAM (`0x2000xxxx`) is not an application crash: the debugger's flash loader hit a breakpoint without a debugger attached, typically when flashing a running board. The firmware never executes `BKPT`, so it now resets on a `DEBUGEVT` HardFault without storing a core dump; a dump like this only comes from older firmware.
 
 The implementation is in `controller/platform/f4/CoreDump.cpp`/`CoreDumpReporter.h` and `gui/system/CoreDumpFile.cpp`. It is adapted from [CoreDump](https://github.com/endurodave/CoreDump), which explains the technique in detail.
 

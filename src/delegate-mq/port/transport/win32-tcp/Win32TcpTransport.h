@@ -167,10 +167,12 @@ public:
     /// @details In SERVER mode, this broadcasts to all connected clients.
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
     {
+        // m_mutex guards m_sendBuffer and keeps frames from different threads
+        // (including ACKs sent by Receive()) from interleaving on the stream.
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type == Type::CLIENT) {
             return SendToSocket(m_clientSocket, os, header);
         } else {
-            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             int lastErr = 0;
             for (auto s : m_serverClients) {
                 if (SendToSocket(s, os, header) != 0) lastErr = -1;
@@ -185,7 +187,15 @@ public:
         if (m_type == Type::SERVER) {
             return ReceiveServer(is, header);
         } else {
-            return ReceiveSocket(m_clientSocket, is, header);
+            int result = ReceiveSocket(m_clientSocket, is, header);
+            if (result == -2 && m_clientSocket != INVALID_SOCKET) {
+                // Disconnected, or the stream lost framing (bad header, partial
+                // frame). Either way nothing more on it can be trusted: shut it
+                // down so the next reads fail cleanly instead of parsing the
+                // middle of a frame as a header.
+                shutdown(m_clientSocket, SD_BOTH);
+            }
+            return result;
         }
     }
 
@@ -254,7 +264,7 @@ private:
         FD_ZERO(&readfds);
         {
             const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-            if (m_serverClients.empty()) return -1;
+            if (m_serverClients.empty()) return RECEIVE_NO_DATA;
             for (auto s : m_serverClients) {
                 FD_SET(s, &readfds);
             }
@@ -266,7 +276,7 @@ private:
             for (auto it = m_serverClients.begin(); it != m_serverClients.end(); ) {
                 if (FD_ISSET(*it, &readfds)) {
                     int result = ReceiveSocket(*it, is, header);
-                    if (result == -2) { // Disconnected
+                    if (result == -2) { // Disconnected, or lost framing (bad header)
                         std::cout << "Win32TcpTransport: Client disconnected." << std::endl;
                         closesocket(*it);
                         it = m_serverClients.erase(it);
@@ -277,7 +287,7 @@ private:
                 ++it;
             }
         }
-        return -1;
+        return RECEIVE_NO_DATA;
     }
 
     /// @brief Internal helper to read from a specific socket and parse DMQ protocol.
@@ -289,7 +299,9 @@ private:
         FD_ZERO(&readfds);
         FD_SET(s, &readfds);
         TIMEVAL tv = { 0, 1000 };
-        if (select(0, &readfds, NULL, NULL, &tv) <= 0) return -1;
+        int ready = select(0, &readfds, NULL, NULL, &tv);
+        if (ready == 0) return RECEIVE_NO_DATA;
+        if (ready < 0) return -1;
 
         // 1. Read Header
         char headerBuf[DmqHeader::HEADER_SIZE];
@@ -298,13 +310,16 @@ private:
         // Parse Header (Convert Network -> Host)
         header.Decode(headerBuf);
 
-        if (!header.IsValid()) return -1;
+        // A stream has no resync point: after a bad header (or a payload we
+        // can't hold and so can't skip), the next bytes aren't a header either.
+        // Report it like a disconnect (-2) so the connection is dropped.
+        if (!header.IsValid()) return -2;
 
         // 2. Read Payload
         uint16_t payloadSize = header.GetLength();
         if (payloadSize > 0)
         {
-            if (payloadSize > BUFFER_SIZE) return -1;
+            if (payloadSize > BUFFER_SIZE) return -2;
             if (!ReadExact(s, m_recvBuffer, payloadSize)) return -2;
             is.write(m_recvBuffer, payloadSize);
         }
@@ -313,13 +328,24 @@ private:
         if (header.GetId() == dmq::ACK_REMOTE_ID) {
             if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
         }
-        else if (m_transportMonitor && m_sendTransport) {
+        // ACK whenever a send path exists, whether or not this transport also
+        // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
+        // has no monitor but must still ACK the sender's RELIABLE messages.
+        else if (m_sendTransport) {
             // Send ACK using a small stack buffer
             DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
             char ackBuf[DmqHeader::HEADER_SIZE];
             ack.Encode(ackBuf);
 
-            send(s, ackBuf, DmqHeader::HEADER_SIZE, 0);
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);  // don't interleave with Send()
+            const char* ptr = ackBuf;
+            int remaining = static_cast<int>(DmqHeader::HEADER_SIZE);
+            while (remaining > 0) {
+                int sent = send(s, ptr, remaining, 0);
+                if (sent == SOCKET_ERROR || sent == 0) break;
+                ptr += sent;
+                remaining -= sent;
+            }
         }
         return 0;
     }

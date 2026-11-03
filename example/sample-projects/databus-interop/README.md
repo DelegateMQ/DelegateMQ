@@ -89,8 +89,12 @@ All three components must agree on the following constants (defined in
 |---|---|---|
 | `DataMsgId` | 100 | Server → Client (DataMsg) |
 | `CommandMsgId` | 101 | Client → Server (CommandMsg) |
-| `DataRecvPort` | 8000 | Server PUBs / Client binds |
+| `DataRecvPort` | 8000 | Server PUBs to multicast group `239.1.1.1` / Client joins |
 | `CmdSendPort` | 8001 | Client sends / Server SUBs |
+
+`DataMsg` goes to the multicast group, so every running client receives it;
+it's best-effort (clients don't ACK it). `CommandMsg` is sent reliably: the
+server ACKs it and the client library resends on timeout.
 
 ---
 
@@ -142,8 +146,8 @@ Offset  Size  Field
 ```
 
 The header is immediately followed by `Length` bytes of MessagePack-encoded
-payload.  After every non-ACK message the receiver sends a header-only ACK
-(`ID=0`, `SeqNum` echoed, `Length=0`).
+payload.  For a reliable message (`CommandMsg` here) the receiver sends a
+header-only ACK (`ID=0`, `SeqNum` echoed, `Length=0`).
 
 See `interop/README.md` for the full protocol specification.
 

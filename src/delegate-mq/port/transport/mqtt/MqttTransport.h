@@ -227,7 +227,7 @@ public:
         {
             if (m_stop) return -1;
 
-            if (m_rxQueue.empty()) return -1;
+            if (m_rxQueue.empty()) return RECEIVE_NO_DATA;
 
             // Pop message
             std::vector<char> msg = std::move(m_rxQueue.front());
@@ -241,10 +241,12 @@ public:
 
             if (!header.IsValid()) return -1;
 
-            // 2. Write payload
+            // 2. Write payload. One message per MQTT publish: the header length
+            // must match exactly. Anything else is malformed and must not be
+            // delivered (cut short) or ACKed.
             uint16_t payloadSize = header.GetLength();
-            if (payloadSize > (msg.size() - DmqHeader::HEADER_SIZE))
-                payloadSize = static_cast<uint16_t>(msg.size() - DmqHeader::HEADER_SIZE);
+            if (payloadSize != msg.size() - DmqHeader::HEADER_SIZE)
+                return -1;
 
             if (payloadSize > 0) {
                 is.clear();
@@ -267,7 +269,7 @@ public:
             return 0;
         }
 
-        return -1; // Timeout
+        return RECEIVE_NO_DATA; // Timeout
     }
 
     void SetTransportMonitor(ITransportMonitor* transportMonitor)

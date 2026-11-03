@@ -226,8 +226,11 @@ public:
         if (timeout.count() > 0)
         {
             pollfd pfd{ sock, POLLIN, 0 };
-            if (poll(&pfd, 1, static_cast<int>(timeout.count())) <= 0)
-                return -1;  // timeout or error
+            int ready = poll(&pfd, 1, static_cast<int>(timeout.count()));
+            if (ready == 0)
+                return RECEIVE_NO_DATA;
+            if (ready < 0)
+                return -1;
         }
 
         sockaddr_un fromAddr{};
@@ -237,8 +240,10 @@ public:
         ssize_t size = recvfrom(sock, m_buffer, sizeof(m_buffer), MSG_DONTWAIT | MSG_TRUNC,
             (struct sockaddr*)&fromAddr, &addrLen);
 
+        if (size < 0)
+            return (errno == EAGAIN || errno == EWOULDBLOCK) ? RECEIVE_NO_DATA : -1;
         if (size < static_cast<ssize_t>(DmqHeader::HEADER_SIZE))
-            return -1;  // no data (EAGAIN), error, or runt datagram
+            return -1;  // runt datagram
         if (size > static_cast<ssize_t>(sizeof(m_buffer)))
             return -1;  // truncated: larger than the receive buffer
 

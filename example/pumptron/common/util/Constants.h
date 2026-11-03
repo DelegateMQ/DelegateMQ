@@ -43,6 +43,14 @@ namespace pumptron {
     static constexpr dmq::Duration WATCHDOG_TIMEOUT  = 10s;
     static constexpr dmq::Duration TIMER_TICK_PERIOD = 10ms;   ///< Timer::ProcessTimers() cadence
     static constexpr dmq::Duration LINK_DEGRADED_HOLD = 10s;   ///< LINK_DEGRADED clears after this long error-free
+    /// After the GUI link comes up, link errors are ignored for this long: a
+    /// RELIABLE message sent before the GUI was listening is only abandoned once
+    /// its retries run out, up to one retry window ((retries + 1) x ACK timeout,
+    /// the library defaults the links use) after it was sent. Reconnecting
+    /// republishes status and alarms anyway, so nothing is lost. 1 s is slack
+    /// for the timeout check's polling.
+    static constexpr dmq::Duration LINK_UP_GRACE =
+        dmq::TRANSPORT_MONITOR_TIMEOUT * (dmq::RETRY_MONITOR_MAX_RETRIES + 1) + 1s;
     static constexpr dmq::Duration RESYNC_MIN_INTERVAL = 1s;   ///< Rate limit for status/alarm republish on delivery failure
 
     // -----------------------------------------------------------------------

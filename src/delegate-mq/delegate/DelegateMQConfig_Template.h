@@ -116,6 +116,23 @@
 /// Default per-message ACK timeout (seconds) for TransportMonitor.
 #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
 
+/// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
+/// (header + payload, keep within the link MTU), the PUB socket's ACK-poll
+/// receive timeout, and the SUB socket's receive timeout (how often its thread
+/// can check for exit).
+#define DMQ_UDP_BUFFER_SIZE             1500
+#define DMQ_UDP_PUB_RECV_TIMEOUT_MS     50
+#define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
+
+/// STM32 UART transport: RX ring buffer bytes (absorbs bursts between reads),
+/// max payload per frame (both ends must agree), blocking transmit timeout per
+/// frame (raise for low baud rates or large payloads), and the most Receive()
+/// waits for the rest of a frame once its marker has arrived.
+#define DMQ_UART_RX_RING_SIZE           1024
+#define DMQ_UART_MAX_PAYLOAD            512
+#define DMQ_UART_TX_TIMEOUT_MS          500
+#define DMQ_UART_FRAME_TIMEOUT_MS       100
+
 /// serialize (msg_serialize.h, DMQ_SERIALIZE_SERIALIZE): max string length and max
 /// container element count, on write and on read. Both must be <= 65535 (16-bit
 /// length field on the wire). Raising them also raises how much a received message

@@ -105,6 +105,36 @@
     #define DMQ_TRANSPORT_MONITOR_MAX_PENDING 100
 #endif
 
+// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
+// (header + payload), and receive timeouts. A PUB socket polls briefly for ACKs;
+// a SUB socket waits longer, returning RECEIVE_NO_DATA so its thread can check
+// for exit.
+#ifndef DMQ_UDP_BUFFER_SIZE
+    #define DMQ_UDP_BUFFER_SIZE             1500
+#endif
+#ifndef DMQ_UDP_PUB_RECV_TIMEOUT_MS
+    #define DMQ_UDP_PUB_RECV_TIMEOUT_MS     50
+#endif
+#ifndef DMQ_UDP_SUB_RECV_TIMEOUT_MS
+    #define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
+#endif
+
+// STM32 UART transport: RX ring buffer bytes, max payload per frame, blocking
+// transmit timeout per frame, and the most it waits for the rest of a frame
+// once its marker has arrived.
+#ifndef DMQ_UART_RX_RING_SIZE
+    #define DMQ_UART_RX_RING_SIZE           1024
+#endif
+#ifndef DMQ_UART_MAX_PAYLOAD
+    #define DMQ_UART_MAX_PAYLOAD            512
+#endif
+#ifndef DMQ_UART_TX_TIMEOUT_MS
+    #define DMQ_UART_TX_TIMEOUT_MS          500
+#endif
+#ifndef DMQ_UART_FRAME_TIMEOUT_MS
+    #define DMQ_UART_FRAME_TIMEOUT_MS       100
+#endif
+
 // Maximum number of distinct fixed-block allocator buckets (heap-blocks mode only).
 // Each unique power-of-two allocation size gets one bucket. Most applications use
 // 8-12 distinct sizes; raise this only if xallocator's ASSERT fires at runtime.

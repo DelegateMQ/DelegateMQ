@@ -65,6 +65,7 @@ public:
     /// @return 0 on success, -1 on failure.
     int Create(Type type, const char* addr, uint16_t port)
     {
+        Close();    // a second Create() replaces the sockets instead of leaking them
         m_type = type;
         m_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (m_socket < 0) return -1;
@@ -81,11 +82,11 @@ public:
         if (type == Type::SERVER) {
             int opt = 1;
             setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-            if (bind(m_socket, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) < 0) return -1;
-            if (listen(m_socket, 5) < 0) return -1;
+            if (bind(m_socket, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) < 0) { Close(); return -1; }
+            if (listen(m_socket, 5) < 0) { Close(); return -1; }
         }
         else {
-            if (connect(m_socket, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) < 0) return -1;
+            if (connect(m_socket, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) < 0) { Close(); return -1; }
             m_connFd = m_socket;
 
             struct timeval tv;
@@ -152,10 +153,12 @@ public:
     /// @details In SERVER mode, this broadcasts to all connected clients.
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
+        // m_mutex guards m_sendBuffer and keeps frames from different threads
+        // (including ACKs written by Receive()) from interleaving on the stream.
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type == Type::CLIENT) {
             return SendToSocket(m_connFd, os, header);
         } else {
-            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             int lastErr = 0;
             for (auto fd : m_serverClients) {
                 if (SendToSocket(fd, os, header) != 0) lastErr = -1;
@@ -170,7 +173,15 @@ public:
         if (m_type == Type::SERVER) {
             return ReceiveServer(is, header);
         } else {
-            return ReceiveSocket(m_connFd, is, header);
+            int result = ReceiveSocket(m_connFd, is, header);
+            if (result == -2 && m_connFd >= 0) {
+                // Disconnected, or the stream lost framing (bad header, partial
+                // frame). Either way nothing more on it can be trusted: shut it
+                // down so the next reads fail cleanly instead of parsing the
+                // middle of a frame as a header.
+                shutdown(m_connFd, SHUT_RDWR);
+            }
+            return result;
         }
     }
 
@@ -209,10 +220,7 @@ private:
 
         size_t totalSize = DmqHeader::HEADER_SIZE + payloadLen;
 
-        ssize_t sent = write(fd, m_sendBuffer, totalSize);
-        if (sent != (ssize_t)totalSize) return -1;
-
-        return 0;
+        return WriteAll(fd, m_sendBuffer, totalSize) ? 0 : -1;
     }
 
     /// @brief Internal helper to handle server-side multiplexing.
@@ -241,7 +249,7 @@ private:
         int max_fd = -1;
         {
             const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-            if (m_serverClients.empty()) return -1;
+            if (m_serverClients.empty()) return RECEIVE_NO_DATA;
             for (auto s : m_serverClients) {
                 FD_SET(s, &readfds);
                 if (s > max_fd) max_fd = s;
@@ -254,17 +262,18 @@ private:
             for (auto it = m_serverClients.begin(); it != m_serverClients.end(); ) {
                 if (FD_ISSET(*it, &readfds)) {
                     int result = ReceiveSocket(*it, is, header);
-                    if (result == -2) { // Disconnected
+                    if (result == -2) {
+                        // Disconnected, or lost framing (bad header): drop this client.
                         close(*it);
                         it = m_serverClients.erase(it);
-                        continue; 
+                        continue;
                     }
                     return result;
                 }
                 ++it;
             }
         }
-        return -1;
+        return RECEIVE_NO_DATA;
     }
 
     /// @brief Internal helper to read from a specific socket and parse DMQ protocol.
@@ -275,7 +284,9 @@ private:
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
         struct timeval tv = { 0, 1000 };
-        if (select(fd + 1, &readfds, nullptr, nullptr, &tv) <= 0) return -1;
+        int ready = select(fd + 1, &readfds, nullptr, nullptr, &tv);
+        if (ready == 0) return RECEIVE_NO_DATA;
+        if (ready < 0) return -1;
 
         // 1. Read Header
         char headerBuf[DmqHeader::HEADER_SIZE];
@@ -284,12 +295,15 @@ private:
         // Parse Header (Convert Network -> Host)
         header.Decode(headerBuf);
 
-        if (!header.IsValid()) return -1;
+        // A stream has no resync point: after a bad header (or a payload we
+        // can't hold and so can't skip), the next bytes aren't a header either.
+        // Report it like a disconnect (-2) so the connection is dropped.
+        if (!header.IsValid()) return -2;
 
         // 2. Read Payload
         uint16_t payloadSize = header.GetLength();
         if (payloadSize > 0) {
-            if (payloadSize > BUFFER_SIZE) return -1;
+            if (payloadSize > BUFFER_SIZE) return -2;
             if (!ReadExact(fd, m_recvBuffer, payloadSize)) return -2;
             is.write(m_recvBuffer, payloadSize);
         }
@@ -304,9 +318,24 @@ private:
             char ackBuf[DmqHeader::HEADER_SIZE];
             ack.Encode(ackBuf);
 
-            (void)write(fd, ackBuf, DmqHeader::HEADER_SIZE);
+            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);  // don't interleave with Send()
+            (void)WriteAll(fd, ackBuf, DmqHeader::HEADER_SIZE);
         }
         return 0;
+    }
+
+    /// @brief Write all 'len' bytes; a short write would otherwise leave half a
+    /// frame on the stream.
+    bool WriteAll(int fd, const char* buf, size_t len)
+    {
+        size_t total = 0;
+        while (total < len) {
+            ssize_t w = write(fd, buf + total, len - total);
+            if (w < 0 && errno == EINTR) continue;
+            if (w <= 0) return false;
+            total += static_cast<size_t>(w);
+        }
+        return true;
     }
 
     /// @brief Read exactly 'len' bytes from the socket.

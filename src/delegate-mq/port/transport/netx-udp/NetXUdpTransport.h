@@ -53,20 +53,26 @@ public:
         , m_sendTransport(this)
         , m_recvTransport(this)
     {
-        // Initialize mutex for socket protection (No Inherit to detect deadlocks easier)
+        // Initialize mutexes for socket protection (No Inherit to detect deadlocks easier).
+        // m_recvMutex is held by Receive(); m_mutex by Send() and socket setup.
+        // Lock order: m_recvMutex, then m_mutex.
         tx_mutex_create(&m_mutex, (CHAR*)"NetXTransportMutex", TX_NO_INHERIT);
+        tx_mutex_create(&m_recvMutex, (CHAR*)"NetXTransportRecvMutex", TX_NO_INHERIT);
         memset(&m_socket, 0, sizeof(m_socket));
     }
 
     ~NetXUdpTransport()
     {
         Close();
+        tx_mutex_delete(&m_recvMutex);
         tx_mutex_delete(&m_mutex);
     }
 
     /// @brief Initialize the UDP socket.
     int Create(Type type, const char* addr_str, uint16_t port)
     {
+        Close();    // a second Create() replaces the socket instead of leaking it
+        tx_mutex_get(&m_recvMutex, TX_WAIT_FOREVER);
         tx_mutex_get(&m_mutex, TX_WAIT_FOREVER);
 
         m_type = type;
@@ -87,6 +93,7 @@ public:
                                         NX_IP_NORMAL, NX_FRAGMENT_OKAY, 0x80, 5);
         if (ret != NX_SUCCESS) {
             tx_mutex_put(&m_mutex);
+            tx_mutex_put(&m_recvMutex);
             return -1;
         }
 
@@ -99,26 +106,33 @@ public:
 
         if (ret != NX_SUCCESS) {
             nx_udp_socket_delete(&m_socket);
+            memset(&m_socket, 0, sizeof(m_socket));
             tx_mutex_put(&m_mutex);
+            tx_mutex_put(&m_recvMutex);
             return -1;
         }
 
         tx_mutex_put(&m_mutex);
+        tx_mutex_put(&m_recvMutex);
         return 0;
     }
 
+    /// @details Waits for a Receive() in progress on another thread to return
+    /// (at most its receive timeout) first.
     void Close()
     {
+        tx_mutex_get(&m_recvMutex, TX_WAIT_FOREVER);
         tx_mutex_get(&m_mutex, TX_WAIT_FOREVER);
-        
+
         if (m_socket.nx_udp_socket_id != 0)
         {
             nx_udp_socket_unbind(&m_socket);
             nx_udp_socket_delete(&m_socket);
             memset(&m_socket, 0, sizeof(m_socket));
         }
-        
+
         tx_mutex_put(&m_mutex);
+        tx_mutex_put(&m_recvMutex);
     }
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
@@ -151,7 +165,8 @@ public:
         }
 
         auto payload = os.str();
-        if (payload.length() > UINT16_MAX) {
+        // The receiver's buffer (same DMQ_UDP_BUFFER_SIZE) must hold the datagram.
+        if (payload.length() > dmq::UDP_BUFFER_SIZE - DmqHeader::HEADER_SIZE) {
             tx_mutex_put(&m_mutex);
             return -1;
         }
@@ -203,95 +218,12 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        tx_mutex_get(&m_mutex, TX_WAIT_FOREVER);
-
-        if (m_recvTransport != this) {
-            tx_mutex_put(&m_mutex);
-            return -1;
-        }
-
-        NX_PACKET* packet_ptr = nullptr;
-        
-        // Use configured timeout
-        UINT ret = nx_udp_socket_receive(&m_socket, &packet_ptr, m_recvTimeout); 
-
-        if (ret != NX_SUCCESS) {
-            tx_mutex_put(&m_mutex);
-            return -1; // No packet or error
-        }
-
-        // --- Extract Source Info for ACKs ---
-        ULONG srcIp;
-        UINT srcPort;
-        nx_udp_source_extract(packet_ptr, &srcIp, &srcPort);
-
-        if (m_type == Type::SUB) {
-            m_targetIp = srcIp;
-            m_port = srcPort;
-        }
-
-        // --- Read Data ---
-        ULONG bytesRead;
-        UCHAR buffer[1500]; 
-        
-        // Validate total length before attempting retrieve
-        if (packet_ptr->nx_packet_length > sizeof(buffer)) {
-            nx_packet_release(packet_ptr);
-            tx_mutex_put(&m_mutex);
-            return -1; // Packet too large for buffer
-        }
-
-        // Retrieve copies data out of packet (handling chained packets if necessary)
-        ret = nx_packet_data_retrieve(packet_ptr, buffer, &bytesRead);
-        
-        nx_packet_release(packet_ptr);
-
-        if (ret != NX_SUCCESS || bytesRead < DmqHeader::HEADER_SIZE) {
-            tx_mutex_put(&m_mutex);
-            return -1;
-        }
-
-        // Parse Header
-        header.Decode(buffer);
-
-        if (!header.IsValid()) {
-            tx_mutex_put(&m_mutex);
-            return -1;
-        }
-
-        // Check payload bounds
-        if (bytesRead < (ULONG)(DmqHeader::HEADER_SIZE + header.GetLength())) {
-            tx_mutex_put(&m_mutex);
-            return -1;
-        }
-
-        // Reset stream state before writing
-        is.clear();
-        is.str("");
-
-        // Write Payload to stream
-        is.write((char*)(buffer + DmqHeader::HEADER_SIZE), header.GetLength());
-
-        // --- ACK Logic ---
-        if (header.GetId() == dmq::ACK_REMOTE_ID) {
-            if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
-        }
-        else if (m_transportMonitor && m_sendTransport) {
-            // Send ACK
-            xostringstream ss_ack;
-            DmqHeader ack;
-            ack.SetId(dmq::ACK_REMOTE_ID);
-            ack.SetSeqNum(header.GetSeqNum());
-            ack.SetLength(0);
-            
-            // Release lock before recursive call to Send to prevent deadlock
-            tx_mutex_put(&m_mutex);
-            m_sendTransport->Send(ss_ack, ack);
-            return 0; 
-        }
-
-        tx_mutex_put(&m_mutex);
-        return 0;
+        // m_recvMutex, not m_mutex: a Send() on another thread isn't held up
+        // for the receive timeout.
+        tx_mutex_get(&m_recvMutex, TX_WAIT_FOREVER);
+        const int result = ReceiveLocked(is, header);
+        tx_mutex_put(&m_recvMutex);
+        return result;
     }
 
     void SetTransportMonitor(ITransportMonitor* tm) { m_transportMonitor = tm; }
@@ -299,10 +231,100 @@ public:
     void SetRecvTransport(ITransport* rt) { m_recvTransport = rt; }
 
 private:
+    /// Receive() body; caller holds m_recvMutex.
+    int ReceiveLocked(xstringstream& is, DmqHeader& header)
+    {
+        if (m_recvTransport != this || m_socket.nx_udp_socket_id == 0) {
+            return -1;
+        }
+
+        NX_PACKET* packet_ptr = nullptr;
+
+        // Use configured timeout
+        UINT ret = nx_udp_socket_receive(&m_socket, &packet_ptr, m_recvTimeout);
+        if (ret == NX_NO_PACKET) {
+            return RECEIVE_NO_DATA;
+        }
+        if (ret != NX_SUCCESS) {
+            return -1;
+        }
+
+        // --- Extract Source Info for ACKs ---
+        ULONG srcIp = 0;
+        UINT srcPort = 0;
+        nx_udp_source_extract(packet_ptr, &srcIp, &srcPort);
+
+        // Validate total length before attempting retrieve
+        if (packet_ptr->nx_packet_length > sizeof(m_recvBuffer)) {
+            nx_packet_release(packet_ptr);
+            return -1; // Packet too large for buffer
+        }
+
+        // Retrieve copies data out of packet (handling chained packets if necessary)
+        ULONG bytesRead = 0;
+        ret = nx_packet_data_retrieve(packet_ptr, m_recvBuffer, &bytesRead);
+        nx_packet_release(packet_ptr);
+
+        if (ret != NX_SUCCESS || bytesRead < DmqHeader::HEADER_SIZE) {
+            return -1;
+        }
+
+        // Parse Header
+        header.Decode(m_recvBuffer);
+        if (!header.IsValid()) {
+            return -1;
+        }
+
+        // One datagram is one message: the header length must match exactly.
+        // Anything else is malformed and must not be delivered or ACKed.
+        if (bytesRead != (ULONG)(DmqHeader::HEADER_SIZE + header.GetLength())) {
+            return -1;
+        }
+
+        // A SUB replies to whoever sent the last valid message. Updated only
+        // now, after validation, and under m_mutex since Send() uses it.
+        if (m_type == Type::SUB) {
+            tx_mutex_get(&m_mutex, TX_WAIT_FOREVER);
+            m_targetIp = srcIp;
+            m_port = srcPort;
+            tx_mutex_put(&m_mutex);
+        }
+
+        // Reset stream state before writing
+        is.clear();
+        is.str("");
+
+        // Write Payload to stream
+        is.write((char*)(m_recvBuffer + DmqHeader::HEADER_SIZE), header.GetLength());
+
+        // --- ACK Logic ---
+        if (header.GetId() == dmq::ACK_REMOTE_ID) {
+            if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
+        }
+        // ACK whenever a send path exists, whether or not this transport also
+        // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
+        // has no monitor but must still ACK the sender's RELIABLE messages.
+        else if (m_sendTransport) {
+            xostringstream ss_ack;
+            DmqHeader ack;
+            ack.SetId(dmq::ACK_REMOTE_ID);
+            ack.SetSeqNum(header.GetSeqNum());
+            ack.SetLength(0);
+            m_sendTransport->Send(ss_ack, ack);   // takes m_mutex; m_recvMutex is held: same lock order
+        }
+
+        return 0;
+    }
+
     NX_IP* m_ip = nullptr;
     NX_PACKET_POOL* m_pool = nullptr;
     NX_UDP_SOCKET m_socket;
-    TX_MUTEX m_mutex;
+    TX_MUTEX m_mutex;           ///< Socket setup and Send() state (target address)
+    TX_MUTEX m_recvMutex;       ///< Held by Receive(); taken before m_mutex
+
+    /// Receive buffer (header + payload), DMQ_UDP_BUFFER_SIZE. A member, not a
+    /// stack array: thread stacks on these targets are small.
+    UCHAR m_recvBuffer[dmq::UDP_BUFFER_SIZE];
     
     ULONG m_targetIp = 0;
     UINT  m_port = 0;

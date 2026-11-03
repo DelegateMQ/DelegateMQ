@@ -173,7 +173,10 @@ public:
         char threadName[64];
         snprintf(threadName, sizeof(threadName), "%s_NetworkThread", nodeName);
 
-        if (m_recvTransport.Create(Transport::Type::SUB, "127.0.0.1", listenPort) != 0) {
+        // Listen on all interfaces so peers on other machines can reach this node.
+        // (LinuxUdpTransport binds the address it's given; the other UDP ports
+        // already bind INADDR_ANY for SUB and ignore it.)
+        if (m_recvTransport.Create(Transport::Type::SUB, "0.0.0.0", listenPort) != 0) {
             printf("NetworkNode [%s]: ERROR - failed to open recv port %u\n", nodeName, listenPort);
             return false;
         }
