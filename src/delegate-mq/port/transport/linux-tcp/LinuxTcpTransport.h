@@ -37,6 +37,7 @@
 #include <vector>
 #include <algorithm>
 #include <mutex>
+#include <thread>
 
 #include "delegate/DelegateOpt.h"
 #include "port/transport/common/ITransport.h"
@@ -100,11 +101,14 @@ public:
     /// @brief Close all sockets and clean up.
     void Close()
     {
+        // m_mutex: Receive() may close the client socket on another thread
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+
         // Close Connected Socket
-        if (m_connFd >= 0) 
+        if (m_connFd >= 0)
         {
             shutdown(m_connFd, SHUT_RDWR);
-            if (m_connFd != m_socket) 
+            if (m_connFd != m_socket)
             {
                 close(m_connFd);
             }
@@ -112,7 +116,6 @@ public:
 
         // Close all server-accepted clients
         {
-            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             for (auto s : m_serverClients) {
                 shutdown(s, SHUT_RDWR);
                 close(s);
@@ -173,13 +176,25 @@ public:
         if (m_type == Type::SERVER) {
             return ReceiveServer(is, header);
         } else {
+            if (m_connFd < 0) {
+                // The connection was dropped (see below). Wait out one receive
+                // timeout before reporting it again, so a caller polling in a
+                // tight loop (RemoteDispatcher's receive thread) doesn't spin.
+                std::this_thread::sleep_for(m_recvTimeout);
+                return -1;
+            }
             int result = ReceiveSocket(m_connFd, is, header);
-            if (result == -2 && m_connFd >= 0) {
+            if (result == -2) {
                 // Disconnected, or the stream lost framing (bad header, partial
-                // frame). Either way nothing more on it can be trusted: shut it
-                // down so the next reads fail cleanly instead of parsing the
-                // middle of a frame as a header.
-                shutdown(m_connFd, SHUT_RDWR);
+                // frame). Either way nothing more on it can be trusted. Close it:
+                // a shut-down but still open socket stays readable at EOF, so the
+                // next select() would return at once and the caller would spin.
+                const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+                if (m_connFd >= 0) {
+                    shutdown(m_connFd, SHUT_RDWR);
+                    close(m_connFd);
+                    m_connFd = m_socket = -1;
+                }
             }
             return result;
         }

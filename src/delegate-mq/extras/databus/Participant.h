@@ -97,6 +97,12 @@ public:
             dmq::DelegateRemoteId id = header.GetId();
             uint16_t seqNum = header.GetSeqNum();
 
+            // An ACK was already handled inside the transport (it cleared the
+            // pending entry in the transport monitor). It has no channel, so
+            // it isn't an ERR_NO_DISPATCHER.
+            if (id == dmq::ACK_REMOTE_ID)
+                return 0;
+
             dmq::IRemoteInvoker* invoker = nullptr;
             std::shared_ptr<void> channelLifetime; // keeps channel alive across lock gap
             {

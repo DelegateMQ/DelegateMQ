@@ -6,6 +6,9 @@ if (WIN32 AND NOT CMAKE_GENERATOR_PLATFORM)
 endif()
 
 project(Cellutron VERSION 1.0 LANGUAGES CXX C)
+# Visual Studio: F5 runs the GUI. Start the controller and safety nodes too
+# (or use run_cellutron.py, which launches all three).
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT cellutron_gui)
 
 # RTOS for the controller and safety nodes — flip with:
 #   cmake -DCELLUTRON_RTOS=THREADX ..

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(CellutronSafety VERSION 1.0 LANGUAGES CXX C)
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT cellutron_safety)
 
 # Force compiler optimizations on DelegateMQ templates even in Debug builds
 # (GCC/Clang only, no-op on MSVC). See DMQ_FORCE_OPTIMIZE_DEBUG in

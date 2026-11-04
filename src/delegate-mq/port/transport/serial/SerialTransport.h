@@ -51,6 +51,7 @@ public:
     {
         std::lock_guard<std::recursive_mutex> recvLock(m_recvMutex);
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        Close();    // a second Create() replaces the port instead of leaking it
         sp_return ret = sp_get_port_by_name(portName, &m_port);
         if (ret != SP_OK) {
             std::cerr << "SerialTransport: Could not find port " << portName << std::endl;
@@ -131,24 +132,29 @@ public:
 
         char headerBuf[DmqHeader::HEADER_SIZE];
 
-        // 1. Strict Sync Loop
-        char b = 0;
+        // 1. Sync Loop: both marker bytes, tracked with a sliding previous byte
+        // so a stray 0xAA right before a real marker (0xAA 0xAA 0x55) still
+        // syncs on the real one.
+        const uint8_t markerHigh = (uint8_t)(DmqHeader::MARKER >> 8);
+        const uint8_t markerLow  = (uint8_t)(DmqHeader::MARKER & 0xFF);
+        uint8_t prev = 0;
         while (true) {
-            // Short timeout for Sync: nothing arriving is "no data", not an error
-            int r = sp_blocking_read(m_port, &b, 1, 10);
-            if (r == 0) return RECEIVE_NO_DATA;
+            // Waiting for a frame start: nothing arriving is "no data", not an
+            // error. After a 0xAA, give the next byte longer to arrive.
+            char b = 0;
+            int r = sp_blocking_read(m_port, &b, 1, prev == markerHigh ? 100 : 10);
+            if (r == 0) {
+                if (prev == markerHigh) { prev = 0; continue; }  // lone 0xAA
+                return RECEIVE_NO_DATA;
+            }
             if (r < 0) return -1;
 
-            if ((uint8_t)b == (uint8_t)(DmqHeader::MARKER >> 8)) {
-                char next_b = 0;
-                if (sp_blocking_read(m_port, &next_b, 1, 100) > 0) {
-                    if ((uint8_t)next_b == (uint8_t)(DmqHeader::MARKER & 0xFF)) {
-                        headerBuf[0] = b;
-                        headerBuf[1] = next_b;
-                        break;
-                    }
-                }
+            if (prev == markerHigh && (uint8_t)b == markerLow) {
+                headerBuf[0] = (char)markerHigh;
+                headerBuf[1] = (char)markerLow;
+                break;
             }
+            prev = (uint8_t)b;
         }
 
         // 2. Read Rest of Header

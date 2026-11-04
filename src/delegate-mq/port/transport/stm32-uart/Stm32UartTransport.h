@@ -197,13 +197,18 @@ public:
         const TickType_t frameTimeout = pdMS_TO_TICKS(dmq::UART_FRAME_TIMEOUT.count());
 
         // 1. Sync Loop: both marker bytes, so a stray 0xAA in other data doesn't
-        // start a frame. Waits indefinitely for the first byte (sleeps on the
-        // semaphore while the ring buffer is empty).
+        // start a frame. Waits indefinitely (sleeping on the semaphore while the
+        // ring buffer is empty) until a 0xAA arrives; only the byte after it
+        // must come within the frame timeout. Stray bytes followed by an idle
+        // line are discarded, not reported as an error.
         uint8_t prev = 0;
-        if (!ReadByte(prev, portMAX_DELAY)) return -1;
         while (true) {
             uint8_t b = 0;
-            if (!ReadByte(b, frameTimeout)) return -1;
+            const TickType_t wait = (prev == markerHigh) ? frameTimeout : portMAX_DELAY;
+            if (!ReadByte(b, wait)) {
+                if (prev == markerHigh) { prev = 0; continue; }  // lone 0xAA: keep syncing
+                return -1;
+            }
             if (prev == markerHigh && b == markerLow) break;
             prev = b;
         }

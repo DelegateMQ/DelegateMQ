@@ -43,6 +43,7 @@
 #include <vector>
 #include <algorithm>
 #include <mutex>
+#include <thread>
 
 namespace dmq::transport {
 
@@ -73,6 +74,7 @@ public:
     /// @return 0 on success, -1 on failure.
     int Create(Type type, LPCSTR addr, USHORT port)
     {
+        Close();    // a second Create() replaces the sockets instead of leaking them
         m_type = type;
         sockaddr_in service;
         service.sin_family = AF_INET;
@@ -123,17 +125,19 @@ public:
 
     /// @brief Close all sockets and clean up.
     void Close()
-    {    
+    {
+        // m_mutex: Receive() may close the client socket on another thread
+        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+
         // Close Client Socket
         if (m_clientSocket != INVALID_SOCKET) {
-            shutdown(m_clientSocket, SD_BOTH); 
+            shutdown(m_clientSocket, SD_BOTH);
             closesocket(m_clientSocket);
             m_clientSocket = INVALID_SOCKET;
         }
 
         // Close all server-accepted clients
         {
-            const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
             for (auto s : m_serverClients) {
                 shutdown(s, SD_BOTH);
                 closesocket(s);
@@ -187,13 +191,25 @@ public:
         if (m_type == Type::SERVER) {
             return ReceiveServer(is, header);
         } else {
+            if (m_clientSocket == INVALID_SOCKET) {
+                // The connection was dropped (see below). Wait out one receive
+                // timeout before reporting it again, so a caller polling in a
+                // tight loop (RemoteDispatcher's receive thread) doesn't spin.
+                std::this_thread::sleep_for(std::chrono::milliseconds(m_recvTimeoutMs));
+                return -1;
+            }
             int result = ReceiveSocket(m_clientSocket, is, header);
-            if (result == -2 && m_clientSocket != INVALID_SOCKET) {
+            if (result == -2) {
                 // Disconnected, or the stream lost framing (bad header, partial
-                // frame). Either way nothing more on it can be trusted: shut it
-                // down so the next reads fail cleanly instead of parsing the
-                // middle of a frame as a header.
-                shutdown(m_clientSocket, SD_BOTH);
+                // frame). Either way nothing more on it can be trusted. Close it:
+                // a shut-down but still open socket stays readable at EOF, so the
+                // next select() would return at once and the caller would spin.
+                const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+                if (m_clientSocket != INVALID_SOCKET) {
+                    shutdown(m_clientSocket, SD_BOTH);
+                    closesocket(m_clientSocket);
+                    m_clientSocket = INVALID_SOCKET;
+                }
             }
             return result;
         }

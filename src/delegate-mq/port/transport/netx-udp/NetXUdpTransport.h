@@ -112,6 +112,8 @@ public:
             return -1;
         }
 
+        SetRecvTimeout(type == Type::PUB ? dmq::UDP_PUB_RECV_TIMEOUT : dmq::UDP_SUB_RECV_TIMEOUT);
+
         tx_mutex_put(&m_mutex);
         tx_mutex_put(&m_recvMutex);
         return 0;
