@@ -624,6 +624,10 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
     // Relies on the test runner's ProcessTimers() thread (5 ms loop) being the
     // only caller: the blocker's callback stalls it long enough for the victim
     // to fall more than a period behind.
+    //
+    // Waits for a number of fires rather than counting them in a fixed window:
+    // on a loaded machine the runner thread can run late, which is not a
+    // failure. The check that matters is the gap between consecutive fires.
     const auto period = std::chrono::milliseconds(200);
 
     std::mutex mtx;
@@ -643,11 +647,24 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
     blocker.Start(std::chrono::milliseconds(20), /*once=*/true);
     victim.Start(period);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    // Three fires: the late one after the stall, and two more, so the gap right
+    // after the stall (where a back-to-back fire would show) is always checked.
+    const size_t wanted = 3;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    for (;;)
+    {
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            if (fires.size() >= wanted)
+                break;
+        }
+        DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() < deadline);   // victim stopped firing
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     victim.Stop();
 
     std::lock_guard<std::mutex> lock(mtx);
-    DMQ_ASSERT_TRUE(fires.size() >= 2);
+    DMQ_ASSERT_TRUE(fires.size() >= wanted);
     for (size_t i = 1; i < fires.size(); ++i)
         DMQ_ASSERT_TRUE(fires[i] - fires[i - 1] >= std::chrono::milliseconds(50));
     std::cout << "Timer_FallenBehind_DoesNotFireBackToBack() complete!" << std::endl;

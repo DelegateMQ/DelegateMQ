@@ -3,6 +3,7 @@
 /// David Lafreniere, 2026.
 
 #include "DelegateMQ.h" 
+#include "../../../test/unit-tests/StartGatePortableTest.h"
 #include <atomic>
 #include <cstdio>
 #include <functional>
@@ -219,6 +220,9 @@ void ExecuteAllTests() {
         DMQ_ASSERT_TRUE(s_gateRan == 1);
         s_earlyThread->ExitThread();
         printf("  -> thread created before the scheduler: held, then ran\n");
+
+        // The portable gate tests every port runs (test/unit-tests)
+        StartGatePortableTest::Run();
     }
 
     printf("\n=========================================\n");

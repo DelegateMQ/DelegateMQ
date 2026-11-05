@@ -137,14 +137,17 @@ private:
     /// Called by a thread port on its own thread, after its start handshake
     /// and before its message loop. Blocks until the gate opens (now or since
     /// `openCountAtCreate`) or `exit` is set (followed by Wake()).
-    /// @return true if released; false if the thread is exiting.
+    /// @return true if the gate opened: the thread enters its loop, and an exit
+    /// requested meanwhile follows its ExitPolicy (DRAIN runs the queued
+    /// messages). false if the thread was told to exit while still held: it
+    /// runs nothing.
     bool Wait(const std::atomic<bool>& exit, uint32_t openCountAtCreate)
     {
         Waiter self;
         {
             dmq::LockGuard<dmq::Mutex> lock(m_mutex);
             if (Released(openCountAtCreate) || exit.load())
-                return !exit.load();
+                return Released(openCountAtCreate);
             self.next = m_waiters;
             m_waiters = &self;
         }
@@ -158,7 +161,7 @@ private:
             dmq::LockGuard<dmq::Mutex> lock(m_mutex);
             if (exit.load() || Released(openCountAtCreate))
             {
-                opened = !exit.load();
+                opened = Released(openCountAtCreate);
                 Unlink(&self);
                 break;
             }

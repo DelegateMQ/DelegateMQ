@@ -21,6 +21,11 @@ inline std::atomic<int>& Ran() { static std::atomic<int> ran{0}; return ran; }
 inline void Count(int) { Ran()++; }
 inline void SleepMs(int ms) { dmq::ThisThread::sleep_for(std::chrono::milliseconds(ms)); }
 
+/// Call after a loop iteration's thread exits. On FreeRTOS an exited task's
+/// stack is freed later by the idle task, which only runs when this task
+/// blocks; without a short sleep, back-to-back iterations exhaust the heap.
+inline void LetExitedThreadsClean() { SleepMs(5); }
+
 /// Poll for up to 3 s; the held threads run asynchronously after Open().
 inline bool WaitForRan(int expected)
 {
@@ -99,6 +104,27 @@ inline void OpenThenCloseStillReleases()
         gate.Close();
         DMQ_ASSERT_TRUE(WaitForRan(1));
         t.ExitThread();
+        LetExitedThreadsClean();
+    }
+}
+
+// Open() then ExitThread(DRAIN) at once, before the thread wakes: it was
+// released, so the queued message must still run (DRAIN), not be discarded
+// as if the thread had exited while held.
+inline void OpenThenExitDrains()
+{
+    for (int i = 0; i < 20; i++)
+    {
+        dmq::os::StartGate gate;
+        dmq::os::Thread t("GateOpenExit");
+        t.SetStartGate(&gate);
+        DMQ_ASSERT_TRUE(t.CreateThread());
+        Ran() = 0;
+        dmq::MakeDelegate(&Count, t)(0);
+        gate.Open();
+        t.ExitThread();   // ExitPolicy::DRAIN; returns after the thread ends
+        DMQ_ASSERT_TRUE(Ran() == 1);
+        LetExitedThreadsClean();
     }
 }
 
@@ -132,6 +158,7 @@ inline void Run(bool twoThreads = true)
     HoldsUntilOpen(twoThreads);
     ExitWhileHeld();
     OpenThenCloseStillReleases();
+    OpenThenExitDrains();
     WatchdogIgnoresHeldThread();
     printf("StartGatePortableTest::Run() complete!\n");
 }
