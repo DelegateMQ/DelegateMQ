@@ -202,6 +202,11 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
+        // A thread held at its start gate isn't reading its queue: wake it so it
+        // sees m_exit and drains to the exit message sent below
+        if (m_startGate)
+            m_startGate->Wake();
+
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
         // callback, it is not consuming its own queue right now -- it is
@@ -356,7 +361,10 @@ void FreeRTOSThread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void FreeRTOSThread::WatchdogCheck()
 {
-    auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
+    if (m_gated.load())
+        return;     // held at its start gate by design, not hung
+
+auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
 
@@ -405,6 +413,22 @@ void FreeRTOSThread::Run()
 
     if (startSync)
         xSemaphoreGive(m_startSem);
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate)
+    {
+        m_gated.store(true);
+        const bool opened = m_startGate->Wait(m_exit);
+        // Before m_gated clears: no stale watchdog read
+        m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
+        m_gated.store(false);
+        // ExitThread() while held: run nothing. Cancel each queued message
+        // (DISCARD) until the exit message. Consuming them also keeps
+        // ExitThread()'s blocking send of the exit message from waiting on a
+        // full queue.
+        if (!opened)
+            m_discard.store(true);
+    }
 
     ThreadMsg* msg = nullptr;
     while (!selfExit)

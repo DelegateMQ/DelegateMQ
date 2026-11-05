@@ -354,6 +354,36 @@ The setters must be called while the thread is not running (before `CreateThread
 
 A new port implements these with the helpers in `port/os/common/ThreadHooks.h`: `ThreadExitGuard` runs the exit handler on every return path of the worker loop (`Fire()` runs it early, e.g. before signalling `ExitThread()`), and `ThreadIdleTimer` bounds each queue wait and tracks when the idle handler is due. See `port/os/stdlib/StdlibThread.cpp` for a reference loop.
 
+### Start Gate (Synchronized Start)
+
+At startup, a thread runs as soon as `CreateThread()` returns. If one thread starts publishing or posting while others are still being created, or before subscriptions and connections are wired, those early messages can be lost or handled out of order. An optional `dmq::os::StartGate` holds any number of threads until one "go":
+
+```cpp
+dmq::os::StartGate gate;
+sensors.SetStartGate(&gate);    // before CreateThread()
+network.SetStartGate(&gate);
+sensors.CreateThread();         // ready, holding at the gate
+network.CreateThread();
+// ... subscribe, connect; messages dispatched now wait in the queues ...
+gate.Open();                    // every held thread starts together
+```
+
+- **Optional:** a thread with no gate (the default) starts as it always has.
+- **Ready before "go":** `CreateThread()` still runs the start handler and returns once the thread is ready, so other threads can dispatch to it. The held thread then processes nothing, at any priority (high-priority messages wait too), until `Open()`.
+- **Start handler:** runs before the gate. Keep it to local setup, since other threads may not exist yet.
+- **No blocking calls to a held thread** from the code that will open the gate: a blocking (async-wait) delegate to a held thread can't complete until `Open()`, so it times out (or, with `WAIT_INFINITE`, never returns).
+- **`Open()` is permanent:** a thread created or re-created afterwards passes straight through. `Close()` makes the gate hold threads again.
+- **No timeout:** a gate that is never opened holds its threads until they exit.
+- **Exit while held:** `ExitThread()` releases the thread without running any queued message; the messages are canceled as for `ExitPolicy::DISCARD`, so a blocked sender is released.
+- **Watchdog:** a held thread is not reported; its watchdog starts when the gate opens.
+- **Lifetime:** the gate must outlive the threads waiting at it. On an RTOS, construct it after the RTOS heap is available (for example inside the startup task), not as a global, since its mutex is an RTOS object.
+
+On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same "all ready, one go" at boot without a gate; the gate also covers threads created after the scheduler starts, and the desktop ports.
+
+**Supported ports:** stdlib, Win32 and FreeRTOS, where `DMQ_HAS_START_GATE` is defined (`delegate/DelegateSelect.h`); test that macro before using the gate in code built for other ports. Cellutron's controller (`System::Initialize()` in `example/cellutron/controller/system/System.cpp`) is a worked example.
+
+**Porting:** in the worker's entry function, after signalling `CreateThread()` that the thread is running and before the message loop, call `m_startGate->Wait(m_exit)`; on `false` (exit requested) leave without running a message. In `ExitThread()`, call `m_startGate->Wake()` after setting the exit flag. Skip `WatchdogCheck()` while held. See `StdlibThread.cpp`, and `FreeRTOSThread.cpp` for a port whose exit message send can block on a full queue.
+
 ### Watchdog Integration
 
 All `dmq::os::Thread` port implementations (stdlib, Win32, POSIX, FreeRTOS, CMSIS-RTOS2, ThreadX, Zephyr, NuttX, Qt) support an optional watchdog. Enable it by passing a timeout to `CreateThread()`:

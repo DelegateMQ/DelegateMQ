@@ -819,7 +819,161 @@ static void ExitPolicy_Discard_ReleasesBlockedSender()
     DMQ_ASSERT_TRUE(!invoked);
     std::cout << "ExitPolicy_Discard_ReleasesBlockedSender() complete!" << std::endl;
 }
+
 #endif // desktop ports
+
+// StartGate: stage one ports (stdlib, Win32, FreeRTOS); these tests use
+// std::thread/std::async, so desktop ports only.
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32)
+// ---------------------------------------------------------------------------
+// StartGate tests (use std::thread/std::async, so desktop ports only)
+// ---------------------------------------------------------------------------
+
+// Gated threads are ready when CreateThread() returns (start handler done, can
+// be dispatched to), process nothing at any priority until Open(), then all run.
+static void StartGate_HoldsUntilOpen()
+{
+    StartGate gate;
+    Thread a("GateThreadA");
+    Thread b("GateThreadB");
+    std::atomic<int> started{ 0 };
+    std::atomic<int> ran{ 0 };
+    a.SetStartGate(&gate);
+    b.SetStartGate(&gate);
+    a.SetStartHandler(MakeDelegate([&]() { started++; }));
+    b.SetStartHandler(MakeDelegate([&]() { started++; }));
+    a.CreateThread();
+    b.CreateThread();
+    DMQ_ASSERT_TRUE(started == 2);
+
+    auto inc = [&]() { ran++; };
+    for (Thread* t : { &a, &b })
+    {
+        MakeDelegate(inc, *t)();
+        auto high = MakeDelegate(inc, *t);
+        high.SetPriority(Priority::HIGH);   // must wait at the gate too
+        high();
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    DMQ_ASSERT_TRUE(ran == 0);
+    DMQ_ASSERT_TRUE(a.GetQueueSize() == 2 && b.GetQueueSize() == 2);
+
+    gate.Open();
+    // Blocking calls queue behind the held messages: all four ran once these return
+    MakeDelegate(std::function<void()>([]() {}), a, TEST_TIMEOUT)();
+    MakeDelegate(std::function<void()>([]() {}), b, TEST_TIMEOUT)();
+    DMQ_ASSERT_TRUE(ran == 4);
+
+    a.ExitThread();
+    b.ExitThread();
+    std::cout << "StartGate_HoldsUntilOpen() complete!" << std::endl;
+}
+
+// ExitThread() on a held thread returns promptly without running anything; a
+// sender blocked on a queued message is released; the exit handler still runs.
+static void StartGate_ExitWhileHeld()
+{
+    StartGate gate;
+    Thread thread("GateExitThread");
+    std::atomic<int> ran{ 0 };
+    std::atomic<bool> exitRan{ false };
+    thread.SetStartGate(&gate);
+    thread.SetExitHandler(MakeDelegate([&]() { exitRan = true; }));
+    thread.CreateThread();
+
+    for (int i = 0; i < 3; i++)
+        MakeDelegate([&]() { ran++; }, thread)();
+    auto blockingCall = MakeDelegate(std::function<int()>([&]() { ran++; return 1; }), thread, WAIT_INFINITE);
+    auto sender = std::async(std::launch::async, [&]() { return blockingCall.AsyncInvoke(); });
+    while (thread.GetQueueSize() < 4) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    auto t0 = std::chrono::steady_clock::now();
+    thread.ExitThread();   // default ExitPolicy::DRAIN: still runs nothing while held
+    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - t0 < std::chrono::seconds(2));
+
+    DMQ_ASSERT_TRUE(sender.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+    DMQ_ASSERT_TRUE(!sender.get().has_value());
+    DMQ_ASSERT_TRUE(ran == 0);
+    DMQ_ASSERT_TRUE(exitRan);
+
+    // Re-created while the gate is still closed: held again, then released by Open()
+    thread.CreateThread();
+    MakeDelegate([&]() { ran++; }, thread)();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    DMQ_ASSERT_TRUE(ran == 0);
+    gate.Open();
+    MakeDelegate(std::function<void()>([]() {}), thread, TEST_TIMEOUT)();
+    DMQ_ASSERT_TRUE(ran == 1);
+    thread.ExitThread();
+    std::cout << "StartGate_ExitWhileHeld() complete!" << std::endl;
+}
+
+// Open() is permanent: threads created later pass straight through. Close()
+// holds threads created from then on. No gate (nullptr) starts at once.
+static void StartGate_OpenCloseAndNoGate()
+{
+    StartGate gate;
+    gate.Open();
+    DMQ_ASSERT_TRUE(gate.IsOpen());
+
+    std::atomic<int> ran{ 0 };
+    Thread late("GateLateThread");
+    late.SetStartGate(&gate);
+    late.CreateThread();
+    MakeDelegate(std::function<void()>([&]() { ran++; }), late, TEST_TIMEOUT)();
+    DMQ_ASSERT_TRUE(ran == 1);
+    late.ExitThread();
+
+    gate.Close();
+    DMQ_ASSERT_TRUE(!gate.IsOpen());
+    late.CreateThread();
+    MakeDelegate([&]() { ran++; }, late)();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    DMQ_ASSERT_TRUE(ran == 1);
+    gate.Open();
+    MakeDelegate(std::function<void()>([]() {}), late, TEST_TIMEOUT)();
+    DMQ_ASSERT_TRUE(ran == 2);
+    late.ExitThread();
+
+    // Gate removed: starts at once
+    late.SetStartGate(nullptr);
+    gate.Close();
+    late.CreateThread();
+    MakeDelegate(std::function<void()>([&]() { ran++; }), late, TEST_TIMEOUT)();
+    DMQ_ASSERT_TRUE(ran == 3);
+    late.ExitThread();
+    std::cout << "StartGate_OpenCloseAndNoGate() complete!" << std::endl;
+}
+
+// A thread held longer than its watchdog timeout is not reported (a report
+// would end the process in WatchdogHandler()); its watchdog runs once released.
+static void StartGate_WatchdogIgnoresHeldThread()
+{
+    StartGate gate;
+    Thread thread("GateWatchdogThread");
+    thread.SetStartGate(&gate);
+    thread.CreateThread(std::chrono::milliseconds(100));
+
+    auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(400);
+    while (std::chrono::steady_clock::now() < end)
+    {
+        Thread::WatchdogCheckAll();
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    gate.Open();
+    MakeDelegate(std::function<void()>([]() {}), thread, TEST_TIMEOUT)();
+    // Released and idle: the thread refreshes its own watchdog
+    end = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+    while (std::chrono::steady_clock::now() < end)
+    {
+        Thread::WatchdogCheckAll();
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    thread.ExitThread();
+    std::cout << "StartGate_WatchdogIgnoresHeldThread() complete!" << std::endl;
+}
+#endif // StartGate ports
 
 void DelegateThreadsTests()
 {
@@ -850,5 +1004,12 @@ void DelegateThreadsTests()
     ExitPolicy_Drain_RunsQueuedMessages();
     ExitPolicy_Discard_SkipsQueuedMessages();
     ExitPolicy_Discard_ReleasesBlockedSender();
+#endif
+
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32)
+    StartGate_HoldsUntilOpen();
+    StartGate_ExitWhileHeld();
+    StartGate_OpenCloseAndNoGate();
+    StartGate_WatchdogIgnoresHeldThread();
 #endif
 }

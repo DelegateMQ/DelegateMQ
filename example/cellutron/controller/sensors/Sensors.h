@@ -21,6 +21,9 @@ public:
     void Initialize();
     void Shutdown();
 
+    /// Get the sensors thread.
+    dmq::os::Thread& GetThread() { return m_thread; }
+
     /// Get current pressure (Blocking call)
     int GetPressure();
 

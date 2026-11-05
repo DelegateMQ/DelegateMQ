@@ -236,6 +236,22 @@ void Win32Thread::Process()
     // Signal that the thread has started processing to notify CreateThread
     SetEvent(m_hStartEvent);
 
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate)
+    {
+        m_gated.store(true);
+        const bool opened = m_startGate->Wait(m_exit);
+        m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears: no stale watchdog read
+        m_gated.store(false);
+        if (!opened)
+        {
+            // ExitThread() while held: leave without running any message.
+            // ExitThread() cancels what is still queued once this thread ends.
+            t_self_exit = nullptr;
+            return;
+        }
+    }
+
     while (!selfExit)
     {
         dmq::Duration watchdogTimeout;
@@ -438,6 +454,11 @@ void Win32Thread::ExitThread(ExitPolicy policy)
     CancelAll(discardedHigh);
     CancelAll(discardedNormal);
 
+    // A thread held at its start gate isn't waiting on the queue: wake it so it
+    // sees m_exit (set above) and leaves
+    if (m_startGate)
+        m_startGate->Wake();
+
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (::GetCurrentThreadId() != m_threadId)
     {
@@ -510,7 +531,10 @@ void Win32Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void Win32Thread::WatchdogCheck()
 {
-    auto now = Timer::GetNow();
+    if (m_gated.load())
+        return;     // held at its start gate by design, not hung
+
+auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
 

@@ -23,6 +23,9 @@ public:
     /// Create ProcessThread and wire state machines to it.
     void Initialize();
 
+    /// Get the process thread.
+    dmq::os::Thread& GetThread() { return m_thread; }
+
     /// Shut down ProcessThread.
     void Shutdown();
 

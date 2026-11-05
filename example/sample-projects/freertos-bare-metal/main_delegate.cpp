@@ -3,6 +3,7 @@
 /// David Lafreniere, 2026.
 
 #include "DelegateMQ.h" 
+#include <atomic>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -23,6 +24,21 @@ using namespace std;
 // --------------------------------------------------------------------------
 #define mainTIMER_FREQUENCY_MS pdMS_TO_TICKS(10UL)
 static TimerHandle_t xSystemTimer = nullptr;
+
+// --------------------------------------------------------------------------
+// START GATE TEST HELPERS (Test 9)
+// --------------------------------------------------------------------------
+static std::atomic<int> s_gateRan{0};
+static void GateCount(int) { s_gateRan++; }
+
+// Created in main_delegate() BEFORE vTaskStartScheduler(): FreeRTOSThread
+// can't wait for the task then, so its start handler runs when the scheduler
+// starts. With a gate it then holds until Test 9 opens it. Constructed there,
+// not as globals: their constructors create RTOS objects, which needs the
+// FreeRTOS heap that main() sets up.
+static StartGate* s_earlyGate = nullptr;
+static Thread* s_earlyThread = nullptr;
+static std::atomic<bool> s_earlyStarted{false};
 
 static void TimerCallback(TimerHandle_t xTimerHandle) {
     // 
@@ -152,6 +168,59 @@ void ExecuteAllTests() {
     vTaskDelay(pdMS_TO_TICKS(300));
     myTimer.Stop();
 
+    // --- TEST 9: Start Gate ---
+    printf("\n[Test 9] Start Gate (hold threads until one go):\n");
+    {
+        // Two threads held at one gate: ready, but nothing runs at any priority
+        StartGate gate;
+        Thread g1("Gated1");
+        Thread g2("Gated2");
+        g1.SetStartGate(&gate);
+        g2.SetStartGate(&gate);
+        DMQ_ASSERT_TRUE(g1.CreateThread() && g2.CreateThread());
+        s_gateRan = 0;
+        for (Thread* t : { &g1, &g2 }) {
+            MakeDelegate(&GateCount, *t)(0);
+            auto high = MakeDelegate(&GateCount, *t);
+            high.SetPriority(Priority::HIGH);
+            high(0);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+        DMQ_ASSERT_TRUE(s_gateRan == 0);
+        printf("  -> 4 messages queued to 2 gated threads, none run\n");
+        gate.Open();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        DMQ_ASSERT_TRUE(s_gateRan == 4);
+        printf("  -> gate opened: all 4 ran\n");
+        g1.ExitThread();
+        g2.ExitThread();
+
+        // Exit while held, queue full: ExitThread() must not block on the full
+        // queue, and nothing runs
+        StartGate closed;
+        Thread g3("Gated3", 4, FullPolicy::DROP);
+        g3.SetStartGate(&closed);
+        DMQ_ASSERT_TRUE(g3.CreateThread());
+        s_gateRan = 0;
+        for (int i = 0; i < 6; i++)
+            MakeDelegate(&GateCount, g3)(0);   // 4 queued, 2 dropped
+        g3.ExitThread();
+        DMQ_ASSERT_TRUE(s_gateRan == 0);
+        printf("  -> exit while held (full queue): returned, nothing ran\n");
+
+        // Thread created before the scheduler started (see main_delegate())
+        DMQ_ASSERT_TRUE(s_earlyStarted);
+        s_gateRan = 0;
+        MakeDelegate(&GateCount, *s_earlyThread)(0);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        DMQ_ASSERT_TRUE(s_gateRan == 0);
+        s_earlyGate->Open();
+        vTaskDelay(pdMS_TO_TICKS(50));
+        DMQ_ASSERT_TRUE(s_gateRan == 1);
+        s_earlyThread->ExitThread();
+        printf("  -> thread created before the scheduler: held, then ran\n");
+    }
+
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");
     printf("=========================================\n");
@@ -182,6 +251,15 @@ extern "C" void main_delegate(void)
     xTimerStart(xSystemTimer, 0);
 
     xTaskCreate(RunTestsTask, "MainTask", 2048, NULL, 2, NULL);
+
+    // Test 9: a gated thread created before the scheduler starts
+    static StartGate earlyGate;
+    static Thread earlyThread("EarlyGatedThread");
+    s_earlyGate = &earlyGate;
+    s_earlyThread = &earlyThread;
+    earlyThread.SetStartGate(&earlyGate);
+    earlyThread.SetStartHandler(MakeDelegate(+[]() { s_earlyStarted = true; }));
+    earlyThread.CreateThread();
 
     printf("--- Starting FreeRTOS Scheduler ---\n");
     vTaskStartScheduler();
