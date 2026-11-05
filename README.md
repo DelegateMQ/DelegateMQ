@@ -29,6 +29,20 @@ int main()
 
     sync("Hello");
     async("Hello");   // same call; DelegateMQ copies the argument across threads
+
+    // A multicast delegate holds any number of delegates with the same signature
+    // and invokes them all with one call, each on its own thread
+    dmq::MulticastDelegate<void(const std::string&)> multicast;
+    multicast += sync;
+    multicast += async;
+    multicast("Hello all");   // runs MsgOut now on this thread, and queues it to the worker
+
+    // A signal is a thread-safe multicast delegate that hands back a connection.
+    // Each ScopedConnection keeps its subscriber attached until it is destroyed.
+    dmq::Signal<void(const std::string&)> signal;
+    auto connSync  = signal.Connect(sync);
+    auto connAsync = signal.Connect(async);
+    signal("Hello subscribers");   // calls every connected delegate
 }
 ```
 
@@ -66,7 +80,7 @@ Numerous platform, serialization, transport, and tool integrations are available
 | Category | Supported |
 | :--- | :--- |
 | **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
-| **Build** | [CMake](https://cmake.org/) (`FetchContent` or `add_subdirectory`); Keil, IAR, STM32CubeIDE, PlatformIO, Makefiles and other build systems (add `src/DelegateMQ.cpp`, which compiles the library's source files for you) |
+| **Build** | [CMake](https://cmake.org/), or any build system (Keil, IAR, STM32CubeIDE, Makefiles, ...) |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
 | **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |

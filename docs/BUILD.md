@@ -22,7 +22,7 @@ DelegateMQ is mostly headers. The delegates themselves are header-only; the OS p
 ---
 
 ## Prerequisites
-- **CMake**: 3.15 or higher.
+- **CMake**: 3.16 or higher for the library and most samples; 3.20 or higher for `build_all.py` (it also configures the Pumptron STM32F4 firmware) and the Zephyr samples. On Windows, CMake must also know your Visual Studio version: 3.21+ for Visual Studio 2022, 4.2+ for Visual Studio 2026. `build_all.py` checks this before it starts.
 - **C++ Compiler**: C++17 compliant (GCC 8+, Clang 7+, MSVC 2019+).
 - **Python 3**: Required for the automated sample build scripts.
 
@@ -92,7 +92,7 @@ What you get:
 **Third-party ports need `DMQ_DEPS_DIR`.** `external/` is empty in a fresh clone, so selecting a port that uses a third-party library (ZeroMQ, NNG, MQTT, MessagePack, FreeRTOS, ThreadX, ...) stops configuration until `DMQ_DEPS_DIR` points at those libraries. Run `scripts/01_fetch_repos.py` and `02_build_libs.py` once (see [Third-Party Directory](#third-party-directory-dmq_deps_dir)), or lay out your own builds the same way.
 
 Your application still provides:
-- **NNG, MQTT and libserialport libraries.** The target has their include directories; your project links the library itself, as the samples do.
+- **NNG, MQTT and libserialport libraries.** The target has their include directories; your project links the library itself, as the samples do. NNG and Paho MQTT C come from `DMQ_DEPS_DIR` (`<lib>/install`, where `02_build_libs.py` puts them) on Linux as on Windows; to use another install instead, such as a system one under `/usr/local`, set `-DDMQ_NNG_PREFIX=<path>` or `-DDMQ_MQTT_PREFIX=<path>` (Linux).
 - **The RTOS kernel and its config header.** Add the directory with your `FreeRTOSConfig.h` (or equivalent) to the target: `target_include_directories(DelegateMQ PUBLIC config/)`. Your application builds the FreeRTOS kernel sources (`FREERTOS_SOURCES` when using `DMQ_DEPS_DIR`), since they depend on your config, port and heap choice. ThreadX's own CMake target is linked for you. Zephyr and NuttX also need the target linked to the RTOS build's interface target.
 - **A user config header**, if you use one: set `DMQ_USER_CONFIG` and `DMQ_USER_CONFIG_DIR` (see [User Config File](#2-user-config-file-delegatemqconfigh)).
 

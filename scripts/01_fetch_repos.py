@@ -144,4 +144,7 @@ def run():
     return True
 
 if __name__ == "__main__":
+    import preflight
+    if not preflight.check(need_git=True, need_cmake=False):
+        sys.exit(1)
     sys.exit(0 if run() else 1)

@@ -457,7 +457,7 @@ See [bridge/README.md](bridge/README.md) for an overview of the bridges and how 
 
 ### Prerequisites
 *   C++17 compatible compiler.
-*   CMake 3.15+.
+*   CMake 3.16+.
 *   Dependencies (managed via the workspace `01_fetch_repos.py` script):
     *   [FTXUI](https://github.com/ArthurSonzogni/FTXUI)
     *   [spdlog](https://github.com/gabime/spdlog)
