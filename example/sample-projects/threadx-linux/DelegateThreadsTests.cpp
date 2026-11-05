@@ -83,6 +83,7 @@
 /// blackbox testing from the DelegateMQ side.
 
 #include "DelegateMQ.h"
+#include "../../../test/unit-tests/StartGatePortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -581,4 +582,6 @@ void DelegateThreadsTests()
     // workerThread2().ExitThread();
 
     ThreadFullPolicyTests();
+
+    StartGatePortableTest::Run(/*twoThreads=*/false);   // StartGate on this port
 }

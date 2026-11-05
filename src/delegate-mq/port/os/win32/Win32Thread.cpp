@@ -69,6 +69,10 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (m_hThread == NULL)
     {
         m_exit = false;
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_gated.store(m_startGate != nullptr);
+        m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
 
         // Manual-reset event for startup synchronization
         m_hStartEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -239,8 +243,7 @@ void Win32Thread::Process()
     // Optional start gate: wait here, ready but processing nothing, until it opens
     if (m_startGate)
     {
-        m_gated.store(true);
-        const bool opened = m_startGate->Wait(m_exit);
+        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
         m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears: no stale watchdog read
         m_gated.store(false);
         if (!opened)
@@ -534,7 +537,7 @@ void Win32Thread::WatchdogCheck()
     if (m_gated.load())
         return;     // held at its start gate by design, not hung
 
-auto now = Timer::GetNow();
+    auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
 

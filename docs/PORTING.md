@@ -380,9 +380,9 @@ gate.Open();                    // every held thread starts together
 
 On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same "all ready, one go" at boot without a gate; the gate also covers threads created after the scheduler starts, and the desktop ports.
 
-**Supported ports:** stdlib, Win32 and FreeRTOS, where `DMQ_HAS_START_GATE` is defined (`delegate/DelegateSelect.h`); test that macro before using the gate in code built for other ports. Cellutron's controller (`System::Initialize()` in `example/cellutron/controller/system/System.cpp`) is a worked example.
+**Supported ports:** every thread port (stdlib, Win32, POSIX, Qt, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX). Not bare metal (`DMQ_THREAD_NONE`), which has no threads; `DMQ_HAS_START_GATE` (`delegate/DelegateSelect.h`) is defined wherever the gate exists, for code also built for bare metal. Cellutron's controller (`System::Initialize()` in `example/cellutron/controller/system/System.cpp`) is a worked example.
 
-**Porting:** in the worker's entry function, after signalling `CreateThread()` that the thread is running and before the message loop, call `m_startGate->Wait(m_exit)`; on `false` (exit requested) leave without running a message. In `ExitThread()`, call `m_startGate->Wake()` after setting the exit flag. Skip `WatchdogCheck()` while held. See `StdlibThread.cpp`, and `FreeRTOSThread.cpp` for a port whose exit message send can block on a full queue.
+**Porting:** in the worker's entry function, after signalling `CreateThread()` that the thread is running and before the message loop, call `m_startGate->Wait(m_exit)`; on `false` (exit requested) leave without running a message. In `ExitThread()`, call `m_startGate->Wake()` after setting the exit flag. Skip `WatchdogCheck()` while held. Set `m_gated` in `CreateThread()`, before the thread exists, so the watchdog skips it from the start. See `StdlibThread.cpp`, and `FreeRTOSThread.cpp` for a port whose exit message send can block on a full queue: there a thread exiting while held turns on discard and drains to the exit message instead of returning. `test/unit-tests/StartGatePortableTest.h` has tests any port can run.
 
 ### Watchdog Integration
 

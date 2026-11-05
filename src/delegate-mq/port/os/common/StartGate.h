@@ -39,11 +39,12 @@
 ///   at it (destroying a gate with threads still holding faults).
 ///
 /// Supported where `DMQ_HAS_START_GATE` is defined (delegate/DelegateSelect.h):
-/// currently the stdlib, Win32 and FreeRTOS thread ports.
+/// every thread port (not bare metal, which has no threads).
 
 #include "delegate/DelegateOpt.h"
 #include "delegate/Semaphore.h"
 #include <atomic>
+#include <cstdint>
 
 #if defined(DMQ_HAS_START_GATE) && defined(DMQ_HAS_SEMAPHORE)
 
@@ -51,7 +52,13 @@ namespace dmq::os {
 
 class StdlibThread;
 class Win32Thread;
+class PosixThread;
+class QtThread;
 class FreeRTOSThread;
+class ThreadXThread;
+class ZephyrThread;
+class CmsisRtos2Thread;
+class NuttXThread;
 
 class StartGate
 {
@@ -64,18 +71,21 @@ public:
         DMQ_ASSERT_TRUE(m_waiters == nullptr);
     }
 
-    /// Release every thread holding at the gate. Threads that reach the gate
-    /// later pass straight through until Close().
+    /// Release every thread created with this gate so far, whether it is
+    /// already waiting or still on its way to the gate. Threads created later
+    /// pass straight through until Close().
     void Open()
     {
         dmq::LockGuard<dmq::Mutex> lock(m_mutex);
         m_open = true;
+        m_openCount++;
         for (Waiter* w = m_waiters; w != nullptr; w = w->next)
             w->sem.Signal();
     }
 
-    /// Hold threads that reach the gate from now on (to reuse the gate for
-    /// another startup). Threads already released keep running.
+    /// Hold threads created from now on (to reuse the gate for another
+    /// startup). Threads released by an earlier Open() still start, even if
+    /// they haven't reached the gate or woken yet.
     void Close()
     {
         dmq::LockGuard<dmq::Mutex> lock(m_mutex);
@@ -94,7 +104,13 @@ public:
 private:
     friend class StdlibThread;
     friend class Win32Thread;
+    friend class PosixThread;
+    friend class QtThread;
     friend class FreeRTOSThread;
+    friend class ThreadXThread;
+    friend class ZephyrThread;
+    friend class CmsisRtos2Thread;
+    friend class NuttXThread;
 
     /// One per held thread, on that thread's stack: no allocation by the gate.
     struct Waiter
@@ -103,17 +119,32 @@ private:
         Waiter* next = nullptr;
     };
 
+    /// Called by a thread port's CreateThread() before it starts the thread.
+    /// Pass the result to Wait(): an Open() after this releases that thread
+    /// even if Close() follows before the thread reaches the gate.
+    uint32_t OpenCount() const
+    {
+        dmq::LockGuard<dmq::Mutex> lock(m_mutex);
+        return m_openCount;
+    }
+
+    /// Open now, or opened since `openCountAtCreate` (from OpenCount()).
+    bool Released(uint32_t openCountAtCreate) const
+    {
+        return m_open || m_openCount != openCountAtCreate;
+    }
+
     /// Called by a thread port on its own thread, after its start handshake
-    /// and before its message loop. Blocks until the gate opens or `exit` is
-    /// set (followed by Wake()).
-    /// @return true if the gate opened; false if the thread is exiting.
-    bool Wait(const std::atomic<bool>& exit)
+    /// and before its message loop. Blocks until the gate opens (now or since
+    /// `openCountAtCreate`) or `exit` is set (followed by Wake()).
+    /// @return true if released; false if the thread is exiting.
+    bool Wait(const std::atomic<bool>& exit, uint32_t openCountAtCreate)
     {
         Waiter self;
         {
             dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-            if (m_open || exit.load())
-                return m_open && !exit.load();
+            if (Released(openCountAtCreate) || exit.load())
+                return !exit.load();
             self.next = m_waiters;
             m_waiters = &self;
         }
@@ -125,9 +156,9 @@ private:
         {
             self.sem.Wait(dmq::Duration::max());
             dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-            if (exit.load() || m_open)
+            if (exit.load() || Released(openCountAtCreate))
             {
-                opened = m_open && !exit.load();
+                opened = !exit.load();
                 Unlink(&self);
                 break;
             }
@@ -158,6 +189,7 @@ private:
 
     mutable dmq::Mutex m_mutex;
     bool m_open = false;
+    uint32_t m_openCount = 0;   // Open() calls; wraps harmlessly (only compared for change)
     Waiter* m_waiters = nullptr;
 };
 

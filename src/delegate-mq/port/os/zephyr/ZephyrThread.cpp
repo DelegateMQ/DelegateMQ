@@ -87,6 +87,10 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     {
         // Reset from a previous ExitThread(), so the thread can be created again
         m_exit.store(false);
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_gated.store(m_startGate != nullptr);
+        m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
         m_discard.store(false);
 
         // 1. Create Message Queues
@@ -167,6 +171,11 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         // Set before m_exit: Run() reads it for every message ahead of the exit message
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
+
+        // A thread held at its start gate isn't reading its queue: wake it so it
+        // sees m_exit and drains to the exit message sent below
+        if (m_startGate)
+            m_startGate->Wake();
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
@@ -367,6 +376,9 @@ void ZephyrThread::Process(void* p1, void* p2, void* p3)
 //----------------------------------------------------------------------------
 void ZephyrThread::WatchdogCheck()
 {
+    if (m_gated.load())
+        return;     // held at its start gate by design, not hung
+
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
@@ -445,6 +457,20 @@ void ZephyrThread::Run()
 
     if (m_startSync)
         k_sem_give(&m_startSem);
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate)
+    {
+        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
+        m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears: no stale watchdog read
+        m_gated.store(false);
+        // ExitThread() while held: run nothing. Cancel each queued message
+        // (DISCARD) until the exit message. Consuming them also keeps
+        // ExitThread()'s blocking send of the exit message from waiting on a
+        // full queue.
+        if (!opened)
+            m_discard.store(true);
+    }
 
     ThreadMsg* msg = nullptr;
     while (!selfExit)

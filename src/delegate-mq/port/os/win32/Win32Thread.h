@@ -283,6 +283,7 @@ private:
     // so the watchdog doesn't report a thread that is waiting by design
     StartGate* m_startGate = nullptr;
     std::atomic<bool> m_gated{false};
+    uint32_t m_gateOpenCount = 0;   // m_startGate->OpenCount() when CreateThread() ran
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Monitoring statistics members

@@ -458,7 +458,7 @@ DelegateMQ at a glance.
 | Complexity | Lightweight and extensible through external library interfaces and full source code |
 | Threads | No internal threads. External configurable thread interface portable to any OS (`dmq::IThread`). |
 | Timers | Periodic and one-shot timers (`dmq::util::Timer`). Callbacks dispatch to any thread via `OnExpired` signal. No internal timer thread; driven by application calling `Timer::ProcessTimers()` from a loop, task, or ISR. |
-| Synchronized Thread Start | Optional start gate (`dmq::os::StartGate`) holds a group of threads, created and ready but processing nothing, until one `Open()` starts them all together. Stops threads from running while others are still being created or wired up. stdlib, Win32 and FreeRTOS today; other thread ports to follow. |
+| Synchronized Thread Start | Optional start gate (`dmq::os::StartGate`) holds a group of threads, created and ready but processing nothing, until one `Open()` starts them all together. Stops threads from running while others are still being created or wired up. |
 | Watchdog | Configurable timeout to detect and handle unresponsive threads. |
 | Signal and Slots | Standard Signal-Slot pattern (`dmq::Signal<Sig>`). `Connect()` returns a `dmq::ScopedConnection` for RAII auto-disconnect. Thread-safe by default; no `shared_ptr` required. |
 | Multicast | Broadcast invoke anonymous callable targets onto multiple threads |

@@ -1,5 +1,6 @@
 #include "DelegateMQ.h"
 #include "UnitTestCommon.h"
+#include "StartGatePortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -822,9 +823,9 @@ static void ExitPolicy_Discard_ReleasesBlockedSender()
 
 #endif // desktop ports
 
-// StartGate: stage one ports (stdlib, Win32, FreeRTOS); these tests use
-// std::thread/std::async, so desktop ports only.
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32)
+// StartGate tests that use std::thread/std::async, so desktop ports only.
+// StartGatePortableTest.h has the ones every port runs.
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
 // ---------------------------------------------------------------------------
 // StartGate tests (use std::thread/std::async, so desktop ports only)
 // ---------------------------------------------------------------------------
@@ -1006,10 +1007,13 @@ void DelegateThreadsTests()
     ExitPolicy_Discard_ReleasesBlockedSender();
 #endif
 
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32)
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
     StartGate_HoldsUntilOpen();
     StartGate_ExitWhileHeld();
     StartGate_OpenCloseAndNoGate();
     StartGate_WatchdogIgnoresHeldThread();
+#endif
+#if defined(DMQ_HAS_START_GATE)
+    StartGatePortableTest::Run();
 #endif
 }

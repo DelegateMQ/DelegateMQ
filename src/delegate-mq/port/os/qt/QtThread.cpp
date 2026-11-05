@@ -143,6 +143,10 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_thread)
     {
         m_exiting.store(false);
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_gated.store(m_startGate != nullptr);
+        m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
         m_thread = new QThread();
         m_thread->setObjectName(QString::fromUtf8(m_threadName.c_str()));
 
@@ -170,8 +174,9 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         Worker* worker = m_worker;
         QSemaphore* startSem = &m_startSem;
         dmq::IThread* self = this;
+        QtThread* qt = this;    // start gate state; no self-exit is possible this early
         connect(m_thread, &QThread::started, m_worker,
-            [worker, self, startSem, startHandler = m_startHandler,
+            [worker, self, qt, startSem, startHandler = m_startHandler,
              idleHandler = m_idleHandler, idleInterval = m_idleInterval]() {
                 worker->BeginCurrentScope(self);
                 if (startHandler)
@@ -179,6 +184,19 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                 if (idleHandler)
                     worker->StartIdleTimer(idleHandler, idleInterval);
                 startSem->release();
+
+                // Optional start gate: hold here, before the event loop runs any
+                // dispatched message, until it opens
+                if (qt->m_startGate)
+                {
+                    const bool opened = qt->m_startGate->Wait(qt->m_exiting, qt->m_gateOpenCount);
+                    qt->m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears
+                    qt->m_gated.store(false);
+                    // ExitThread() while held: the event loop cancels every
+                    // queued message (discard) up to the quit queued behind them
+                    if (!opened)
+                        worker->SetDiscard(true);
+                }
             }, Qt::DirectConnection);
 
         // Exit handler runs on the worker thread as it finishes (finished is
@@ -235,6 +253,9 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 void QtThread::WatchdogCheck()
 {
+    if (m_gated.load())
+        return;     // held at its start gate by design, not hung
+
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
@@ -302,6 +323,11 @@ void QtThread::ExitThread(ExitPolicy policy)
         // A self-exit always discards: the event loop keeps running after this
         // object may be destroyed.
         m_worker->SetDiscard(policy == ExitPolicy::DISCARD || selfExit);
+
+        // A thread held at its start gate hasn't entered its event loop: wake it
+        // so it sees m_exiting, switches to discard and runs to the quit below
+        if (m_startGate)
+            m_startGate->Wake();
 
         // Quit queued behind every message already dispatched, so DRAIN invokes
         // them first and DISCARD cancels them first.

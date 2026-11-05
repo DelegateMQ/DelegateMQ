@@ -7,6 +7,7 @@
 /// instead of the desktop stdlib port.
 
 #include "DelegateMQ.h"
+#include "../../../test/unit-tests/StartGatePortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -526,4 +527,6 @@ void DelegateThreadsTests()
     workerThread2().ExitThread();
 
     ThreadFullPolicyTests();
+
+    StartGatePortableTest::Run();   // StartGate on this port
 }

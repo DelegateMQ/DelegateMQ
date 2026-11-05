@@ -82,9 +82,9 @@
     #define DMQ_HAS_THREADING
 #endif
 
-// dmq::os::StartGate / Thread::SetStartGate() (port/os/common/StartGate.h).
-// Ports that support it so far; applications test this before using it.
-#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_FREERTOS)
+// dmq::os::StartGate / Thread::SetStartGate() (port/os/common/StartGate.h):
+// every thread port. Code also built for bare metal tests this first.
+#if defined(DMQ_HAS_THREADING)
     #define DMQ_HAS_START_GATE
 #endif
 

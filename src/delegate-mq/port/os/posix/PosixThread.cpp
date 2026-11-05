@@ -99,6 +99,10 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_threadCreated)
     {
         m_exit = false;
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_gated.store(m_startGate != nullptr);
+        m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
         m_started = false;
 
         // Held until m_thread is stored and named. Process() takes this lock
@@ -249,6 +253,11 @@ void PosixThread::ExitThread(ExitPolicy policy)
 
     CancelAll(discardedHigh);
     CancelAll(discardedNormal);
+
+    // A thread held at its start gate isn't waiting on the queue: wake it so it
+    // sees m_exit (set above) and leaves
+    if (m_startGate)
+        m_startGate->Wake();
 
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (!pthread_equal(pthread_self(), m_thread))
@@ -401,6 +410,21 @@ void PosixThread::Process()
     m_started = true;
     pthread_cond_signal(&m_startCv);
     pthread_mutex_unlock(&m_startMutex);
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate)
+    {
+        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
+        m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears: no stale watchdog read
+        m_gated.store(false);
+        if (!opened)
+        {
+            // ExitThread() while held: leave without running any message.
+            // ExitThread() cancels what is still queued once this thread ends.
+            t_self_exit = nullptr;
+            return;
+        }
+    }
 
     while (!selfExit)
     {
@@ -582,6 +606,9 @@ void PosixThread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void PosixThread::WatchdogCheck()
 {
+    if (m_gated.load())
+        return;     // held at its start gate by design, not hung
+
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();

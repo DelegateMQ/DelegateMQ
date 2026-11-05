@@ -94,6 +94,10 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
     // Reset from a previous ExitThread(), so the thread can be created again
     m_exit.store(false);
+    // Held from creation, so the watchdog never sees a gated thread as hung
+    // before it reaches the gate (e.g. created before the scheduler runs)
+    m_gated.store(m_startGate != nullptr);
+    m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
     m_discard.store(false);
 
     // 1. Create Synchronization Semaphore (Critical for cleanup)
@@ -364,7 +368,7 @@ void FreeRTOSThread::WatchdogCheck()
     if (m_gated.load())
         return;     // held at its start gate by design, not hung
 
-auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
+    auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
 
@@ -417,8 +421,7 @@ void FreeRTOSThread::Run()
     // Optional start gate: wait here, ready but processing nothing, until it opens
     if (m_startGate)
     {
-        m_gated.store(true);
-        const bool opened = m_startGate->Wait(m_exit);
+        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
         // Before m_gated clears: no stale watchdog read
         m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
         m_gated.store(false);

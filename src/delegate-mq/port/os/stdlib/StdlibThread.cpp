@@ -67,6 +67,10 @@ bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_threadStartPromise.emplace();
         m_threadStartFuture.emplace(m_threadStartPromise->get_future());
         m_exit = false;
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_gated.store(m_startGate != nullptr);
+        m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
 
         {
             // Held until m_thread is fully constructed and named. Process() takes
@@ -367,7 +371,7 @@ void StdlibThread::WatchdogCheck()
     if (m_gated.load())
         return;     // held at its start gate by design, not hung
 
-auto now = Timer::GetNow();
+    auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
 
@@ -438,8 +442,7 @@ void StdlibThread::Process()
     // Optional start gate: wait here, ready but processing nothing, until it opens
     if (m_startGate)
     {
-        m_gated.store(true);
-        const bool opened = m_startGate->Wait(m_exit);
+        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
         m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears: no stale watchdog read
         m_gated.store(false);
         if (!opened)

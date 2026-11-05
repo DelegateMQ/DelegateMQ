@@ -40,6 +40,7 @@
 #include "delegate/UnicastDelegate.h"
 #include "extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/StartGate.h"
 #include "CmsisRtos2DelegateQueue.h"
 #include "cmsis_os2.h"
 #include <string>
@@ -150,6 +151,15 @@ public:
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = std::move(handler); }
 
+    /// @brief Optional: hold this thread at `gate` once it is created, until
+    /// `gate->Open()`. Pass nullptr (the default) to start at once.
+    /// @details CreateThread() still runs the start handler and returns when the
+    /// thread is ready; the thread then processes nothing, at any priority, until
+    /// the gate opens. Use one gate for a group of threads so they all start
+    /// together after setup. See port/os/common/StartGate.h. Must be called while
+    /// the thread is not running; calling it on a running thread faults.
+    void SetStartGate(StartGate* gate) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startGate = gate; }
+
     /// @brief Register a handler invoked on the worker thread after it processes
     /// its last message, as the thread exits. Use it to undo SetStartHandler() setup.
     /// @details Must be called while the thread is not running; calling it on a
@@ -238,6 +248,12 @@ private:
     osSemaphoreId_t m_startSem = NULL; // Released by Run() once the start handler has run
     bool m_startSync = false; // CreateThread() waits for the start handler (kernel running)
     std::atomic<bool> m_exit = false;
+
+    // Optional start gate (SetStartGate()); m_gated is true while held at it,
+    // so the watchdog doesn't report a thread that is waiting by design
+    StartGate* m_startGate = nullptr;
+    std::atomic<bool> m_gated{false};
+    uint32_t m_gateOpenCount = 0;   // m_startGate->OpenCount() when CreateThread() ran
     std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     bool* m_selfExitPtr = nullptr;
     
