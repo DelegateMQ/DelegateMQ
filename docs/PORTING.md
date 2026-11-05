@@ -2,6 +2,8 @@
 
 Numerous predefined platforms are already supported — Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare metal (ARM and RISC-V). Ready-made plugins for threading and communication interfaces exist, or you can create new ones.
 
+The implementations of these interfaces (OS ports in `src/delegate-mq/port/os`, transports in `port/transport`, serializers in `port/serialize`) form the **DelegateMQ Abstraction Layer** (see the [layer diagram](../README.md#overview)). Porting DelegateMQ means implementing an interface and adding that implementation to the layer; nothing above it changes.
+
 ---
 
 ## Table of Contents
@@ -457,7 +459,7 @@ For CPU-spinning runaways, `ProcessTimers()` must run at a higher priority than 
 
 ### Performance Monitoring
 
-Every `dmq::os::Thread` port supports high-resolution performance monitoring. This requires three pieces of instrumentation in the port layer:
+Every `dmq::os::Thread` port supports high-resolution performance monitoring. This requires three pieces of instrumentation in the thread port:
 
 1. **Enqueue Timestamp**: The shared `ThreadMsg` class (`port/os/common/ThreadMsg.h`) already captures a `dmq::TimePoint` (steady clock) via `SetEnqueueTime()`/`GetEnqueueTime()` under `DMQ_DATABUS_TOOLS` — call `SetEnqueueTime(Timer::GetNow())` right after constructing each message in your `DispatchDelegate()`.
 2. **Latency Calculation**: In the thread's `Run()` loop, calculate the "Queue Latency" (Dispatch Time - Enqueue Time) just before invoking the delegate.

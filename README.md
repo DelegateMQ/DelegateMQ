@@ -75,7 +75,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, transport, and tool integrations are available out of the box. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface, and the new implementation becomes part of that layer.
 
 | Category | Supported |
 | :--- | :--- |
@@ -137,7 +137,7 @@ See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individ
 
 DelegateMQ builds everything on one primitive, the delegate: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.
 
-The OS, transport, and serializer sit behind small pure-virtual interfaces, so underlying technologies swap without changing application logic:
+The OS, transport, and serializer sit behind small pure-virtual interfaces, so underlying technologies swap without changing application logic. DelegateMQ's implementations of those interfaces for each supported OS, transport and serializer form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`); only the platform beneath it (OS kernels, network stacks, third-party libraries) is external:
 
 <img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram"><br>
 *DelegateMQ Layer Diagram*
@@ -497,19 +497,25 @@ The [`example`](example/README.md) directory ranges from single-file snippets to
 
 | Example | Description | Docs |
 | :--- | :--- | :--- |
-| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README.md](example/sample-projects/README.md) |
+| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS, transport or serializer. The [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds the third-party libraries they need. | [README.md](example/sample-projects/README.md) |
 | **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
 | **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
 
 # Other Projects Using DelegateMQ
 
-Repositories utilizing the DelegateMQ library.
+Repositories built on DelegateMQ.
 
 | Project | Description |
 | :--- | :--- |
-| [Integration Test Framework](https://github.com/DelegateMQ/IntegrationTestFramework) | A multi-threaded C++ software integration test framework using Google Test and DelegateMQ libraries. |
-| [Active-Object State Machine in C++](https://github.com/DelegateMQ/active-fsm) | A modern active-object C++ finite state machine providing RAII-safe asynchronous dispatch and pub/sub signals. |
-| [Device Params in C++](https://github.com/DelegateMQ/device-params) | Typed device parameters for embedded C++ with range checks, change notification, power-loss-safe persistence (flash, file, SQLite) and remote get/set. |
-| [Async-SQLite](https://github.com/DelegateMQ/Async-SQLite) | An asynchronous SQLite thread-safe wrapper implemented using an asynchronous delegate library. |
-| [Async-DuckDB](https://github.com/DelegateMQ/Async-DuckDB) | An asynchronous DuckDB thread-safe wrapper implemented using an asynchronous delegate library. |
-| [Async-HTTP](https://github.com/DelegateMQ/Async-HTTP) | An asynchronous HTTP thread-safe client wrapper implemented using an asynchronous delegate library. |
+| [Integration Test Framework](https://github.com/DelegateMQ/IntegrationTestFramework) | Multi-threaded C++ integration test framework using Google Test. |
+| [Active-Object State Machine in C++](https://github.com/DelegateMQ/active-fsm) | Active-object finite state machine with RAII-safe asynchronous dispatch and pub/sub signals. |
+| [Device Params in C++](https://github.com/DelegateMQ/device-params) | Typed device parameters for embedded C++: range checks, change notification, power-loss-safe persistence (flash, file, SQLite) and remote get/set. |
+| [Async-SQLite](https://github.com/DelegateMQ/Async-SQLite) | Thread-safe asynchronous wrapper for SQLite. |
+| [Async-DuckDB](https://github.com/DelegateMQ/Async-DuckDB) | Thread-safe asynchronous wrapper for DuckDB. |
+| [Async-HTTP](https://github.com/DelegateMQ/Async-HTTP) | Thread-safe asynchronous HTTP client wrapper. |
+
+# History
+
+DelegateMQ is the result of more than two decades of delegate implementations, starting with C++03. C++17 features such as variadic templates and template metaprogramming finally made it possible to express asynchronous delegates concisely and generically on any platform.
+
+Earlier delegate libraries and other portable C/C++ libraries for state machines, callbacks, threading, memory allocation, communication, and testing are collected in [Portable C/C++ Libraries](https://github.com/endurodave/portable-c-cpp-libs).

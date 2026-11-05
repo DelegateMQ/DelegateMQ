@@ -1,4 +1,4 @@
-<svg width="800" height="535" xmlns="http://www.w3.org/2000/svg">
+<svg width="800" height="657" xmlns="http://www.w3.org/2000/svg">
   <!-- Background -->
   <rect width="100%" height="100%" fill="white"/>
 
@@ -11,6 +11,7 @@
     .ext-box { fill: #f5f5f5; stroke: #616161; stroke-width: 2; } /* Grey for External Implementations */
     .text { font-family: Arial, sans-serif; font-size: 13px; text-anchor: middle; fill: #212121; }
     .title { font-weight: bold; font-size: 15px; }
+    .small { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; fill: #424242; }
     .classname { font-family: 'Courier New', monospace; font-size: 11px; text-anchor: middle; fill: #616161; }
     .arrow { stroke: #424242; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
   </style>
@@ -64,11 +65,17 @@
   <rect x="530" y="350" width="220" height="50" rx="5" class="lib-infra-box"/>
   <text x="640" y="380" class="text title">ITransport</text>
 
-  <!-- Implementation Layer (External to Library) -->
-  <rect x="50" y="430" width="700" height="85" rx="5" class="ext-box"/>
-  <text x="400" y="455" class="text title">Porting Layer (External Implementations)</text>
-  <text x="400" y="480" class="text">OS: Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-Metal</text>
-  <text x="400" y="500" class="text">Transport/Serializers: ZeroMQ, MQTT, TCP, MessagePack, JSON, Cereal...</text>
+  <!-- DelegateMQ Abstraction Layer (Part of Library) -->
+  <rect x="50" y="430" width="700" height="92" rx="5" class="lib-box"/>
+  <text x="400" y="453" class="text title">DelegateMQ Abstraction Layer</text>
+  <text x="400" y="474" class="classname">dmq::os::Thread, dmq::Mutex, dmq::Semaphore, dmq::Clock, dmq::os::StartGate</text>
+  <text x="400" y="490" class="classname">dmq::serialization::msgpack::Serializer, rapidjson::Serializer, cereal::Serializer</text>
+  <text x="400" y="506" class="classname">dmq::transport::UdpTransport, SerialTransport, ZeroMqTransport, MqttTransport</text>
+  <!-- Platform Layer (External to Library) -->
+  <rect x="50" y="552" width="700" height="85" rx="5" class="ext-box"/>
+  <text x="400" y="577" class="text title">Platform (External)</text>
+  <text x="400" y="602" class="text">OS: Windows, Linux, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-Metal</text>
+  <text x="400" y="622" class="text">Transport/Serializers: ZeroMQ, MQTT, TCP, MessagePack, JSON, Cereal...</text>
 
   <!-- Middleware to Core Arrows -->
   <path d="M 160,160 L 160,180 L 400,180 L 400,195" class="arrow" />
@@ -81,8 +88,11 @@
   <line x1="640" y1="270" x2="640" y2="285" class="arrow" />
   <line x1="640" y1="340" x2="640" y2="345" class="arrow" />
 
-  <!-- Infrastructure to Implementation Arrows -->
+  <!-- Infrastructure to Abstraction Layer Arrows -->
   <line x1="400" y1="340" x2="400" y2="425" class="arrow" />
   <line x1="640" y1="400" x2="640" y2="425" class="arrow" />
+  <!-- Abstraction Layer to Platform Arrows -->
+  <line x1="400" y1="522" x2="400" y2="547" class="arrow" />
+  <line x1="640" y1="522" x2="640" y2="547" class="arrow" />
 
 </svg>

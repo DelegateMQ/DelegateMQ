@@ -27,6 +27,8 @@ All four share the same `dmq::MakeDelegate()` factory and `operator()` invocatio
 
 ### Ports & Interfaces
 
+The implementations of the interfaces below, in `src/delegate-mq/port` (OS, transport, serializer), form the DelegateMQ Abstraction Layer.
+
 - `dmq::IThread` — cross-platform thread dispatch interface; pre-built ports for stdlib, Win32, POSIX (raw pthreads), FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare-metal (ARM/RISC-V)
 - `dmq::ISerializer<Sig>` — serialization interface; adapters for MessagePack, RapidJSON, Cereal, Bitsery
 - `dmq::transport::ITransport` — transport interface; adapters for ZeroMQ, NNG, MQTT, TCP/UDP, serial, pipes

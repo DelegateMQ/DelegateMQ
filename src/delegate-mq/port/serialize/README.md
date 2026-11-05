@@ -1,6 +1,6 @@
-# Serialization Layer
+# Serializers (DelegateMQ Abstraction Layer)
 
-This directory contains the serialization adapters for **DelegateMQ**, responsible for marshaling function arguments into binary or text formats for remote transmission.
+This directory contains the serializer part of the **DelegateMQ Abstraction Layer**: the `ISerializer` adapters responsible for marshaling function arguments into binary or text formats for remote transmission.
 
 DelegateMQ is designed to be **serialization-agnostic**. You can choose the serializer that best fits your project's performance, size, or compatibility requirements.
 

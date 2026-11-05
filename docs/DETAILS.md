@@ -291,7 +291,7 @@ See [DATABUS.md](DATABUS.md) for the full API reference, threading model, QoS op
 
 ## Performance Monitoring
 
-DelegateMQ includes high-resolution performance monitoring built directly into the `dmq::os::Thread` port layer. This instrumentation tracks how long every delegate message waits in a thread's queue before being processed, enabling real-time detection of thread contention, jitter, and system bottlenecks.
+DelegateMQ includes high-resolution performance monitoring built directly into every `dmq::os::Thread` port (the OS part of the DelegateMQ Abstraction Layer). This instrumentation tracks how long every delegate message waits in a thread's queue before being processed, enabling real-time detection of thread contention, jitter, and system bottlenecks.
 
 See [tools/TOOLS.md](../tools/TOOLS.md) for DataBus monitoring tools.
 
