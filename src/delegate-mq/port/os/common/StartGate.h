@@ -35,8 +35,10 @@
 ///   message; those messages are canceled as for `ExitPolicy::DISCARD`.
 /// - A held thread is not reported by the watchdog. Its watchdog starts when
 ///   the gate opens.
-/// - The gate must outlive the threads that use it, or at least their wait
-///   at it (destroying a gate with threads still holding faults).
+/// - The gate must outlive every thread's wait at it (destroying a gate with
+///   threads still holding faults). Once its threads are released it may be
+///   destroyed, e.g. a local in a startup function; but a thread re-created
+///   later reads its gate again, so call `SetStartGate(nullptr)` first.
 ///
 /// Supported where `DMQ_HAS_START_GATE` is defined (delegate/DelegateSelect.h):
 /// every thread port (not bare metal, which has no threads).
@@ -112,7 +114,8 @@ private:
     friend class CmsisRtos2Thread;
     friend class NuttXThread;
 
-    /// One per held thread, on that thread's stack: no allocation by the gate.
+    /// One per held thread, on that thread's stack; the gate itself allocates
+    /// nothing (on RTOS ports the semaphore creates OS objects).
     struct Waiter
     {
         dmq::Semaphore sem;
@@ -143,8 +146,17 @@ private:
     /// runs nothing.
     bool Wait(const std::atomic<bool>& exit, uint32_t openCountAtCreate)
     {
+        // Already open (the usual case after startup): don't create a waiter,
+        // whose semaphore is OS objects on the RTOS ports
+        {
+            dmq::LockGuard<dmq::Mutex> lock(m_mutex);
+            if (Released(openCountAtCreate) || exit.load())
+                return Released(openCountAtCreate);
+        }
+
         Waiter self;
         {
+            // Checked again: the gate may have opened since
             dmq::LockGuard<dmq::Mutex> lock(m_mutex);
             if (Released(openCountAtCreate) || exit.load())
                 return Released(openCountAtCreate);

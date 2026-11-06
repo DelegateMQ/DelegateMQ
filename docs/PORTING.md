@@ -381,7 +381,7 @@ gate.Open();                    // every held thread starts together
 - **No timeout:** a gate that is never opened holds its threads until they exit.
 - **Exit while held:** `ExitThread()` releases the thread without running any queued message; the messages are canceled as for `ExitPolicy::DISCARD`, so a blocked sender is released.
 - **Watchdog:** a held thread is not reported; its watchdog starts when the gate opens.
-- **Lifetime:** the gate must outlive the threads waiting at it. On an RTOS, construct it after the RTOS heap is available (for example inside the startup task), not as a global, since its mutex is an RTOS object.
+- **Lifetime:** the gate must outlive the threads waiting at it. Once they are released it may be destroyed (for example a local in a startup function); call `SetStartGate(nullptr)` before re-creating such a thread, since `CreateThread()` reads its gate again. On an RTOS, construct it after the RTOS heap is available (for example inside the startup task), not as a global, since its mutex is an RTOS object.
 
 On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same "all ready, one go" at boot without a gate; the gate also covers threads created after the scheduler starts, and the desktop ports.
 

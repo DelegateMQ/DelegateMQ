@@ -356,7 +356,9 @@ void QtThread::ExitThread(ExitPolicy policy)
 
         // A thread held at its start gate hasn't entered its event loop: wake it
         // so it sees m_exiting, switches to discard and runs to the quit below
-        if (m_startGate)
+        // Only while still held: a thread past the gate never touches it again,
+        // so the gate may be destroyed once its threads are released
+        if (m_startGate && m_gated.load())
             m_startGate->Wake();
 
         // Quit queued behind every message already dispatched, so DRAIN invokes

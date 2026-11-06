@@ -12,6 +12,8 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
+#include <new>
 
 #if defined(DMQ_HAS_START_GATE)
 
@@ -150,6 +152,26 @@ inline void WatchdogIgnoresHeldThread()
     t.ExitThread();
 }
 
+// A gate destroyed after it released its threads (e.g. a local in a startup
+// function): ExitThread() must not touch it. Its memory is overwritten after
+// the destructor, so a stray access fails instead of reading a stale gate.
+inline void GateDestroyedAfterRelease()
+{
+    dmq::os::Thread t("GateDestroyed");
+    alignas(dmq::os::StartGate) unsigned char storage[sizeof(dmq::os::StartGate)];
+    auto* gate = new (storage) dmq::os::StartGate;
+    t.SetStartGate(gate);
+    DMQ_ASSERT_TRUE(t.CreateThread());
+    Ran() = 0;
+    dmq::MakeDelegate(&Count, t)(0);
+    gate->Open();
+    DMQ_ASSERT_TRUE(WaitForRan(1));     // the thread is past the gate
+    gate->~StartGate();
+    std::memset(storage, 0xA5, sizeof(storage));
+    t.ExitThread();
+    t.SetStartGate(nullptr);            // before re-creating, or keep the gate alive
+}
+
 /// @param twoThreads false where the port can't have two DelegateMQ threads
 /// alive at once (the ThreadX Linux simulator; see threadx-linux's
 /// DelegateThreadsTests.cpp). Every other test uses one thread at a time.
@@ -160,6 +182,7 @@ inline void Run(bool twoThreads = true)
     OpenThenCloseStillReleases();
     OpenThenExitDrains();
     WatchdogIgnoresHeldThread();
+    GateDestroyedAfterRelease();
     printf("StartGatePortableTest::Run() complete!\n");
 }
 

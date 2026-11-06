@@ -24,6 +24,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **`DMQ_CUSTOM_FAULT_HANDLER`.** Define it when the application provides its own `FaultHandler()`/`WatchdogHandler()`; `port/fault/Fault.cpp` then compiles to nothing instead of having to be left out of the build.
 
 ### Fixed
+- **Start gate: `ExitThread()` touched a gate after it had released the thread.** Every port called `StartGate::Wake()` from `ExitThread()` whenever a gate was set, so a gate destroyed after `Open()` (a local in a startup function, say) was used after free when the thread later exited; in a Debug build `ExitThread()` hung on the freed gate's mutex. `ExitThread()` now wakes the gate only while the thread is still held. A new portable gate test covers it.
 - **Thread watchdog false reports.** Three cases reported a healthy thread as hung (`WatchdogHandler()`, a fault by default):
   - **An idle watched thread.** On every port except FreeRTOS, `CreateThread()` set the watchdog timeout after the thread was running, so a thread that read it first saw no watchdog and waited forever on an empty queue. Its heartbeat stopped, and it was reported one timeout later. A thread that received messages regularly reread the timeout and was fine. The timeout is now set before the thread starts.
   - **A thread after `ExitThread()`.** It stayed on the watchdog list until its `Thread` object was destroyed, so `WatchdogCheckAll()` reported it once it stopped. `ExitThread()` now stops the checks, on every port. That includes a thread that exits itself.

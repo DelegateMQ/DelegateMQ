@@ -168,7 +168,9 @@ void NuttXThread::ExitThread(ExitPolicy policy)
 
         // A thread held at its start gate isn't reading its queue: wake it so it
         // sees m_exit and drains to the exit message sent below
-        if (m_startGate)
+        // Only while still held: a thread past the gate never touches it again,
+        // so the gate may be destroyed once its threads are released
+        if (m_startGate && m_gated.load())
             m_startGate->Wake();
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
