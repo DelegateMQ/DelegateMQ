@@ -21,8 +21,11 @@
 ///   delegate messages in a thread-safe manner.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
-///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   -- the highest-priority task in the system, not an ISR (see Timer.h).
+///   Thread::WatchdogCheckAll() to be called periodically from a context that can preempt
+///   watched threads -- the highest-priority task in the system, not an ISR.
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"
@@ -203,7 +206,7 @@ private:
     static void Process(void* p1, void* p2, void* p3);
     void Run();
 
-    /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
+    /// Check watchdog is expired. Called by WatchdogCheckAll().
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
@@ -264,8 +267,8 @@ private:
     static const size_t STACK_SIZE = dmq::ZEPHYR_STACK_BYTES; // DMQ_ZEPHYR_STACK_BYTES
 
     // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::atomic<dmq::Duration> m_watchdogTimeout;
+    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
+    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
     ZephyrThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

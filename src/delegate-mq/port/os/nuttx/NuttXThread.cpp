@@ -85,6 +85,10 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // before it reaches the gate (e.g. created before the scheduler runs)
         m_gated.store(m_startGate != nullptr);
         m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
         m_discard.store(false);
 
         // 1. Create the message queue
@@ -122,7 +126,6 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
             const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
 
@@ -156,6 +159,9 @@ void NuttXThread::ExitThread(ExitPolicy policy)
 {
     if (m_created.load())
     {
+        // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
+        m_watchdogTimeout.store(dmq::Duration(0));
+
         // Set before m_exit: Run() reads it for every message ahead of the exit message
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);

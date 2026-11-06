@@ -974,6 +974,52 @@ static void StartGate_WatchdogIgnoresHeldThread()
     thread.ExitThread();
     std::cout << "StartGate_WatchdogIgnoresHeldThread() complete!" << std::endl;
 }
+
+// Checks every registered thread for `ms`. A false watchdog report ends the
+// process in WatchdogHandler(), so a test passes by getting through this.
+static void WatchdogCheckFor(int ms)
+{
+    auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+    while (std::chrono::steady_clock::now() < end)
+    {
+        Thread::WatchdogCheckAll();
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+}
+
+// A watched thread that never receives a message still refreshes its own
+// heartbeat (the timeout is set before the thread starts, so its first queue
+// wait is finite).
+static void Watchdog_IdleThreadNotReported()
+{
+    Thread thread("WatchdogIdleThread");
+    thread.CreateThread(std::chrono::milliseconds(100));
+    WatchdogCheckFor(400);
+    thread.ExitThread();
+    std::cout << "Watchdog_IdleThreadNotReported() complete!" << std::endl;
+}
+
+// After ExitThread(), a Thread object that still exists is no longer checked.
+static void Watchdog_ExitedThreadNotReported()
+{
+    Thread thread("WatchdogExitedThread");
+    thread.CreateThread(std::chrono::milliseconds(100));
+    thread.ExitThread();
+    WatchdogCheckFor(400);
+    std::cout << "Watchdog_ExitedThreadNotReported() complete!" << std::endl;
+}
+
+// Re-created without a timeout, a thread drops the watchdog it had before.
+static void Watchdog_RecreatedWithoutTimeoutNotReported()
+{
+    Thread thread("WatchdogRecreatedThread");
+    thread.CreateThread(std::chrono::milliseconds(100));
+    thread.ExitThread();
+    thread.CreateThread();
+    WatchdogCheckFor(400);
+    thread.ExitThread();
+    std::cout << "Watchdog_RecreatedWithoutTimeoutNotReported() complete!" << std::endl;
+}
 #endif // StartGate ports
 
 void DelegateThreadsTests()
@@ -1012,6 +1058,9 @@ void DelegateThreadsTests()
     StartGate_ExitWhileHeld();
     StartGate_OpenCloseAndNoGate();
     StartGate_WatchdogIgnoresHeldThread();
+    Watchdog_IdleThreadNotReported();
+    Watchdog_ExitedThreadNotReported();
+    Watchdog_RecreatedWithoutTimeoutNotReported();
 #endif
 #if defined(DMQ_HAS_START_GATE)
     StartGatePortableTest::Run();

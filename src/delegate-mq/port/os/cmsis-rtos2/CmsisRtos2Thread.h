@@ -33,8 +33,11 @@
 ///   the thread exits cleanly before destruction.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
-///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   — the highest-priority task in the system, not an ISR (see Timer.h).
+///   Thread::WatchdogCheckAll() to be called periodically from a context that can preempt
+///   watched threads -- the highest-priority task in the system, not an ISR.
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"
@@ -217,7 +220,7 @@ private:
     static void Process(void* argument);
     void Run();
 
-    /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
+    /// Check watchdog is expired. Called by WatchdogCheckAll().
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
@@ -262,8 +265,8 @@ private:
     static const uint32_t START_FLAG = 0x1U; // Thread flag: CreateThread() has stored m_thread
 
     // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::atomic<dmq::Duration> m_watchdogTimeout;
+    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
+    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
     CmsisRtos2Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

@@ -103,6 +103,10 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // before it reaches the gate (e.g. created before the scheduler runs)
         m_gated.store(m_startGate != nullptr);
         m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
         m_started = false;
 
         // Held until m_thread is stored and named. Process() takes this lock
@@ -110,7 +114,11 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // dispatch to this thread (both read m_thread).
         pthread_mutex_lock(&m_mutex);
         int rc = pthread_create(&m_thread, nullptr, &PosixThread::ThreadEntry, this);
-        if (rc != 0) { pthread_mutex_unlock(&m_mutex); return false; }
+        if (rc != 0) {
+            pthread_mutex_unlock(&m_mutex);
+            m_watchdogTimeout.store(dmq::Duration(0));  // no thread to refresh the heartbeat
+            return false;
+        }
         m_threadCreated = true;
 
         // Set the thread name for debugging (glibc extension, name truncated to
@@ -132,7 +140,6 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Caller wants a watchdog timer?
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
             // Add to watchdog registry if not already present
             {
@@ -219,6 +226,9 @@ void PosixThread::Sleep(dmq::Duration timeout) {
 void PosixThread::ExitThread(ExitPolicy policy)
 {
     if (!m_threadCreated) return;
+
+    // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
+    m_watchdogTimeout.store(dmq::Duration(0));
 
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr);
 

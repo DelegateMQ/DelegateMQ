@@ -71,6 +71,10 @@ bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // before it reaches the gate (e.g. created before the scheduler runs)
         m_gated.store(m_startGate != nullptr);
         m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
 
         {
             // Held until m_thread is fully constructed and named. Process() takes
@@ -91,7 +95,6 @@ bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Caller wants a watchdog timer?
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
             // Add to watchdog registry if not already present
             {
@@ -186,6 +189,9 @@ void StdlibThread::ExitThread(ExitPolicy policy)
 {
     if (!m_thread)
         return;
+
+    // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
+    m_watchdogTimeout.store(dmq::Duration(0));
 
     // Create a new ThreadMsg
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr);

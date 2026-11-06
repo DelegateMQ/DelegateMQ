@@ -98,6 +98,8 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     // before it reaches the gate (e.g. created before the scheduler runs)
     m_gated.store(m_startGate != nullptr);
     m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+    // No watchdog unless one is given below; set before the task exists
+    m_watchdogTimeout.store(0);
     m_discard.store(false);
 
     // 1. Create Synchronization Semaphore (Critical for cleanup)
@@ -181,7 +183,8 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         if (xReturn != pdPASS) {
             printf("Error: Failed to create task '%s'. OOM?\n", THREAD_NAME.c_str());
-            return false; 
+            m_watchdogTimeout.store(0);     // no task to refresh the heartbeat
+            return false;
         }
     }
 
@@ -202,6 +205,9 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 void FreeRTOSThread::ExitThread(ExitPolicy policy)
 {
     if (m_queue.IsCreated()) {
+        // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
+        m_watchdogTimeout.store(0);
+
         // Set before m_exit: Run() reads it for every message ahead of the exit message
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);

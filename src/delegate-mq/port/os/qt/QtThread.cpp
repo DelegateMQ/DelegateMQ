@@ -25,6 +25,10 @@ static int registerId = qRegisterMetaType<std::shared_ptr<dmq::DelegateMsg>>();
 // Worker::OnDispatch
 //----------------------------------------------------------------------------
 void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
+    // Watchdog heartbeat: the event loop reached another message
+    if (m_thread)
+        m_thread->ThreadCheck();
+
     // ExitPolicy::DISCARD: skip messages queued ahead of the event loop's quit
     if (m_discard.load()) {
         if (msg)
@@ -103,6 +107,23 @@ void Worker::StartIdleTimer(const dmq::UnicastDelegate<void()>& handler, dmq::Du
 }
 
 //----------------------------------------------------------------------------
+// Worker::StartHeartbeat
+//----------------------------------------------------------------------------
+void Worker::StartHeartbeat(dmq::Duration interval)
+{
+    auto ms = std::chrono::ceil<std::chrono::milliseconds>(interval).count();
+
+    m_heartbeatTimer = new QTimer(this);
+    m_heartbeatTimer->setInterval(static_cast<int>(ms > 0 ? ms : 1));
+    // Fires only while the event loop runs, so a stuck handler stops the heartbeat
+    connect(m_heartbeatTimer, &QTimer::timeout, this, [this]() {
+        if (m_thread)
+            m_thread->ThreadCheck();
+    });
+    m_heartbeatTimer->start();
+}
+
+//----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
 QtThread::QtThread(const char* threadName, size_t maxQueueSize, FullPolicy fullPolicy, dmq::Duration dispatchTimeout, const char* cpuName)
@@ -147,6 +168,10 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // before it reaches the gate (e.g. created before the scheduler runs)
         m_gated.store(m_startGate != nullptr);
         m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
         m_thread = new QThread();
         m_thread->setObjectName(QString::fromUtf8(m_threadName.c_str()));
 
@@ -177,12 +202,15 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         QtThread* qt = this;    // start gate state; no self-exit is possible this early
         connect(m_thread, &QThread::started, m_worker,
             [worker, self, qt, startSem, startHandler = m_startHandler,
-             idleHandler = m_idleHandler, idleInterval = m_idleInterval]() {
+             idleHandler = m_idleHandler, idleInterval = m_idleInterval,
+             watchdog = m_watchdogTimeout.load()]() {
                 worker->BeginCurrentScope(self);
                 if (startHandler)
                     startHandler();
                 if (idleHandler)
                     worker->StartIdleTimer(idleHandler, idleInterval);
+                if (watchdog.count() > 0)
+                    worker->StartHeartbeat(watchdog / 10);
                 startSem->release();
 
                 // Optional start gate: hold here, before the event loop runs any
@@ -221,7 +249,6 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
             // Add to watchdog registry if not already present
             {
@@ -317,6 +344,9 @@ void QtThread::ExitThread(ExitPolicy policy)
 {
     if (m_thread)
     {
+        // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
+        m_watchdogTimeout.store(dmq::Duration(0));
+
         m_exiting.store(true);
         const bool selfExit = (QThread::currentThread() == m_thread);
 

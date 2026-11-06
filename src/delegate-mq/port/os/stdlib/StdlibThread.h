@@ -28,6 +28,9 @@
 ///   is fully initialized and running before `CreateThread()` returns.
 /// * **Debug Support:** Sets the native thread name (on supported OSs like Windows) to 
 ///   aid debugging in IDEs.
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"
@@ -215,10 +218,8 @@ private:
 
     void SetThreadName(std::thread::native_handle_type handle, const dmq::xstring& name);
 
-    /// Check watchdog is expired. This function is called by the thread 
-    /// the calls Timer::ProcessTimers(). This function is thread-safe.
-    /// In a real-time OS, Timer::ProcessTimers() typically is called by the highest
-    /// priority task in the system.
+    /// Check watchdog is expired. Called by WatchdogCheckAll(), which the application
+    /// calls periodically, typically from its highest-priority task. Thread-safe.
     void WatchdogCheck();
 
     /// @brief Returns the head of the watchdog linked list.
@@ -269,8 +270,8 @@ private:
     std::optional<std::future<void>> m_threadStartFuture;
 
     // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::atomic<dmq::Duration> m_watchdogTimeout;
+    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
+    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
     StdlibThread* m_watchdogNext = nullptr;
 
     // Optional start gate (SetStartGate()); m_gated is true while held at it,

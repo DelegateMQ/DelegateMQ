@@ -18,8 +18,11 @@
 ///   execution across thread boundaries.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
-///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   -- typically a hardware timer ISR or the highest-priority task in the system.
+///   Thread::WatchdogCheckAll() to be called periodically from a context that can preempt
+///   watched threads -- the highest-priority thread in the system, not an ISR.
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 ///
 
 #include "delegate/IThread.h"
@@ -60,6 +63,10 @@ public:
     /// Start the idle countdown. Must be called on the worker's thread.
     void StartIdleTimer(const dmq::UnicastDelegate<void()>& handler, dmq::Duration interval);
 
+    /// Refresh the watchdog heartbeat every `interval` while the event loop is
+    /// idle. Must be called on the worker's thread.
+    void StartHeartbeat(dmq::Duration interval);
+
     /// Register `thread` for dmq::ThisThread::GetCurrent() until EndCurrentScope().
     /// Both must be called on the worker's thread.
     void BeginCurrentScope(dmq::IThread* thread) { m_currentScope.emplace(thread); }
@@ -82,6 +89,10 @@ private:
     // Created on the worker's thread by StartIdleTimer(); null if no idle handler.
     dmq::UnicastDelegate<void()> m_idleHandler;
     QTimer* m_idleTimer = nullptr;
+
+    // Watchdog heartbeat: refreshes the alive timestamp while the event loop is
+    // idle. Created by StartHeartbeat(); null if the thread has no watchdog.
+    QTimer* m_heartbeatTimer = nullptr;
 
     // Held for the life of the event loop: a Qt worker has no loop stack frame
     std::optional<dmq::CurrentThreadScope> m_currentScope;
@@ -258,7 +269,7 @@ private:
     QtThread(const QtThread&) = delete;
     QtThread& operator=(const QtThread&) = delete;
 
-    /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
+    /// Check watchdog is expired. Called by WatchdogCheckAll().
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
@@ -295,8 +306,8 @@ private:
     dmq::Duration m_idleInterval = dmq::Duration::zero();
 
     // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::atomic<dmq::Duration> m_watchdogTimeout;
+    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
+    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
     QtThread* m_watchdogNext = nullptr;
 
     // Optional start gate (SetStartGate()); m_gated is true while held at it,

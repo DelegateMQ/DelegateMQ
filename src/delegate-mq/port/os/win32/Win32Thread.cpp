@@ -73,6 +73,10 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // before it reaches the gate (e.g. created before the scheduler runs)
         m_gated.store(m_startGate != nullptr);
         m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
 
         // Manual-reset event for startup synchronization
         m_hStartEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -80,7 +84,10 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Created suspended so m_hThread/m_threadId are stored before the thread
         // runs: the start handler may call IsCurrentThread() or dispatch to it.
         m_hThread = ::CreateThread(NULL, 0, ThreadProc, this, CREATE_SUSPENDED, &m_threadId);
-        if (m_hThread == NULL) return false;
+        if (m_hThread == NULL) {
+            m_watchdogTimeout.store(dmq::Duration(0));  // no thread to refresh the heartbeat
+            return false;
+        }
 
         // Set the thread name so it shows in the Visual Studio Debug Location toolbar
         std::wstring wname(THREAD_NAME.begin(), THREAD_NAME.end());
@@ -98,7 +105,6 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Caller wants a watchdog timer?
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
             // Add to watchdog registry if not already present
             {
@@ -423,6 +429,9 @@ void Win32Thread::Process()
 void Win32Thread::ExitThread(ExitPolicy policy)
 {
     if (m_hThread == NULL) return;
+
+    // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
+    m_watchdogTimeout.store(dmq::Duration(0));
 
     // Messages taken off the queues without being invoked; canceled outside the lock
     decltype(m_highQueue) discardedHigh;
