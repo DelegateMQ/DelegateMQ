@@ -226,7 +226,7 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         // checks m_selfExitPtr immediately after the current callback invoke
         // returns, and unwinds without touching 'this' again.
         if (osThreadGetId() == m_thread) {
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
@@ -562,7 +562,6 @@ void CmsisRtos2Thread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
-                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -594,11 +593,12 @@ void CmsisRtos2Thread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     // Signal ExitThread() that we are done
     if (m_exitSem) {
         osSemaphoreRelease(m_exitSem);
     }
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

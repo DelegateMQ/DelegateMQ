@@ -41,7 +41,12 @@ extern void TimerDelegateTests();
 // hang below -- kept anyway since it's cheap insurance and still correct.
 #define MAIN_THREAD_STACK_SIZE 65536
 
+#define TIMER_THREAD_STACK_SIZE 8192
+
 static TX_TIMER g_systemTimer;
+static TX_SEMAPHORE g_timerTick;
+static TX_THREAD g_timerThread;
+static UCHAR g_timerThreadStack[TIMER_THREAD_STACK_SIZE];
 static TX_THREAD g_mainThread;
 static UCHAR g_mainThreadStack[MAIN_THREAD_STACK_SIZE];
 
@@ -51,10 +56,21 @@ static const char* CurrentThreadName()
     return thread ? thread->tx_thread_name : "ISR/Init";
 }
 
+// ThreadX timer callbacks don't run in thread context, and Timer::ProcessTimers()
+// takes OS mutexes (tx_mutex_create/tx_mutex_get return TX_CALLER_ERROR there).
+// The callback only signals; TimerThreadEntry() does the processing.
 static void SystemTimerCallback(ULONG)
 {
-    // Process all delegate-based timers
-    Timer::ProcessTimers();
+    tx_semaphore_ceiling_put(&g_timerTick, 1);
+}
+
+// Highest-priority application thread: processes all delegate-based timers.
+static void TimerThreadEntry(ULONG)
+{
+    while (true) {
+        tx_semaphore_get(&g_timerTick, TX_WAIT_FOREVER);
+        Timer::ProcessTimers();
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -220,7 +236,14 @@ static void MainThreadEntry(ULONG)
 // --------------------------------------------------------------------------
 extern "C" void main_delegate(void* /*first_unused_memory*/)
 {
-    // Periodic software timer drives DelegateMQ's Timer::ProcessTimers().
+    // Periodic software timer wakes TimerThreadEntry(), which runs DelegateMQ's
+    // Timer::ProcessTimers(). Priority 1: above every other application thread
+    // (0 is left to ThreadX's own timer thread).
+    tx_semaphore_create(&g_timerTick, const_cast<CHAR*>("TimerTick"), 0);
+    tx_thread_create(&g_timerThread, const_cast<CHAR*>("TimerThread"), TimerThreadEntry, 0,
+                      g_timerThreadStack, TIMER_THREAD_STACK_SIZE,
+                      1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
+
     // 1 tick == 10ms at the default TX_TIMER_TICKS_PER_SECOND (100Hz).
     tx_timer_create(&g_systemTimer, const_cast<CHAR*>("SysTimer"), SystemTimerCallback,
                      0, 1, 1, TX_AUTO_ACTIVATE);

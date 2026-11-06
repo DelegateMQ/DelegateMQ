@@ -262,7 +262,7 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
 
         if (isSelfExit) {
             m_selfExited.store(true);
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
             return;
         }
 
@@ -652,7 +652,6 @@ void ThreadXThread::Run()
 #endif
             if (selfExit) {
                 delete msg;
-                m_selfExitPtr = nullptr;
                 return;
             }
 
@@ -683,9 +682,10 @@ void ThreadXThread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     // Signal ExitThread() that the loop has exited
     tx_semaphore_put(&m_exitSem);
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

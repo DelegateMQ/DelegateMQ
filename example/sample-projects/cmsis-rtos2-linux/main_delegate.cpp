@@ -43,9 +43,21 @@ extern void TimerDelegateTests();
 // --------------------------------------------------------------------------
 // CMSIS-RTOS2 CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
+// The osTimer callback runs in ISR context here (Zephyr's k_timer underneath),
+// and Timer::ProcessTimers() takes OS mutexes, so the callback only signals;
+// TimerThreadEntry() does the processing.
+static osSemaphoreId_t g_timerTick;
+
 static void SystemTimerHandler(void* /*argument*/) {
-    // Process all delegate-based timers
-    Timer::ProcessTimers();
+    osSemaphoreRelease(g_timerTick);
+}
+
+// Highest-priority application thread: processes all delegate-based timers.
+static void TimerThreadEntry(void* /*argument*/) {
+    while (true) {
+        osSemaphoreAcquire(g_timerTick, osWaitForever);
+        Timer::ProcessTimers();
+    }
 }
 
 static const char* CurrentThreadName() {
@@ -201,9 +213,16 @@ int main() {
     // called), unlike a bare CMSIS-RTOS2 RTX5 target where main() itself
     // must call osKernelInitialize()/osKernelStart() to boot the RTOS.
 
-    // Periodic software timer drives DelegateMQ's Timer::ProcessTimers(),
-    // via the genuine CMSIS-RTOS2 osTimer API (backed by Zephyr's k_timer
-    // under the compatibility layer).
+    // Periodic software timer wakes TimerThreadEntry(), which runs DelegateMQ's
+    // Timer::ProcessTimers(). The timer uses the genuine CMSIS-RTOS2 osTimer API
+    // (backed by Zephyr's k_timer under the compatibility layer).
+    g_timerTick = osSemaphoreNew(1, 0, nullptr);
+    osThreadAttr_t timerAttr = {};
+    timerAttr.name = "TimerThread";
+    timerAttr.stack_size = 2048;    // CONFIG_CMSIS_V2_THREAD_DYNAMIC_STACK_SIZE
+    timerAttr.priority = osPriorityRealtime;
+    osThreadNew(TimerThreadEntry, nullptr, &timerAttr);
+
     osTimerId_t systemTimer = osTimerNew(SystemTimerHandler, osTimerPeriodic, nullptr, nullptr);
     osTimerStart(systemTimer, 10); // 10ms period
 

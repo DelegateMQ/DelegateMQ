@@ -205,7 +205,7 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         // straight to the join+free.
         if (k_current_get() == &m_thread) {
             m_selfExited.store(true);
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
             return;
         }
 
@@ -574,7 +574,6 @@ void ZephyrThread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
-                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -606,9 +605,10 @@ void ZephyrThread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     // Signal that we are about to exit
     k_sem_give(&m_exitSem);
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

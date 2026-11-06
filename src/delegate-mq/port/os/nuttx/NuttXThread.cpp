@@ -191,7 +191,7 @@ void NuttXThread::ExitThread(ExitPolicy policy)
         // returned/is returning on its own) and go straight to the join.
         if (pthread_equal(pthread_self(), m_thread)) {
             m_selfExited.store(true);
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
             return;
         }
 
@@ -554,7 +554,6 @@ void NuttXThread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
-                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -586,9 +585,10 @@ void NuttXThread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     // Signal that we are about to exit
     sem_post(&m_exitSem);
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

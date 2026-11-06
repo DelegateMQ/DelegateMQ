@@ -226,7 +226,7 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
         // m_selfExitPtr immediately after the current callback invoke
         // returns, and unwinds without touching 'this' again.
         if (xTaskGetCurrentTaskHandle() == m_thread) {
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
         } else {
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
 
@@ -539,7 +539,6 @@ void FreeRTOSThread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
-                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -571,10 +570,11 @@ void FreeRTOSThread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     if (m_exitSem) {
         xSemaphoreGive(m_exitSem);
     }
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

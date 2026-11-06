@@ -267,8 +267,8 @@ static void TimerDelegate_SharedPtr_SkipsDestroyedObject()
 // Unlike test/unit-tests' version, this doesn't spin up its own thread to
 // drive Timer::ProcessTimers() -- main() already starts g_systemTimer
 // (a k_timer) before ExecuteAllTests() runs, and it's still active here,
-// calling Timer::ProcessTimers() every 10ms from ISR context, the same one
-// Test 8 relies on. Spinning up an extra raw std::thread for this, as
+// waking g_timerThread to call Timer::ProcessTimers() every 10ms, the same
+// one Test 8 relies on. Spinning up an extra raw std::thread for this, as
 // test/unit-tests' version does, would be actively unsafe on native_sim --
 // see the dmq::Mutex comment in DelegateThreadsTests.cpp in this directory.
 static void TimerDelegate_WithTimer_DispatchesToThread()
