@@ -23,7 +23,8 @@ All four share the same `dmq::MakeDelegate()` factory and `operator()` invocatio
 
 - `dmq::databus::DataBus` — topic-based publish/subscribe middleware, location-transparent across threads and remote nodes
 - `dmq::databus::Participant` — represents a remote node; bridges local and remote topics
-- `dmq::databus::QoS` — per-topic quality-of-service: Last Value Cache (LVC), Lifespan, Min Separation, Deadline Monitoring
+- `dmq::databus::QoS` — per-subscription quality-of-service: Last Value Cache (LVC), Lifespan, Min Separation
+- `dmq::databus::DeadlineSubscription<T>` — deadline monitoring: detects a publisher that goes silent (needs `Timer::ProcessTimers()`)
 
 ### Ports & Interfaces
 
@@ -86,18 +87,20 @@ tx(42);  // serialized and sent over the network
 
 ```cpp
 auto conn = dmq::databus::DataBus::Subscribe<float>(
-    "sensor/temp", [](const float& v) { use(v); }, workerThread);
+    "sensor/temp", [](const float& v) { use(v); }, &workerThread);  // IThread*; omit for sync
 dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 ```
 
 ## Threading and Async Model
 
-- No internal threads are created by the library; every thread is explicitly constructed by the application.
+- The core library creates no threads; every thread is explicitly constructed by the application. The exceptions are opt-in helpers that each own one receive thread: `dmq::databus::NetworkNode` and `dmq::rpc::RemoteDispatcher`.
 - Async delegates are queued to the target thread's priority queue; the thread's `Process()` loop dequeues and invokes.
 - Non-blocking async (`DelegateAsync`) copies all arguments so the caller can return immediately without stack lifetime risk: by-value arguments are stored in the message (one copy, as for a sync call), and the data behind reference and pointer arguments is copied to the heap.
 - Blocking async (`DelegateAsyncWait`) passes arguments on the stack; the caller blocks until the target thread completes.
 - Thread constructor parameters `threadName` and `cpuName` are `const char*` at the binary interface (with `std::string` inline overloads).
 - Thread queue full policy is configurable per thread via `dmq::FullPolicy` (aliased as `dmq::os::FullPolicy`): `DROP` (discard), `TIMEOUT` (wait then drop), or `FAULT` (assert/halt, the default).
+- Thread queue size: `maxQueueSize = 0` (the default) means the port's default size (`dmq::DEFAULT_QUEUE_SIZE` on RTOS ports and Qt, `dmq::THREAD_DESKTOP_QUEUE_SIZE` on stdlib/Win32/POSIX), never unbounded.
+- Synchronized start: an optional `dmq::os::StartGate`, set with `Thread::SetStartGate(&gate)` before `CreateThread()`, holds any number of threads ready but processing nothing (at any priority) until `gate.Open()` releases them together. Available on every thread port (`DMQ_HAS_START_GATE`), not bare metal. See [PORTING](docs/PORTING.md#start-gate-synchronized-start).
 - Thread exit behavior is configurable via `dmq::ExitPolicy`: `DRAIN` (default; invoke every message queued before `ExitThread()`) or `DISCARD` (drop queued messages; blocked `DelegateAsyncWait` senders are cancelled rather than left waiting).
 
 ## Object Lifetime Safety
@@ -116,7 +119,7 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 - `Signal::Connect()` and every `Subscribe*()` return a `[[nodiscard]]` `dmq::ScopedConnection` that owns the subscription. Discarding it disconnects immediately: no callbacks, no error. Store it in a member variable or container.
 - Each DataBus topic has exactly one C++ type; a type mismatch between publisher and subscriber triggers a fault at runtime.
 - `Signal` is thread-safe for concurrent connect/disconnect/emit, but a synchronous subscriber connected to a `Signal` runs inline on the emitting thread (potential priority inversion).
-- Message dispatch order on a thread is by priority queue, not strict FIFO. Use explicit sequencing if ordering across multiple sources matters.
+- Message dispatch order on a thread: `HIGH` priority messages run before `NORMAL` ones; within each priority, FIFO. Use explicit sequencing if ordering across multiple sources matters.
 - Don't delete a `dmq::os::Thread` from one of its own callbacks: on ThreadX and Zephyr it faults, since the thread's stack can't be freed while it runs on it. Call `ExitThread()` from the callback and delete the object from another thread.
 - **LVC rewind (out-of-order delivery):** when a subscriber connects to a Last Value Cache topic with a worker thread, it may receive a fresh live value followed by a stale cached value delivered slightly late. The DataBus dispatches the LVC value outside its internal lock to prevent deadlocks, which opens a narrow window for a concurrent publisher to push a newer value first. The fix is an application-level sequence number: embed a `uint32_t seq` in every message (stamp it at publish time with an atomic counter) and guard the subscriber with `dmq::util::MonotonicGuard<uint32_t>::IsNewer(msg.seq)` — stale arrivals are silently discarded. `MonotonicGuard` handles `uint32_t` rollover correctly via signed-difference comparison.
 
@@ -130,7 +133,7 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 - `void Start(dmq::Duration timeout, bool once = false)` — start the timer; `once = true` fires once then disables, `once = false` (default) repeats
 - `void Stop()` — stop the timer; removal from the list is deferred to the next `ProcessTimers()` call
 - `bool Enabled()` — returns whether the timer is currently active
-- `static dmq::TimePoint GetNow()` — current time from the steady clock
+- `static dmq::TimePoint GetNow()` — current time from `dmq::Clock` (the port's monotonic clock)
 
 ### ProcessTimers()
 
@@ -138,18 +141,13 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 static void Timer::ProcessTimers();
 ```
 
-Must be called periodically from the highest-priority context available. `Timer::GetLock()` returns `dmq::CriticalSection` — a portable type resolved per-port in `DelegateOpt.h`, distinct from `dmq::Mutex`/`RecursiveMutex` specifically because it must sometimes work from ISR context (an OS mutex categorically cannot: mutexes carry an "owning thread" concept for priority inheritance that has no meaning in interrupt context). Per-port status:
+Must be called periodically, from a main loop or a high-priority task. The timer list itself is guarded by `Timer::GetLock()`, a `dmq::CriticalSection` (interrupt masking on RTOS and bare-metal ports, resolved per port in `DelegateOpt.h`), and `Start()`/`Stop()` take only that lock. `ProcessTimers()` then copies each expired timer's subscribers under `Timer::GetProcessLock()`, a `dmq::RecursiveMutex`, which can lock OS mutexes and allocate. So:
 
 | Port | Call `ProcessTimers()` from a hardware ISR? |
 |---|---|
-| Bare-metal / no RTOS (`DMQ_THREAD_NONE`), ARM or RISC-V | Yes |
-| ThreadX | Yes |
-| FreeRTOS on real ARM Cortex-M (e.g. `stm32-freertos`) | Yes |
-| FreeRTOS on the POSIX/Win32 simulator ports | No — task context only |
-| Zephyr | Yes |
-| CMSIS-RTOS2 | Yes per documented API (critical section not yet verified on hardware) |
-| NuttX | Yes in a FLAT build |
-| Desktop (stdlib/Win32/POSIX/Qt) | N/A — `CriticalSection` is a `RecursiveMutex`; call from a thread |
+| Bare metal / no RTOS (`DMQ_THREAD_NONE`), ARM or RISC-V | Yes (e.g. `SysTick_Handler`) |
+| Every RTOS port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX) | No — call it from a task (OS mutexes can't be taken in an ISR) |
+| Desktop (stdlib/Win32/POSIX/Qt) | No — call it from a thread |
 
 Implementation per port and how each was verified: see the ISR-Safe Locking section of [CLAUDE.md](CLAUDE.md).
 
@@ -157,23 +155,20 @@ It checks every active timer, collects expired timers, then invokes their `OnExp
 
 **ProcessTimers() must never block.** Scenarios that cause blocking or faulting:
 
-1. A timer callback dispatches to a thread whose queue is full and the thread uses `FullPolicy::TIMEOUT` — stalls up to the timeout. Fix: use `FullPolicy::FAULT` or `DROP` on threads that receive timer dispatches.
+1. A timer callback dispatches to a thread whose queue is full and the thread uses `FullPolicy::TIMEOUT` — stalls up to the timeout. Fix: use `FullPolicy::FAULT` or `DROP` on threads that receive timer dispatches, or `MakeTimerDelegate()` (below).
 2. A `DelegateAsyncWait` is connected to `OnExpired` — blocks indefinitely. Never do this.
 3. A synchronous callback connected to `OnExpired` runs slowly — blocks for its duration. Keep sync callbacks fast or dispatch work asynchronously.
-4. Calling `ProcessTimers()` from a genuine hardware ISR on the FreeRTOS POSIX/Win32 simulator ports, or on desktop (stdlib/Win32/POSIX/Qt) — faults or is undefined, since `Timer::GetLock()` is `RecursiveMutex` there. Not an issue on the other ports; see the table above.
+4. Calling `ProcessTimers()` from a hardware ISR on any port except bare metal — it takes OS mutexes there. See the table above.
 
 ### Recommended call sites
 
 ```cpp
-// Bare-metal, ThreadX, or real ARM Cortex-M FreeRTOS/Zephyr/CMSIS-RTOS2 —
-// hardware ISR is safe (preempts all tasks)
+// Bare metal (DMQ_THREAD_NONE) only — hardware ISR is safe
 extern "C" void SysTick_Handler() {
     dmq::util::Timer::ProcessTimers();
 }
 
-// FreeRTOS/Zephyr/CMSIS-RTOS2 desktop simulator ports, or desktop
-// (stdlib/Win32/Qt) — highest-priority dedicated task (thread context).
-// Also fine on every other port if you'd rather not use an ISR.
+// Every RTOS port, and desktop — a high-priority task or thread
 void TimerTask(void*) {
     while (true) {
         dmq::util::Timer::ProcessTimers();
@@ -302,7 +297,7 @@ Without a timeout argument, the watchdog is disabled for that thread.
 
 ### How it works
 
-1. **Self-reporting:** The thread's `Process()` loop records `m_lastAliveTime = Timer::GetNow()` at the top of every iteration and again after waking from the queue wait. With a watchdog enabled the queue wait uses a finite timeout (`watchdogTimeout / 10`) so even idle threads loop frequently.
+1. **Self-reporting:** The thread's `Process()` loop records `m_lastAliveTime = Timer::GetNow()` at the top of every iteration and again after waking from the queue wait. With a watchdog enabled the queue wait uses a finite timeout (`watchdogTimeout / 10` on stdlib/Win32/POSIX, `/ 4` on the RTOS ports) so even idle threads loop frequently.
 2. **Checking:** the application calls the static `dmq::os::Thread::WatchdogCheckAll()` periodically (e.g. every 100 ms) from its own loop or task — the library does not schedule it, and `ProcessTimers()` does not call it. It reads `m_lastAliveTime` atomically for each registered thread. If `now − lastAlive > watchdogTimeout`, `WatchdogHandler(threadName)` is called.
 
 ```cpp
@@ -336,13 +331,13 @@ void MyClass::LongHandler() {
 | `CreateThread(std::optional<dmq::Duration>)` | Pass a timeout to enable the watchdog and register the thread |
 | `static WatchdogCheckAll()` | Check every registered thread; call periodically from the application |
 | `ThreadCheck()` | Manually reset the alive timestamp inside a long handler |
-| `ExitThread()` | Unregisters the thread from the watchdog list |
+| `ExitThread()` | Stops watchdog checks for the thread (it stays registered until destroyed) |
 
 ### Priority requirement
 
 The watchdog only catches a runaway thread if the `WatchdogCheckAll()` caller runs at **higher priority** than the runaway thread. On a single-core RTOS, a CPU-spinning task at equal or higher priority than that caller will starve the watchdog — so call it from the highest-priority task in the system.
 
-Do **not** call `WatchdogCheckAll()` from a hardware ISR: it takes the thread list's `dmq::RecursiveMutex`, an OS mutex that cannot be acquired from interrupt context on any RTOS port (unlike `ProcessTimers()`, whose `dmq::CriticalSection` is ISR-safe on most ports).
+Do **not** call `WatchdogCheckAll()` from a hardware ISR: it takes the thread list's `dmq::RecursiveMutex`, an OS mutex that cannot be acquired from interrupt context on any RTOS port.
 
 For maximum reliability, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) and kick it from the same loop, right after `WatchdogCheckAll()` returns — that way a stuck or starved watchdog task also triggers a hardware reset.
 

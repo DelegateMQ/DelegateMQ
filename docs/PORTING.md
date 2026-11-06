@@ -33,12 +33,12 @@ The implementations of these interfaces (OS ports in `src/delegate-mq/port/os`, 
 
 1. **Search codebase for `@TODO`** — find specific decision locations tagged in the source files.
 2. **Implement `dmq::IThread`** — required to use **Asynchronous** delegates.
-3. **Implement `dmq::ISerializer` and `dmq::IDispatcher`** — required to use **Remote** delegates across processes/processors.
-   - *Note:* If using the **DataBus** (DDS Lite), you instead implement `dmq::transport::ITransport` which is the transport interface used by the DataBus `Participant` class.
-   - *Optional:* Implement `dmq::transport::ITransportMonitor` if your application layer requires command acknowledgments (ACKs).
+3. **Implement `dmq::transport::ITransport`** for a new transport — required to use **Remote** delegates or the **DataBus** across processes/processors. `dmq::RemoteChannel` and the DataBus `Participant` both send through it; the library's `dmq::Dispatcher` already implements `dmq::IDispatcher` on top of it.
+   - Implement `dmq::ISerializer` only for a new serialization format, and `dmq::IDispatcher` directly only to bypass `ITransport` entirely.
+   - *Optional:* `dmq::util::TransportMonitor`, `RetryMonitor` and `ReliableTransport` add ACKs and retries over an unreliable transport.
    - See [Sample Projects](../example/sample-projects/README.md) for numerous remote delegate examples.
-4. **Check System Clock** — ensure `std::chrono::steady_clock` is supported on your target hardware, as it is required for timers and transport timeouts. Otherwise, change `dmq::Clock` in `DelegateOpt.h` to a new clock type.
-5. **Call `dmq::util::Timer::ProcessTimers()`** — periodically call `ProcessTimers()` (e.g., from a main loop or a high-priority task) to support timers and thread watchdogs. On an RTOS it must run in a task, not an ISR: it takes OS mutexes. Only bare metal (`DMQ_THREAD_NONE`) can call it from a hardware timer ISR.
+4. **Provide a Clock** — timers and transport timeouts use `dmq::Clock`. `DelegateOpt.h` selects it per OS port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`). A new port supplies a clock there, or uses `std::chrono::steady_clock` if the target supports it.
+5. **Call `dmq::util::Timer::ProcessTimers()`** — periodically call `ProcessTimers()` (e.g., from a main loop or a high-priority task) to support timers. Thread watchdogs need `Thread::WatchdogCheckAll()` called the same way (see [Watchdog Integration](#watchdog-integration)). On an RTOS it must run in a task, not an ISR: it takes OS mutexes. Only bare metal (`DMQ_THREAD_NONE`) can call it from a hardware timer ISR.
 6. **Configure Build Options** — set CMake DMQ library build options within `CMakeLists.txt`.
    - Example: `DMQ_ASSERTS` for debug assertions.
    - Example: `DMQ_ALLOCATOR` to switch between standard heap (`new`/`delete`) and the deterministic Fixed Block Allocator.
@@ -157,7 +157,10 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
     if (!threadMsg) return false;
 
-    TickType_t timeout = (FULL_POLICY == FullPolicy::DROP) ? 0 : portMAX_DELAY;
+    // TIMEOUT waits up to m_dispatchTimeout; DROP and FAULT don't wait
+    TickType_t timeout = (FULL_POLICY == FullPolicy::TIMEOUT)
+        ? pdMS_TO_TICKS(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count())
+        : 0;
     if (!m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::HIGH, timeout))
     {
         delete threadMsg;  // queue full, dropped per policy
@@ -295,7 +298,7 @@ High-priority delegate messages jump ahead of normal ones, while each priority s
 
 #### dmq::FullPolicy (Back Pressure / Drop)
 
-When a thread's message queue has a fixed size (`maxQueueSize > 0`), `dmq::FullPolicy` controls what `DispatchDelegate()` does when the queue is full. It's defined once in `DelegateOpt.h`; every port aliases it as `dmq::os::FullPolicy` for source compatibility, so either name works. The default is `FullPolicy::FAULT`.
+Every thread's message queue has a fixed size, and `dmq::FullPolicy` controls what `DispatchDelegate()` does when the queue is full. It's defined once in `DelegateOpt.h`; every port aliases it as `dmq::os::FullPolicy` for source compatibility, so either name works. The default is `FullPolicy::FAULT`.
 
 ```cpp
 // Fault on overflow — appropriate for threads that must never silently lose messages
@@ -312,7 +315,7 @@ dmq::os::Thread sensorThread("SensorThread", /*maxQueueSize=*/10, dmq::FullPolic
 - **`FullPolicy::TIMEOUT`**: `DispatchDelegate()` waits up to `dispatchTimeout` (default `dmq::DEFAULT_DISPATCH_TIMEOUT` = 2 s) for the consumer to drain a slot, then logs a warning and drops the message. This provides bounded back pressure — the publisher is held briefly during transient bursts but is never stalled indefinitely. Use for critical topics (commands, state transitions) where every message should be delivered if possible but unbounded blocking is unacceptable. Choose a timeout shorter than the watchdog timeout so stalls are detected and reported.
 - **`FullPolicy::DROP`**: `DispatchDelegate()` silently discards the message and returns immediately without stalling the caller. Ideal for high-rate best-effort data (sensor telemetry, display updates) where a stale sample is preferable to stalling the publisher.
 
-Setting `maxQueueSize = 0` disables the limit entirely — `FullPolicy` has no effect and all messages are queued regardless of consumer speed.
+`maxQueueSize = 0` (the default) means "this port's default size", not "unbounded": `dmq::DEFAULT_QUEUE_SIZE` (`DMQ_DEFAULT_QUEUE_SIZE`, 20) on the RTOS ports and Qt, `dmq::THREAD_DESKTOP_QUEUE_SIZE` (`DMQ_THREAD_DESKTOP_QUEUE_SIZE`, 1000) on stdlib, Win32 and POSIX. `FullPolicy` always applies; no port has an unbounded queue.
 
 `FullPolicy` is a thread-level setting. All delegates dispatched to the same `dmq::os::Thread` instance share the policy. If a single thread serves both drop-tolerant and loss-intolerant subscribers, split them across separate threads with different policies.
 
@@ -384,7 +387,7 @@ On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same
 
 **Supported ports:** every thread port (stdlib, Win32, POSIX, Qt, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX). Not bare metal (`DMQ_THREAD_NONE`), which has no threads; `DMQ_HAS_START_GATE` (`delegate/DelegateSelect.h`) is defined wherever the gate exists, for code also built for bare metal. Cellutron's controller (`System::Initialize()` in `example/cellutron/controller/system/System.cpp`) is a worked example.
 
-**Porting:** in the worker's entry function, after signalling `CreateThread()` that the thread is running and before the message loop, call `m_startGate->Wait(m_exit)`; on `false` (exit requested) leave without running a message. In `ExitThread()`, call `m_startGate->Wake()` after setting the exit flag. Skip `WatchdogCheck()` while held. Set `m_gated` in `CreateThread()`, before the thread exists, so the watchdog skips it from the start. See `StdlibThread.cpp`, and `FreeRTOSThread.cpp` for a port whose exit message send can block on a full queue: there a thread exiting while held turns on discard and drains to the exit message instead of returning. `test/unit-tests/StartGatePortableTest.h` has tests any port can run.
+**Porting:** in `CreateThread()`, before the thread exists, set `m_gated` (so the watchdog skips the thread from the start) and save `m_startGate->OpenCount()` in `m_gateOpenCount`. In the worker's entry function, after signalling `CreateThread()` that the thread is running and before the message loop, call `m_startGate->Wait(m_exit, m_gateOpenCount)`. It returns `true` if the gate was opened, even when an exit was also requested (so `ExitThread(DRAIN)` still runs queued messages), and `false` if the thread exits while still held; then leave without running a message. In `ExitThread()`, call `m_startGate->Wake()` after setting the exit flag. Skip `WatchdogCheck()` while held. See `StdlibThread.cpp`, and `FreeRTOSThread.cpp` for a port whose exit message send can block on a full queue: there a thread exiting while held turns on discard and drains to the exit message instead of returning. `test/unit-tests/StartGatePortableTest.h` has tests any port can run.
 
 ### Watchdog Integration
 
@@ -394,38 +397,38 @@ All `dmq::os::Thread` port implementations (stdlib, Win32, POSIX, FreeRTOS, CMSI
 thread.CreateThread(std::chrono::seconds(2));  // fault if thread stalls > 2s
 ```
 
-The mechanism uses a single `dmq::util::Timer` object — no additional OS threads are created:
+No timer and no extra OS thread are involved. The application drives the check:
 
-- **`m_watchdogTimer`** (fires every `timeout/2`): calls `WatchdogCheck()` synchronously in the `dmq::util::Timer::ProcessTimers()` caller context. `WatchdogCheck()` reads `m_lastAliveTime` atomically. If `now − m_lastAliveTime > timeout`, a fault is triggered.
+- **`Thread::WatchdogCheckAll()`** (static): the application calls it periodically (e.g. every 100 ms) from its own loop or task. The library doesn't schedule it, and `ProcessTimers()` doesn't call it. It walks the list of threads created with a watchdog timeout and calls each one's `WatchdogCheck()`, which reads `m_lastAliveTime` atomically. If `now − m_lastAliveTime > timeout`, `WatchdogHandler()` is called (a fault by default).
 
-The worker thread's `Run()` loop updates `m_lastAliveTime` directly at the top of every iteration. When a watchdog timeout is configured, the queue-receive call uses a finite wait of `timeout/4`, so the loop cycles and refreshes the timestamp even when the thread is completely idle. No queue messages are needed to maintain liveness — there is no cross-thread dispatch involved in the watchdog path.
+The worker thread's loop updates `m_lastAliveTime` directly at the top of every iteration. When a watchdog timeout is configured, the queue wait is finite (`timeout/10` on stdlib, Win32 and POSIX; `timeout/4` on the RTOS ports), so the loop cycles and refreshes the timestamp even when the thread is completely idle. No queue messages are needed to maintain liveness — there is no cross-thread dispatch involved in the watchdog path.
 
 ```
-ProcessTimers() caller (highest-priority task; ISR on bare metal only)
+Application watchdog task (highest priority)
    │
-   └─ m_watchdogTimer fires (timeout/2)
-        └─ WatchdogCheck() runs inline — reads m_lastAliveTime atomically
-             └─ gap > timeout → trigger fault/recovery
+   └─ Thread::WatchdogCheckAll() every ~100 ms
+        └─ WatchdogCheck() per registered thread — reads m_lastAliveTime atomically
+             └─ gap > timeout → WatchdogHandler() (fault/recovery)
 
-worker Run() loop
+worker loop
    top-of-loop: m_lastAliveTime = now           ← refreshed every iteration
-   queue receive (blocks at most timeout/4)      ← finite wait; loops even when idle
+   queue wait (finite when a watchdog is set)    ← loops even when idle
    process message (or wake on timeout, loop back)
 ```
 
 #### Priority Requirement — Critical on Single-Core RTOS
 
-The watchdog **only catches CPU-spinning runaway threads** if `dmq::util::Timer::ProcessTimers()` runs at a **higher priority** than the threads it watches. On a single-core RTOS (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2), a runaway high-priority task starves all lower-priority tasks including the one calling `ProcessTimers()` — the watchdog timers never fire and the fault is never detected.
+The watchdog **only catches CPU-spinning runaway threads** if `WatchdogCheckAll()` runs at a **higher priority** than the threads it watches. On a single-core RTOS (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX), a runaway high-priority task starves all lower-priority tasks, including the one calling `WatchdogCheckAll()`, so the check never runs and the fault is never detected.
 
-| Failure mode | ProcessTimers() priority requirement |
+| Failure mode | `WatchdogCheckAll()` priority requirement |
 |:---|:---|
 | Deadlocked thread (blocked on mutex/semaphore) | Any — blocked threads don't consume CPU |
-| Idle thread (waiting for messages) | Any — `Run()` loops every `timeout/4` even with no messages |
+| Idle thread (waiting for messages) | Any — the loop cycles on its finite queue wait even with no messages |
 | CPU-spinning runaway (infinite loop in callback) | **Must be higher** than the watched thread |
 
-On an RTOS (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX), `ProcessTimers()` must run in a task, not an ISR: it takes OS mutexes to copy each expired timer's subscribers, and RTOS mutexes can't be taken from an ISR. That leaves the highest-priority task:
+`WatchdogCheckAll()` takes the thread list's `dmq::RecursiveMutex`, an OS mutex, so it must run in a task, never an ISR. That leaves the highest-priority task:
 
-**Highest-priority task (RTOS ports):** Dedicate the system's highest-priority task to calling `dmq::util::Timer::ProcessTimers()` in a tight loop. This task must be strictly higher priority than any thread it is watching — a runaway task at equal or lower priority will starve it and defeat the watchdog.
+**Highest-priority task:** Dedicate the system's highest-priority task to calling `WatchdogCheckAll()` periodically. It must be strictly higher priority than any thread it watches — a runaway task at equal or higher priority will starve it and defeat the watchdog. The same task can also call `dmq::util::Timer::ProcessTimers()`.
 
 ```cpp
 // FreeRTOS example: dedicated watchdog task at highest priority
@@ -433,8 +436,8 @@ void WatchdogTask(void*)
 {
     while (true)
     {
-        dmq::util::Timer::ProcessTimers();
-        vTaskDelay(pdMS_TO_TICKS(10));  // 10ms tick rate
+        dmq::os::Thread::WatchdogCheckAll();
+        vTaskDelay(pdMS_TO_TICKS(100));  // check every 100 ms
     }
 }
 
@@ -442,20 +445,22 @@ void WatchdogTask(void*)
 xTaskCreate(WatchdogTask, "Watchdog", 512, nullptr, configMAX_PRIORITIES - 1, nullptr);
 ```
 
+`example/cellutron` calls `Thread::WatchdogCheckAll()` from each node's main loop (stdlib, FreeRTOS and ThreadX builds).
+
 #### Watchdog Limitations
 
-**1. Long-running message handlers.**  
-`Run()` updates `m_lastAliveTime` only at the top of each iteration, before blocking on the queue receive. If a message handler runs longer than `watchdogTimeout`, the watchdog fires — this is the correct behavior (the thread is unresponsive to new messages during that time). If a handler is legitimately long (e.g., a blocking flash write or a slow I/O call), either:
+**1. Long-running message handlers.**
+The loop updates `m_lastAliveTime` only at the top of each iteration, before blocking on the queue. If a message handler runs longer than `watchdogTimeout`, the watchdog fires — this is the correct behavior (the thread is unresponsive to new messages during that time). If a handler is legitimately long (e.g., a blocking flash write or a slow I/O call), either:
 - Call `ThreadCheck()` periodically inside the handler to reset the alive timestamp, or
 - Set `watchdogTimeout` large enough to cover the worst-case handler duration.
 
-**2. `ProcessTimers()` context must remain alive.**  
-`WatchdogCheck()` runs in whichever context calls `dmq::util::Timer::ProcessTimers()`. If that context itself deadlocks, starves, or is never scheduled, the watchdog timer never fires and no fault is detected. Mitigations:
-- Run `ProcessTimers()` in the system's highest-priority task, so only an equal- or higher-priority runaway can starve it. (Bare metal can call it from a hardware timer ISR, e.g. SysTick, which preempts everything.)
-- For a final backstop against total system freeze, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) kicked inside `WatchdogCheck()`. The software watchdog detects soft stalls; the hardware watchdog catches a completely frozen `ProcessTimers()` context.
+**2. The `WatchdogCheckAll()` caller must remain alive.**
+If the task that calls `WatchdogCheckAll()` itself deadlocks, starves, or is never scheduled, no check runs and no fault is detected. Mitigations:
+- Call it from the system's highest-priority task, so only an equal- or higher-priority runaway can starve it.
+- For a final backstop against total system freeze, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) kicked in the same loop, right after `WatchdogCheckAll()` returns. The software watchdog detects soft stalls; the hardware watchdog catches a frozen watchdog task.
 
 **3. Priority requirement on single-core RTOS (see table above).**  
-For CPU-spinning runaways, `ProcessTimers()` must run at a higher priority than the watched thread. A deadlocked or idle thread does not require elevated priority because it yields the CPU voluntarily.
+For CPU-spinning runaways, `WatchdogCheckAll()` must run at a higher priority than the watched thread. A deadlocked or idle thread does not require elevated priority because it yields the CPU voluntarily.
 
 ### Performance Monitoring
 

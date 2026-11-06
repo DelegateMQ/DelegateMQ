@@ -161,7 +161,8 @@ public:
     }
 
     /// @brief Invoke the channel (fire-and-forget send).
-    /// @pre Bind() must have been called first.
+    /// @pre A remote ID is set: passed to the constructor, or set by SetRemoteId() or
+    /// Bind(). A send-only channel needs no Bind().
     /// Thread-safe: the internal delegate holds `m_sendMutex` while it sends.
     void operator()(Args... args) {
         m_delegate(std::forward<Args>(args)...);

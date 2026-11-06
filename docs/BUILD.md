@@ -183,8 +183,11 @@ Passed via `-D` flags during configuration. These are the most common overrides:
 | `DMQ_TRANSPORT` | Platform UDP (Windows/Linux) | Transport port, e.g. `DMQ_TRANSPORT_ZEROMQ`, `DMQ_TRANSPORT_WIN32_TCP`, `DMQ_TRANSPORT_NONE`. |
 | `DMQ_ASSERTS` | `OFF` | Use asserts routed to `FaultHandler` instead of C++ exceptions (auto-enabled when exceptions are disabled). |
 | `DMQ_ALLOCATOR` | `OFF` | Use fixed-block memory allocator (deterministic) instead of heap. |
+| `DMQ_DATABUS` | `ON` (`OFF` on RTOS and bare metal) | Build the DataBus middleware (`extras/databus`). |
+| `DMQ_UTIL` | `ON` | Build the utility classes (`extras/util`: `Timer`, monitors, `ReliableTransport`, ...). |
 | `DMQ_LOG` | `OFF` | Enable verbose internal debug logging (requires spdlog). |
-| `DMQ_TOOLS` | `OFF` | Build the diagnostic tools (`dmq-spy`, `dmq-monitor`, `dmq-thread`); see [Tools](../tools/TOOLS.md). |
+| `DMQ_TOOLS` | `OFF` | Build the diagnostic tools (`dmq-spy`, `dmq-monitor`, `dmq-thread`, and the `dmq-target` test app); see [Tools](../tools/TOOLS.md). |
+| `DMQ_STRICT` | `OFF` | Enable strict compiler warnings, treated as errors, for DelegateMQ sources. |
 | `DMQ_FORCE_OPTIMIZE_DEBUG` | `OFF` | Force `-Os` template optimization in unoptimized GCC/Clang Debug builds to reduce embedded flash bloat (silent no-op on MSVC). |
 
 ### 2. User Config File (`DelegateMQConfig.h`)

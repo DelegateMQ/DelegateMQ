@@ -75,7 +75,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface, and the new implementation becomes part of that layer.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
 
 | Category | Supported |
 | :--- | :--- |
@@ -231,7 +231,7 @@ private:
 
 ## Threads
 
-`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS (stdlib, Win32, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt), so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
+`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS, so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
 
 A thread can bound its queue and choose what happens when it fills (`dmq::FullPolicy`), enable a watchdog, run code on the worker at start, exit and idle, and choose how shutdown treats queued messages (`dmq::ExitPolicy`):
 

@@ -334,7 +334,7 @@ Target callable invocation and argument handling based on the delegate type.
 | --- | --- | --- | --- | --- |
 | Overview | Invokes bound callable directly on caller's thread. | Target thread invokes bound callable; caller continues immediately. | Target thread invokes bound callable; caller blocks until complete or timeout. | Remote system invokes bound callable; caller continues immediately. |
 | Dispatch Mechanism | Direct Call. | Message Queue. | Message Queue. | Network Transport. |
-| Synchronization | Caller is blocked by synchronous execution. | None. Fire-and-forget. | Semaphore + Mutex. Caller blocks on semaphore; mutex protects return value. | None. Fire-and-forget (library level). Blocking depends on transport implementation. | 
+| Synchronization | Caller is blocked by synchronous execution. | None. Fire-and-forget. | Semaphore + Mutex. Caller blocks on semaphore; mutex protects return value. | None by default. Fire-and-forget. `RemoteDispatcher::RemoteInvokeWait()` blocks until the remote ACKs or the timeout expires. | 
 | Execution Thread | Caller Thread. | Target Thread. | Target Thread. | Remote Process. |
 | Blocking Behavior¹ | Yes. | No. | Yes. | No. |
 | Arguments (In) | Stack Access. Passed directly via registers/stack. | Copied. By-value arguments are stored in the message; data behind reference/pointer arguments is copied to the heap. | Stack Reference. References point to caller's stack (safe because caller blocks). | Serialization. Arguments marshaled to a stream and sent via external transport.|
@@ -552,7 +552,7 @@ A blocking delegate waits until the target thread executes the bound delegate fu
 
 Stack arguments passed by pointer/reference do not need to be thread-safe. The reason is that the calling thread blocks waiting for the destination thread to complete. The delegate implementation guarantees only one thread is able to access stack allocated argument data.
 
-A blocking delegate must specify a timeout in milliseconds or `dmq::WAIT_INFINITE`. Unlike a non-blocking asynchronous delegate, which is guaranteed to be invoked, if the timeout expires on a blocking delegate, the function is not invoked. Use `IsSuccess()` to determine if the delegate succeeded or not.
+A blocking delegate must specify a timeout (a `dmq::Duration`, e.g. `std::chrono::milliseconds(100)`) or `dmq::WAIT_INFINITE`. A non-blocking asynchronous delegate is invoked unless the target thread's `FullPolicy` drops it or the thread exits with `ExitPolicy::DISCARD`. If the timeout expires on a blocking delegate, the function is not invoked. Use `IsSuccess()` to determine if the delegate succeeded or not.
 
 ```cpp
 // Asynchronously invoke lambda on workerThread1 and wait for the return value
@@ -685,7 +685,7 @@ delegateRemote.SetSerializer(&serializer);
 
 // TODO: Receiver code obtains the serializers incoming argument data
 // from your application-specific reception code and stored within a stream.
-std::istream& recv_stream;
+std::istream& recv_stream = GetReceivedStream();  // your reception code
 
 // Receiver invokes the remote target function
 delegateRemote.Invoke(recv_stream);
@@ -950,7 +950,7 @@ In short, the DelegateMQ library offers features that are not natively available
 | Synchronous Call | Yes | No | No | No |
 | Asynchronous Call | No | Yes | Yes | Yes |
 | Asynchronous Blocking Call | No | No | Yes | Yes |
-| Asynchronous Wait Timeout | No | No | Yes | No |
+| Asynchronous Wait Timeout | No | No | Yes | Partial<sup>5</sup> |
 | Specify Target Thread | n/a | Yes | Yes | No |
 | Copyable | Yes | Yes | Yes | Yes |
 | Equality | Yes | Yes | Yes | Yes |
@@ -963,7 +963,8 @@ In short, the DelegateMQ library offers features that are not natively available
 <sup>1</sup> `dmq::DelegateAsync<>` function call operator copies all function data arguments using a copy constructor for safe transport to the target thread.   
 <sup>2</sup> `std::async` could fail if dangling reference or pointer function argument is accessed. Delegates copy argument data when needed to prevent this failure mode.  
 <sup>3</sup> `std::function` cannot resolve difference between functions with matching signature `std::function` instances (e.g `void Class:One(int)` and `void Class::Two(int)` are equal).  
-<sup>4</sup> `dmq::MulticastDelegateSafe<>` a thread-safe container used to hold and invoke a collection of delegates.
+<sup>4</sup> `dmq::MulticastDelegateSafe<>` a thread-safe container used to hold and invoke a collection of delegates.  
+<sup>5</sup> `std::future::wait_for()` stops waiting, but the call still runs later. `dmq::DelegateAsyncWait<>` skips the call if the timeout expires before it starts.
 
 # Library
 
@@ -1080,7 +1081,7 @@ public:
     heap_arg_deleter(T* arg) : m_arg(arg) { }
     virtual ~heap_arg_deleter()
     {
-        delete m_arg;
+        xdelete(m_arg);    // matches the xnew() in heap_copy_arg()
     }
 private:
     T* m_arg;
@@ -1139,7 +1140,7 @@ DelegateMQ supports first-class interoperability between C++, **C#**, and **Pyth
 > Full documentation: **[INTEROP.md](INTEROP.md)**
 
 ## Key Features
-- **Shared Native Core**: A C++ DLL (`DmqInterop`) handles UDP sockets, protocol framing, and reliability.
+- **Shared Native Core**: A C++ DLL (`DmqInterop`) handles the transport (UDP or ZeroMQ), protocol framing, and reliability.
 - **Language Wrappers**: Thin, language-friendly libraries for C# (`P/Invoke`) and Python (`ctypes`).
 - **Binary Serialization**: Efficient data exchange using MessagePack.
 - **Location Transparency**: Remote topics look the same to the application whether they are local or on a remote node.

@@ -68,6 +68,8 @@ msg.celsius = 36.6f;
 dmq::databus::DataBus::Publish("sensor/temperature", msg);
 ```
 
+> **Note:** Deriving from `serialize::I` is only needed to send the type to another node; local pub/sub works with any copyable type. With no thread argument, the subscriber runs synchronously on the publisher's thread.
+>
 > **Note:** `Subscribe` returns a `dmq::ScopedConnection`. You must store this object (e.g., as a class member); if it goes out of scope, the subscription is automatically removed.
 >
 > **Setup Note:** This quick start assumes the DelegateMQ infrastructure (threads, timers, etc.) is already running. See [System Initialization](#system-initialization) for details.
@@ -83,7 +85,7 @@ dmq::databus::DataBus::Publish("sensor/temperature", msg);
 
 ### High-Level View
 
-The diagram below illustrates the relationship between the `DataBus`, its local subscribers, and remote participants.
+The diagram below shows how the `DataBus` reaches remote nodes. It holds up to `dmq::MAX_PARTICIPANTS` participants. Each `Participant` sends and receives through one `ITransport`, using an `ISerializer` per topic. A `NetworkNode` creates participants for its peers and registers them with `DataBus::AddParticipant()`. Local subscribers are kept per topic in `m_signals`.
 
 ![DataBus Architecture](DataBusArchitecture.svg)
 
@@ -133,12 +135,12 @@ A bridge to a remote entity. Maps topic strings to numeric IDs and uses an `ITra
 Low-level communication interface (e.g., UDP, Serial, TCP).
 
 ### NetworkNode (`dmq::databus::NetworkNode`)
-A helper template that bundles a `Transport`, `Participant`, and a receive thread into a simple API.
+A helper template that bundles the transports, the participants (one receive participant, plus a reliable and an unreliable one per peer), ACK/retry reliability and a receive thread into a simple `Send()`/`Receive()` API.
 
 ## Internal Data Flow
 
 - **Publish**: Captures timestamp → Updates LVC → Notifies Monitor → Dispatches to local subscribers (Sync/Async) → Iterates Participants for remote Send → Fires "unhandled" if no interests.
-- **Receive**: Polling → Transport Read → Header Validation → Duplicate Filtering → Deserialization → Re-Publish (Local Only).
+- **Receive**: Polling → Transport Read → Header Validation (marker, version) → ACKs consumed by the transport → Duplicate Filtering (per sender and remote ID) → Deserialization → Re-Publish (local only, or also forwarded to other links with `Delivery::RELAY` / `AddRelayTopic`).
 
 ## Remote Integration
 
@@ -152,7 +154,7 @@ Remote distribution requires these specific calls (silent failure if missed):
 
 **For Receiving (remote → this node):**
 1. `DataBus::AddParticipant(participant)`: Registers the remote node with the bus.
-2. `DataBus::AddIncomingTopic<T>(...)`: Registers the incoming network ID on the bus.
+2. `DataBus::AddIncomingTopic<T>(topic, remoteId, participant, serializer)`: Maps the incoming network ID to the topic.
 3. **Polling Loop**: You must call `participant->ProcessIncoming()` in a loop (or use `NetworkNode`) to drive the receive side and dispatch data to local subscribers.
 
 ### Relay Nodes
@@ -212,10 +214,11 @@ auto conn = dmq::databus::DataBus::SubscribeError(
 Fires for (non-exhaustive):
 - `ERR_TYPE_MISMATCH` — the same topic string used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer`/`RegisterStringifier` calls. A **local programmer-error detector**: `T` is a compile-time template parameter, so this can never be triggered by a remote peer's wire bytes, only by your own process's source code.
 - `ERR_NO_SERIALIZER` / `ERR_SERIALIZE` / `ERR_DESERIALIZE` — a topic has remote interest but no serializer registered, or serialization/deserialization itself failed.
-- `ERR_TRANSPORT_RECEIVE` — a `Participant` received bytes but the `DmqHeader` framing was corrupt (bad marker). Distinct from a plain non-zero `Receive()` result during normal polling, which is *not* reported here — see the note under NetworkNode below.
+- `ERR_NO_DISPATCHER` — a message arrived with a remote ID that has no incoming topic registered on that participant.
+- `ERR_TRANSPORT_RECEIVE` — a `Participant` received bytes but the `DmqHeader` framing was corrupt (bad marker or version). Distinct from a plain non-zero `Receive()` result during normal polling, which is *not* reported here — see the note under NetworkNode below.
 - `ERR_CAPACITY_EXCEEDED` — a fixed-size capacity limit was reached (e.g. `dmq::MAX_PARTICIPANTS`).
 
-Several of these (`ERR_TYPE_MISMATCH`, `ERR_CAPACITY_EXCEEDED`) are followed by a hard fault (`DMQ_ASSERT()`) immediately after the report — the report is a last diagnostic before the process terminates, not a chance to recover. Errors are latched per (topic, error code) — reported once unless `DataBus::EnableContinuousErrors(true)` is set. Per-participant errors reach the global handler too: `Participant::SubscribeError` catches a single node's errors; `DataBus::SubscribeError` aggregates across every participant.
+Several of these (`ERR_TYPE_MISMATCH`, `ERR_CAPACITY_EXCEEDED`) are followed by a hard fault (`DMQ_ASSERT()`) immediately after the report — the report is a last diagnostic before `FaultHandler` runs, not a chance to recover. Errors are latched per (topic, error code) — reported once unless `DataBus::EnableContinuousErrors(true)` is set. Per-participant errors reach the global handler too: `Participant::SubscribeError` catches a single node's errors; `DataBus::SubscribeError` aggregates across every participant.
 
 ### Status — `NetworkNode` signals
 
@@ -245,9 +248,8 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 
 ## Design Philosophy
 
-- **Zero Internal Threads**: All work happens on application-provided threads.
-- **Zero-Cost Safety**: Safety utilities are non-thread-safe by design; synchronization is handled at the application level.
-- **Minimal Metadata**: No forced internal headers or timestamps; application adds what it needs.
+- **No Hidden Threads**: `DataBus` and `Participant` create no threads; all work happens on application threads. `NetworkNode` is the exception: it owns one receive thread, created by `Start()`.
+- **Minimal Metadata**: Each remote message carries only a small `DmqHeader` (marker, node ID, version, remote ID, sequence number, payload length). No timestamps go on the wire; the application adds what it needs.
 - **Data-Centric**: Focused on the **State** of the system.
 
 ## Pub/Sub vs. RPC
@@ -270,8 +272,8 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 
 ## Threading and Performance
 
-- **Zero internal threads**: You control the CPU via application threads.
-- **Publishing**: Synchronous on the caller's thread.
+- **No hidden threads**: You control the CPU via application threads (`NetworkNode` owns its one receive thread).
+- **Publishing**: Runs on the caller's thread. Synchronous subscribers are called there, async subscribers are queued to their own thread, and remote sends happen there too unless the participant has a send thread (`NetworkNode` sets one).
 - **Receiving**: Polled via `Participant::ProcessIncoming()`.
 - **Latency**: Dominated by transport timeouts and OS scheduler wake-ups.
 - **Queue Policy**: Configurable `FullPolicy` (FAULT, DROP, TIMEOUT) for async subscribers.
@@ -282,13 +284,13 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 - **Lifespan**: Capped age for LVC values; skip delivery if stale.
 - **Min Separation**: Rate-limits delivery to specific subscribers (e.g., throttle 1kHz to 20Hz).
 - **Deadline Monitoring**: Detects when a publisher goes silent via `dmq::databus::DeadlineSubscription<T>`.
-  - **Note**: Requires calling `dmq::util::Timer::ProcessTimers()` periodically (typically in the main loop or a SysTick handler) for the deadline to fire, especially on bare-metal targets.
+  - **Note**: Requires calling `dmq::util::Timer::ProcessTimers()` periodically for the deadline to fire: from a main loop or a task, or from a SysTick handler on bare metal only. On an RTOS, call it from a task, not an ISR (see `Timer.h`).
 
 ## Ordering and Guarantees
 
 - **Single Node**: Strict ordering for single producer-consumer pairs.
 - **Multi-Publisher**: Minor reordering risk; use timestamps or sequence numbers if critical.
-- **Transport Impact**: UDP/Serial are unordered; TCP/ZeroMQ provide stream-level ordering.
+- **Transport Impact**: UDP can drop and reorder messages; serial keeps order but can lose frames; TCP/ZeroMQ deliver reliably and in order. `Reliability::RELIABLE` retries lost messages, so a retried message can arrive after newer ones.
 - **Philosophy**: Middleware provides duplicate protection; application handles sequence/stale filtering to minimize RAM/CPU overhead.
 - **Unsubscribe is not a barrier**: Destroying a subscription's `dmq::ScopedConnection` stops future deliveries, but a delivery already in progress on a publisher's thread, or already queued on the subscriber's thread, can still run once. If the callback captures an object that is destroyed right after unsubscribing, guard its lifetime; see [SIGNALS.md](SIGNALS.md#disconnect-and-calls-already-in-progress).
 

@@ -115,7 +115,7 @@ Standard low-latency UDP communication.
 Enterprise-grade messaging with built-in reliability and patterns.
 - **Build Flag**: `-DDMQ_TRANSPORT=DMQ_TRANSPORT_ZEROMQ`
 - **Address Format**: Pass the hostname/IP as usual (e.g., `"127.0.0.1"`); the DLL constructs the ZMQ connection string internally (e.g., `tcp://127.0.0.1:8000`) using the host and port parameters.
-- **Dependency**: Requires `libzmq` to be available in your CMake path.
+- **Dependency**: Requires `libzmq`, found in `DMQ_DEPS_DIR` (built by `scripts/02_build_libs.py`; see [BUILD.md](BUILD.md#third-party-directory-dmq_deps_dir)).
 
 ---
 
@@ -125,7 +125,7 @@ You can customize the DLL behavior using the following CMake variables:
 
 | Variable | Values | Description |
 | :--- | :--- | :--- |
-| `DMQ_TRANSPORT` | `DMQ_TRANSPORT_WIN32_UDP`, `DMQ_TRANSPORT_LINUX_UDP`, `DMQ_TRANSPORT_ZEROMQ` | Selects the physical network layer. |
+| `DMQ_TRANSPORT` | `DMQ_TRANSPORT_WIN32_UDP`, `DMQ_TRANSPORT_LINUX_UDP`, `DMQ_TRANSPORT_ZEROMQ`, `DMQ_TRANSPORT_NNG` (Windows) | Selects the physical network layer. |
 | `DMQ_ASSERTS` | `ON`, `OFF` | Enables/Disables internal library assertions. |
 | `DMQ_LOG` | `ON`, `OFF` | Enables/Disables internal library logging. |
 | `DMQ_FORCE_OPTIMIZE_DEBUG` | `ON`, `OFF` | Forces `-Os` template optimization in GCC/Clang unoptimized Debug builds. |
