@@ -73,6 +73,13 @@
     #define DMQ_MAX_WATCHDOG_THREADS        16
 #endif
 
+// A watched thread's queue wait (and Qt's heartbeat timer) is its watchdog timeout
+// divided by this, so an idle thread refreshes its heartbeat this many times per
+// timeout. At least 2.
+#ifndef DMQ_WATCHDOG_HEARTBEAT_DIVISOR
+    #define DMQ_WATCHDOG_HEARTBEAT_DIVISOR  4
+#endif
+
 // Max threads registered for dmq::ThisThread::GetCurrent() at once on RTOS ports
 // (one per running dmq::os::Thread or custom IThread worker). Exceeding it faults.
 #ifndef DMQ_MAX_CURRENT_THREADS

@@ -69,8 +69,7 @@ bool StdlibThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_exit = false;
         // Held from creation, so the watchdog never sees a gated thread as hung
         // before it reaches the gate (e.g. created before the scheduler runs)
-        m_gated.store(m_startGate != nullptr);
-        m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+        m_startGate.OnCreate();
         // Set before the thread exists: its loop reads the timeout before its
         // first queue wait, and an idle thread waits forever with no timeout
         m_lastAliveTime.store(Timer::GetNow());
@@ -190,9 +189,6 @@ void StdlibThread::ExitThread(ExitPolicy policy)
     if (!m_thread)
         return;
 
-    // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
-    m_watchdogTimeout.store(dmq::Duration(0));
-
     // Create a new ThreadMsg
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_EXIT_THREAD, nullptr);
 
@@ -230,12 +226,10 @@ void StdlibThread::ExitThread(ExitPolicy policy)
     CancelAll(discardedHigh);
     CancelAll(discardedNormal);
 
-    // A thread held at its start gate isn't waiting on the queue: wake it so it
-    // sees m_exit (set above) and leaves
-    // Only while still held: a thread past the gate never touches it again,
-    // so the gate may be destroyed once its threads are released
-    if (m_startGate && m_gated.load())
-        m_startGate->Wake();
+    // A thread held at its start gate isn't waiting on its queue: wake it so it
+    // sees the exit flag (set above) and leaves. Never touches the gate itself,
+    // which may be destroyed once the thread is released.
+    m_startGate.Wake();
 
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (m_thread->joinable())
@@ -251,8 +245,14 @@ void StdlibThread::ExitThread(ExitPolicy policy)
             // Signal Process() (running on this thread) to exit without touching
             // 'this' again — the owning object is about to be freed.
             if (t_self_exit) *t_self_exit = true;
+            m_startGate.Leave();     // exited from its start handler: never reaches the gate
         }
     }
+
+    // The thread has finished (or, on a self-exit, is in its last handler):
+    // stop watchdog checks. Not earlier, so a thread that hangs while
+    // ExitThread() waits for it is still reported.
+    m_watchdogTimeout.store(dmq::Duration(0));
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -376,7 +376,7 @@ void StdlibThread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void StdlibThread::WatchdogCheck()
 {
-    if (m_gated.load())
+    if (m_startGate.IsHeld())
         return;     // held at its start gate by design, not hung
 
     auto now = Timer::GetNow();
@@ -444,15 +444,23 @@ void StdlibThread::Process()
     if (m_startHandler)
         m_startHandler();
 
-    // Signal that the thread has started processing to notify CreateThread
-    m_threadStartPromise->set_value();
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
+    // Signal that the thread has started processing to notify CreateThread.
+    // From a local: the caller may destroy this object once it is signaled.
+    std::promise<void> startPromise = std::move(*m_threadStartPromise);
+    startPromise.set_value();
+    if (exitedInStart) { t_self_exit = nullptr; return; }
 
     // Optional start gate: wait here, ready but processing nothing, until it opens
-    if (m_startGate)
+    if (m_startGate.Enabled())
     {
-        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
-        m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears: no stale watchdog read
-        m_gated.store(false);
+        const bool opened = m_startGate.Wait(m_exit);
+        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_startGate.Passed();
         if (!opened)
         {
             // ExitThread() while held: leave without running any message.
@@ -480,7 +488,7 @@ void StdlibThread::Process()
             // than when it is due. Otherwise, block forever.
             auto predicate = [this]() { return !(m_highQueue.empty() && m_normalQueue.empty()) || m_exit.load(); };
             // Wake up frequently to ensure heartbeat is updated while idle (negative = forever)
-            dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / 10 : dmq::Duration(-1));
+            dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / dmq::WATCHDOG_HEARTBEAT_DIVISOR : dmq::Duration(-1));
             if (waitTime >= dmq::Duration::zero())
                 m_cv.wait_for(lk, waitTime, predicate);
             else

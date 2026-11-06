@@ -96,8 +96,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     m_exit.store(false);
     // Held from creation, so the watchdog never sees a gated thread as hung
     // before it reaches the gate (e.g. created before the scheduler runs)
-    m_gated.store(m_startGate != nullptr);
-    m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+    m_startGate.OnCreate();
     // No watchdog unless one is given below; set before the task exists
     m_watchdogTimeout.store(0);
     m_discard.store(false);
@@ -113,6 +112,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_queue.IsCreated()) {
         if (!m_queue.Create(m_queueSize)) {
             printf("Error: Thread '%s' failed to create queue.\n", THREAD_NAME.c_str());
+            m_startGate.OnCreateFailed();
             return false;
         }
     }
@@ -184,6 +184,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         if (xReturn != pdPASS) {
             printf("Error: Failed to create task '%s'. OOM?\n", THREAD_NAME.c_str());
             m_watchdogTimeout.store(0);     // no task to refresh the heartbeat
+            m_startGate.OnCreateFailed();
             return false;
         }
     }
@@ -205,19 +206,14 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 void FreeRTOSThread::ExitThread(ExitPolicy policy)
 {
     if (m_queue.IsCreated()) {
-        // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
-        m_watchdogTimeout.store(0);
-
         // Set before m_exit: Run() reads it for every message ahead of the exit message
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
-        // A thread held at its start gate isn't reading its queue: wake it so it
-        // sees m_exit and drains to the exit message sent below
-        // Only while still held: a thread past the gate never touches it again,
-        // so the gate may be destroyed once its threads are released
-        if (m_startGate && m_gated.load())
-            m_startGate->Wake();
+        // A thread held at its start gate isn't waiting on its queue: wake it so it
+        // sees the exit flag (set above) and leaves. Never touches the gate itself,
+        // which may be destroyed once the thread is released.
+        m_startGate.Wake();
 
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
@@ -229,6 +225,7 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
         // returns, and unwinds without touching 'this' again.
         if (xTaskGetCurrentTaskHandle() == m_thread) {
             if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
+            m_startGate.Leave();     // exited from its start handler: never reaches the gate
         } else {
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
 
@@ -245,6 +242,11 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
                 xSemaphoreTake(m_exitSem, portMAX_DELAY);
             }
         }
+
+        // The thread has finished (or, on a self-exit, is in its last handler):
+        // stop watchdog checks. Not earlier, so a thread that hangs while
+        // ExitThread() waits for it is still reported.
+        m_watchdogTimeout.store(0);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -373,7 +375,7 @@ void FreeRTOSThread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void FreeRTOSThread::WatchdogCheck()
 {
-    if (m_gated.load())
+    if (m_startGate.IsHeld())
         return;     // held at its start gate by design, not hung
 
     auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
@@ -423,16 +425,23 @@ void FreeRTOSThread::Run()
     if (m_startHandler)
         m_startHandler();
 
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
     if (startSync)
         xSemaphoreGive(m_startSem);
+    if (exitedInStart)
+        return;
 
     // Optional start gate: wait here, ready but processing nothing, until it opens
-    if (m_startGate)
+    if (m_startGate.Enabled())
     {
-        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
-        // Before m_gated clears: no stale watchdog read
+        const bool opened = m_startGate.Wait(m_exit);
+        // Before Passed(): no stale watchdog read
         m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
-        m_gated.store(false);
+        m_startGate.Passed();
         // ExitThread() while held: run nothing. Cancel each queued message
         // (DISCARD) until the exit message. Consuming them also keeps
         // ExitThread()'s blocking send of the exit message from waiting on a
@@ -453,7 +462,7 @@ void FreeRTOSThread::Run()
         TickType_t waitTicks = portMAX_DELAY;
         if (watchdogTimeout > 0)
         {
-            waitTicks = pdMS_TO_TICKS(watchdogTimeout / 4);
+            waitTicks = pdMS_TO_TICKS(watchdogTimeout / dmq::WATCHDOG_HEARTBEAT_DIVISOR);
             if (waitTicks == 0) waitTicks = 1;
         }
         if (idle.Enabled())
@@ -473,7 +482,13 @@ void FreeRTOSThread::Run()
 
             // Timed out with the queue empty: run the idle handler if it is due
             if (idle.IsDue())
+            {
                 idle.Run();
+                // The idle handler exited this thread (and may have deleted it): leave
+                // without touching 'this', as the message path does
+                if (selfExit)
+                    return;
+            }
         }
         else
         {

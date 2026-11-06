@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <new>
 
 #if defined(DMQ_HAS_START_GATE)
@@ -152,8 +153,8 @@ inline void WatchdogIgnoresHeldThread()
     t.ExitThread();
 }
 
-// A gate destroyed after it released its threads (e.g. a local in a startup
-// function): ExitThread() must not touch it. Its memory is overwritten after
+// A gate destroyed after its thread has passed it: ExitThread() must not
+// touch it. Its memory is overwritten after
 // the destructor, so a stray access fails instead of reading a stale gate.
 inline void GateDestroyedAfterRelease()
 {
@@ -172,6 +173,51 @@ inline void GateDestroyedAfterRelease()
     t.SetStartGate(nullptr);            // before re-creating, or keep the gate alive
 }
 
+// A gate destroyed right after Open(), before the released thread has run
+// (a local in a startup function): ~StartGate() waits for the thread to leave
+// it. Every other iteration, ExitThread() follows at once from this thread.
+inline void GateDestroyedRightAfterOpen()
+{
+    for (int i = 0; i < 20; i++)
+    {
+        dmq::os::Thread t("GateEarlyDestroy");
+        Ran() = 0;
+        {
+            dmq::os::StartGate gate;
+            t.SetStartGate(&gate);
+            DMQ_ASSERT_TRUE(t.CreateThread());
+            dmq::MakeDelegate(&Count, t)(0);
+            gate.Open();
+        }                                   // destroyed while t may not have run yet
+        if (i % 2 == 0)
+            DMQ_ASSERT_TRUE(WaitForRan(1));
+        t.ExitThread();                     // DRAIN: the queued message still runs
+        DMQ_ASSERT_TRUE(Ran() == 1);
+        t.SetStartGate(nullptr);            // the gate is gone: not for a re-create
+        LetExitedThreadsClean();
+    }
+}
+
+// The start handler exits its own thread (a gated one), then the Thread and
+// the gate are destroyed right after CreateThread() returns. The thread never
+// reaches the gate, so ExitThread() detaches it from the gate; and nothing on
+// the thread may touch the Thread after signaling CreateThread().
+inline void StartHandlerExitsGatedThread()
+{
+    for (int i = 0; i < 20; i++)
+    {
+        dmq::os::StartGate gate;
+        {
+            dmq::os::Thread t("GateStartExit");
+            t.SetStartGate(&gate);
+            dmq::os::Thread* self = &t;
+            t.SetStartHandler(dmq::MakeDelegate(std::function<void()>([self]() { self->ExitThread(); })));
+            DMQ_ASSERT_TRUE(t.CreateThread());
+        }                       // Thread destroyed at once
+        LetExitedThreadsClean();
+    }                           // gate destroyed: no thread still attached
+}
+
 /// @param twoThreads false where the port can't have two DelegateMQ threads
 /// alive at once (the ThreadX Linux simulator; see threadx-linux's
 /// DelegateThreadsTests.cpp). Every other test uses one thread at a time.
@@ -183,6 +229,8 @@ inline void Run(bool twoThreads = true)
     OpenThenExitDrains();
     WatchdogIgnoresHeldThread();
     GateDestroyedAfterRelease();
+    GateDestroyedRightAfterOpen();
+    StartHandlerExitsGatedThread();
     printf("StartGatePortableTest::Run() complete!\n");
 }
 

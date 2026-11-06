@@ -102,8 +102,7 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_exit.store(false);
         // Held from creation, so the watchdog never sees a gated thread as hung
         // before it reaches the gate (e.g. created before the scheduler runs)
-        m_gated.store(m_startGate != nullptr);
-        m_gateOpenCount = m_startGate ? m_startGate->OpenCount() : 0;
+        m_startGate.OnCreate();
         // Set before the thread exists: its loop reads the timeout before its
         // first queue wait, and an idle thread waits forever with no timeout
         m_lastAliveTime.store(Timer::GetNow());
@@ -229,19 +228,14 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
 {
     if (m_queue.IsCreated())
     {
-        // Stop watchdog checks: an exited thread no longer refreshes its heartbeat
-        m_watchdogTimeout.store(dmq::Duration(0));
-
         // Set before m_exit: Run() reads it for every message ahead of the exit message
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
-        // A thread held at its start gate isn't reading its queue: wake it so it
-        // sees m_exit and drains to the exit message sent below
-        // Only while still held: a thread past the gate never touches it again,
-        // so the gate may be destroyed once its threads are released
-        if (m_startGate && m_gated.load())
-            m_startGate->Wake();
+        // A thread held at its start gate isn't waiting on its queue: wake it so it
+        // sees the exit flag (set above) and leaves. Never touches the gate itself,
+        // which may be destroyed once the thread is released.
+        m_startGate.Wake();
 
         // Determine self-exit BEFORE attempting to enqueue the exit message.
         // If this thread is destroying itself from within its own dispatched
@@ -265,6 +259,10 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         if (isSelfExit) {
             m_selfExited.store(true);
             if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
+            m_startGate.Leave();     // exited from its start handler: never reaches the gate
+            // Self-exit: this thread runs no more messages, and the object may be
+            // destroyed once this handler returns. Stop watchdog checks now.
+            m_watchdogTimeout.store(dmq::Duration(0));
             return;
         }
 
@@ -302,6 +300,11 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
 
         // Force terminate if still running (safety net)
         // tx_thread_terminate returns TX_SUCCESS if terminated or TX_THREAD_ERROR if already terminated
+        // The thread has finished (or, on a self-exit, is in its last handler):
+        // stop watchdog checks. Not earlier, so a thread that hangs while
+        // ExitThread() waits for it is still reported.
+        m_watchdogTimeout.store(dmq::Duration(0));
+
         tx_thread_terminate(&m_thread);
         tx_thread_delete(&m_thread);
 
@@ -439,7 +442,7 @@ void ThreadXThread::Process(ULONG /*instance*/)
 //----------------------------------------------------------------------------
 void ThreadXThread::WatchdogCheck()
 {
-    if (m_gated.load())
+    if (m_startGate.IsHeld())
         return;     // held at its start gate by design, not hung
 
     auto now = Timer::GetNow();
@@ -536,15 +539,22 @@ void ThreadXThread::Run()
     if (m_startHandler)
         m_startHandler();
 
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
     if (m_startSync)
         tx_semaphore_put(&m_startSem);
+    if (exitedInStart)
+        return;
 
     // Optional start gate: wait here, ready but processing nothing, until it opens
-    if (m_startGate)
+    if (m_startGate.Enabled())
     {
-        const bool opened = m_startGate->Wait(m_exit, m_gateOpenCount);
-        m_lastAliveTime.store(Timer::GetNow());   // before m_gated clears: no stale watchdog read
-        m_gated.store(false);
+        const bool opened = m_startGate.Wait(m_exit);
+        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_startGate.Passed();
         // ExitThread() while held: run nothing. Cancel each queued message
         // (DISCARD) until the exit message. Consuming them also keeps
         // ExitThread()'s blocking send of the exit message from waiting on a
@@ -569,7 +579,7 @@ void ThreadXThread::Run()
         if (timeout.count() > 0)
         {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
-            waitOption = (static_cast<ULONG>(ms / 4) * TX_TIMER_TICKS_PER_SECOND) / 1000;
+            waitOption = (static_cast<ULONG>(ms / dmq::WATCHDOG_HEARTBEAT_DIVISOR) * TX_TIMER_TICKS_PER_SECOND) / 1000;
             if (waitOption == 0) waitOption = 1;
         }
         if (idle.Enabled())
@@ -588,7 +598,13 @@ void ThreadXThread::Run()
 
             // Timeout or other failure: run the idle handler if it is due
             if (idle.IsDue())
+            {
                 idle.Run();
+                // The idle handler exited this thread (and may have deleted it): leave
+                // without touching 'this', as the message path does
+                if (selfExit)
+                    return;
+            }
             continue;
         }
 

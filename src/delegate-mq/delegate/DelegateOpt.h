@@ -321,6 +321,12 @@ namespace dmq
     /// Override via DMQ_MAX_WATCHDOG_THREADS in delegatemqconfig.h.
     inline constexpr size_t MAX_WATCHDOG_THREADS = DMQ_MAX_WATCHDOG_THREADS;
 
+    /// @brief A watched thread's queue wait (and Qt's heartbeat timer) is its
+    /// watchdog timeout divided by this.
+    /// Override via DMQ_WATCHDOG_HEARTBEAT_DIVISOR in delegatemqconfig.h.
+    inline constexpr int WATCHDOG_HEARTBEAT_DIVISOR = DMQ_WATCHDOG_HEARTBEAT_DIVISOR;
+    static_assert(WATCHDOG_HEARTBEAT_DIVISOR >= 2, "DMQ_WATCHDOG_HEARTBEAT_DIVISOR must be at least 2");
+
     /// @brief Max threads registered for ThisThread::GetCurrent() at once on RTOS
     /// ports (see port/os/common/CurrentThreadStorage.h). Exceeding it faults.
     /// Override via DMQ_MAX_CURRENT_THREADS in delegatemqconfig.h.

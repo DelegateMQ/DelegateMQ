@@ -504,6 +504,11 @@ static void TimerDelegate_WithTimer_DispatchesToThread()
     timer.Stop();
     timerExit.store(true);
     timerThread.join();
+    // The test runner's own ProcessTimers() thread (5 ms loop) also fires this
+    // timer. A tick it was dispatching as Stop() ran can still reach s_thread,
+    // so let it land before draining: otherwise it runs OnTick() on `target`
+    // after this function returns.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     Drain(s_thread);
 
     DMQ_ASSERT_TRUE(target.count.load() >= 3);
@@ -520,12 +525,14 @@ static void Timer_ProcessTimers_DrainsMultiplePasses()
 
     std::vector<std::unique_ptr<Timer>> timers;
     std::vector<dmq::ScopedConnection> conns;
-    std::atomic<int> fireCount{ 0 };
+    // Shared, not a local: a callback the runner's thread already started can
+    // finish after this function returns
+    auto fireCount = std::make_shared<std::atomic<int>>(0);
 
     for (size_t i = 0; i < timerCount; ++i) {
         auto timer = std::make_unique<Timer>();
         conns.push_back(timer->OnExpired.Connect(
-            dmq::MakeDelegate([&fireCount]() { fireCount.fetch_add(1); })));
+            dmq::MakeDelegate([fireCount]() { fireCount->fetch_add(1); })));
         timer->Start(std::chrono::milliseconds(1), /*once=*/true);
         timers.push_back(std::move(timer));
     }
@@ -534,10 +541,15 @@ static void Timer_ProcessTimers_DrainsMultiplePasses()
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     // OnExpired has no thread argument, so callbacks fire synchronously inside
-    // this call — one ProcessTimers() call must account for all of them.
+    // ProcessTimers(). One call must drain every batch. The test runner's own
+    // ProcessTimers() thread may fire some first, so wait for the total (each
+    // one-shot fires exactly once) rather than checking straight after the call.
     Timer::ProcessTimers();
 
-    DMQ_ASSERT_TRUE(fireCount.load() == static_cast<int>(timerCount));
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (fireCount->load() < static_cast<int>(timerCount) && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    DMQ_ASSERT_TRUE(fireCount->load() == static_cast<int>(timerCount));
     std::cout << "Timer_ProcessTimers_DrainsMultiplePasses() complete!" << std::endl;
 }
 
@@ -548,7 +560,9 @@ static void Timer_DestroyedDuringProcessTimers()
     // destroyed on other threads in that window must not be touched afterwards.
     // A use-after-free here shows up under the sanitizer build.
     std::atomic<bool> exit{ false };
-    std::atomic<int> fireCount{ 0 };
+    // Shared, not a local: the test runner's own ProcessTimers() thread can call
+    // a destroyed timer's callback (from its snapshot) after this function returns
+    auto fireCount = std::make_shared<std::atomic<int>>(0);
 
     std::thread processor([&exit]() {
         while (!exit.load())
@@ -557,11 +571,11 @@ static void Timer_DestroyedDuringProcessTimers()
 
     std::vector<std::thread> workers;
     for (int w = 0; w < 4; ++w) {
-        workers.emplace_back([&exit, &fireCount]() {
+        workers.emplace_back([&exit, fireCount]() {
             while (!exit.load()) {
                 auto timer = std::make_unique<Timer>();
                 dmq::ScopedConnection conn = timer->OnExpired.Connect(
-                    dmq::MakeDelegate([&fireCount]() { fireCount.fetch_add(1); }));
+                    dmq::MakeDelegate([fireCount]() { fireCount->fetch_add(1); }));
                 timer->Start(std::chrono::milliseconds(1));
                 std::this_thread::sleep_for(std::chrono::milliseconds(2));
                 timer.reset();    // destroy while still connected and due
@@ -575,7 +589,7 @@ static void Timer_DestroyedDuringProcessTimers()
         t.join();
     processor.join();
 
-    DMQ_ASSERT_TRUE(fireCount.load() > 0);
+    DMQ_ASSERT_TRUE(fireCount->load() > 0);
     std::cout << "Timer_DestroyedDuringProcessTimers() complete!" << std::endl;
 }
 
@@ -587,11 +601,12 @@ static void Timer_CallbackWaitsForOtherThreadToDestroyTimer()
     // wait would time out.
     std::atomic<bool> destroyed{ false };
     std::atomic<bool> callbackDone{ false };
+    std::atomic<bool> callbackFinished{ false };
     auto victim = std::make_unique<Timer>();
 
     Timer trigger;
     dmq::ScopedConnection conn = trigger.OnExpired.Connect(dmq::MakeDelegate(
-        [&victim, &destroyed, &callbackDone]() {
+        [&victim, &destroyed, &callbackDone, &callbackFinished]() {
             if (callbackDone.exchange(true))
                 return;
             std::thread killer([&victim, &destroyed]() {
@@ -603,16 +618,22 @@ static void Timer_CallbackWaitsForOtherThreadToDestroyTimer()
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             DMQ_ASSERT_TRUE(destroyed.load());    // faults here instead of hanging below
             killer.join();
+            callbackFinished.store(true);   // last access to this test's locals
         }));
 
     trigger.Start(std::chrono::milliseconds(1), /*once=*/true);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     Timer::ProcessTimers();
 
-    // The test runner's own ProcessTimers() thread may have fired it first.
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (!destroyed.load() && std::chrono::steady_clock::now() < deadline)
+    // The test runner's own ProcessTimers() thread may have fired it first, so
+    // the callback may be running on that thread. Wait for it to finish, not
+    // just for `destroyed`: it still reads `destroyed` and joins `killer` after
+    // that, and returning earlier left it reading this frame after it was
+    // reused by the next test (an intermittent fault at the assert above).
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!callbackFinished.load() && std::chrono::steady_clock::now() < deadline)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    DMQ_ASSERT_TRUE(callbackFinished.load());
     DMQ_ASSERT_TRUE(destroyed.load());
     std::cout << "Timer_CallbackWaitsForOtherThreadToDestroyTimer() complete!" << std::endl;
 }
@@ -630,8 +651,13 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
     // failure. The check that matters is the gap between consecutive fires.
     const auto period = std::chrono::milliseconds(200);
 
-    std::mutex mtx;
-    std::vector<std::chrono::steady_clock::time_point> fires;
+    // Shared, not locals: a victim callback the runner's thread started before
+    // Stop() can still run after this function returns
+    struct Fires {
+        std::mutex mtx;
+        std::vector<std::chrono::steady_clock::time_point> times;
+    };
+    auto state = std::make_shared<Fires>();
 
     Timer blocker;
     dmq::ScopedConnection blockerConn = blocker.OnExpired.Connect(dmq::MakeDelegate([]() {
@@ -639,9 +665,9 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
     }));
 
     Timer victim;
-    dmq::ScopedConnection victimConn = victim.OnExpired.Connect(dmq::MakeDelegate([&mtx, &fires]() {
-        std::lock_guard<std::mutex> lock(mtx);
-        fires.push_back(std::chrono::steady_clock::now());
+    dmq::ScopedConnection victimConn = victim.OnExpired.Connect(dmq::MakeDelegate([state]() {
+        std::lock_guard<std::mutex> lock(state->mtx);
+        state->times.push_back(std::chrono::steady_clock::now());
     }));
 
     blocker.Start(std::chrono::milliseconds(20), /*once=*/true);
@@ -654,8 +680,8 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
     for (;;)
     {
         {
-            std::lock_guard<std::mutex> lock(mtx);
-            if (fires.size() >= wanted)
+            std::lock_guard<std::mutex> lock(state->mtx);
+            if (state->times.size() >= wanted)
                 break;
         }
         DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() < deadline);   // victim stopped firing
@@ -663,7 +689,8 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
     }
     victim.Stop();
 
-    std::lock_guard<std::mutex> lock(mtx);
+    std::lock_guard<std::mutex> lock(state->mtx);
+    const auto& fires = state->times;
     DMQ_ASSERT_TRUE(fires.size() >= wanted);
     for (size_t i = 1; i < fires.size(); ++i)
         DMQ_ASSERT_TRUE(fires[i] - fires[i - 1] >= std::chrono::milliseconds(50));

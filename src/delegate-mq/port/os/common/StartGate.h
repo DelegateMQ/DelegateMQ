@@ -35,10 +35,12 @@
 ///   message; those messages are canceled as for `ExitPolicy::DISCARD`.
 /// - A held thread is not reported by the watchdog. Its watchdog starts when
 ///   the gate opens.
-/// - The gate must outlive every thread's wait at it (destroying a gate with
-///   threads still holding faults). Once its threads are released it may be
-///   destroyed, e.g. a local in a startup function; but a thread re-created
-///   later reads its gate again, so call `SetStartGate(nullptr)` first.
+/// - Lifetime: the gate may be destroyed right after `Open()`, e.g. a local in
+///   a startup function. Its destructor waits for every released thread to
+///   leave the gate (they may not have run yet). Destroying it while a thread
+///   is still held (not opened, not exited) faults. `CreateThread()` uses the
+///   gate again, so call `SetStartGate(nullptr)` before re-creating a thread
+///   whose gate is gone. On an RTOS, don't destroy it before the scheduler runs.
 ///
 /// Supported where `DMQ_HAS_START_GATE` is defined (delegate/DelegateSelect.h):
 /// every thread port (not bare metal, which has no threads).
@@ -47,30 +49,36 @@
 #include "delegate/Semaphore.h"
 #include <atomic>
 #include <cstdint>
+#include <optional>
 
 #if defined(DMQ_HAS_START_GATE) && defined(DMQ_HAS_SEMAPHORE)
 
 namespace dmq::os {
 
-class StdlibThread;
-class Win32Thread;
-class PosixThread;
-class QtThread;
-class FreeRTOSThread;
-class ThreadXThread;
-class ZephyrThread;
-class CmsisRtos2Thread;
-class NuttXThread;
+class StartGateClient;
 
 class StartGate
 {
 public:
     StartGate() = default;
 
+    /// Waits for every released thread to leave the gate. Faults if a thread
+    /// is still held: it would wait forever.
     ~StartGate()
     {
-        // A thread still holding would wake on a destroyed gate.
-        DMQ_ASSERT_TRUE(m_waiters == nullptr);
+        for (;;)
+        {
+            {
+                dmq::LockGuard<dmq::Mutex> lock(m_mutex);
+                DMQ_ASSERT_TRUE(m_held == 0);   // a thread still held would never leave
+                if (m_users == 0)
+                    return;
+                m_destroying = true;
+            }
+            // Signaled under m_mutex by the last thread to leave; relocking
+            // above means that signal has completed before members go away
+            m_idle.Wait(dmq::Duration::max());
+        }
     }
 
     /// Release every thread created with this gate so far, whether it is
@@ -81,8 +89,9 @@ public:
         dmq::LockGuard<dmq::Mutex> lock(m_mutex);
         m_open = true;
         m_openCount++;
+        m_held = 0;
         for (Waiter* w = m_waiters; w != nullptr; w = w->next)
-            w->sem.Signal();
+            w->sem->Signal();
     }
 
     /// Hold threads created from now on (to reuse the gate for another
@@ -104,90 +113,98 @@ public:
     StartGate& operator=(const StartGate&) = delete;
 
 private:
-    friend class StdlibThread;
-    friend class Win32Thread;
-    friend class PosixThread;
-    friend class QtThread;
-    friend class FreeRTOSThread;
-    friend class ThreadXThread;
-    friend class ZephyrThread;
-    friend class CmsisRtos2Thread;
-    friend class NuttXThread;
+    friend class StartGateClient;
 
-    /// One per held thread, on that thread's stack; the gate itself allocates
-    /// nothing (on RTOS ports the semaphore creates OS objects).
+    /// What a thread got from Attach(): the open count then, and whether the
+    /// gate was holding (it counts in m_held until released or detached).
+    struct Ticket
+    {
+        uint32_t openCount = 0;
+        bool held = false;
+    };
+
+    /// One per waiting thread, on that thread's stack; `sem` is the thread's
+    /// own (StartGateClient), so the gate allocates nothing.
     struct Waiter
     {
-        dmq::Semaphore sem;
+        dmq::Semaphore* sem = nullptr;
         Waiter* next = nullptr;
     };
 
-    /// Called by a thread port's CreateThread() before it starts the thread.
-    /// Pass the result to Wait(): an Open() after this releases that thread
-    /// even if Close() follows before the thread reaches the gate.
-    uint32_t OpenCount() const
+    /// CreateThread(), before the thread starts: the gate is in use until the
+    /// thread Detach()es, so it can't be destroyed under it.
+    Ticket Attach()
     {
         dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-        return m_openCount;
+        m_users++;
+        Ticket t;
+        t.openCount = m_openCount;
+        t.held = !m_open;
+        if (t.held)
+            m_held++;
+        return t;
     }
 
-    /// Open now, or opened since `openCountAtCreate` (from OpenCount()).
-    bool Released(uint32_t openCountAtCreate) const
+    /// The thread is done with the gate (left Wait(), or was never started).
+    /// Last access to the gate by that thread.
+    void Detach(const Ticket& t)
     {
-        return m_open || m_openCount != openCountAtCreate;
+        dmq::LockGuard<dmq::Mutex> lock(m_mutex);
+        if (t.held && t.openCount == m_openCount)
+            m_held--;     // not released by an Open(), so still counted
+        m_users--;
+        if (m_users == 0 && m_destroying)
+            m_idle.Signal();
     }
 
-    /// Called by a thread port on its own thread, after its start handshake
-    /// and before its message loop. Blocks until the gate opens (now or since
-    /// `openCountAtCreate`) or `exit` is set (followed by Wake()).
+    /// Open now, or opened since the ticket was taken.
+    bool Released(const Ticket& t) const
+    {
+        return m_open || m_openCount != t.openCount;
+    }
+
+    /// On the thread itself, after its start handshake and before its message
+    /// loop. Blocks until the gate opens (now or since Attach()) or `exit` is
+    /// set and `sem` signaled (StartGateClient::Wake()). Detaches before
+    /// returning, so the gate isn't touched afterwards.
     /// @return true if the gate opened: the thread enters its loop, and an exit
     /// requested meanwhile follows its ExitPolicy (DRAIN runs the queued
     /// messages). false if the thread was told to exit while still held: it
     /// runs nothing.
-    bool Wait(const std::atomic<bool>& exit, uint32_t openCountAtCreate)
+    bool Wait(const std::atomic<bool>& exit, const Ticket& t, dmq::Semaphore& sem)
     {
-        // Already open (the usual case after startup): don't create a waiter,
-        // whose semaphore is OS objects on the RTOS ports
-        {
-            dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-            if (Released(openCountAtCreate) || exit.load())
-                return Released(openCountAtCreate);
-        }
-
         Waiter self;
+        self.sem = &sem;
+        bool opened;
+        bool waiting = false;   // decided once, under the lock: on the list or not
         {
-            // Checked again: the gate may have opened since
             dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-            if (Released(openCountAtCreate) || exit.load())
-                return Released(openCountAtCreate);
-            self.next = m_waiters;
-            m_waiters = &self;
-        }
-
-        // Open()/Wake() signal under m_mutex. A signal sent before this wait
-        // starts is kept by the semaphore, so none is lost.
-        bool opened = false;
-        for (;;)
-        {
-            self.sem.Wait(dmq::Duration::max());
-            dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-            if (exit.load() || Released(openCountAtCreate))
+            opened = Released(t);
+            if (!opened && !exit.load())
             {
-                opened = Released(openCountAtCreate);
-                Unlink(&self);
-                break;
+                self.next = m_waiters;
+                m_waiters = &self;
+                waiting = true;
             }
         }
-        return opened;
-    }
 
-    /// Called by a thread port's ExitThread() after setting its exit flag:
-    /// waiting threads recheck their condition (only the exiting one leaves).
-    void Wake()
-    {
-        dmq::LockGuard<dmq::Mutex> lock(m_mutex);
-        for (Waiter* w = m_waiters; w != nullptr; w = w->next)
-            w->sem.Signal();
+        // Open() signals under m_mutex; ExitThread() signals `sem` directly
+        // after setting `exit`. A signal sent before this wait starts is kept
+        // by the semaphore, and a stale one only causes an extra check.
+        while (waiting)
+        {
+            sem.Wait(dmq::Duration::max());
+            dmq::LockGuard<dmq::Mutex> lock(m_mutex);
+            if (exit.load() || Released(t))
+            {
+                opened = Released(t);
+                Unlink(&self);
+                waiting = false;
+            }
+        }
+
+        Detach(t);
+        return opened;
     }
 
     void Unlink(Waiter* target)
@@ -205,7 +222,85 @@ private:
     mutable dmq::Mutex m_mutex;
     bool m_open = false;
     uint32_t m_openCount = 0;   // Open() calls; wraps harmlessly (only compared for change)
+    uint32_t m_users = 0;       // threads attached and not yet detached
+    uint32_t m_held = 0;        // of those, attached while closed and not released since
+    bool m_destroying = false;
     Waiter* m_waiters = nullptr;
+    dmq::Semaphore m_idle;      // ~StartGate() waits on it for m_users to reach 0
+};
+
+/// A thread port's start gate state: one member per `dmq::os::Thread`, so
+/// every port wires the gate the same way.
+///
+/// Port calls: `Set()` from SetStartGate(); `OnCreate()` in CreateThread()
+/// before the thread exists, and `OnCreateFailed()` if it then can't be
+/// created; `Enabled()`/`Wait()`/`Passed()` on the thread before its loop;
+/// `Wake()` in ExitThread() after setting the exit flag, and `Leave()` on its
+/// self-exit path; `IsHeld()` in WatchdogCheck().
+class StartGateClient
+{
+public:
+    void Set(StartGate* gate) { m_gate = gate; }
+    StartGate* Get() const { return m_gate; }
+
+    void OnCreate()
+    {
+        m_held.store(m_gate != nullptr);
+        m_attached = false;
+        if (m_gate)
+        {
+            if (!m_wake)
+                m_wake.emplace();   // created here, not in the Thread constructor (RTOS heap)
+            m_ticket = m_gate->Attach();
+            m_attached = true;
+        }
+    }
+
+    void OnCreateFailed() { Leave(); }
+
+    /// ExitThread() on a self-exit, from the thread itself: if it exited from
+    /// its start handler it never reaches Wait(), so detach here, while the
+    /// object is alive. No effect once the thread has passed the gate.
+    void Leave()
+    {
+        if (m_attached)
+            m_gate->Detach(m_ticket);
+        m_attached = false;
+        m_held.store(false);
+    }
+
+    /// True if this thread must wait at a gate before its loop.
+    bool Enabled() const { return m_attached; }
+
+    /// Thread side. Returns true if the gate opened; see StartGate::Wait().
+    /// The gate is not touched after this returns.
+    bool Wait(const std::atomic<bool>& exit)
+    {
+        m_attached = false;
+        return m_gate->Wait(exit, m_ticket, *m_wake);
+    }
+
+    /// Thread side, after Wait() and after refreshing the watchdog heartbeat:
+    /// no longer held.
+    void Passed() { m_held.store(false); }
+
+    /// ExitThread(): wake this thread if it is waiting at its gate. Uses only
+    /// this object, never the gate, so a destroyed gate is never touched.
+    void Wake()
+    {
+        if (m_wake && m_held.load())
+            m_wake->Signal();
+    }
+
+    /// Held at the gate: the watchdog skips the thread.
+    bool IsHeld() const { return m_held.load(); }
+
+private:
+    StartGate* m_gate = nullptr;
+    std::atomic<bool> m_held{false};
+    bool m_attached = false;
+    StartGate::Ticket m_ticket;
+    std::optional<dmq::Semaphore> m_wake;
 };
 
 } // namespace dmq::os

@@ -225,6 +225,28 @@ void ExecuteAllTests() {
         StartGatePortableTest::Run();
     }
 
+    // --- TEST 10: Self-exit from the idle handler ---
+    // The idle handler exits its own thread and deletes it (allowed on
+    // FreeRTOS: the idle task frees the task's stack later). The loop must
+    // return without touching the destroyed Thread.
+    printf("\n[Test 10] Idle handler exits and deletes its own thread:\n");
+    {
+        static std::atomic<bool> s_idleDone{false};
+        s_idleDone = false;
+        Thread* self = new Thread("IdleSelfDelete");
+        self->SetIdleHandler(MakeDelegate(std::function<void()>([self]() {
+            self->ExitThread();
+            delete self;
+            s_idleDone = true;
+        })), std::chrono::milliseconds(20));
+        DMQ_ASSERT_TRUE(self->CreateThread());
+        for (int i = 0; i < 100 && !s_idleDone; i++)
+            vTaskDelay(pdMS_TO_TICKS(10));
+        DMQ_ASSERT_TRUE(s_idleDone);
+        vTaskDelay(pdMS_TO_TICKS(50));      // let the task finish and the idle task free it
+        printf("  -> thread exited and deleted itself from its idle handler\n");
+    }
+
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");
     printf("=========================================\n");

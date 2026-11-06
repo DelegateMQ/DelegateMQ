@@ -297,7 +297,7 @@ Without a timeout argument, the watchdog is disabled for that thread.
 
 ### How it works
 
-1. **Self-reporting:** The thread's `Process()` loop records `m_lastAliveTime = Timer::GetNow()` at the top of every iteration and again after waking from the queue wait. With a watchdog enabled the queue wait uses a finite timeout (`watchdogTimeout / 10` on stdlib/Win32/POSIX, `/ 4` on the RTOS ports) so even idle threads loop frequently.
+1. **Self-reporting:** The thread's `Process()` loop records `m_lastAliveTime = Timer::GetNow()` at the top of every iteration and again after waking from the queue wait. With a watchdog enabled the queue wait uses a finite timeout (`watchdogTimeout / DMQ_WATCHDOG_HEARTBEAT_DIVISOR`, default 4) so even idle threads loop frequently.
 2. **Checking:** the application calls the static `dmq::os::Thread::WatchdogCheckAll()` periodically (e.g. every 100 ms) from its own loop or task — the library does not schedule it, and `ProcessTimers()` does not call it. It reads `m_lastAliveTime` atomically for each registered thread. If `now − lastAlive > watchdogTimeout`, `WatchdogHandler(threadName)` is called.
 
 ```cpp
@@ -331,7 +331,7 @@ void MyClass::LongHandler() {
 | `CreateThread(std::optional<dmq::Duration>)` | Pass a timeout to enable the watchdog and register the thread |
 | `static WatchdogCheckAll()` | Check every registered thread; call periodically from the application |
 | `ThreadCheck()` | Manually reset the alive timestamp inside a long handler |
-| `ExitThread()` | Stops watchdog checks for the thread (it stays registered until destroyed) |
+| `ExitThread()` | Stops watchdog checks once the thread has finished (a thread that hangs while `ExitThread()` waits is still reported); it stays registered until destroyed |
 
 ### Priority requirement
 
