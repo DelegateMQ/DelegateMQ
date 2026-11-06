@@ -24,7 +24,7 @@ Set in `DelegateMQConfig.h` (defaults in `DelegateMQConfig_Default.h`). They app
 
 | Setting | Default | Limits | Error |
 |---|---|---|---|
-| `DMQ_SERIALIZE_MAX_STRING_SIZE` | 1024 | String length (a `char*` counts its terminator); at most 65535 | `STRING_TOO_LONG` |
+| `DMQ_SERIALIZE_MAX_STRING_SIZE` | 1024 | String length in bytes, not counting a terminator (none is sent); at most 65535 | `STRING_TOO_LONG` |
 | `DMQ_SERIALIZE_MAX_CONTAINER_SIZE` | 64 | Elements in a vector, list, set or map; at most 65535 | `CONTAINER_TOO_MANY` |
 | `DMQ_SERIALIZE_MAX_NESTING` | 5 | Depth of `serialize::I` objects nested inside each other | `NESTING_TOO_DEEP` |
 

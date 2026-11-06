@@ -347,11 +347,6 @@ public:
                 s.resize(size);
                 parseStatus(typeid(s), s.size());
                 read_internal(is, &s[0], size, true);
-
-                // write(const char*) sends its terminator; drop it so "hello"
-                // reads back as "hello", the same as when sent as std::string.
-                if (!s.empty() && s.back() == '\0')
-                    s.pop_back();
             }
         }
         return is;
@@ -434,8 +429,9 @@ public:
                 return is;
             }
 
-            // write(const char*) sends the terminator; write(std::string) doesn't.
-            // Terminate here if the data didn't, failing if there's no room.
+            // Strings go out without a terminator (older versions sent one with
+            // a const char*). Terminate here if the data didn't, failing if
+            // there's no room.
             if (str[size - 1] != '\0')
             {
                 if (size < maxLen)
@@ -617,16 +613,18 @@ public:
     {
         if (check_pointer(os, str))
         {
-            // Check before narrowing: a length of 65535 or more would wrap the
-            // 16-bit size and silently send an empty string.
+            // Check before narrowing: a length over 65535 would wrap the 16-bit
+            // size and silently send a truncated string.
             const size_t len = strlen(str);
-            if (len + 1 > MAX_STRING_SIZE)
+            if (len > MAX_STRING_SIZE)
             {
                 raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
                 os.setstate(std::ios::failbit);
                 return os;
             }
-            uint16_t size = static_cast<uint16_t>(len + 1);
+            // No terminator on the wire, the same as std::string: the reader
+            // adds one for a char buffer, and a std::string keeps every byte.
+            uint16_t size = static_cast<uint16_t>(len);
             write_type(os, Type::STRING);
             write(os, size, false);
             if (check_stream(os) && check_slength(os, size))

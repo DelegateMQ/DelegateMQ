@@ -157,10 +157,11 @@ private:
             m_idle.Signal();
     }
 
-    /// Open now, or opened since the ticket was taken.
+    /// Attached while open (passes through even if Close() came since), open
+    /// now, or opened since the ticket was taken.
     bool Released(const Ticket& t) const
     {
-        return m_open || m_openCount != t.openCount;
+        return !t.held || m_open || m_openCount != t.openCount;
     }
 
     /// On the thread itself, after its start handshake and before its message

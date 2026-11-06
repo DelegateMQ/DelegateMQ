@@ -5,6 +5,7 @@
 #include "../../delegate/Signal.h"
 #include <atomic>
 #include <list>
+#include <new>
 
 namespace dmq::util {
 
@@ -117,7 +118,9 @@ private:
     {
         // Allocate on heap and NEVER delete. Prevents lock from being destroyed
         // before the last Timer destructor runs at app shutdown.
-        static dmq::CriticalSection* lock = new dmq::CriticalSection();
+        static dmq::CriticalSection* lock = new(std::nothrow) dmq::CriticalSection();
+        if (!lock)
+            BAD_ALLOC();
         return *lock;
     }
 
@@ -129,7 +132,9 @@ private:
     static dmq::RecursiveMutex& GetProcessLock()
     {
         // Immortal, like GetLock().
-        static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+        static dmq::RecursiveMutex* lock = new(std::nothrow) dmq::RecursiveMutex();
+        if (!lock)
+            BAD_ALLOC();
         return *lock;
     }
 

@@ -111,6 +111,26 @@ inline void OpenThenCloseStillReleases()
     }
 }
 
+// Created while the gate is open, then Close() at once, before the thread
+// reaches the gate: it passes straight through (it was created after Open()).
+inline void CreatedOpenThenCloseStillPasses()
+{
+    for (int i = 0; i < 20; i++)
+    {
+        dmq::os::StartGate gate;
+        gate.Open();
+        dmq::os::Thread t("GateCreatedOpen");
+        t.SetStartGate(&gate);
+        DMQ_ASSERT_TRUE(t.CreateThread());
+        gate.Close();
+        Ran() = 0;
+        dmq::MakeDelegate(&Count, t)(0);
+        DMQ_ASSERT_TRUE(WaitForRan(1));
+        t.ExitThread();
+        LetExitedThreadsClean();
+    }
+}
+
 // Open() then ExitThread(DRAIN) at once, before the thread wakes: it was
 // released, so the queued message must still run (DRAIN), not be discarded
 // as if the thread had exited while held.
@@ -226,6 +246,7 @@ inline void Run(bool twoThreads = true)
     HoldsUntilOpen(twoThreads);
     ExitWhileHeld();
     OpenThenCloseStillReleases();
+    CreatedOpenThenCloseStillPasses();
     OpenThenExitDrains();
     WatchdogIgnoresHeldThread();
     GateDestroyedAfterRelease();

@@ -435,9 +435,15 @@ static void CharArrayTests()
         DMQ_ASSERT_TRUE(oss.str().empty());
     }
 
-    // const char* just over the limit (terminator counts): write fails
+    // const char* at the limit: written. One over: write fails
     {
-        std::string over(dmq::SERIALIZE_MAX_STRING_SIZE, 'O');
+        std::string at(dmq::SERIALIZE_MAX_STRING_SIZE, 'A');
+        std::ostringstream ok;
+        ser.write(ok, at.c_str());
+        DMQ_ASSERT_TRUE(ok.good());
+    }
+    {
+        std::string over(dmq::SERIALIZE_MAX_STRING_SIZE + 1, 'O');
         std::ostringstream oss;
         ser.clearLastError();
         ser.write(oss, over.c_str());
@@ -445,8 +451,8 @@ static void CharArrayTests()
         DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
     }
 
-    // Sent as const char* (terminator on the wire), read into std::string:
-    // the terminator is dropped
+    // Sent as const char*, read into std::string: no terminator was sent, so
+    // none is read back
     {
         std::string dst;
         std::ostringstream oss;
@@ -455,6 +461,31 @@ static void CharArrayTests()
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == "hello" && dst.size() == 5);
+    }
+
+    // A std::string whose data ends in a zero byte keeps every byte
+    {
+        const std::string src("abc\0", 4);
+        std::string dst;
+        std::ostringstream oss;
+        ser.write(oss, src);
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(dst == src && dst.size() == 4);
+    }
+
+    // An older sender's const char* (terminator on the wire) read into a char
+    // buffer: still read correctly
+    {
+        const char legacy[] = "hi";
+        std::ostringstream oss;
+        ser.write(oss, std::string(legacy, sizeof(legacy)));   // "hi\0", 3 bytes
+        char dst[3];
+        std::istringstream iss(oss.str());
+        ser.read(iss, dst, sizeof(dst));
+        DMQ_ASSERT_TRUE(!iss.fail());
+        DMQ_ASSERT_TRUE(std::strcmp(dst, "hi") == 0);
     }
 
     // Truncated stream: payload shorter than its length field. Read must report

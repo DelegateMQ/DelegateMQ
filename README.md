@@ -385,7 +385,7 @@ void OnTemperature(float t) { std::cout << "Temp: " << t << "\n"; }
 // --- Receiver: bind a handler to the ID ---
 dmq::RemoteChannel<void(float)> rx(transport, serializer);
 rx.Bind(OnTemperature, TEMPERATURE_ID);
-dispatcher.RegisterEndpoint(TEMPERATURE_ID, rx.GetEndpoint());
+dispatcher.RegisterEndpoint(TEMPERATURE_ID, rx);
 
 // --- Sender: invoke the channel ---
 dmq::RemoteChannel<void(float)> tx(transport, serializer, TEMPERATURE_ID);
@@ -405,7 +405,7 @@ DelegateMQ separates **hard faults** (programming or capacity errors that must s
 | Default (desktop) | C++ exceptions: `std::bad_alloc`, `std::invalid_argument`, `std::runtime_error` |
 | `DMQ_ASSERTS` (embedded default; automatic when exceptions are disabled) | `dmq::util::FaultHandler()` is called. Customize `port/fault/Fault.cpp` to log, capture a crash dump, or reset the system. |
 
-**Recoverable errors** — serialization failures, dispatch failures and transport receive errors are reported as a `dmq::DelegateError` code through a handler or signal. A remote error with no handler registered escalates to a hard fault, so always register one:
+**Recoverable errors** — serialization failures, dispatch failures and transport receive errors are reported as a `dmq::DelegateError` code through a handler or signal. On builds with exceptions enabled, a remote error with no handler registered throws `std::runtime_error` (or is stored in `GetError()` when `DMQ_ASSERTS` is defined or exceptions are disabled), so always register one:
 
 ```cpp
 // Per remote channel
@@ -456,8 +456,8 @@ DelegateMQ at a glance.
 | Library | Allows customizing data sharing between threads, processes, or processors |
 | Object Lifetime | Thread-safe management via smart pointers (`std::weak_ptr`) prevents async invocation on destroyed objects (no dangling pointers). |
 | Complexity | Lightweight and extensible through external library interfaces and full source code |
-| Threads | No internal threads. External configurable thread interface portable to any OS (`dmq::IThread`). |
-| Timers | Periodic and one-shot timers (`dmq::util::Timer`). Callbacks dispatch to any thread via `OnExpired` signal. No internal timer thread; driven by application calling `Timer::ProcessTimers()` from a loop, task, or ISR. |
+| Threads | Core library creates no internal threads (only opt-in helpers `RemoteDispatcher` and `NetworkNode` own a receive thread). External configurable thread interface portable to any OS (`dmq::IThread`). |
+| Timers | Periodic and one-shot timers (`dmq::util::Timer`). Callbacks dispatch to any thread via `OnExpired` signal. No internal timer thread; driven by application calling `Timer::ProcessTimers()` from a loop, task, or ISR (ISR on bare metal only). |
 | Synchronized Thread Start | Optional start gate (`dmq::os::StartGate`) holds a group of threads, created and ready but processing nothing, until one `Open()` starts them all together. Stops threads from running while others are still being created or wired up. |
 | Watchdog | Configurable timeout to detect and handle unresponsive threads. |
 | Signal and Slots | Standard Signal-Slot pattern (`dmq::Signal<Sig>`). `Connect()` returns a `dmq::ScopedConnection` for RAII auto-disconnect. Thread-safe by default; no `shared_ptr` required. |
