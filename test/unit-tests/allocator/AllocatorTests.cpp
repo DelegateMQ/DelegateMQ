@@ -187,6 +187,30 @@ void AllocatorTests()
     }
 #endif
 
+    // Deallocate(NULL) is ignored: a delete-expression on a null pointer may
+    // call DECLARE_ALLOCATOR's operator delete(NULL), which used to Push(NULL)
+    // and write through it
+    {
+        Allocator allocator(32, 2);
+        allocator.Deallocate(NULL);
+        DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 0);
+        DMQ_ASSERT_TRUE(allocator.GetDeallocations() == 0);
+        MyClass::operator delete(nullptr);
+
+        void* p = allocator.Allocate(32);
+        DMQ_ASSERT_TRUE(p != NULL);
+        allocator.Deallocate(p);
+    }
+
+    // A size too large to round up to a power of two returns NULL. It used to
+    // wrap nexthigher() to 0 and return a tiny block the caller would overrun.
+    {
+        DMQ_ASSERT_TRUE(xallocator_get_allocator(static_cast<size_t>(-1)) == NULL);
+        DMQ_ASSERT_TRUE(xallocator_get_allocator(static_cast<size_t>(-1) / 2) == NULL);
+        DMQ_ASSERT_TRUE(xmalloc(static_cast<size_t>(-1)) == NULL);
+        DMQ_ASSERT_TRUE(xmalloc(static_cast<size_t>(-1) / 2) == NULL);
+    }
+
 #ifdef DMQ_ALLOCATOR_SAFEGUARDS
     // White-box Safeguard Tests — constants come from xallocator.h (single source of truth)
     {
