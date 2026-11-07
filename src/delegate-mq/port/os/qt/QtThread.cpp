@@ -495,6 +495,12 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             m_dispatchCountAll++;
 #endif
 
+            // Unlike the other thread ports, msg->GetPriority() is ignored here:
+            // the queued signal goes into Qt's single FIFO event queue, so a
+            // Priority::HIGH message runs after every message dispatched before
+            // it. The other ports keep a HIGH and a NORMAL queue and drain HIGH
+            // first. Supporting priority would need a two-lane queue here, with
+            // the signal only waking the worker to drain it.
             emit SignalDispatch(msg);
             m_mutex.unlock();
             return true;

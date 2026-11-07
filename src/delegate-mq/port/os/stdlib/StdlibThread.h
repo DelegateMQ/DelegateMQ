@@ -14,8 +14,9 @@
 /// asynchronous delegates and system messages.
 ///
 /// **Key Features:**
-/// * **Priority Queue:** Uses `std::priority_queue` to ensure high-priority delegate 
-///   messages (e.g., system signals) are processed before lower-priority ones.
+/// * **Priority Queue:** One FIFO `std::deque` per priority level, so high-priority
+///   delegate messages (e.g., system signals) are processed before normal ones, and
+///   messages of the same priority are processed in the order they were dispatched.
 /// * **Queue Full Policy:** Configurable `FullPolicy` (DROP or TIMEOUT), always enforced --
 ///   `maxQueueSize == 0` falls back to `dmq::THREAD_DESKTOP_QUEUE_SIZE` rather than disabling
 ///   the cap, since this port backs its queue with a plain `std::deque` and would otherwise
@@ -26,8 +27,8 @@
 ///   stalls (deadlock or infinite loop), the watchdog timer detects the failure.
 /// * **Synchronized Start:** Uses `std::promise` and `std::future` to ensure the thread 
 ///   is fully initialized and running before `CreateThread()` returns.
-/// * **Debug Support:** Sets the native thread name (on supported OSs like Windows) to 
-///   aid debugging in IDEs.
+/// * **Debug Support:** Sets the native thread name on Windows and Linux to aid
+///   debugging in IDEs and tools (Linux truncates names to 15 characters).
 /// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
 ///   holds the thread ready but processing no messages, at any priority, until
 ///   `StartGate::Open()` releases every thread sharing the gate at once.

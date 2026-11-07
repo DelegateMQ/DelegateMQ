@@ -11,6 +11,9 @@
 #ifdef _WIN32
 #include <Windows.h>
 #endif
+#ifdef __linux__
+#include <pthread.h>
+#endif
 
 // Thread-local pointer into Process()'s stack frame. Set non-null only while
 // Process() is running on a given thread. ExitThread() writes true through it
@@ -178,6 +181,9 @@ void StdlibThread::SetThreadName(std::thread::native_handle_type handle, const d
     {
         // Handle error if needed
     }
+#elif defined(__linux__)
+    // Shown by top -H, ps -L, gdb and perf. Linux limits names to 15 characters.
+    pthread_setname_np(handle, name.substr(0, 15).c_str());
 #endif
 }
 

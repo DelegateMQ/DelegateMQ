@@ -23,8 +23,9 @@
 /// glibc/libstdc++. This file is the only thing `DMQ_THREAD_POSIX` adds.
 ///
 /// **Key Features:**
-/// * **Priority Queue:** Separate high/normal `std::deque`s to ensure high-priority delegate
-///   messages (e.g. system signals) are processed before lower-priority ones.
+/// * **Priority Queue:** One FIFO `std::deque` per priority level, so high-priority
+///   delegate messages (e.g. system signals) are processed before normal ones, and
+///   messages of the same priority are processed in the order they were dispatched.
 /// * **Queue Full Policy:** Configurable `FullPolicy` (DROP, FAULT, or TIMEOUT), always enforced --
 ///   `maxQueueSize == 0` falls back to `dmq::THREAD_DESKTOP_QUEUE_SIZE` rather than disabling
 ///   the cap, since this port backs its queue with a plain `std::deque` and would otherwise

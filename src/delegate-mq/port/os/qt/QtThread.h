@@ -4,10 +4,9 @@
 /// @file QtThread.h
 /// @brief Qt implementation of the DelegateMQ IThread interface.
 ///
-/// @note This implementation is a basic port. For reference, the stdlib and win32
-/// implementations provide additional features:
-/// 1. Priority Support: Uses a priority queue to respect dmq::Priority.
-/// 2. Synchronized Startup: CreateThread() blocks until the worker thread is ready.
+/// @note No message priority: dmq::Priority is ignored, and messages run in the
+/// order they were dispatched (Qt's event queue). The other thread ports process
+/// Priority::HIGH messages before NORMAL ones.
 ///
 /// **Key Features:**
 /// * **QThread Integration:** Wraps `QThread` and uses a Worker object to execute

@@ -22,6 +22,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **`DMQ_USER_CONFIG_DIR`** adds the directory holding the user config header to the target's include path.
 - **Building without CMake: one source file or the whole folder.** For Keil, IAR, STM32CubeIDE, PlatformIO or Makefiles, add `src/delegate-mq` to the include path and either the single file `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq` (but not both). Each library `.cpp` now compiles to nothing unless the options select it, so there's no list of port files to pick from and nothing to exclude. See BUILD.md "Without CMake".
 - **`DelegateMQConfig.h` is picked up automatically** when it's on the include path (C++17 `__has_include`), and it can now select ports and options (`DMQ_THREAD_*`, `DMQ_ALLOCATOR`, ...) as well as tune constants, so a build without CMake needs no `-D` flags. `-DDMQ_USER_CONFIG=` still works; define `DMQ_NO_USER_CONFIG` to ignore the file. `DelegateMQConfig_Template.h` lists the options.
+- **stdlib thread names on Linux.** `StdlibThread` now names its native thread with `pthread_setname_np()` on Linux (truncated to 15 characters), as the POSIX port does, so `top -H`, `ps -L`, gdb and perf show it. Before, only Windows threads were named.
 - **`DMQ_CUSTOM_FAULT_HANDLER`.** Define it when the application provides its own `FaultHandler()`/`WatchdogHandler()`; `port/fault/Fault.cpp` then compiles to nothing instead of having to be left out of the build.
 
 ### Fixed
