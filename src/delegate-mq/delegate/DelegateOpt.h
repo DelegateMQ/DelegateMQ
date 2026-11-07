@@ -585,10 +585,11 @@ namespace dmq
         template <typename T, typename Alloc = stl_allocator<T>>
         using xlist = std::list<T, Alloc>;
 
-        typedef std::basic_ostringstream<char, std::char_traits<char>, stl_allocator<char>> xostringstream;
-        typedef std::basic_stringstream<char, std::char_traits<char>, stl_allocator<char>> xstringstream;
+        // stl_allocator is std::allocator here, so these are the standard types
+        typedef std::ostringstream xostringstream;
+        typedef std::stringstream xstringstream;
 
-        typedef std::basic_string<char, std::char_traits<char>, stl_allocator<char>> xstring;
+        typedef std::string xstring;
 
         // Fallback xmake_shared — uses std::make_shared when fixed-block allocator is disabled
         template <typename T, typename... Args>
