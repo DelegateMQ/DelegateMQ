@@ -40,8 +40,27 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 
 IS_WINDOWS = platform.system() == "Windows"
+
+# (name, reason) of every configure that failed; reported at the end and
+# turned into a non-zero exit code so build_all.py shows this step FAILED.
+FAILED = []
+
+def report_failure(name, stderr):
+    """Print the first CMake error line (plus one line of context) and record it."""
+    reason = ""
+    lines = (stderr or "").splitlines()
+    for i, line in enumerate(lines):
+        if "CMake Error" in line or "Could not find" in line or "FATAL_ERROR" in line:
+            reason = line.strip()
+            print(f"   Reason: {reason}")
+            if i + 1 < len(lines) and lines[i + 1].strip():
+                print(f"          {lines[i + 1].strip()}")
+                reason += " " + lines[i + 1].strip()
+            break
+    FAILED.append((name, reason))
 
 def find_stm32_f4_repo():
     """Locate the STM32Cube FW_F4 package (HAL/CMSIS/BSP) for Pumptron's firmware."""
@@ -106,10 +125,7 @@ def configure_pumptron_f4(pumptron_dir):
         print("   Success!")
     except subprocess.CalledProcessError as e:
         print("   FAILED (STM32F4 firmware)")
-        for line in (e.stderr or "").splitlines():
-            if "CMake Error" in line or "FATAL_ERROR" in line:
-                print(f"   Reason: {line.strip()}")
-                break
+        report_failure(label, e.stderr)
 
 
 def build_samples(use_clang=False, clean=False):
@@ -245,14 +261,7 @@ def build_samples(use_clang=False, clean=False):
                         print(f"   >> On Windows, 02_build_libs.py builds it; check that step's output.")
                         print(f"   >> Otherwise see: {os.path.join(dirpath, 'README.md')}\n")
 
-                    if e.stderr:
-                        lines = e.stderr.split('\n')
-                        for i, line in enumerate(lines):
-                            if "CMake Error" in line or "Could not find" in line or "FATAL_ERROR" in line:
-                                print(f"   Reason: {line.strip()}")
-                                # Print a bit of context
-                                if i+1 < len(lines): print(f"          {lines[i+1].strip()}")
-                                break
+                    report_failure(display_name, e.stderr)
 
                 # --- PUMPTRON STM32F4 FIRMWARE CONFIGURE ---
                 if project_name == "pumptron":
@@ -280,13 +289,7 @@ def build_samples(use_clang=False, clean=False):
                         print("   Success!")
                     except subprocess.CalledProcessError as e:
                         print(f"   FAILED (ThreadX)")
-                        if e.stderr:
-                            lines = e.stderr.split('\n')
-                            for i, line in enumerate(lines):
-                                if "CMake Error" in line or "Could not find" in line or "FATAL_ERROR" in line:
-                                    print(f"   Reason: {line.strip()}")
-                                    if i+1 < len(lines): print(f"          {lines[i+1].strip()}")
-                                    break
+                        report_failure(f"{display_name} (ThreadX)", e.stderr)
 
                 # --- CLANG CONFIGURE (optional, Linux only) ---
                 if clang_exe and not needs_win32:
@@ -303,14 +306,30 @@ def build_samples(use_clang=False, clean=False):
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
                         )
                         print("   Success!")
-                    except subprocess.CalledProcessError:
+                    except subprocess.CalledProcessError as e:
                         print(f"   FAILED (clang)")
+                        report_failure(f"{display_name} (clang)", e.stderr)
 
                 # If we found a CMakeLists.txt, we treat this as a standalone project
                 # and stop recursing into its subdirectories.
                 dirnames.clear()
 
+    print("\n" + "=" * 60)
+    if FAILED:
+        print(f"CONFIGURE FAILED for {len(FAILED)} project(s):")
+        for name, reason in FAILED:
+            print(f"   {name:<40} {reason}")
+        print("\nA missing third-party library usually means 01_fetch_repos.py or")
+        print("02_build_libs.py didn't complete; check their output.")
+    else:
+        print("All projects configured.")
+    print("=" * 60)
+    return not FAILED
+
 if __name__ == "__main__":
+    import preflight
+    if not preflight.check(need_git=False, need_cmake=True):
+        sys.exit(1)
     parser = argparse.ArgumentParser(description="Configure all DelegateMQ sample projects.")
     parser.add_argument(
         "--clang", action="store_true",
@@ -321,4 +340,4 @@ if __name__ == "__main__":
         help="Remove existing build directories before configuring."
     )
     args = parser.parse_args()
-    build_samples(use_clang=args.clang, clean=args.clean)
+    sys.exit(0 if build_samples(use_clang=args.clang, clean=args.clean) else 1)

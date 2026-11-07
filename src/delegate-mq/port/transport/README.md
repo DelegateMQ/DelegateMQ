@@ -1,6 +1,6 @@
-# Transport Layer
+# Transports (DelegateMQ Abstraction Layer)
 
-This directory contains the transport layer implementations for **DelegateMQ**, enabling remote function invocation across various physical media and protocols.
+This directory contains the transport part of the **DelegateMQ Abstraction Layer**: the `ITransport` implementations that enable remote function invocation across various physical media and protocols.
 
 ## Core Interfaces
 

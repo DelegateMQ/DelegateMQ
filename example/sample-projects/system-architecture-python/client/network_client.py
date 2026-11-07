@@ -7,7 +7,7 @@ import threading
 from typing import Callable, Dict
 
 # Import configuration
-from config import SERVER_IP, SEND_PORT, RECV_PORT, DMQ_MARKER, RemoteId
+from config import SERVER_IP, SEND_PORT, RECV_PORT, DMQ_MARKER, DMQ_VERSION, DMQ_HEADER_SIZE, DMQ_NODE_ID, RemoteId
 
 # Import message definitions for deserialization
 from messages import AlarmMsg, CommandMsg, DataMsg, ActuatorMsg, AlarmNote
@@ -83,9 +83,8 @@ class NetworkClient:
 
         length = len(payload)
 
-        # [FIX] Use '!HHHH' for Network Byte Order (Big Endian)
-        # Matches C++ htons() usage
-        header = struct.pack('!HHHH', DMQ_MARKER, remote_id, seq, length)
+        # Big-endian: marker, node ID, version, remote ID, seq, length
+        header = struct.pack('!HBBHHH', DMQ_MARKER, DMQ_NODE_ID, DMQ_VERSION, remote_id, seq, length)
 
         # 3. Send Packet
         full_packet = header + payload
@@ -98,8 +97,7 @@ class NetworkClient:
     def _send_ack(self, seq_num):
         """Sends an ACK back to C++ so it stops waiting (if blocking)."""
         # Header with ID = 0 (ACK) and the RECEIVED sequence number
-        # [FIX] Use '!HHHH' (Big Endian)
-        header = struct.pack('!HHHH', DMQ_MARKER, RemoteId.ACK, seq_num, 0)
+        header = struct.pack('!HBBHHH', DMQ_MARKER, DMQ_NODE_ID, DMQ_VERSION, RemoteId.ACK, seq_num, 0)
         try:
             self._send_socket.send(header) # ACK has no payload
         except zmq.ZMQError:
@@ -119,15 +117,18 @@ class NetworkClient:
                     # 1. Receive Raw Bytes
                     data = self._recv_socket.recv()
                     
-                    if len(data) < 8:
+                    if len(data) < DMQ_HEADER_SIZE:
                         continue # Malformed
 
-                    # 2. Parse Header (First 8 bytes)
-                    # Use '!HHHH' (Big Endian) to match C++
-                    marker, remote_id, seq_num, length = struct.unpack('!HHHH', data[:8])
+                    # 2. Parse Header (big-endian, see DmqHeader.h)
+                    marker, node_id, version, remote_id, seq_num, length = struct.unpack(
+                        '!HBBHHH', data[:DMQ_HEADER_SIZE])
 
                     if marker != DMQ_MARKER:
                         print(f"Warning: Invalid Marker {hex(marker)}")
+                        continue
+                    if version != DMQ_VERSION:
+                        print(f"Warning: Unsupported protocol version {version}")
                         continue
 
                     # 3. Handle ACK vs Data
@@ -138,11 +139,11 @@ class NetworkClient:
                         # 4. Extract Payload
                         # C++ payload is after header. 
                         # Safety check length
-                        if len(data) < 8 + length:
-                            print(f"Warning: Incomplete packet. Expected {length}, got {len(data)-8}")
+                        if len(data) < DMQ_HEADER_SIZE + length:
+                            print(f"Warning: Incomplete packet. Expected {length}, got {len(data)-DMQ_HEADER_SIZE}")
                             continue
                             
-                        payload = data[8:8+length]
+                        payload = data[DMQ_HEADER_SIZE:DMQ_HEADER_SIZE+length]
                         self._dispatch_message(remote_id, payload)
                         
                         # 5. Send ACK back to C++

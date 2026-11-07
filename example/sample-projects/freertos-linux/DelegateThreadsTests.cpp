@@ -7,12 +7,12 @@
 /// Thread port instead of the desktop stdlib port.
 
 #include "DelegateMQ.h"
+#include "../../../test/unit-tests/StartGatePortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
 #include <cstring>
 #include <atomic>
-#include <thread>
 #include <mutex>
 
 using namespace dmq;
@@ -386,12 +386,12 @@ static void FullPolicy_Timeout_DeliversAll()
     std::atomic<int> deliveredCount{ 0 };
     const int SEND_COUNT = 10;
 
-    // Fire sends on a background thread so waiting doesn't stall this test thread.
-    std::thread sender([&]() {
-        for (int i = 0; i < SEND_COUNT; i++)
-            MakeDelegate([&deliveredCount]() { deliveredCount++; }, timeoutThread)();
-    });
-    sender.join();
+    // Post from this task: TIMEOUT blocks it until a slot opens. Don't use a
+    // std::thread here: a host thread the RTOS doesn't know about must not
+    // call its queue APIs (blocking on a full queue suspends whichever RTOS
+    // thread is current instead), which hung this test intermittently.
+    for (int i = 0; i < SEND_COUNT; i++)
+        MakeDelegate([&deliveredCount]() { deliveredCount++; }, timeoutThread)();
 
     while (timeoutThread.GetQueueSize() != 0)
         dmq::ThisThread::sleep_for(std::chrono::milliseconds(5));
@@ -495,4 +495,6 @@ void DelegateThreadsTests()
     workerThread2().ExitThread();
 
     ThreadFullPolicyTests();
+
+    StartGatePortableTest::Run();   // StartGate on this port
 }

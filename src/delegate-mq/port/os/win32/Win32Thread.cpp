@@ -69,6 +69,13 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (m_hThread == NULL)
     {
         m_exit = false;
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_startGate.OnCreate();
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
 
         // Manual-reset event for startup synchronization
         m_hStartEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -76,7 +83,13 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Created suspended so m_hThread/m_threadId are stored before the thread
         // runs: the start handler may call IsCurrentThread() or dispatch to it.
         m_hThread = ::CreateThread(NULL, 0, ThreadProc, this, CREATE_SUSPENDED, &m_threadId);
-        if (m_hThread == NULL) return false;
+        if (m_hThread == NULL) {
+            m_watchdogTimeout.store(dmq::Duration(0));  // no thread to refresh the heartbeat
+            m_startGate.OnCreateFailed();
+            CloseHandle(m_hStartEvent);
+            m_hStartEvent = NULL;
+            return false;
+        }
 
         // Set the thread name so it shows in the Visual Studio Debug Location toolbar
         std::wstring wname(THREAD_NAME.begin(), THREAD_NAME.end());
@@ -94,7 +107,6 @@ bool Win32Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Caller wants a watchdog timer?
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
             // Add to watchdog registry if not already present
             {
@@ -233,8 +245,29 @@ void Win32Thread::Process()
     if (m_startHandler)
         m_startHandler();
 
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
     // Signal that the thread has started processing to notify CreateThread
     SetEvent(m_hStartEvent);
+    if (exitedInStart) { t_self_exit = nullptr; return; }
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate.Enabled())
+    {
+        const bool opened = m_startGate.Wait(m_exit);
+        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_startGate.Passed();
+        if (!opened)
+        {
+            // ExitThread() while held: leave without running any message.
+            // ExitThread() cancels what is still queued once this thread ends.
+            t_self_exit = nullptr;
+            return;
+        }
+    }
 
     while (!selfExit)
     {
@@ -256,7 +289,7 @@ void Win32Thread::Process()
         if (watchdogTimeout.count() > 0)
         {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
-            dwTimeout = static_cast<DWORD>(ms / 4);
+            dwTimeout = static_cast<DWORD>(ms / dmq::WATCHDOG_HEARTBEAT_DIVISOR);
             if (dwTimeout == 0) dwTimeout = 1;
         }
         if (idle.Enabled())
@@ -438,6 +471,11 @@ void Win32Thread::ExitThread(ExitPolicy policy)
     CancelAll(discardedHigh);
     CancelAll(discardedNormal);
 
+    // A thread held at its start gate isn't waiting on its queue: wake it so it
+    // sees the exit flag (set above) and leaves. Never touches the gate itself,
+    // which may be destroyed once the thread is released.
+    m_startGate.Wake();
+
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (::GetCurrentThreadId() != m_threadId)
     {
@@ -446,6 +484,7 @@ void Win32Thread::ExitThread(ExitPolicy policy)
     else
     {
         if (t_self_exit) *t_self_exit = true;
+        m_startGate.Leave();     // exited from its start handler: never reaches the gate
     }
 
     // Normally empty. After a self-exit the loop returns without draining,
@@ -456,6 +495,11 @@ void Win32Thread::ExitThread(ExitPolicy policy)
     LeaveCriticalSection(&m_cs);
     CancelAll(discardedHigh);
     CancelAll(discardedNormal);
+
+    // The thread has finished (or, on a self-exit, is in its last handler):
+    // stop watchdog checks. Not earlier, so a thread that hangs while
+    // ExitThread() waits for it is still reported.
+    m_watchdogTimeout.store(dmq::Duration(0));
 
     CloseHandle(m_hThread);
     m_hThread = NULL;
@@ -510,6 +554,9 @@ void Win32Thread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void Win32Thread::WatchdogCheck()
 {
+    if (m_startGate.IsHeld())
+        return;     // held at its start gate by design, not hung
+
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();

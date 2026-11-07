@@ -83,6 +83,11 @@ namespace CsharpSample
             // resent on timeout (defaults: 2 s timeout, 3 retries). To change:
             // bus.SetReliability(timeoutMs: 1000, maxRetries: 5);
 
+            // Node ID sent in every header. The C# and Python clients send the same
+            // command IDs to one server, so each needs its own ID for the server's
+            // duplicate filter to tell them apart.
+            bus.SetNodeId(10);
+
             try
             {
                 // Start the background native receive loop

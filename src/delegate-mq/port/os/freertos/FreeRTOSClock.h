@@ -3,6 +3,7 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "FreeRTOSCriticalSection.h"
 #include <chrono>
 
 namespace dmq::os {
@@ -20,16 +21,23 @@ namespace dmq::os {
         static time_point now() noexcept {
             // Static state to track the tick rollover.
             // 1. It must be called at least once per rollover period to detect the wrap.
-            // 2. Thread safety: Protected by Critical Section below.
+            // 2. Thread/ISR safety: protected by the critical section below.
             static TickType_t last = 0;
             static uint64_t high = 0;
 
-            // Enter Critical Section
-            // This prevents context switches and interrupts during the state update.
-            // NOTE: This function must be called from a TASK, not an ISR.
-            taskENTER_CRITICAL();
+            // Timer::ProcessTimers() calls this through Timer::GetNow(), and on a
+            // real Cortex-M target ProcessTimers() may run in a hardware ISR (see
+            // CLAUDE.md "ISR-Safe Locking"). taskENTER_CRITICAL() and
+            // xTaskGetTickCount() are task-only, so use FreeRTOSCriticalSection
+            // (which picks taskENTER_CRITICAL[_FROM_ISR] by context) and the
+            // matching tick-count call. Nesting inside Timer's own
+            // FreeRTOSCriticalSection is safe: each instance saves and restores
+            // its own state, released in LIFO order.
+            const bool inIsr = detail::IsInsideFreeRTOSInterrupt() != pdFALSE;
+            FreeRTOSCriticalSection cs;
+            cs.lock();
 
-            TickType_t cur = xTaskGetTickCount();
+            TickType_t cur = inIsr ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
 
             // If TickType_t is 64-bit, we don't need the rollover logic as it essentially never wraps.
             // This also prevents a compilation error (shift count >= width of type).
@@ -51,7 +59,7 @@ namespace dmq::os {
             // Combine high part with current tick
             uint64_t ticks = high + cur;
 
-            taskEXIT_CRITICAL();  // End Lock
+            cs.unlock();
 
             return time_point(duration(static_cast<rep>(ticks)));
         }

@@ -59,7 +59,8 @@ DMQ_OPTIMIZE_ON
 namespace dmq {
 
 /// @brief Stores all function arguments suitable for non-blocking asynchronous calls.
-/// Argument data is stored in the heap.
+/// By-value arguments are stored in the message itself; the data behind reference and
+/// pointer arguments is copied to the heap, so it outlives the caller's stack.
 /// @tparam Args The argument types of the bound delegate function.
 template <class...Args>
 class DelegateAsyncMsg : public DelegateMsg
@@ -69,9 +70,9 @@ public:
     /// @param[in] invoker - the invoker instance
     /// @param[in] priority - the delegate message priority
     /// @param[in] args - a parameter pack of all target function arguments
-    /// @throws std::bad_alloc If make_tuble_heap() fails to obtain memory and DMQ_ASSERTS not defined.
+    /// @throws std::bad_alloc If a heap copy of a reference or pointer argument fails and DMQ_ASSERTS not defined.
     DelegateAsyncMsg(std::shared_ptr<IThreadInvoker> invoker, Priority priority, Args... args) : DelegateMsg(invoker, priority),
-        m_args(make_tuple_heap(m_heapMem, m_start, std::forward<Args>(args)...)) {
+        m_args{ store_async_arg<Args>(m_heapMem, std::forward<Args>(args))... } {
     }
 
     /// Delete the default constructor
@@ -97,10 +98,9 @@ private:
     /// A list of heap allocated argument memory blocks
     xlist<std::shared_ptr<heap_arg_deleter_base>> m_heapMem;
 
-    /// An empty starting tuple
-    std::tuple<> m_start;
-
-    /// A tuple with each element stored within the heap
+    /// The arguments: by-value ones held here, reference/pointer ones referring to
+    /// heap copies owned by `m_heapMem`. Declared after `m_heapMem`, so it is
+    /// constructed after it and destroyed before it.
     std::tuple<Args...> m_args;
 };
 
@@ -112,12 +112,6 @@ namespace detail {
 /// `DelegateMemberAsyncSp`/`DelegateFunctionAsync` instantiation composes this one
 /// definition instead of each generating its own copy of the same two fields plus their
 /// Assign()/Equal()/move-ctor plumbing.
-/// @note `m_sync` deliberately stays outside this class (declared on each owning class
-/// instead) — it is never copied/assigned/moved between instances, only ever reset to
-/// `false` on a fresh object, which is exactly what leaving it out of Assign()/the copy
-/// ctor already achieved before this refactor. Folding it in here would require a custom
-/// (non-default) copy assignment operator to preserve that; simpler and safer to leave it
-/// where the "never copied" behavior falls out for free.
 class AsyncDispatchState {
 public:
     IThread* GetThread() const noexcept { return m_thread; }
@@ -328,28 +322,21 @@ public:
         if (this->Empty())
             return RetType();
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-        else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsync kind and signature instead of duplicated per signature.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsync kind and signature instead of duplicated per signature.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
-            detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
+        detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 
-            // Do not wait for destination thread return value from async function call
-            return RetType();
-        }
+        // Do not wait for destination thread return value from async function call
+        return RetType();
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -373,12 +360,13 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        // Invoke the delegate function synchronously
-        m_sync = true;
-
-        // Invoke the target function using the source thread supplied function arguments
-        std::apply(&BaseType::operator(),
-            std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+        // Call the target with the message's stored arguments: a qualified, non-virtual
+        // call, so there is no copy of the argument tuple and no virtual hop back through
+        // operator(). Each argument is forwarded as declared: by-value arguments are moved
+        // out of the message (each message is invoked exactly once), references bind to
+        // the stored copies.
+        std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+            delegateMsg->GetArgs());
         return true;
     }
 
@@ -395,10 +383,6 @@ private:
     /// Destination thread and message priority. Not templated on Sig/TClass — see
     /// `detail::AsyncDispatchState`.
     detail::AsyncDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — see the note on `detail::AsyncDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };
@@ -627,28 +611,21 @@ public:
         if (this->Empty())
             return RetType();
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-        else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsync kind and signature instead of duplicated per signature.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsync kind and signature instead of duplicated per signature.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
-            detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
+        detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 
-            // Do not wait for destination thread return value from async function call
-            return RetType();
-        }
+        // Do not wait for destination thread return value from async function call
+        return RetType();
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -672,12 +649,13 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        // Invoke the delegate function synchronously
-        m_sync = true;
-
-        // Invoke the target function using the source thread supplied function arguments
-        std::apply(&BaseType::operator(),
-            std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+        // Call the target with the message's stored arguments: a qualified, non-virtual
+        // call, so there is no copy of the argument tuple and no virtual hop back through
+        // operator(). Each argument is forwarded as declared: by-value arguments are moved
+        // out of the message (each message is invoked exactly once), references bind to
+        // the stored copies.
+        std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+            delegateMsg->GetArgs());
         return true;
     }
 
@@ -694,10 +672,6 @@ private:
     /// Destination thread and message priority. Not templated on Sig/TClass — see
     /// `detail::AsyncDispatchState`.
     detail::AsyncDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — see the note on `detail::AsyncDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };
@@ -855,28 +829,21 @@ public:
         if (this->Empty())
             return RetType();
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-        else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsync kind and signature instead of duplicated per signature.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsync kind and signature instead of duplicated per signature.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
-            detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
+        detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 
-            // Do not wait for destination thread return value from async function call
-            return RetType();
-        }
+        // Do not wait for destination thread return value from async function call
+        return RetType();
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -900,12 +867,13 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        // Invoke the delegate function synchronously
-        m_sync = true;
-
-        // Invoke the target function using the source thread supplied function arguments
-        std::apply(&BaseType::operator(),
-            std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+        // Call the target with the message's stored arguments: a qualified, non-virtual
+        // call, so there is no copy of the argument tuple and no virtual hop back through
+        // operator(). Each argument is forwarded as declared: by-value arguments are moved
+        // out of the message (each message is invoked exactly once), references bind to
+        // the stored copies.
+        std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+            delegateMsg->GetArgs());
         return true;
     }
 
@@ -922,10 +890,6 @@ private:
     /// Destination thread and message priority. Not templated on Sig/TClass — see
     /// `detail::AsyncDispatchState`.
     detail::AsyncDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — see the note on `detail::AsyncDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };
@@ -1095,28 +1059,21 @@ public:
         if (this->Empty())
             return RetType();
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        }
-        else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsync kind and signature instead of duplicated per signature.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsync kind and signature instead of duplicated per signature.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
 
-            detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
+        detail::DispatchAsync(delegate, m_state.GetThread(), m_state.GetPriority(), std::forward<Args>(args)...);
 
-            // Do not wait for destination thread return value from async function call
-            return RetType();
-        }
+        // Do not wait for destination thread return value from async function call
+        return RetType();
     }
 
     /// @brief Invoke delegate function asynchronously. Do not wait for return value.
@@ -1140,12 +1097,13 @@ public:
         if (delegateMsg == nullptr)
             return false;
 
-        // Invoke the delegate function synchronously
-        m_sync = true;
-
-        // Invoke the target function using the source thread supplied function arguments
-        std::apply(&BaseType::operator(),
-            std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+        // Call the target with the message's stored arguments: a qualified, non-virtual
+        // call, so there is no copy of the argument tuple and no virtual hop back through
+        // operator(). Each argument is forwarded as declared: by-value arguments are moved
+        // out of the message (each message is invoked exactly once), references bind to
+        // the stored copies.
+        std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+            delegateMsg->GetArgs());
         return true;
     }
 
@@ -1162,10 +1120,6 @@ private:
     /// Destination thread and message priority. Not templated on Sig/TClass — see
     /// `detail::AsyncDispatchState`.
     detail::AsyncDispatchState m_state;
-
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — see the note on `detail::AsyncDispatchState`.
-    std::atomic<bool> m_sync{false};
 
     // </common_code>
 };

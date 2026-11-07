@@ -5,6 +5,7 @@
 #include "../../delegate/Signal.h"
 #include <atomic>
 #include <list>
+#include <new>
 
 namespace dmq::util {
 
@@ -23,9 +24,11 @@ namespace dmq::util {
 ///   GUI Thread, or a dedicated Worker Thread).
 ///
 /// **Usage — Preferred Pattern:**
-/// Call `ProcessTimers()` from the highest-priority context that can preempt all watched threads —
-/// typically a hardware timer ISR or the highest-priority task in the system. Connect `OnExpired`
-/// to one of:
+/// Call `ProcessTimers()` from the highest-priority context that can preempt all watched threads.
+/// On an RTOS port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX) that is the highest-priority
+/// task, never an ISR: `ProcessTimers()` takes OS mutexes to copy each expired timer's
+/// subscribers. Only bare metal (`DMQ_THREAD_NONE`, no OS mutexes) can call it from a hardware
+/// timer ISR. Connect `OnExpired` to one of:
 ///   - A plain (synchronous) delegate for inline, fast callbacks (no blocking, no allocation).
 ///   - An async delegate (`MakeDelegate(..., thread)`) to dispatch work to a worker thread.
 ///     The target thread MUST use `FullPolicy::FAULT` or `FullPolicy::DROP` — never `TIMEOUT`.
@@ -105,20 +108,33 @@ private:
         return head;
     }
 
-    /// Get lock using the "Immortal" Pattern.
-    /// @note dmq::CriticalSection, not dmq::RecursiveMutex: ProcessTimers()
-    /// is documented as callable from the highest-priority context available,
-    /// including a hardware ISR on ports where that's safe (currently just
-    /// ThreadX -- see ThreadXCriticalSection.h). An OS mutex cannot be made
-    /// ISR-safe on any RTOS port; CriticalSection is the portable primitive
-    /// that can be, per-port, once implemented. See DelegateOpt.h for which
-    /// ports currently have a real ISR-safe CriticalSection vs. which still
-    /// alias it to RecursiveMutex (not yet ISR-safe there).
+    /// Get lock using the "Immortal" Pattern. Guards the timer list and each
+    /// timer's state; held only for short, bounded list work.
+    /// @note dmq::CriticalSection, not dmq::RecursiveMutex, so the list scan in
+    /// ProcessTimers() never blocks on an OS mutex and bare metal can run it from
+    /// a hardware ISR. Nothing that can block or allocate may run under it
+    /// (see GetProcessLock()).
     static dmq::CriticalSection& GetLock()
     {
         // Allocate on heap and NEVER delete. Prevents lock from being destroyed
         // before the last Timer destructor runs at app shutdown.
-        static dmq::CriticalSection* lock = new dmq::CriticalSection();
+        static dmq::CriticalSection* lock = new(std::nothrow) dmq::CriticalSection();
+        if (!lock)
+            BAD_ALLOC();
+        return *lock;
+    }
+
+    /// Held by ProcessTimers() from finding the expired timers until their
+    /// subscribers are copied, and by ~Timer() before it unlinks itself, so a
+    /// timer can't be destroyed in between. Copying the subscribers takes the
+    /// signal's OS mutexes and can allocate, so it can't happen under GetLock().
+    /// Lock order: this, then GetLock(). Not held while callbacks run.
+    static dmq::RecursiveMutex& GetProcessLock()
+    {
+        // Immortal, like GetLock().
+        static dmq::RecursiveMutex* lock = new(std::nothrow) dmq::RecursiveMutex();
+        if (!lock)
+            BAD_ALLOC();
         return *lock;
     }
 

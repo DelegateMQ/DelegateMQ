@@ -48,6 +48,10 @@ The core of the system is the `DmqInterop` DLL. It exposes a C-compatible API.
 // Optional, before Start: outgoing reliability (default: on, 2 s timeout, 3 retries)
 int DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries);
 
+// Optional, before Start: this client's node ID (1-255, default 0 = unset).
+// Give each client a unique ID when several send the same remote IDs to one peer.
+int DmqInterop_SetNodeId(uint8_t nodeId);
+
 // Initialize and start the transports and native threads
 int DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup);
 
@@ -111,7 +115,7 @@ Standard low-latency UDP communication.
 Enterprise-grade messaging with built-in reliability and patterns.
 - **Build Flag**: `-DDMQ_TRANSPORT=DMQ_TRANSPORT_ZEROMQ`
 - **Address Format**: Pass the hostname/IP as usual (e.g., `"127.0.0.1"`); the DLL constructs the ZMQ connection string internally (e.g., `tcp://127.0.0.1:8000`) using the host and port parameters.
-- **Dependency**: Requires `libzmq` to be available in your CMake path.
+- **Dependency**: Requires `libzmq`, found in `DMQ_DEPS_DIR` (built by `scripts/02_build_libs.py`; see [BUILD.md](BUILD.md#third-party-directory-dmq_deps_dir)).
 
 ---
 
@@ -121,7 +125,7 @@ You can customize the DLL behavior using the following CMake variables:
 
 | Variable | Values | Description |
 | :--- | :--- | :--- |
-| `DMQ_TRANSPORT` | `DMQ_TRANSPORT_WIN32_UDP`, `DMQ_TRANSPORT_LINUX_UDP`, `DMQ_TRANSPORT_ZEROMQ` | Selects the physical network layer. |
+| `DMQ_TRANSPORT` | `DMQ_TRANSPORT_WIN32_UDP`, `DMQ_TRANSPORT_LINUX_UDP`, `DMQ_TRANSPORT_ZEROMQ`, `DMQ_TRANSPORT_NNG` (Windows) | Selects the physical network layer. |
 | `DMQ_ASSERTS` | `ON`, `OFF` | Enables/Disables internal library assertions. |
 | `DMQ_LOG` | `ON`, `OFF` | Enables/Disables internal library logging. |
 | `DMQ_FORCE_OPTIMIZE_DEBUG` | `ON`, `OFF` | Forces `-Os` template optimization in GCC/Clang unoptimized Debug builds. |
@@ -218,13 +222,13 @@ seq = bus.send(COMMAND_ID, [250])   # matches the seq in status callbacks
 
 ### C# / .NET
 - **Location**: `interop/csharp/`
-- **Requirement**: .NET 6+ or .NET 8+
-- **Usage**: Reference the `DelegateMQ.Interop` project and use the `DmqDataBus` class. It is `IDisposable` and provides a strongly-typed `RegisterCallback<T>` method, `SetReliability`, `RegisterStatusCallback`, and `Send` returning the sequence number.
+- **Requirement**: .NET 10 SDK (the projects target `net10.0`)
+- **Usage**: Reference the `DelegateMQ.Interop` project and use the `DmqDataBus` class. It is `IDisposable` and provides a strongly-typed `RegisterCallback<T>` method, `SetReliability`, `SetNodeId`, `RegisterStatusCallback`, and `Send` returning the sequence number.
 
 ### Python
 - **Location**: `interop/python/`
 - **Requirement**: Python 3.8+, `pip install msgpack`
-- **Usage**: Import the `dmq_databus` module. It uses `ctypes` to load the DLL and provides `set_reliability`, message/status/error callbacks with `SendStatus` and `ErrorCode` enums, and `send` returning the sequence number. `DmqDataBus` is also a context manager that stops the native threads on exit.
+- **Usage**: Import the `dmq_databus` module. It uses `ctypes` to load the DLL and provides `set_reliability`, `set_node_id`, message/status/error callbacks with `SendStatus` and `ErrorCode` enums, and `send` returning the sequence number. `DmqDataBus` is also a context manager that stops the native threads on exit.
 
 ---
 
@@ -232,15 +236,19 @@ seq = bus.send(COMMAND_ID, [250])   # matches the seq in status callbacks
 
 If you are implementing a custom transport or a new language wrapper without using the `DmqInterop` DLL, you must adhere to the standard DelegateMQ wire protocol.
 
-### 8-Byte Binary Header
-All messages begin with a fixed 8-byte header, followed immediately by the payload. All fields are in **Network Byte Order (Big Endian)**.
+### 10-Byte Binary Header
+All messages begin with a fixed 10-byte header, followed immediately by the payload. Multi-byte fields are in **Network Byte Order (Big Endian)**.
 
 | Offset | Field | Size | Description |
 | :--- | :--- | :--- | :--- |
 | 0 | Marker | 2 bytes | Static sync marker: `0xAA55`. |
-| 2 | ID | 2 bytes | `DelegateRemoteId` (The "Topic" ID). |
-| 4 | SeqNum | 2 bytes | Monotonically increasing sequence number. |
-| 6 | Length | 2 bytes | Length of the payload (excluding header). |
+| 2 | NodeId | 1 byte | Sender's node ID (1-255), `DMQ_NODE_ID`. `0` = unset. |
+| 3 | Version | 1 byte | Wire protocol version. Currently `1`; receivers drop other versions. |
+| 4 | ID | 2 bytes | `DelegateRemoteId` (The "Topic" ID). |
+| 6 | SeqNum | 2 bytes | Per-sender, monotonically increasing sequence number. |
+| 8 | Length | 2 bytes | Length of the payload (excluding header). |
+
+Receivers drop retried duplicates by (NodeId, ID, SeqNum). When several nodes send the same ID, give each a unique NodeId; with NodeId 0 their sequence numbers can collide and real messages get dropped as duplicates.
 
 ### ACK Convention
 DelegateMQ uses explicit ACKs to provide reliability over connectionless transports (like UDP).

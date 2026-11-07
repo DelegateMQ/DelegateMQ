@@ -4,6 +4,10 @@
 #include <set>
 #include <cstring>
 #include <stdexcept>
+#include <thread>
+#include <vector>
+#include <atomic>
+#include <chrono>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -1030,6 +1034,64 @@ static void AsyncWaitExceptionSafetyTests()
     }
 }
 
+namespace AsyncWait
+{
+    static int Echo(int x) { return x; }
+
+    static int SlowAnswer()
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        return 42;
+    }
+}
+
+// Several threads calling the same AsyncWait delegate instance (as a Signal emitted
+// from several threads does) must each get their own return value. The last-call
+// result used to be stored on the shared instance with no lock, so a caller could
+// read another caller's value (and the std::any writes were a data race).
+static void AsyncWaitConcurrentCallersTests()
+{
+    auto del = MakeDelegate(&AsyncWait::Echo, workerThread, WAIT_INFINITE);
+
+    static constexpr int THREADS = 4;
+    static constexpr int CALLS = 300;
+    std::atomic<int> mismatches{ 0 };
+    std::vector<std::thread> callers;
+    for (int t = 0; t < THREADS; t++)
+    {
+        callers.emplace_back([&del, &mismatches, t]() {
+            for (int i = 0; i < CALLS; i++)
+            {
+                const int arg = t * 100000 + i;
+                if (del(arg) != arg)
+                    mismatches++;
+                auto r = del.AsyncInvoke(arg);
+                if (!r.has_value() || r.value() != arg)
+                    mismatches++;
+            }
+        });
+    }
+    for (auto& c : callers)
+        c.join();
+    DMQ_ASSERT_TRUE(mismatches.load() == 0);
+}
+
+// A timeout that expires while the target is already running: the caller waits for
+// the call to finish anyway, so it must report success with the real return value
+// instead of failure and a default value.
+static void AsyncWaitTimeoutWhileRunningTests()
+{
+    auto del = MakeDelegate(&AsyncWait::SlowAnswer, workerThread, std::chrono::milliseconds(50));
+
+    int ret = del();                       // starts at once on the idle worker, runs 300 ms
+    DMQ_ASSERT_TRUE(del.IsSuccess());
+    DMQ_ASSERT_TRUE(ret == 42);
+    DMQ_ASSERT_TRUE(del.GetRetVal() == 42);
+
+    auto r = del.AsyncInvoke();
+    DMQ_ASSERT_TRUE(r.has_value() && r.value() == 42);
+}
+
 void DelegateAsyncWaitTests()
 {
     workerThread.CreateThread();
@@ -1040,6 +1102,8 @@ void DelegateAsyncWaitTests()
     DelegateMemberAsyncWaitSpTests();
     DelegateFunctionAsyncWaitTests();
     AsyncWaitExceptionSafetyTests();
+    AsyncWaitConcurrentCallersTests();
+    AsyncWaitTimeoutWhileRunningTests();
 
     workerThread.ExitThread();
 }

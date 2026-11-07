@@ -31,7 +31,7 @@ ZephyrThread::ZephyrThread(const char* threadName, size_t maxQueueSize, FullPoli
     , m_dispatchTimeout(dispatchTimeout)
     , m_exit(false)
 {
-    m_priority = K_PRIO_PREEMPT(5); // Default priority
+    m_priority = K_PRIO_PREEMPT(dmq::ZEPHYR_THREAD_PRIORITY); // Default priority, DMQ_ZEPHYR_THREAD_PRIORITY
 
     // Initialize objects to zero (m_queue zeroes its own control blocks in
     // ZephyrDelegateQueue's constructor)
@@ -51,9 +51,19 @@ ZephyrThread::ZephyrThread(const char* threadName, size_t maxQueueSize, FullPoli
 //----------------------------------------------------------------------------
 ZephyrThread::~ZephyrThread()
 {
+    // Deleting a ZephyrThread from one of its own callbacks is not supported: the
+    // destructor would free the stack and control block the thread is still
+    // running on, and ThreadX/Zephyr (unlike FreeRTOS, whose idle task frees a
+    // self-deleted task's stack) have no way to free them afterwards. Fault
+    // immediately instead of corrupting memory. To stop a thread from inside
+    // its own callback, call ExitThread() and delete the object from another
+    // thread.
+    if (m_stackMemory && k_current_get() == &m_thread)
+        DMQ_ASSERT();
+
     ExitThread();
 
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     ZephyrThread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
@@ -77,6 +87,13 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     {
         // Reset from a previous ExitThread(), so the thread can be created again
         m_exit.store(false);
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_startGate.OnCreate();
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
         m_discard.store(false);
 
         // 1. Create Message Queues
@@ -120,9 +137,8 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
-            const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
 
             // Add to watchdog registry if not already present
             bool found = false;
@@ -158,6 +174,11 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
+        // A thread held at its start gate isn't waiting on its queue: wake it so it
+        // sees the exit flag (set above) and leaves. Never touches the gate itself,
+        // which may be destroyed once the thread is released.
+        m_startGate.Wake();
+
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
         // callback, it is not consuming its own queue right now -- it is
@@ -173,13 +194,18 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         // cannot k_thread_join() itself. Set the flag and return immediately;
         // the actual cleanup (queue drain/destroy, k_thread_join, stack free)
         // is deferred to a later ExitThread() call made from a different
-        // thread context -- typically ~ZephyrThread() -- once m_selfExited
+        // thread context -- typically ~ZephyrThread(), which must itself run on
+        // another thread (it faults if run on this one) -- once m_selfExited
         // tells that call it's safe to skip the message/semaphore handshake
         // below (the thread already returned/is returning on its own) and go
         // straight to the join+free.
         if (k_current_get() == &m_thread) {
             m_selfExited.store(true);
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
+            m_startGate.Leave();     // exited from its start handler: never reaches the gate
+            // Self-exit: this thread runs no more messages, and the object may be
+            // destroyed once this handler returns. Stop watchdog checks now.
+            m_watchdogTimeout.store(dmq::Duration(0));
             return;
         }
 
@@ -216,6 +242,11 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         // either returns immediately or waits only as long as that natural
         // teardown takes -- there is no risk of deadlock.
         k_thread_join(&m_thread, K_FOREVER);
+
+        // The thread has finished (or, on a self-exit, is in its last handler):
+        // stop watchdog checks. Not earlier, so a thread that hangs while
+        // ExitThread() waits for it is still reported.
+        m_watchdogTimeout.store(dmq::Duration(0));
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -356,6 +387,9 @@ void ZephyrThread::Process(void* p1, void* p2, void* p3)
 //----------------------------------------------------------------------------
 void ZephyrThread::WatchdogCheck()
 {
+    if (m_startGate.IsHeld())
+        return;     // held at its start gate by design, not hung
+
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
@@ -383,7 +417,7 @@ void ZephyrThread::ThreadCheck()
 //----------------------------------------------------------------------------
 void ZephyrThread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     ZephyrThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
@@ -432,8 +466,29 @@ void ZephyrThread::Run()
     if (m_startHandler)
         m_startHandler();
 
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
     if (m_startSync)
         k_sem_give(&m_startSem);
+    if (exitedInStart)
+        return;
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate.Enabled())
+    {
+        const bool opened = m_startGate.Wait(m_exit);
+        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_startGate.Passed();
+        // ExitThread() while held: run nothing. Cancel each queued message
+        // (DISCARD) until the exit message. Consuming them also keeps
+        // ExitThread()'s blocking send of the exit message from waiting on a
+        // full queue.
+        if (!opened)
+            m_discard.store(true);
+    }
 
     ThreadMsg* msg = nullptr;
     while (!selfExit)
@@ -447,7 +502,7 @@ void ZephyrThread::Run()
         // If watchdog active, use a finite timeout so we can periodically update 
         // m_lastAliveTime while idle. If an idle handler is set, wake no later
         // than when it is due. Otherwise, block forever to save power.
-        dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / 4 : dmq::Duration(-1));
+        dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / dmq::WATCHDOG_HEARTBEAT_DIVISOR : dmq::Duration(-1));
         k_timeout_t waitOption = K_FOREVER;
         if (waitTime >= dmq::Duration::zero())
         {
@@ -465,7 +520,13 @@ void ZephyrThread::Run()
 
             // Timed out with the queue empty: run the idle handler if it is due
             if (idle.IsDue())
+            {
                 idle.Run();
+                // The idle handler exited this thread (and may have deleted it): leave
+                // without touching 'this', as the message path does
+                if (selfExit)
+                    return;
+            }
         }
         else
         {
@@ -503,7 +564,7 @@ void ZephyrThread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    DMQ_ASSERT_TRUE(success);
+                    if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
@@ -531,7 +592,6 @@ void ZephyrThread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
-                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -563,9 +623,10 @@ void ZephyrThread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     // Signal that we are about to exit
     k_sem_give(&m_exitSem);
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

@@ -21,12 +21,16 @@
 ///   delegate messages in a thread-safe manner.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
-///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   -- typically a hardware timer ISR or the highest-priority task in the system.
+///   Thread::WatchdogCheckAll() to be called periodically from a context that can preempt
+///   watched threads -- the highest-priority task in the system, not an ISR.
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/StartGate.h"
 #include "ZephyrDelegateQueue.h"
 #include "extras/util/Timer.h"
 #include <zephyr/kernel.h>
@@ -136,6 +140,15 @@ public:
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(!m_stackMemory); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(!m_stackMemory); m_startHandler = std::move(handler); }
 
+    /// @brief Optional: hold this thread at `gate` once it is created, until
+    /// `gate->Open()`. Pass nullptr (the default) to start at once.
+    /// @details CreateThread() still runs the start handler and returns when the
+    /// thread is ready; the thread then processes nothing, at any priority, until
+    /// the gate opens. Use one gate for a group of threads so they all start
+    /// together after setup. See port/os/common/StartGate.h. Must be called while
+    /// the thread is not running; calling it on a running thread faults.
+    void SetStartGate(StartGate* gate) { DMQ_ASSERT_TRUE(!m_stackMemory); m_startGate.Set(gate); }
+
     /// @brief Register a handler invoked on the worker thread after it processes
     /// its last message, as the thread exits. Use it to undo SetStartHandler() setup.
     /// @details Must be called while the thread is not running; calling it on a
@@ -193,7 +206,7 @@ private:
     static void Process(void* p1, void* p2, void* p3);
     void Run();
 
-    /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
+    /// Check watchdog is expired. Called by WatchdogCheckAll().
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
@@ -225,6 +238,10 @@ private:
     struct k_sem m_startSem; // Given by Run() once the start handler has run
     bool m_startSync = false; // CreateThread() waits for the start handler (called from a thread)
     std::atomic<bool> m_exit = false;
+
+    // Optional start gate (SetStartGate()): its state, and whether the thread is
+    // held at it (the watchdog doesn't report a thread waiting by design)
+    StartGateClient m_startGate;
     std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     bool* m_selfExitPtr = nullptr;
 
@@ -245,11 +262,11 @@ private:
     std::unique_ptr<char, ZephyrDeleter> m_stackMemory{nullptr, k_free};
 
     // Stack size in bytes
-    static const size_t STACK_SIZE = 2048;
+    static const size_t STACK_SIZE = dmq::ZEPHYR_STACK_BYTES; // DMQ_ZEPHYR_STACK_BYTES
 
     // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::atomic<dmq::Duration> m_watchdogTimeout;
+    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
+    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
     ZephyrThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

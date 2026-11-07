@@ -111,6 +111,7 @@ public:
         m_delegate.SetDispatcher(&m_dispatcher);
         m_delegate.SetSerializer(m_serializer);
         m_delegate.SetStream(&m_stream);
+        m_delegate.SetSendMutex(&m_sendMutex);
     }
 
     ~RemoteChannel() = default;
@@ -160,9 +161,10 @@ public:
     }
 
     /// @brief Invoke the channel (fire-and-forget send).
-    /// @pre Bind() must have been called first.
+    /// @pre A remote ID is set: passed to the constructor, or set by SetRemoteId() or
+    /// Bind(). A send-only channel needs no Bind().
+    /// Thread-safe: the internal delegate holds `m_sendMutex` while it sends.
     void operator()(Args... args) {
-        dmq::LockGuard<dmq::Mutex> lock(m_sendMutex);
         m_delegate(std::forward<Args>(args)...);
     }
 
@@ -222,13 +224,20 @@ private:
     /// @internal Used by MakeDelegate overloads. Prefer Bind() in application code.
     dmq::xostringstream& GetStream() noexcept { return m_stream; }
 
+    /// @internal Used by MakeDelegate overloads. Every delegate sharing `m_stream`
+    /// must hold this mutex while it sends.
+    dmq::Mutex& GetSendMutex() noexcept { return m_sendMutex; }
+
 private:
     void ReconnectDelegate() {
         m_delegate.SetDispatcher(&m_dispatcher);
         m_delegate.SetSerializer(m_serializer);
         m_delegate.SetStream(&m_stream);
+        m_delegate.SetSendMutex(&m_sendMutex);
     }
 
+    /// Guards `m_stream` (and the dispatcher) for the channel's own delegate and
+    /// every delegate made from it by MakeDelegate().
     dmq::Mutex m_sendMutex;
     Dispatcher m_dispatcher;
     dmq::xostringstream m_stream;
@@ -260,6 +269,7 @@ auto MakeDelegate(RetType(*func)(Args...), DelegateRemoteId id, RemoteChannel<Re
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 
@@ -276,6 +286,7 @@ auto MakeDelegate(TClass* object, RetType(TClass::* func)(Args...), DelegateRemo
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 
@@ -292,6 +303,7 @@ auto MakeDelegate(TClass* object, RetType(TClass::* func)(Args...) const, Delega
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 
@@ -308,6 +320,7 @@ auto MakeDelegate(const TClass* object, RetType(TClass::* func)(Args...) const, 
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 
@@ -324,6 +337,7 @@ auto MakeDelegate(std::shared_ptr<TClass> object, RetType(TClass::* func)(Args..
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 
@@ -340,6 +354,7 @@ auto MakeDelegate(std::shared_ptr<TClass> object, RetType(TClass::* func)(Args..
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 
@@ -355,6 +370,7 @@ auto MakeDelegate(std::function<RetType(Args...)> func, DelegateRemoteId id, Rem
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 
@@ -366,6 +382,7 @@ auto MakeDelegate(F&& func, DelegateRemoteId id, RemoteChannel<Sig>& channel)
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());
+    d.SetSendMutex(&channel.GetSendMutex());
     return d;
 }
 

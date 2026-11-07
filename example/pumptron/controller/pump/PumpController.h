@@ -56,6 +56,9 @@ public:
     /// @details Thread-safe; callable from any thread, e.g. link and DataBus
     ///          signal handlers. Raises the LINK_DEGRADED warning (cleared after
     ///          LINK_DEGRADED_HOLD without errors) and blinks the POWER LED.
+    ///          Ignored while the GUI is offline and for LINK_UP_GRACE after it
+    ///          connects: failures of messages sent with no GUI listening are
+    ///          expected, not a degraded link.
     ///          Error storms are coalesced into one pending dispatch.
     void ReportLinkError(const char* what);
 
@@ -102,6 +105,7 @@ private:
     float     m_vibOverTripSec = 0.0f;
     bool      m_localStopWasPressed = false;
     bool      m_guiOnline = false;
+    dmq::TimePoint m_guiOnlineSince{};          ///< When m_guiOnline last became true
     uint32_t  m_tickCount = 0;
     uint32_t  m_heartbeatCount = 0;
     dmq::TimePoint m_lastLinkError{};

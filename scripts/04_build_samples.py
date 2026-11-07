@@ -443,6 +443,9 @@ def build_samples(use_clang=False):
 
 
 if __name__ == "__main__":
+    import preflight
+    if not preflight.check(need_git=False, need_cmake=True):
+        sys.exit(1)
     parser = argparse.ArgumentParser(description="Build all DelegateMQ sample projects.")
     parser.add_argument(
         "--clang", action="store_true",

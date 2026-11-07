@@ -44,8 +44,19 @@ if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_NNG")
         set_and_check(NNG_INCLUDE_DIR "${DMQ_DEPS_DIR}/nng/install/include")
         set_and_check(NNG_LIBRARY_DIR "${DMQ_DEPS_DIR}/nng/install/lib")
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        set_and_check(NNG_INCLUDE_DIR "/usr/local/include/nng")
-        set_and_check(NNG_LIBRARY_DIR "/usr/local/include/nng")
+        # The copy 02_build_libs.py installs under DMQ_DEPS_DIR, as on Windows.
+        # Set -DDMQ_NNG_PREFIX=<path> to use another install (e.g. /usr/local).
+        if(DMQ_NNG_PREFIX)
+            set(_dmq_nng_prefix "${DMQ_NNG_PREFIX}")
+        else()
+            set(_dmq_nng_prefix "${DMQ_DEPS_DIR}/nng/install")
+        endif()
+        set_and_check(NNG_INCLUDE_DIR "${_dmq_nng_prefix}/include")
+        if(EXISTS "${_dmq_nng_prefix}/lib64" AND NOT EXISTS "${_dmq_nng_prefix}/lib")
+            set_and_check(NNG_LIBRARY_DIR "${_dmq_nng_prefix}/lib64")   # some distros' GNUInstallDirs
+        else()
+            set_and_check(NNG_LIBRARY_DIR "${_dmq_nng_prefix}/lib")
+        endif()
     endif()
 endif()
 
@@ -75,9 +86,21 @@ if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_MQTT")
             "ws2_32" "Rpcrt4" "Crypt32"
         )
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        set_and_check(MQTT_INCLUDE_DIR "/usr/local/include")
-        set_and_check(MQTT_LIBRARY "/usr/local/lib/libpaho-mqtt3c.so")
-        set_and_check(MQTT_BINARY_DIR "/usr/local/bin")
+        # The copy 02_build_libs.py installs under DMQ_DEPS_DIR, as on Windows.
+        # Set -DDMQ_MQTT_PREFIX=<path> to use another install (e.g. /usr/local).
+        if(DMQ_MQTT_PREFIX)
+            set(_dmq_mqtt_prefix "${DMQ_MQTT_PREFIX}")
+        else()
+            set(_dmq_mqtt_prefix "${MQTT_ROOT}/install")
+        endif()
+        set_and_check(MQTT_INCLUDE_DIR "${_dmq_mqtt_prefix}/include")
+        if(EXISTS "${_dmq_mqtt_prefix}/lib64" AND NOT EXISTS "${_dmq_mqtt_prefix}/lib")
+            set(MQTT_LIBRARY_DIR "${_dmq_mqtt_prefix}/lib64")   # some distros' GNUInstallDirs
+        else()
+            set(MQTT_LIBRARY_DIR "${_dmq_mqtt_prefix}/lib")
+        endif()
+        set_and_check(MQTT_LIBRARY "${MQTT_LIBRARY_DIR}/libpaho-mqtt3c.so")
+        set(MQTT_BINARY_DIR "${_dmq_mqtt_prefix}/bin")   # used only for the Windows DLL copy
     endif()
 endif()
 

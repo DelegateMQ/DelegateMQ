@@ -14,11 +14,9 @@ using namespace dmq::transport;
 using dmq::util::TransportMonitor;
 using dmq::util::RetryMonitor;
 
-const std::chrono::milliseconds RemoteDispatcher::RECV_TIMEOUT(2000);
-
-RemoteDispatcher::RemoteDispatcher()
+RemoteDispatcher::RemoteDispatcher(dmq::Duration ackTimeout)
     : m_thread("RemoteDispatcher", 25, dmq::os::FullPolicy::DROP)
-    , m_transportMonitor(RECV_TIMEOUT)
+    , m_transportMonitor(ackTimeout)
     , m_recvThread("NetworkRecv")
 {
     m_statusConn = m_transportMonitor.OnSendStatus.Connect(dmq::MakeDelegate(this, &RemoteDispatcher::InternalStatusHandler));
@@ -41,7 +39,19 @@ void RemoteDispatcher::Attach(dmq::transport::ITransport& sendTransport, dmq::tr
 
 void RemoteDispatcher::AttachRetryMonitor(RetryMonitor& retryMonitor)
 {
+    m_retryMonitor = &retryMonitor;
     m_deliveryFailedConn = retryMonitor.OnDeliveryFailed.Connect(dmq::MakeDelegate(this, &RemoteDispatcher::InternalDeliveryFailedHandler));
+}
+
+dmq::Duration RemoteDispatcher::GetInvokeWaitLimit() const
+{
+    const dmq::Duration ack = m_transportMonitor.GetTimeout();
+    int retries = m_retryMonitor ? m_retryMonitor->GetMaxRetries() : 0;
+    if (retries < 0)
+        retries = 0;
+    // Each attempt's TIMEOUT is seen up to one poll interval after it expires;
+    // half an ACK timeout on top is scheduling slack.
+    return (ack + TIMEOUT_POLL_INTERVAL) * (retries + 1) + ack / 2;
 }
 
 dmq::transport::ITransport& RemoteDispatcher::GetSendTransport()
@@ -74,7 +84,7 @@ void RemoteDispatcher::Start()
     }
 
     m_timeoutTimerConn = m_timeoutTimer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &RemoteDispatcher::Timeout, m_thread));
-    m_timeoutTimer.Start(std::chrono::milliseconds(100));
+    m_timeoutTimer.Start(TIMEOUT_POLL_INTERVAL);
 }
 
 void RemoteDispatcher::Stop()
@@ -159,13 +169,12 @@ void RemoteDispatcher::RecvThread()
             // Release our local reference so a new one is allocated next iteration
             arg_data.reset();
         }
-        else if (error && !m_recvThreadExit)
+        else if (error < 0 && !m_recvThreadExit)
         {
-            // Receive() blocks indefinitely here (no recv timeout is ever set on
-            // these transports), so a non-zero result is a genuine transport fault
-            // (bad frame, socket error) rather than a routine "no data yet" poll
-            // result. The m_recvThreadExit guard excludes the one expected
-            // non-fault case: Stop() closing the socket to unblock this call.
+            // Negative is a genuine transport fault (bad frame, socket error);
+            // ITransport::RECEIVE_NO_DATA (a receive timeout) is not reported.
+            // The m_recvThreadExit guard excludes the one expected non-fault
+            // case: Stop() closing the socket to unblock this call.
             InternalErrorHandler(dmq::INVALID_REMOTE_ID, dmq::DelegateError::ERR_TRANSPORT_RECEIVE, error);
         }
     }

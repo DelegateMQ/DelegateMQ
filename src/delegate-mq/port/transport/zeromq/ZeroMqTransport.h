@@ -41,6 +41,7 @@
 #include <sstream>
 #include <cstdio>
 #include <cstring>
+#include <cerrno>
 #include <mutex>
 #include <iostream> // For std::cout/cerr
 
@@ -205,16 +206,9 @@ public:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy Header & Payload into the linear buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         if (payloadLen > 0) {
             memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
@@ -251,6 +245,12 @@ public:
 
         int size = zmq_recv(m_zmq, m_buffer, BUFFER_SIZE, 0);
         if (size == -1) {
+            return (zmq_errno() == EAGAIN) ? RECEIVE_NO_DATA : -1;  // EAGAIN: ZMQ_RCVTIMEO expired
+        }
+
+        // zmq_recv() truncates a message longer than the buffer but returns its
+        // full length. Drop it: only BUFFER_SIZE bytes were stored.
+        if (size > BUFFER_SIZE) {
             return -1;
         }
 
@@ -259,25 +259,18 @@ public:
         }
 
         // 1. Read Header (Network Byte Order)
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, m_buffer, 2);
-        memcpy(&id,     m_buffer + 2, 2);
-        memcpy(&seqNum, m_buffer + 4, 2);
-        memcpy(&length, m_buffer + 6, 2);
+        header.Decode(m_buffer);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER) {
+        if (!header.IsValid()) {
             return -1;
         }
 
         // 2. Write payload
+        // One message per ZeroMQ message: the header length must match exactly. Anything
+        // else is malformed and must not be delivered (cut short) or ACKed.
         uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+        if (payloadSize != static_cast<size_t>(size) - DmqHeader::HEADER_SIZE)
+            return -1;
 
         if (payloadSize > 0) {
             is.clear();
@@ -293,7 +286,10 @@ public:
         }
         else
         {
-            if (m_transportMonitor && m_sendTransport)
+            // ACK whenever a send path exists, whether or not this transport also
+            // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
+            // has no monitor but must still ACK the sender's RELIABLE messages.
+            if (m_sendTransport)
             {
                 // Send header with received seqNum as the ack message
                 dmq::xostringstream ss_ack;

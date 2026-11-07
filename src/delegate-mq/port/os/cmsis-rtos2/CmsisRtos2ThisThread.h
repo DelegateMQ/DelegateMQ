@@ -18,6 +18,7 @@
 
 #include "cmsis_os2.h"
 #include "CmsisRtos2Mutex.h"
+#include "CmsisRtos2Ticks.h"
 #include "port/os/common/CurrentThreadStorage.h"
 #include <chrono>
 
@@ -35,8 +36,7 @@ namespace dmq::os {
     struct CmsisRtos2ThisThread : RegistryCurrentThread<CmsisRtos2CurrentThreadKey, CmsisRtos2Mutex> {
         template<typename Rep, typename Period>
         static void sleep_for(std::chrono::duration<Rep, Period> d) {
-            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(d);
-            osDelay(static_cast<uint32_t>(ms.count()));
+            osDelay(CmsisRtos2ToTicks(d));  // kernel ticks, rounded up
         }
 
         static void yield() noexcept {

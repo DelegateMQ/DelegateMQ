@@ -288,6 +288,27 @@ namespace dmq
     /// Override via DMQ_DEFAULT_QUEUE_SIZE in delegatemqconfig.h.
     inline constexpr size_t DEFAULT_QUEUE_SIZE = DMQ_DEFAULT_QUEUE_SIZE;
 
+    /// @brief Stack size of each dmq::os::Thread on the RTOS ports, in each
+    /// port's native unit (FreeRTOS: words, for dynamically allocated stacks;
+    /// the others: bytes).
+    /// Override via DMQ_FREERTOS_STACK_WORDS, DMQ_THREADX_STACK_BYTES,
+    /// DMQ_ZEPHYR_STACK_BYTES, DMQ_CMSIS_RTOS2_STACK_BYTES and
+    /// DMQ_NUTTX_STACK_BYTES in delegatemqconfig.h.
+    inline constexpr uint32_t FREERTOS_STACK_WORDS = DMQ_FREERTOS_STACK_WORDS;
+    inline constexpr size_t THREADX_STACK_BYTES = DMQ_THREADX_STACK_BYTES;
+    inline constexpr size_t ZEPHYR_STACK_BYTES = DMQ_ZEPHYR_STACK_BYTES;
+    inline constexpr size_t CMSIS_RTOS2_STACK_BYTES = DMQ_CMSIS_RTOS2_STACK_BYTES;
+    inline constexpr size_t NUTTX_STACK_BYTES = DMQ_NUTTX_STACK_BYTES;
+
+    /// @brief Default dmq::os::Thread priority on the ThreadX, Zephyr (passed to
+    /// K_PRIO_PREEMPT()) and NuttX (SCHED_FIFO) ports. SetThreadPriority()
+    /// overrides it per thread.
+    /// Override via DMQ_THREADX_THREAD_PRIORITY, DMQ_ZEPHYR_THREAD_PRIORITY and
+    /// DMQ_NUTTX_THREAD_PRIORITY in delegatemqconfig.h.
+    inline constexpr int THREADX_THREAD_PRIORITY = DMQ_THREADX_THREAD_PRIORITY;
+    inline constexpr int ZEPHYR_THREAD_PRIORITY = DMQ_ZEPHYR_THREAD_PRIORITY;
+    inline constexpr int NUTTX_THREAD_PRIORITY = DMQ_NUTTX_THREAD_PRIORITY;
+
     /// @brief Fallback queue size (maxQueueSize == 0) for the desktop
     /// stdlib/Win32 Thread ports only, which back their queue with a plain
     /// std::deque and would otherwise grow without bound if the destination
@@ -300,6 +321,12 @@ namespace dmq
     /// Override via DMQ_MAX_WATCHDOG_THREADS in delegatemqconfig.h.
     inline constexpr size_t MAX_WATCHDOG_THREADS = DMQ_MAX_WATCHDOG_THREADS;
 
+    /// @brief A watched thread's queue wait (and Qt's heartbeat timer) is its
+    /// watchdog timeout divided by this.
+    /// Override via DMQ_WATCHDOG_HEARTBEAT_DIVISOR in delegatemqconfig.h.
+    inline constexpr int WATCHDOG_HEARTBEAT_DIVISOR = DMQ_WATCHDOG_HEARTBEAT_DIVISOR;
+    static_assert(WATCHDOG_HEARTBEAT_DIVISOR >= 2, "DMQ_WATCHDOG_HEARTBEAT_DIVISOR must be at least 2");
+
     /// @brief Max threads registered for ThisThread::GetCurrent() at once on RTOS
     /// ports (see port/os/common/CurrentThreadStorage.h). Exceeding it faults.
     /// Override via DMQ_MAX_CURRENT_THREADS in delegatemqconfig.h.
@@ -308,6 +335,17 @@ namespace dmq
     /// @brief Max number of remote Participants the DataBus can hold without heap allocation.
     /// Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.
     inline constexpr size_t MAX_PARTICIPANTS = DMQ_MAX_PARTICIPANTS;
+
+    /// @brief serialize (msg_serialize.h) limits: max string length, max container
+    /// element count and max nesting depth of serialize::I objects.
+    /// Override via DMQ_SERIALIZE_MAX_STRING_SIZE, DMQ_SERIALIZE_MAX_CONTAINER_SIZE
+    /// and DMQ_SERIALIZE_MAX_NESTING in delegatemqconfig.h.
+    inline constexpr uint16_t SERIALIZE_MAX_STRING_SIZE = DMQ_SERIALIZE_MAX_STRING_SIZE;
+    inline constexpr uint16_t SERIALIZE_MAX_CONTAINER_SIZE = DMQ_SERIALIZE_MAX_CONTAINER_SIZE;
+    inline constexpr size_t SERIALIZE_MAX_NESTING = DMQ_SERIALIZE_MAX_NESTING;
+    static_assert(DMQ_SERIALIZE_MAX_STRING_SIZE <= 65535 && DMQ_SERIALIZE_MAX_CONTAINER_SIZE <= 65535,
+        "serialize length fields are 16 bits");
+    static_assert(DMQ_SERIALIZE_MAX_NESTING >= 1, "DMQ_SERIALIZE_MAX_NESTING must be at least 1");
 
     /// @brief Default max remote peers per NetworkNode instance (fixed allocation).
     /// Override via DMQ_NETWORK_NODE_MAX_PEERS in delegatemqconfig.h, or per-instantiation
@@ -333,9 +371,33 @@ namespace dmq
     /// via TransportMonitor's timeout constructor parameter.
     inline constexpr Duration TRANSPORT_MONITOR_TIMEOUT = std::chrono::seconds(DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC);
 
+    /// @brief How long a received sequence number counts toward duplicate detection.
+    /// Override via DMQ_SEQ_HISTORY_EXPIRY_MS in delegatemqconfig.h.
+    inline constexpr Duration SEQ_HISTORY_EXPIRY = std::chrono::milliseconds(DMQ_SEQ_HISTORY_EXPIRY_MS);
+
+    /// @brief Default node ID sent in every DmqHeader (0 = unset).
+    /// Override via DMQ_NODE_ID in delegatemqconfig.h.
+    static_assert(DMQ_NODE_ID >= 0 && DMQ_NODE_ID <= 255, "DMQ_NODE_ID must be 0-255");
+    inline constexpr uint8_t NODE_ID = DMQ_NODE_ID;
+
     /// @brief Max number of pending messages the TransportMonitor can track.
     /// Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.
     inline constexpr size_t MAX_TRANSPORT_MONITOR_PENDING = DMQ_TRANSPORT_MONITOR_MAX_PENDING;
+
+    /// @brief Embedded UDP transports: datagram buffer size and receive timeouts.
+    /// Override via DMQ_UDP_BUFFER_SIZE / DMQ_UDP_PUB_RECV_TIMEOUT_MS /
+    /// DMQ_UDP_SUB_RECV_TIMEOUT_MS in delegatemqconfig.h.
+    inline constexpr size_t UDP_BUFFER_SIZE = DMQ_UDP_BUFFER_SIZE;
+    inline constexpr std::chrono::milliseconds UDP_PUB_RECV_TIMEOUT{ DMQ_UDP_PUB_RECV_TIMEOUT_MS };
+    inline constexpr std::chrono::milliseconds UDP_SUB_RECV_TIMEOUT{ DMQ_UDP_SUB_RECV_TIMEOUT_MS };
+
+    /// @brief STM32 UART transport sizes and timeouts.
+    /// Override via DMQ_UART_RX_RING_SIZE / DMQ_UART_MAX_PAYLOAD /
+    /// DMQ_UART_TX_TIMEOUT_MS / DMQ_UART_FRAME_TIMEOUT_MS in delegatemqconfig.h.
+    inline constexpr size_t UART_RX_RING_SIZE = DMQ_UART_RX_RING_SIZE;
+    inline constexpr size_t UART_MAX_PAYLOAD = DMQ_UART_MAX_PAYLOAD;
+    inline constexpr std::chrono::milliseconds UART_TX_TIMEOUT{ DMQ_UART_TX_TIMEOUT_MS };
+    inline constexpr std::chrono::milliseconds UART_FRAME_TIMEOUT{ DMQ_UART_FRAME_TIMEOUT_MS };
 
     // --- MUTEX / LOCK SELECTION ---
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
@@ -518,17 +580,16 @@ namespace dmq
         template <typename T>
         using stl_allocator = std::allocator<T>;
 
+        // An alias, like xmap/xset here and xlist under DMQ_ALLOCATOR, so code
+        // overloaded on std::list (e.g. msg_serialize.h) accepts it in both builds.
         template <typename T, typename Alloc = stl_allocator<T>>
-        class xlist : public std::list<T, Alloc> {
-        public:
-            using std::list<T, Alloc>::list; // Inherit constructors
-            using std::list<T, Alloc>::operator=;
-        };
+        using xlist = std::list<T, Alloc>;
 
-        typedef std::basic_ostringstream<char, std::char_traits<char>, stl_allocator<char>> xostringstream;
-        typedef std::basic_stringstream<char, std::char_traits<char>, stl_allocator<char>> xstringstream;
+        // stl_allocator is std::allocator here, so these are the standard types
+        typedef std::ostringstream xostringstream;
+        typedef std::stringstream xstringstream;
 
-        typedef std::basic_string<char, std::char_traits<char>, stl_allocator<char>> xstring;
+        typedef std::string xstring;
 
         // Fallback xmake_shared — uses std::make_shared when fixed-block allocator is disabled
         template <typename T, typename... Args>

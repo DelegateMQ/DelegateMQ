@@ -8,7 +8,7 @@ This tutorial guides you through the evolution of a system using DelegateMQ. We 
 3. [**Signals**](#phase-3-the-observer-signals) - Decoupling with one-to-many events.
 4. [**Timers**](#phase-4-periodic-tasks-timers) - Handling periodic heartbeats and timeouts.
 5. [**Remote**](#phase-5-the-network-remote-delegates) - Calling functions on a different CPU.
-6. [**DataBus**](#phase-6-the-middleware-databus) - Topic-based discovery (DDS Lite).
+6. [**DataBus**](#phase-6-the-middleware-databus) - Topic-based publish/subscribe (DDS Lite).
 
 ---
 
@@ -108,7 +108,7 @@ int main() {
     return 0;
 } // 'conn' goes out of scope -> logger is automatically disconnected.
 ```
-**Key Concept**: `dmq::ScopedConnection` provides RAII safety. If the listener is destroyed, the connection is severed automatically, preventing "dead object" crashes.
+**Key Concept**: `dmq::ScopedConnection` provides RAII safety. Destroying it disconnects the slot, so keep it as a member of the listener and the connection ends when the listener does. If other threads emit, a call already in progress can still run once; see [SIGNALS.md](SIGNALS.md#disconnect-and-calls-already-in-progress).
 
 ### Alternative: Manual Management
 If you prefer manual control over subscriptions (common in C#), you can use `dmq::MulticastDelegateSafe`.
@@ -172,7 +172,8 @@ constexpr dmq::DelegateRemoteId MOTOR_SPEED_ID = 100;
 
 // --- Controller Node (Sender) ---
 // 1. Create a channel using a transport and a serializer, passing the remote ID
-// (e.g., UdpTransport transport; MsgPackSerializer serializer;)
+// (e.g., dmq::transport::UdpTransport transport;
+//        dmq::serialization::msgpack::Serializer<void(int)> serializer;)
 dmq::RemoteChannel<void(int)> motorChannel(transport, serializer, MOTOR_SPEED_ID);
 
 // 2. Send the command across the wire
@@ -195,6 +196,23 @@ dispatcher.RegisterEndpoint(MOTOR_SPEED_ID, motorChannel);
 dispatcher.Start();  // incoming MOTOR_SPEED_ID messages now invoke Motor::SetSpeed
 ```
 
+### Catching Errors
+A remote call can fail where a local one can't: the serializer can fail, a frame can arrive corrupt, or the message ID can have no receiver. These errors don't throw. Each is reported as a `dmq::DelegateError` to an error handler, so register one on each side.
+
+```cpp
+// Sender: catch errors raised while sending on this channel
+void OnMotorError(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux) {
+    std::cout << "Remote ID " << id << " error " << static_cast<int>(error) << "\n";
+}
+motorChannel.SetErrorHandler(dmq::MakeDelegate(&OnMotorError));
+
+// Receiver: RegisterEndpoint() routes each channel's errors to dispatcher.OnError.
+// Store the connection, or the subscription ends immediately.
+dmq::ScopedConnection errConn = dispatcher.OnError.Connect(dmq::MakeDelegate(&OnMotorError));
+```
+
+Common errors are `ERR_SERIALIZE`/`ERR_DESERIALIZE` (serializer failure), `ERR_TRANSPORT_RECEIVE` (bad frame or socket error) and `ERR_NO_DISPATCHER`. For reliable delivery, a transport with ACK and retry reports lost messages through `dispatcher.OnDeliveryFailed` once retries run out, and `dispatcher.OnStatus` reports each `TIMEOUT` while a message is still being retried.
+
 ---
 
 ## Phase 6: The Middleware (DataBus)
@@ -215,7 +233,22 @@ auto conn = dmq::databus::DataBus::Subscribe<int>("motor/set_speed", [](int spee
 - **Targeted Thread Dispatch**: Subscribers specify which thread they run on (e.g., `&motorThread`), ensuring thread-safe delivery without manual queuing.
 - **LVC (Last Value Cache)**: New subscribers get the most recent data immediately.
 - **Monitoring**: Use the `dmq-spy` tool to see every message on the bus in real-time.
-- **Zero Library Threads**: You control the polling loop.
+- **No Hidden Threads**: The DataBus creates no threads. You poll for incoming data, or a `NetworkNode` runs one receive thread for you.
+
+### Catching Errors
+Publishing never throws. When something goes wrong (a topic published with two different types, a serializer failure, too many participants), the DataBus reports the topic and a `dmq::DelegateError` to `SubscribeError` subscribers:
+
+```cpp
+auto errConn = dmq::databus::DataBus::SubscribeError(
+    [](const dmq::xstring& topic, dmq::DelegateError error) {
+        std::cout << "DataBus error on " << topic << ": " << static_cast<int>(error) << "\n";
+    });
+```
+
+- **Keep the connection**: `SubscribeError` is `[[nodiscard]]`. If the `ScopedConnection` is discarded, the subscription ends at once and no errors are reported.
+- **Reported once**: each error is reported once per topic, so a fault inside a fast publish loop doesn't flood the handler. Call `DataBus::EnableContinuousErrors(true)` to report every occurrence.
+- **Per node**: `Participant::SubscribeError` catches errors for a single remote node only.
+- **Hard faults**: a programming error, such as `ERR_TYPE_MISMATCH` or `ERR_CAPACITY_EXCEEDED`, is reported to `SubscribeError` first and then faults (assert or exception), so the handler gets one last diagnostic.
 
 ---
 

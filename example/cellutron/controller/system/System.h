@@ -60,6 +60,11 @@ private:
 
     dmq::os::Thread m_thread;
 
+    // Holds every controller thread until Initialize() has created them all
+    // and wired subscriptions and the network; then all start together.
+    // A member, not a global: on FreeRTOS its mutex needs the RTOS heap.
+    dmq::os::StartGate m_startGate;
+
     Network m_network;
 
     // Connections to the local DataBus

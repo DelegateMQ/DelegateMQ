@@ -331,6 +331,17 @@ extern "C" void CoreDump_FaultEntry(uint32_t* frame, uint32_t excReturn)
     ItmWrite(name);
     ItmWrite(" ***\r\n");
 
+    // A debug event escalated to HardFault (HFSR.DEBUGEVT): a breakpoint hit
+    // with no debugger halting the core, e.g. the programmer's flash loader in
+    // RAM when flashing a running board. The firmware itself never executes
+    // BKPT, so this isn't a crash: reset without storing a core dump.
+    if (vector == 3 && (SCB->HFSR & SCB_HFSR_DEBUGEVT_Msk)) {
+        ItmWrite("Debug event, not a crash: no core dump stored, resetting\r\n");
+        __DSB();
+        NVIC_SystemReset();
+        for (;;) {}
+    }
+
     // A stack overflow can leave the stack pointer outside RAM; don't fault
     // again reading the frame, just record the exception without it.
     if (!IsRamRange(frame, 8))

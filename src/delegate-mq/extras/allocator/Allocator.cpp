@@ -123,6 +123,10 @@ void* Allocator::Allocate([[maybe_unused]] size_t size)
 //------------------------------------------------------------------------------
 void Allocator::Deallocate(void* pBlock)
 {
+	// delete of a null pointer may call operator delete(NULL) (DECLARE_ALLOCATOR)
+	if (!pBlock)
+		return;
+
 #ifdef DMQ_ALLOCATOR_SAFEGUARDS
 	if (m_allocatorMode == STATIC_POOL || m_allocatorMode == HEAP_POOL)
 	{

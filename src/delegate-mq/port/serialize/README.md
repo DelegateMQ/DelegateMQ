@@ -1,6 +1,6 @@
-# Serialization Layer
+# Serializers (DelegateMQ Abstraction Layer)
 
-This directory contains the serialization adapters for **DelegateMQ**, responsible for marshaling function arguments into binary or text formats for remote transmission.
+This directory contains the serializer part of the **DelegateMQ Abstraction Layer**: the `ISerializer` adapters responsible for marshaling function arguments into binary or text formats for remote transmission.
 
 DelegateMQ is designed to be **serialization-agnostic**. You can choose the serializer that best fits your project's performance, size, or compatibility requirements.
 
@@ -28,7 +28,7 @@ Choosing a serializer for an embedded target involves constraints that do not ap
 
 | Serializer | Embedded suitability | Notes |
 |---|---|---|
-| `serialize` | Good | Zero external dependencies, automatic endianness handling, optional no-exception path (`#ifdef __cpp_exceptions`). Structs must inherit `serialize::I` and implement `read()`/`write()`. Slightly larger wire format due to size-prefix versioning. |
+| `serialize` | Good | Zero external dependencies, automatic endianness handling, builds without exceptions (errors are reported through the stream state). Structs must inherit `serialize::I` and implement `read()`/`write()`. Slightly larger wire format due to size-prefix versioning. |
 | `bitsery` | Best for tight constraints | Header-only, designed for real-time/embedded use, produces the smallest payloads of all supported options. Plain structs work with a `serialize()` annotation — no base class required. Endianness is configured at the adapter level rather than handled automatically, so cross-architecture communication requires explicit configuration. |
 | `msgpack` | Linux/Windows only | The msgpack-c library allocates dynamically (`msgpack::sbuffer`, `std::vector`) and carries an external dependency. These characteristics are manageable on a host but are a significant concern on a MCU with a constrained FreeRTOS heap. |
 | `cereal` | Poor | Heavy template machinery and reliance on `<exception>` and `<memory>` increases code size considerably. Rarely justified on a Cortex-M or similar resource-constrained target. |
@@ -39,3 +39,4 @@ Choosing a serializer for an embedded target involves constraints that do not ap
 - **Default embedded choice**: `serialize` — works out of the box with no external dependencies and handles the endianness problem automatically, which matters when an MCU (commonly big-endian capable) communicates with an x86 host.
 - **Upgrade path**: `bitsery` — if wire payload size or serialization throughput is a priority on real hardware, bitsery is the natural next step. Only the struct annotations in the message definitions change; `dmq::databus::DataBus` API calls are unaffected.
 - **Host-side only**: `msgpack`, `cereal`, and `rapidjson` are appropriate for Linux/Windows nodes in a mixed system but should not be the embedded node's serializer on a resource-constrained target.
+- **Message field types**: on the MCU, prefer `std::array`, `xlist`/`xmap`/`xset` and `xstring` over `std::vector`. See [Choosing Containers on Embedded Targets](serialize/README.md#choosing-containers-on-embedded-targets).

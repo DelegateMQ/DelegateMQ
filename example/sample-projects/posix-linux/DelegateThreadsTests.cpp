@@ -11,6 +11,7 @@
 /// time same as any other point in the process's life.
 
 #include "DelegateMQ.h"
+#include "../../../test/unit-tests/StartGatePortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -573,4 +574,6 @@ void DelegateThreadsTests()
     workerThread2.ExitThread();
 
     ThreadFullPolicyTests();
+
+    StartGatePortableTest::Run();   // StartGate on this port
 }

@@ -160,6 +160,10 @@ public:
         return true;
     }
 
+    /// @brief The ACK timeout: how long a message waits for its ACK before
+    /// TIMEOUT is reported.
+    dmq::Duration GetTimeout() const { return TRANSPORT_TIMEOUT; }
+
     /// Call periodically to process message timeouts.
     /// Drains all expired entries across multiple passes so a single call always
     /// fully clears the backlog, regardless of how many entries have timed out.
@@ -170,6 +174,10 @@ public:
         do {
             expiredCount = 0;
             size_t remaining = 0;
+
+            // Local, not a member: it's read after the lock is released, when a
+            // concurrent Process() on another thread could overwrite a member.
+            std::array<ExpiredItem, dmq::MAX_TIMER_EXPIRED> expiredItems;
 
             {
                 // Lock ONLY while reading/modifying the map
@@ -191,7 +199,7 @@ public:
                             remaining = m_pending.size();
                             break;
                         }
-                        m_expiredItems[expiredCount++] = { (*it).second.seqNum, (*it).second };
+                        expiredItems[expiredCount++] = { (*it).second.remoteId, (*it).second.seqNum };
                         it = m_pending.erase(it);
                     }
                     else
@@ -205,7 +213,7 @@ public:
             // Fire timeout callbacks without holding the lock
             for (size_t i = 0; i < expiredCount; ++i)
             {
-                OnSendStatus(m_expiredItems[i].data.remoteId, m_expiredItems[i].seq, Status::TIMEOUT);
+                OnSendStatus(expiredItems[i].remoteId, expiredItems[i].seq, Status::TIMEOUT);
             }
 
             // Notify app if a full pass still left entries; loop to drain them
@@ -225,11 +233,10 @@ private:
         dmq::TimePoint timeStamp;
     };
 
-    struct ExpiredItem { uint16_t seq; TimeoutData data; };
+    struct ExpiredItem { dmq::DelegateRemoteId remoteId; uint16_t seq; };
 
     // Key is (remoteId << 16) | seqNum
     dmq::xmap<uint32_t, TimeoutData> m_pending;
-    std::array<ExpiredItem, dmq::MAX_TIMER_EXPIRED> m_expiredItems{};
     const dmq::Duration TRANSPORT_TIMEOUT;
     dmq::RecursiveMutex m_lock;
 };

@@ -17,11 +17,11 @@ namespace dmq::util {
 /**
  * @brief CRC-CCITT lookup table based on x^16 + x^12 + x^5 + 1 (0x1021).
  *
- * Declared constexpr (C++17) so the compiler emits a single shared definition
- * across all translation units, avoiding the per-TU duplication that a
- * 'static const' array in a header would cause.
+ * `inline constexpr` (C++17) so every translation unit shares one definition.
+ * Plain `constexpr` at namespace scope has internal linkage, so each TU that
+ * used the table would get its own 512-byte copy.
  */
-constexpr unsigned short crcccitt_table[] = {
+inline constexpr unsigned short crcccitt_table[] = {
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7, 0x8108, 0x9129,
     0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef, 0x1231, 0x0210, 0x3273, 0x2252,
     0x52b5, 0x4294, 0x72f7, 0x62d6, 0x9339, 0x8318, 0xb37b, 0xa35a, 0xd3bd, 0xc39c,

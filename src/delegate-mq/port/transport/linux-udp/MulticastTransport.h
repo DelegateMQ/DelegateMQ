@@ -91,15 +91,9 @@ public:
         headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
         xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id     = htons(headerCopy.GetId());
-        uint16_t seqNum = htons(headerCopy.GetSeqNum());
-        uint16_t length = htons(headerCopy.GetLength());
-
-        ss.write((const char*)&marker, 2);
-        ss.write((const char*)&id, 2);
-        ss.write((const char*)&seqNum, 2);
-        ss.write((const char*)&length, 2);
+        char headerBuf[DmqHeader::HEADER_SIZE];
+        headerCopy.Encode(headerBuf);
+        ss.write(headerBuf, DmqHeader::HEADER_SIZE);
         ss.write(payload.data(), payload.size());
 
         auto data = ss.str();
@@ -110,27 +104,25 @@ public:
     virtual int Receive(xstringstream& is, DmqHeader& header) override {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::SUB) return -1;
-        ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, NULL, NULL);
+        // MSG_TRUNC: return the datagram's real length, so one larger than the
+        // buffer is detected and dropped rather than delivered cut short.
+        ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), MSG_TRUNC, NULL, NULL);
+        if (size < 0)
+            return (errno == EAGAIN || errno == EWOULDBLOCK) ? RECEIVE_NO_DATA : -1;
 
         if (size < (ssize_t)DmqHeader::HEADER_SIZE) return -1;
+        if (size > (ssize_t)sizeof(m_buffer)) return -1;   // truncated
 
-        xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
-        headerStream.write(m_buffer, DmqHeader::HEADER_SIZE);
-        headerStream.seekg(0);
+        header.Decode(m_buffer);
 
-        uint16_t val = 0;
-        headerStream.read((char*)&val, 2); header.SetMarker(ntohs(val));
-        headerStream.read((char*)&val, 2); header.SetId(ntohs(val));
-        headerStream.read((char*)&val, 2); header.SetSeqNum(ntohs(val));
-        headerStream.read((char*)&val, 2); header.SetLength(ntohs(val));
-
-        if (header.GetMarker() != DmqHeader::MARKER) {
+        if (!header.IsValid()) {
             // std::cerr << "[Multicast] Bad Marker: " << std::hex << header.GetMarker() << std::dec << std::endl;
             return -1;
         }
 
-        int payloadSize = size - DmqHeader::HEADER_SIZE;
-        if (header.GetLength() > payloadSize) return -1;
+        // One datagram is one message: the header length must match exactly.
+        int payloadSize = static_cast<int>(size) - static_cast<int>(DmqHeader::HEADER_SIZE);
+        if (header.GetLength() != payloadSize) return -1;
         is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }

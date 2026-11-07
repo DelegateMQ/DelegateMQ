@@ -86,6 +86,9 @@ namespace DelegateMQ.Interop
         private static extern int DmqInterop_SetReliability(int enabled, int timeoutMs, int maxRetries);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        private static extern int DmqInterop_SetNodeId(byte nodeId);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
         private static extern int DmqInterop_Start(string remoteHost, int recvPort, int sendPort, string multicastGroup);
 
         [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
@@ -159,6 +162,17 @@ namespace DelegateMQ.Interop
         {
             if (DmqInterop_SetReliability(enabled ? 1 : 0, timeoutMs, maxRetries) != 0)
                 throw new InvalidOperationException("SetReliability must be called before Start.");
+        }
+
+        /// <summary>
+        /// Set this client's node ID (1-255, 0 = unset), sent in every message header.
+        /// Call before Start. Give each client a unique ID when several send the same
+        /// remote IDs to one peer, so the peer's duplicate filter keeps them apart.
+        /// </summary>
+        public void SetNodeId(byte nodeId)
+        {
+            if (DmqInterop_SetNodeId(nodeId) != 0)
+                throw new InvalidOperationException("SetNodeId must be called before Start.");
         }
 
         /// <summary>

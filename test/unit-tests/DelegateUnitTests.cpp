@@ -1310,7 +1310,7 @@ extern void TimerDelegateTests();
 #ifdef DMQ_ALLOCATOR
 extern void AllocatorTests();
 #endif
-extern void MakeTupleHeapTests();
+extern void StoreAsyncArgTests();
 
 void RunDelegateUnitTests()
 {
@@ -1335,7 +1335,7 @@ void RunDelegateUnitTests()
 #ifdef DMQ_ALLOCATOR
 		AllocatorTests();
 #endif
-		MakeTupleHeapTests();
+		StoreAsyncArgTests();
 	}
 	catch (const std::exception& e)
 	{

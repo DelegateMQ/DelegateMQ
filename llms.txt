@@ -23,11 +23,14 @@ All four share the same `dmq::MakeDelegate()` factory and `operator()` invocatio
 
 - `dmq::databus::DataBus` — topic-based publish/subscribe middleware, location-transparent across threads and remote nodes
 - `dmq::databus::Participant` — represents a remote node; bridges local and remote topics
-- `dmq::databus::QoS` — per-topic quality-of-service: Last Value Cache (LVC), Lifespan, Min Separation, Deadline Monitoring
+- `dmq::databus::QoS` — per-subscription quality-of-service: Last Value Cache (LVC), Lifespan, Min Separation
+- `dmq::databus::DeadlineSubscription<T>` — deadline monitoring: detects a publisher that goes silent (needs `Timer::ProcessTimers()`)
 
 ### Ports & Interfaces
 
-- `dmq::IThread` — cross-platform thread dispatch interface; pre-built ports for stdlib, Win32, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare-metal (ARM/RISC-V)
+The implementations of the interfaces below, in `src/delegate-mq/port` (OS, transport, serializer), form the DelegateMQ Abstraction Layer.
+
+- `dmq::IThread` — cross-platform thread dispatch interface; pre-built ports for stdlib, Win32, POSIX (raw pthreads), FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare-metal (ARM/RISC-V)
 - `dmq::ISerializer<Sig>` — serialization interface; adapters for MessagePack, RapidJSON, Cereal, Bitsery
 - `dmq::transport::ITransport` — transport interface; adapters for ZeroMQ, NNG, MQTT, TCP/UDP, serial, pipes
 - `dmq::IDispatcher` — dispatches serialized data to remote endpoints
@@ -84,18 +87,21 @@ tx(42);  // serialized and sent over the network
 
 ```cpp
 auto conn = dmq::databus::DataBus::Subscribe<float>(
-    "sensor/temp", [](const float& v) { use(v); }, workerThread);
+    "sensor/temp", [](const float& v) { use(v); }, &workerThread);  // IThread*; omit for sync
 dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 ```
 
 ## Threading and Async Model
 
-- No internal threads are created by the library; every thread is explicitly constructed by the application.
+- The core library creates no threads; every thread is explicitly constructed by the application. The exceptions are opt-in helpers that each own one receive thread: `dmq::databus::NetworkNode` and `dmq::rpc::RemoteDispatcher`.
 - Async delegates are queued to the target thread's priority queue; the thread's `Process()` loop dequeues and invokes.
-- Non-blocking async (`DelegateAsync`) deep-copies all arguments to the heap so the caller can return immediately without stack lifetime risk.
+- Non-blocking async (`DelegateAsync`) copies all arguments so the caller can return immediately without stack lifetime risk: by-value arguments are stored in the message (one copy, as for a sync call), and the data behind reference and pointer arguments is copied to the heap.
 - Blocking async (`DelegateAsyncWait`) passes arguments on the stack; the caller blocks until the target thread completes.
 - Thread constructor parameters `threadName` and `cpuName` are `const char*` at the binary interface (with `std::string` inline overloads).
-- Thread queue full policy is configurable per thread via `dmq::os::FullPolicy`: `DROP` (discard), `TIMEOUT` (wait then drop), or `FAULT` (assert/halt).
+- Thread queue full policy is configurable per thread via `dmq::FullPolicy` (aliased as `dmq::os::FullPolicy`): `DROP` (discard), `TIMEOUT` (wait then drop), or `FAULT` (assert/halt, the default).
+- Thread queue size: `maxQueueSize = 0` (the default) means the port's default size (`dmq::DEFAULT_QUEUE_SIZE` on RTOS ports and Qt, `dmq::THREAD_DESKTOP_QUEUE_SIZE` on stdlib/Win32/POSIX), never unbounded.
+- Synchronized start: an optional `dmq::os::StartGate`, set with `Thread::SetStartGate(&gate)` before `CreateThread()`, holds any number of threads ready but processing nothing (at any priority) until `gate.Open()` releases them together. Available on every thread port (`DMQ_HAS_START_GATE`), not bare metal. See [PORTING](docs/PORTING.md#start-gate-synchronized-start).
+- Thread exit behavior is configurable via `dmq::ExitPolicy`: `DRAIN` (default; invoke every message queued before `ExitThread()`) or `DISCARD` (drop queued messages; blocked `DelegateAsyncWait` senders are cancelled rather than left waiting).
 
 ## Object Lifetime Safety
 
@@ -110,9 +116,11 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 - Out-parameters (pointer or reference arguments modified by the handler) are not reflected back to the caller for non-blocking async; deep-copying is one-way. Use blocking async if out-parameters are needed.
 - C-style array arguments decay to pointers per the C standard; pass `std::vector` or a struct instead.
 - Passing a `std::shared_ptr` argument through an async delegate copies the smart pointer, not the pointed-to object — the pointed-to data is shared, not duplicated.
+- `Signal::Connect()` and every `Subscribe*()` return a `[[nodiscard]]` `dmq::ScopedConnection` that owns the subscription. Discarding it disconnects immediately: no callbacks, no error. Store it in a member variable or container.
 - Each DataBus topic has exactly one C++ type; a type mismatch between publisher and subscriber triggers a fault at runtime.
 - `Signal` is thread-safe for concurrent connect/disconnect/emit, but a synchronous subscriber connected to a `Signal` runs inline on the emitting thread (potential priority inversion).
-- Message dispatch order on a thread is by priority queue, not strict FIFO. Use explicit sequencing if ordering across multiple sources matters.
+- Message dispatch order on a thread: `HIGH` priority messages run before `NORMAL` ones; within each priority, FIFO. Use explicit sequencing if ordering across multiple sources matters.
+- Don't delete a `dmq::os::Thread` from one of its own callbacks: on ThreadX and Zephyr it faults, since the thread's stack can't be freed while it runs on it. Call `ExitThread()` from the callback and delete the object from another thread.
 - **LVC rewind (out-of-order delivery):** when a subscriber connects to a Last Value Cache topic with a worker thread, it may receive a fresh live value followed by a stale cached value delivered slightly late. The DataBus dispatches the LVC value outside its internal lock to prevent deadlocks, which opens a narrow window for a concurrent publisher to push a newer value first. The fix is an application-level sequence number: embed a `uint32_t seq` in every message (stamp it at publish time with an atomic counter) and guard the subscriber with `dmq::util::MonotonicGuard<uint32_t>::IsNewer(msg.seq)` — stale arrivals are silently discarded. `MonotonicGuard` handles `uint32_t` rollover correctly via signed-difference comparison.
 
 ## Timer
@@ -125,7 +133,7 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 - `void Start(dmq::Duration timeout, bool once = false)` — start the timer; `once = true` fires once then disables, `once = false` (default) repeats
 - `void Stop()` — stop the timer; removal from the list is deferred to the next `ProcessTimers()` call
 - `bool Enabled()` — returns whether the timer is currently active
-- `static dmq::TimePoint GetNow()` — current time from the steady clock
+- `static dmq::TimePoint GetNow()` — current time from `dmq::Clock` (the port's monotonic clock)
 
 ### ProcessTimers()
 
@@ -133,40 +141,35 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 static void Timer::ProcessTimers();
 ```
 
-Must be called periodically from the highest-priority context available. `Timer::GetLock()` returns `dmq::CriticalSection` — a portable type resolved per-port in `DelegateOpt.h`, distinct from `dmq::Mutex`/`RecursiveMutex` specifically because it must sometimes work from ISR context (an OS mutex categorically cannot: mutexes carry an "owning thread" concept for priority inheritance that has no meaning in interrupt context). Per-port status:
+Must be called periodically, from a main loop or a high-priority task. The timer list itself is guarded by `Timer::GetLock()`, a `dmq::CriticalSection` (interrupt masking on RTOS and bare-metal ports, resolved per port in `DelegateOpt.h`), and `Start()`/`Stop()` take only that lock. `ProcessTimers()` then copies each expired timer's subscribers under `Timer::GetProcessLock()`, a `dmq::RecursiveMutex`, which can lock OS mutexes and allocate. So:
 
-| Port | Hardware ISR safe? | Verified how |
-|---|---|---|
-| Bare-metal / no RTOS (`DMQ_THREAD_NONE`) | Yes (`dmq::os::BareMetalCriticalSection`, PRIMASK save/disable/restore) | Mirrors the already-proven `BareMetalClock.h` technique; not separately built/run |
-| ThreadX | Yes (`dmq::os::ThreadXCriticalSection`, interrupt masking, not a `TX_MUTEX`) | Built and run — `example/sample-projects/threadx-linux` |
-| FreeRTOS on real ARM Cortex-M (e.g. `stm32-freertos`) | Yes (`dmq::os::FreeRTOSCriticalSection` auto-detects context via `xPortIsInsideInterrupt()`) | Reasoned through; not run (no Cortex-M hardware/QEMU here) |
-| FreeRTOS on the POSIX/Win32 desktop simulator ports | No — task-context only (no real hardware interrupt to detect there) | Task-context path built and run — `example/sample-projects/freertos-linux` |
-| Zephyr | Yes per documented API (`dmq::os::ZephyrCriticalSection`, `irq_lock()`/`irq_unlock()`) | **Unverified** — no Zephyr SDK/`west` workspace available |
-| CMSIS-RTOS2 | Yes per documented API (`dmq::os::CmsisRtos2CriticalSection`, `__disable_irq()`/`__enable_irq()`, bypassing `osMutex`) | **Unverified** — no CMSIS-RTOS2 SDK or Cortex-M hardware/QEMU available |
-| Desktop (stdlib/Win32/Qt) | N/A — no ISR concept reachable from userspace | Aliased to `RecursiveMutex`; correct as-is |
+| Port | Call `ProcessTimers()` from a hardware ISR? |
+|---|---|
+| Bare metal / no RTOS (`DMQ_THREAD_NONE`), ARM or RISC-V | Yes (e.g. `SysTick_Handler`) |
+| Every RTOS port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX) | No — call it from a task (OS mutexes can't be taken in an ISR) |
+| Desktop (stdlib/Win32/POSIX/Qt) | No — call it from a thread |
+
+Implementation per port and how each was verified: see the ISR-Safe Locking section of [CLAUDE.md](CLAUDE.md).
 
 It checks every active timer, collects expired timers, then invokes their `OnExpired` signals **outside the lock** to prevent deadlocks. Frequency must be shorter than the shortest timer period; 5–10 ms is typical.
 
 **ProcessTimers() must never block.** Scenarios that cause blocking or faulting:
 
-1. A timer callback dispatches to a thread whose queue is full and the thread uses `FullPolicy::TIMEOUT` — stalls up to the timeout. Fix: use `FullPolicy::FAULT` or `DROP` on threads that receive timer dispatches.
+1. A timer callback dispatches to a thread whose queue is full and the thread uses `FullPolicy::TIMEOUT` — stalls up to the timeout. Fix: use `FullPolicy::FAULT` or `DROP` on threads that receive timer dispatches, or `MakeTimerDelegate()` (below).
 2. A `DelegateAsyncWait` is connected to `OnExpired` — blocks indefinitely. Never do this.
 3. A synchronous callback connected to `OnExpired` runs slowly — blocks for its duration. Keep sync callbacks fast or dispatch work asynchronously.
-4. Calling `ProcessTimers()` from a genuine hardware ISR on the FreeRTOS POSIX/Win32 simulator ports, or on desktop (stdlib/Win32/Qt) — faults or is undefined, since `Timer::GetLock()` is `RecursiveMutex` there. Not an issue on the other ports; see the table above.
+4. Calling `ProcessTimers()` from a hardware ISR on any port except bare metal — it takes OS mutexes there. See the table above.
 
 ### Recommended call sites
 
 ```cpp
-// Bare-metal, ThreadX, or real ARM Cortex-M FreeRTOS/Zephyr/CMSIS-RTOS2 —
-// hardware ISR is safe (preempts all tasks)
+// Bare metal (DMQ_THREAD_NONE) only — hardware ISR is safe
 extern "C" void SysTick_Handler() {
     dmq::util::Timer::ProcessTimers();
 }
 
-// FreeRTOS/Zephyr/CMSIS-RTOS2 desktop simulator ports, or desktop
-// (stdlib/Win32/Qt) — highest-priority dedicated task (thread context).
-// Also fine on every other port if you'd rather not use an ISR.
-void WatchdogTask(void*) {
+// Every RTOS port, and desktop — a high-priority task or thread
+void TimerTask(void*) {
     while (true) {
         dmq::util::Timer::ProcessTimers();
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -174,50 +177,34 @@ void WatchdogTask(void*) {
 }
 ```
 
-### Configuration constants (DelegateOpt.h)
+### Configuration constants
 
-- `MAX_TIMER_EXPIRED = 16` — maximum timers that can expire in a single `ProcessTimers()` call without heap allocation
-- `MAX_WATCHDOG_THREADS = 16` — maximum threads registered for watchdog monitoring
+Defaults live in `delegate/DelegateMQConfig_Default.h`; override them in your own `DelegateMQConfig.h` (seed it from `DelegateMQConfig_Template.h`). Each is exposed in code as a `dmq::` constant (e.g. `DMQ_MAX_TIMER_EXPIRED` → `dmq::MAX_TIMER_EXPIRED`).
+
+- `DMQ_MAX_TIMER_EXPIRED` (16) — timers collected per `ProcessTimers()` pass; a larger backlog is drained in further bounded passes, not by allocating
+- `DMQ_MAX_WATCHDOG_THREADS` (16) — maximum threads registered for watchdog monitoring
 
 ## Best Practices for Constrained Systems (STM32, ESP32, etc.)
 
 For applications running on MCUs with limited RAM (e.g., 64KB–512KB), follow these guidelines to ensure deterministic performance and prevent heap exhaustion:
 
 1. **Enable `DMQ_ALLOCATOR`**: This is the most critical step. It replaces the standard `malloc`/`free` with DelegateMQ's fixed-block allocator for all internal library structures (DataBus topics, connections, async messages). This eliminates fragmentation and makes memory usage predictable.
-2. **Prefer Class Member Delegates**: Use `dmq::MakeDelegate(this, &Class::Method)` instead of capturing lambdas for internal plumbing or long-lived connections. Member function delegates are fixed-size (24–32 bytes) and never trigger heap allocations, whereas lambdas can silently exceed Small Buffer Optimization (SBO) limits.
-3. **Be Mindful of Async Arguments**: When using `DelegateAsync`, every argument is deep-copied to the heap. 
+2. **Prefer Class Member Delegates**: Use `dmq::MakeDelegate(this, &Class::Method)` instead of capturing lambdas for internal plumbing or long-lived connections. Member function delegates are fixed-size and never allocate, whereas a lambda is stored in a `std::function` and a large capture can silently exceed its small-buffer optimization and allocate.
+3. **Be Mindful of Async Arguments**: When using `DelegateAsync`, every argument is copied: by-value arguments into the message, the data behind reference and pointer arguments to the heap. 
     - **Avoid**: Passing large structs or strings by value.
     - **Prefer**: Passing by `const T&` if the object's lifetime is guaranteed (e.g., a singleton or global).
     - **Prefer**: Using `std::shared_ptr<T>` to share ownership; only the smart pointer is copied, not the underlying data.
-4. **Tune `DMQ_MAX_TIMER_EXPIRED`**: If you have many timers firing simultaneously, ensure this value in `DelegateOpt.h` is large enough to prevent temporary heap spikes during `ProcessTimers()`.
+4. **Tune capacities in `DelegateMQConfig.h`**: queue sizes (`DMQ_DEFAULT_QUEUE_SIZE`), `DMQ_MAX_PARTICIPANTS`, `DMQ_MAX_TIMER_EXPIRED`, etc. Defaults and descriptions are in `delegate/DelegateMQConfig_Default.h`.
 
-## Lambda Usage and Developer Rules
+## Lambdas
 
-While lambdas are convenient and fully supported for user-level code, the DelegateMQ library follows strict rules for **internal implementation** and **middleware glue logic** to ensure deterministic performance and minimal heap usage.
-
-### 1. Prefer Class Member Delegates for Library Internals
-Internal library components (e.g., DataBus, Participant, RAII helpers) should avoid capturing lambdas that rely on `std::function` for storage.
-- **Rule:** If a callback needs to capture `this` or other state, refactor the logic into a private member function and use `dmq::MakeDelegate(this, &Class::Method)`.
-- **Reason:** Member function delegates in DelegateMQ are fixed-size (24–32 bytes) and never trigger heap allocations. Capturing lambdas often exceed the Small Buffer Optimization (SBO) of `std::function`, causing hidden heap pressure.
-
-### 2. Use Helper Classes for Closure State
-If complex state must be associated with a delegate (e.g., QoS rate limiting or filtering), use a dedicated template class in a `detail` namespace.
-- **Rule:** Store the state in a `shared_ptr`-managed object and capture only the `shared_ptr` in a "thin" lambda if necessary.
-- **Reason:** This ensures the lambda capture remains small (16 bytes for a `shared_ptr`), fitting safely within SBO limits.
-
-### 3. Lifetime and Safety
-- **Rule:** For long-lived internal connections, prefer `DelegateMemberSp` (via `std::shared_ptr`/`std::weak_ptr`) over lambdas capturing `this`.
-- **Reason:** Weak-pointer delegates automatically expire when the object is destroyed, preventing dangling pointer crashes that are common with capturing lambdas.
-
-### 4. User Code vs. Library Code
-- **User Code:** Lambdas are encouraged for trivial, local, or fire-and-forget tasks where developer productivity is the priority.
-- **Library/Middleware Code:** Determinism, RAM efficiency, and predictable destruction order take precedence. Avoid anonymous closures for "plumbing."
+Lambdas are fully supported in application code: pass one directly to `dmq::MakeDelegate()`, sync or async. It is stored in a `std::function`, so a large capture can allocate; on constrained targets see item 2 above. (Library internals avoid capturing lambdas; see [CLAUDE.md](CLAUDE.md).)
 
 ## MakeTimerDelegate
 
 `dmq::util::MakeTimerDelegate()` creates a timer-safe async delegate that prevents queue flooding. Unlike `MakeDelegate()`, it guarantees **at most one message in flight** to the target thread at any time — additional timer ticks are silently dropped while the previous dispatch is still pending. Use it whenever connecting a delegate to `Timer::OnExpired`.
 
-### Signature (representative overloads)
+### Signatures
 
 ```cpp
 // Member function, raw pointer
@@ -238,7 +225,8 @@ TimerDelegate MakeTimerDelegate(
     dmq::UnicastDelegate<void()> onStuck = dmq::UnicastDelegate<void()>(),
     dmq::Duration stuckTimeout = dmq::Duration(0));
 
-// Lambda / free function
+// Free function / static member: void(*func)()
+// Lambda or other callable
 template <typename F>
 TimerDelegate MakeTimerDelegate(
     F&& func,
@@ -247,7 +235,9 @@ TimerDelegate MakeTimerDelegate(
     dmq::Duration stuckTimeout = dmq::Duration(0));
 ```
 
-`onStuck` takes a `dmq::UnicastDelegate<void()>` — bind it with `dmq::MakeDelegate(this, &MyClass::OnThreadStuck)`, not a raw lambda. Returns a `TimerDelegate` (derives from `dmq::Delegate<void()>`) that can be passed directly to `Timer::OnExpired.Connect()`.
+Each member-function form also has a `const` method overload (`const TClass*` or `std::shared_ptr<TClass>` with `void (TClass::*)() const`). Member and free-function targets are stored as plain delegates; only lambdas/callables are wrapped in a `std::function`.
+
+`onStuck` takes a `dmq::UnicastDelegate<void()>` — build it with `dmq::MakeDelegate()` (e.g. `dmq::MakeDelegate(this, &MyClass::OnThreadStuck)`). Returns a `TimerDelegate` (derives from `dmq::Delegate<void()>`) that can be passed directly to `Timer::OnExpired.Connect()`.
 
 ### How it differs from MakeDelegate
 
@@ -257,7 +247,7 @@ TimerDelegate MakeTimerDelegate(
 | Queue flooding | Possible on fast timers | Prevented |
 | Blocking (`DelegateAsyncWait`) | Supported | Not supported (always async) |
 | Stuck detection | No | Optional via `onStuck` |
-| `shared_ptr` lifetime safety | Yes | Yes |
+| `shared_ptr` target held weakly | Yes | Yes |
 
 ### Usage examples
 
@@ -267,13 +257,14 @@ m_conn = m_timer.OnExpired.Connect(
     dmq::util::MakeTimerDelegate(this, &MyClass::OnTick, m_thread));
 m_timer.Start(std::chrono::milliseconds(100));
 
-// Shared_ptr owner — safe if object is destroyed before timer fires
+// Shared_ptr owner — target held as weak_ptr; the call is skipped if the
+// object is gone by the time the worker thread runs it
 auto self = std::make_shared<MyClass>();
 auto d = dmq::util::MakeTimerDelegate(self, &MyClass::OnTick, m_thread);
 self->m_conn = self->m_timer.OnExpired.Connect(d);
 
-// With stuck detection — onStuck fires from ProcessTimers() context if
-// the previous dispatch has not completed after stuckTimeout
+// With stuck detection — onStuck fires from ProcessTimers() context on each
+// tick that finds the previous dispatch still pending after stuckTimeout
 m_conn = m_timer.OnExpired.Connect(
     dmq::util::MakeTimerDelegate(this, &MyClass::OnTick, m_thread,
         dmq::MakeDelegate(this, &MyClass::OnThreadStuck), std::chrono::seconds(2)));
@@ -281,11 +272,13 @@ m_conn = m_timer.OnExpired.Connect(
 
 ### At-most-one guarantee
 
-Internally, `MakeTimerDelegate` wraps the call in a `PacedDispatch` token. When the timer fires:
+Internally, each dispatch carries a `DispatchToken` (a `shared_ptr`); the `TimerDelegate`'s `PacedDispatch` gate keeps only a `weak_ptr` to it. When the timer fires:
 - If the previous dispatch is still in flight (token alive), the tick is dropped.
-- If the previous dispatch completed (token destroyed), the next dispatch is queued.
+- If the previous dispatch completed, or the target thread rejected it under `FullPolicy::DROP` (token destroyed), the next dispatch is queued.
 
-This prevents a slow handler from causing unbounded queue growth on the target thread.
+This prevents a slow handler from causing unbounded queue growth on the target thread, and means `ProcessTimers()` never waits on a `FullPolicy::TIMEOUT` queue while a dispatch is already pending. A `TimerDelegate` is meant to be invoked from a single `ProcessTimers()` context; it is not safe for concurrent invocation.
+
+Disconnecting the connection (or destroying, clearing or reassigning the `TimerDelegate`) cancels a tick it queued that the worker hasn't started: the target is not called. Two cases still run: a tick the worker has already started, and one that `ProcessTimers()` queues while `Disconnect()` runs on another thread (`Signal` emits a snapshot of its connections). So disconnecting alone doesn't make it safe to free a raw-pointer target. Stop the timer, disconnect, and drain the worker (e.g. `ExitThread()`) first, as `NetworkNode::Stop()` does.
 
 ## Watchdog
 
@@ -304,8 +297,18 @@ Without a timeout argument, the watchdog is disabled for that thread.
 
 ### How it works
 
-1. **Self-reporting:** The thread's `Process()` loop records `m_lastAliveTime = Timer::GetNow()` at the top of every iteration and again after waking from the queue wait. With a watchdog enabled the queue wait uses a finite timeout (`watchdogTimeout / 10`) so even idle threads loop frequently.
-2. **Checking:** `ProcessTimers()` fires a watchdog check timer at `watchdogTimeout / 2` intervals. It reads `m_lastAliveTime` atomically for each registered thread. If `now − lastAlive > watchdogTimeout`, `WatchdogHandler(threadName)` is called.
+1. **Self-reporting:** The thread's `Process()` loop records `m_lastAliveTime = Timer::GetNow()` at the top of every iteration and again after waking from the queue wait. With a watchdog enabled the queue wait uses a finite timeout (`watchdogTimeout / DMQ_WATCHDOG_HEARTBEAT_DIVISOR`, default 4) so even idle threads loop frequently.
+2. **Checking:** the application calls the static `dmq::os::Thread::WatchdogCheckAll()` periodically (e.g. every 100 ms) from its own loop or task — the library does not schedule it, and `ProcessTimers()` does not call it. It reads `m_lastAliveTime` atomically for each registered thread. If `now − lastAlive > watchdogTimeout`, `WatchdogHandler(threadName)` is called.
+
+```cpp
+// Highest-priority task (FreeRTOS shown; see example/cellutron for ThreadX/stdlib)
+void vWatchdogTask(void*) {
+    while (true) {
+        dmq::os::Thread::WatchdogCheckAll();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
 3. **Fault:** `WatchdogHandler` is an `extern "C"` stub the application provides. The default triggers a `FAULT` (assert/halt); a custom implementation can log the thread name and initiate system recovery.
 
 ### Long-running handlers
@@ -326,18 +329,21 @@ void MyClass::LongHandler() {
 | Method | Purpose |
 |---|---|
 | `CreateThread(std::optional<dmq::Duration>)` | Pass a timeout to enable the watchdog and register the thread |
+| `static WatchdogCheckAll()` | Check every registered thread; call periodically from the application |
 | `ThreadCheck()` | Manually reset the alive timestamp inside a long handler |
-| `ExitThread()` | Unregisters the thread from the watchdog list |
+| `ExitThread()` | Stops watchdog checks once the thread has finished (a thread that hangs while `ExitThread()` waits is still reported); it stays registered until destroyed |
 
 ### Priority requirement
 
-The watchdog only catches a runaway thread if `ProcessTimers()` runs at **higher priority** than the runaway thread. On a single-core RTOS, a CPU-spinning task at equal or higher priority than the `ProcessTimers()` caller will starve the watchdog. On bare-metal, ThreadX, or a real ARM Cortex-M FreeRTOS/Zephyr/CMSIS-RTOS2 target, the fix is to call `ProcessTimers()` from a hardware ISR, which preempts all software tasks. On a desktop build, or the FreeRTOS POSIX/Win32 simulator ports, use the highest-priority task instead — see the per-port table under [ProcessTimers()](#processtimers).
+The watchdog only catches a runaway thread if the `WatchdogCheckAll()` caller runs at **higher priority** than the runaway thread. On a single-core RTOS, a CPU-spinning task at equal or higher priority than that caller will starve the watchdog — so call it from the highest-priority task in the system.
 
-For maximum reliability, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) and kick it only from inside `WatchdogCheck()` — that way a stuck `ProcessTimers()` caller also triggers a hardware reset.
+Do **not** call `WatchdogCheckAll()` from a hardware ISR: it takes the thread list's `dmq::RecursiveMutex`, an OS mutex that cannot be acquired from interrupt context on any RTOS port.
+
+For maximum reliability, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) and kick it from the same loop, right after `WatchdogCheckAll()` returns — that way a stuck or starved watchdog task also triggers a hardware reset.
 
 ## Platform and OS Support
 
-Desktop / server: Windows (Win32), Linux (POSIX / stdlib), Qt event loop.
+Desktop / server: Windows (Win32), Linux (stdlib, or raw pthreads via `DMQ_THREAD_POSIX`), Qt event loop.
 
 Embedded / RTOS: FreeRTOS, ThreadX / NetX, Zephyr, CMSIS-RTOS2, NuttX, bare-metal (ARM Cortex-M and RISC-V), ATfE (picolibc).
 
@@ -349,7 +355,7 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 - CMake is the primary build system; it auto-detects the platform and selects defaults.
 - As a dependency (FetchContent or `add_subdirectory`): set `DMQ_*` options first, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`; the static library target carries the port sources, definitions and include paths.
 - For async delegates or DataBus, also compile the `DMQ_PORT_SOURCES` for the target OS/thread port. (`include(DelegateMQ.cmake)` path; `dmq_add_library(<name>)` turns those into a target).
-- Without CMake (Keil, IAR, STM32CubeIDE, Makefiles): add `src/delegate-mq` to the include path and compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq` (not both); select ports/options with `#define`s in a `DelegateMQConfig.h` on the include path (copy `delegate/DelegateMQConfig_Template.h`).
+- Without CMake (Keil, IAR, STM32CubeIDE, Makefiles): add `src/delegate-mq` to the include path and compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq` (not both); select ports/options with `#define`s in a `DelegateMQConfig.h` on the include path (copy `delegate/DelegateMQConfig_Template.h`). See `example/sample-projects/no-cmake-integration`.
 - Key CMake options: `DMQ_THREAD` (e.g., `DMQ_THREAD_STDLIB`, `DMQ_THREAD_FREERTOS`, `DMQ_THREAD_WIN32`), `DMQ_ALLOCATOR` (fixed-block allocator), `DMQ_ASSERTS`, `DMQ_TOOLS`.
 
 ## Diagnostic Tools (DMQ_TOOLS=ON)
@@ -377,6 +383,7 @@ Bridges an application links in (`tools/bridge/`):
 ## Documentation
 
 - [README](README.md) — overview, quick start, feature table
+- [TUTORIAL](docs/TUTORIAL.md) — step-by-step from local delegates to distributed DataBus
 - [DETAILS](docs/DETAILS.md) — in-depth API documentation and design rationale
 - [PORTING](docs/PORTING.md) — how to port to a new OS or thread model
 - [SIGNALS](docs/SIGNALS.md) — Signal/ScopedConnection usage guide
@@ -384,89 +391,15 @@ Bridges an application links in (`tools/bridge/`):
 - [INTEROP](docs/INTEROP.md) — C#/Python interop, reliability model, delivery status and error codes
 - [TOOLS](tools/TOOLS.md) — diagnostic consoles, bridges, MQTT gateway, Wireshark and PlotJuggler integration
 - [BUILD](docs/BUILD.md) — build and configuration guide
+- [SAFETY](docs/SAFETY.md) — safety and standards notes
+- [COMPARISON](docs/COMPARISON.md) — technology comparison with alternatives
 - [example/cellutron/](example/cellutron/) — multi-node demo simulating a medical instrument with GUI, controller, and safety processor nodes
 - [example/pumptron/](example/pumptron/) — pump controller on a real STM32F4 (FreeRTOS) with an FTXUI console over a serial DataBus link; also runs on the FreeRTOS simulator
 
 ## Comparison to Alternatives
 
-DelegateMQ differs from Qt signals (requires moc, Qt base class, Qt event loop), Boost.Signals2 (no async delivery, no remote, no embedded support), DDS (no IDL, no code gen, tiny footprint), and gRPC (no local/async mode, requires protobuf). DelegateMQ is the only option in this space that provides sync, async, and remote invocation in a single API with embedded/RTOS support.
+DelegateMQ differs from Qt signals (requires moc, Qt base class, Qt event loop), Boost.Signals2 (no async delivery, no remote, no embedded support), DDS (no IDL, no code gen, tiny footprint), and gRPC (no local/async mode, requires protobuf). DelegateMQ is the only option in this space that provides sync, async, and remote invocation in a single API with embedded/RTOS support. See [COMPARISON](docs/COMPARISON.md) for the full comparison.
 
 ## Contributor Conventions (Modifying the Library)
 
-Rules for code added or changed under `src/delegate-mq/`. These exist because the library targets embedded/RTOS platforms where heap use, binary size, and stack depth are constrained.
-
-### No Heap in Library Internals
-
-- `std::array<T, N>` for fixed-size collections; capacity violations call `FaultHandler`, not realloc.
-- `xmap` / `xmultimap` instead of `std::unordered_map` or `std::map`.
-- `xlist` instead of `std::list`.
-- `xstring` instead of `std::string` in persistent data structures.
-- `xmake_shared` instead of `std::make_shared` where allocator control matters.
-- Never introduce `std::vector`, `std::deque`, `std::unordered_map`, or raw `new`/`delete` without explicit justification.
-
-### Conditional Includes via `DelegateOpt.h`
-
-Do not include allocator or platform headers directly. `DelegateOpt.h` (transitively included everywhere via `DelegateRemote.h`) gates all variants behind build options:
-
-- `DMQ_ALLOCATOR` — enables fixed-block allocator types (`xmap`, `xlist`, `xstring`, etc.)
-- `DMQ_THREAD_*` — selects OS mutex/clock/thread port
-- `DMQ_ASSERTS` — selects assert vs. exception error handling
-
-To add a new allocator-gated container: add the header under `extras/allocator/`, include it in the `#ifdef DMQ_ALLOCATOR` block of `DelegateOpt.h`, and add a `std::*` fallback alias in the `#else` block. No direct include needed in library files.
-
-### Port Exception — Desktop-Only Files
-
-Files under `port/transport/` and `port/os/` that are desktop-only (ZeroMQ, NNG, MQTT, Win32, Linux, serial, stdlib/Win32/Qt thread) may use `std::` primitives directly. Embedded transport and OS ports (`stm32-uart`, `arm-lwip-*`, `netx-udp`, `zephyr-udp`, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, bare-metal) must follow all allocation and abstraction rules. Code under `extras/` is shared across all targets and must always follow the rules. Code under `tools/` (consoles, bridges, Wireshark dissector) is desktop-only integration code, not library code, and may use `std::` primitives.
-
-### Portable Abstractions
-
-Use the dmq-provided types instead of OS or std primitives:
-
-| Instead of | Use |
-|---|---|
-| `std::mutex` / `std::recursive_mutex` | `dmq::Mutex` / `dmq::RecursiveMutex` |
-| `std::lock_guard` | `dmq::LockGuard<T>` |
-| `std::thread` | `dmq::IThread` / `dmq::os::Thread` |
-| `std::chrono::steady_clock` | `dmq::Clock` |
-| `std::map` / `std::unordered_map` | `xmap` |
-| `std::list` | `xlist` |
-| `std::string` standalone data members | `xstring` |
-
-### Hot-Path Rules (`InternalPublish`)
-
-- No heap allocation on the publish path.
-- Use stack arrays sized to `dmq::MAX_PARTICIPANTS` for per-publish temporaries.
-- Attach error handlers once at channel creation — not on every send.
-- One participant-lock pass per publish is the target; avoid redundant lookups.
-
-### Exception vs. Assert
-
-The library has two error-handling modes selected at build time:
-
-- **Without `DMQ_ASSERTS`** (desktop default): allocation failures throw `std::bad_alloc`.
-- **With `DMQ_ASSERTS`** (embedded default, or when `__cpp_exceptions` is absent): `BAD_ALLOC()` calls `ASSERT()`, routing the failure to `dmq::util::FaultHandler`. `DelegateOpt.h` auto-enables `DMQ_ASSERTS` when the compiler reports no exception support.
-
-Always use the `BAD_ALLOC()` macro for allocation failures — never write `throw std::bad_alloc()` or bare `assert` directly. Use `FaultHandler` for hard invariant/capacity violations (including unhandled thread exceptions). Use `dmq::DelegateError` + `SetErrorHandler` for soft recoverable errors (serialization failure, dispatch timeout).
-
-### `XALLOCATOR` Macro
-
-Classes with high allocation frequency on the hot path (message types, delegate argument copies) should declare `XALLOCATOR` at the top of the class body. This routes `new`/`delete` through the fixed-block allocator when `DMQ_ALLOCATOR` is defined, and compiles to nothing otherwise.
-
-### `ScopedConnection` — Always Store
-
-`Signal::Connect()` and all `Subscribe*()` methods are `[[nodiscard]]`. The returned `dmq::ScopedConnection` owns the subscription — discarding it immediately destroys the connection, producing no callbacks and no error. Always store it in a member variable or container.
-
-### Stream Types
-
-Use `dmq::xostringstream` and `dmq::xstringstream` instead of `std::ostringstream` / `std::stringstream` in transport and serialization code. Under `DMQ_ALLOCATOR` these use the fixed-block allocator; both are defined in `DelegateOpt.h`.
-
-### Encapsulation
-
-- Keep implementation details private; use `friend class DataBus` to grant cross-class access rather than making members public.
-- Do not expose internal machinery as public API with "internal use only" comments — make it private or remove it.
-
-### Error Reporting
-
-- Errors surface through `dmq::DelegateError` and `SetErrorHandler` delegates, not exceptions or return codes.
-- DataBus-level errors propagate via `DataBus::SubscribeError` (global) and `Participant::SubscribeError` (per-node).
-- Internal error helpers are private; do not expose error injection publicly.
+Code under `src/delegate-mq/` follows strict rules because the library targets embedded/RTOS platforms: no heap in library internals (`std::array`, `xmap`, `xlist`, `xstring` instead of std containers), allocator and platform types selected only through `DelegateOpt.h`, portable `dmq::` locking/thread/clock types, tunable limits as `DMQ_*` config macros, `BAD_ALLOC()`/`DMQ_ASSERT` instead of `throw`/`assert`, and self-guarding `.cpp` files. The complete, authoritative rules are in [CLAUDE.md](CLAUDE.md).

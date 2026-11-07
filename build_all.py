@@ -61,6 +61,15 @@ def main():
     parser.add_argument("--deps-dir", help="third-party directory (default: DMQ_DEPS_DIR env var, else <repo>/external)")
     args = parser.parse_args()
 
+    # Check for git/CMake first: without them a step fails with a Python
+    # traceback or a CMake error buried in a third-party library's output.
+    sys.path.insert(0, SCRIPTS_DIR)
+    import preflight
+    if not preflight.check(need_git=args.start <= 1, need_cmake=args.start <= 4):
+        print("Prerequisites missing; nothing was run.")
+        return False
+    os.environ["DMQ_PREFLIGHT_DONE"] = "1"   # the step scripts skip their own check
+
     results = []
     for step, script, fatal in STEPS:
         if not args.start <= step <= args.end:

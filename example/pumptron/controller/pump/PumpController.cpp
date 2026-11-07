@@ -320,7 +320,14 @@ void PumpController::RequestResync()
 void PumpController::HandleLinkError()
 {
     m_linkErrorPending = false;
-    m_lastLinkError = Clock::now();
+    const TimePoint now = Clock::now();
+    // No GUI, or one that just connected: the failure is a message sent while
+    // nobody was listening, already superseded by the reconnect resync.
+    if (!m_guiOnline || now - m_guiOnlineSince < LINK_UP_GRACE) {
+        printf("PumpController: link error while GUI offline or just connected, not raised\n");
+        return;
+    }
+    m_lastLinkError = now;
     SetAlarm(AlarmCode::LINK_DEGRADED, AlarmSeverity::WARNING, true);
 }
 
@@ -341,6 +348,7 @@ void PumpController::OnGuiHeartbeat(const HeartbeatMsg&)
 {
     if (!m_guiOnline) {
         m_guiOnline = true;
+        m_guiOnlineSince = Clock::now();
         printf("PumpController: GUI link up\n");
         SetAlarm(AlarmCode::GUI_LINK_LOST, AlarmSeverity::WARNING, false);
         // Bring a (re)connected GUI up to date without waiting for a change.

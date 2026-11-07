@@ -29,6 +29,20 @@ int main()
 
     sync("Hello");
     async("Hello");   // same call; DelegateMQ copies the argument across threads
+
+    // A multicast delegate holds any number of delegates with the same signature
+    // and invokes them all with one call, each on its own thread
+    dmq::MulticastDelegate<void(const std::string&)> multicast;
+    multicast += sync;
+    multicast += async;
+    multicast("Hello all");   // runs MsgOut now on this thread, and queues it to the worker
+
+    // A signal is a thread-safe multicast delegate that hands back a connection.
+    // Each ScopedConnection keeps its subscriber attached until it is destroyed.
+    dmq::Signal<void(const std::string&)> signal;
+    auto connSync  = signal.Connect(sync);
+    auto connAsync = signal.Connect(async);
+    signal("Hello subscribers");   // calls every connected delegate
 }
 ```
 
@@ -61,12 +75,12 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, transport, and tool integrations are available out of the box. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
 
 | Category | Supported |
 | :--- | :--- |
 | **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal |
-| **Build** | [CMake](https://cmake.org/) (`FetchContent` or `add_subdirectory`); Keil, IAR, STM32CubeIDE, PlatformIO, Makefiles and other build systems (add `src/DelegateMQ.cpp`, which compiles the library's source files for you) |
+| **Build** | [CMake](https://cmake.org/), or any build system (Keil, IAR, STM32CubeIDE, Makefiles, ...) |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
 | **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
@@ -123,7 +137,7 @@ See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individ
 
 DelegateMQ builds everything on one primitive, the delegate: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.
 
-The OS, transport, and serializer sit behind small pure-virtual interfaces, so underlying technologies swap without changing application logic:
+The OS, transport, and serializer sit behind small pure-virtual interfaces, so underlying technologies swap without changing application logic. DelegateMQ's implementations of those interfaces for each supported OS, transport and serializer form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`); only the platform beneath it (OS kernels, network stacks, third-party libraries) is external:
 
 <img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram"><br>
 *DelegateMQ Layer Diagram*
@@ -217,7 +231,7 @@ private:
 
 ## Threads
 
-`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS (stdlib, Win32, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt), so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
+`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS, so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
 
 A thread can bound its queue and choose what happens when it fills (`dmq::FullPolicy`), enable a watchdog, run code on the worker at start, exit and idle, and choose how shutdown treats queued messages (`dmq::ExitPolicy`):
 
@@ -240,6 +254,8 @@ worker.ExitThread();                            // runs queued messages first (E
 | --- | --- |
 | `dmq::FullPolicy` (queue full) | `FAULT` (default) — fault immediately; `DROP` — discard the message; `TIMEOUT` — wait for space, then drop |
 | `dmq::ExitPolicy` (`ExitThread()`) | `DRAIN` (default) — run every queued message, then exit; `DISCARD` — finish the running message, cancel the rest |
+
+To start a group of threads together, give each the same optional `dmq::os::StartGate` with `SetStartGate()`: each is created and ready but processes nothing until `gate.Open()`, so no thread runs while others are still being created or wired up. See [Start Gate](docs/PORTING.md#start-gate-synchronized-start).
 
 ## Signal / Slot
 
@@ -304,7 +320,7 @@ auto conn = heartbeat.OnExpired.Connect(
 heartbeat.Start(std::chrono::milliseconds(1000));          // periodic
 // heartbeat.Start(std::chrono::milliseconds(500), true);  // one-shot
 
-// Drive all timers (e.g. main loop, RTOS task, or SysTick ISR)
+// Drive all timers (e.g. main loop or RTOS task; an ISR only on bare metal)
 while (running) {
     dmq::util::Timer::ProcessTimers();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -369,7 +385,7 @@ void OnTemperature(float t) { std::cout << "Temp: " << t << "\n"; }
 // --- Receiver: bind a handler to the ID ---
 dmq::RemoteChannel<void(float)> rx(transport, serializer);
 rx.Bind(OnTemperature, TEMPERATURE_ID);
-dispatcher.RegisterEndpoint(TEMPERATURE_ID, rx.GetEndpoint());
+dispatcher.RegisterEndpoint(TEMPERATURE_ID, rx);
 
 // --- Sender: invoke the channel ---
 dmq::RemoteChannel<void(float)> tx(transport, serializer, TEMPERATURE_ID);
@@ -389,7 +405,7 @@ DelegateMQ separates **hard faults** (programming or capacity errors that must s
 | Default (desktop) | C++ exceptions: `std::bad_alloc`, `std::invalid_argument`, `std::runtime_error` |
 | `DMQ_ASSERTS` (embedded default; automatic when exceptions are disabled) | `dmq::util::FaultHandler()` is called. Customize `port/fault/Fault.cpp` to log, capture a crash dump, or reset the system. |
 
-**Recoverable errors** — serialization failures, dispatch failures and transport receive errors are reported as a `dmq::DelegateError` code through a handler or signal. A remote error with no handler registered escalates to a hard fault, so always register one:
+**Recoverable errors** — serialization failures, dispatch failures and transport receive errors are reported as a `dmq::DelegateError` code through a handler or signal. On builds with exceptions enabled, a remote error with no handler registered throws `std::runtime_error` (or is stored in `GetError()` when `DMQ_ASSERTS` is defined or exceptions are disabled), so always register one:
 
 ```cpp
 // Per remote channel
@@ -440,8 +456,9 @@ DelegateMQ at a glance.
 | Library | Allows customizing data sharing between threads, processes, or processors |
 | Object Lifetime | Thread-safe management via smart pointers (`std::weak_ptr`) prevents async invocation on destroyed objects (no dangling pointers). |
 | Complexity | Lightweight and extensible through external library interfaces and full source code |
-| Threads | No internal threads. External configurable thread interface portable to any OS (`dmq::IThread`). |
-| Timers | Periodic and one-shot timers (`dmq::util::Timer`). Callbacks dispatch to any thread via `OnExpired` signal. No internal timer thread; driven by application calling `Timer::ProcessTimers()` from a loop, task, or ISR. |
+| Threads | Core library creates no internal threads (only opt-in helpers `RemoteDispatcher` and `NetworkNode` own a receive thread). External configurable thread interface portable to any OS (`dmq::IThread`). |
+| Timers | Periodic and one-shot timers (`dmq::util::Timer`). Callbacks dispatch to any thread via `OnExpired` signal. No internal timer thread; driven by application calling `Timer::ProcessTimers()` from a loop, task, or ISR (ISR on bare metal only). |
+| Synchronized Thread Start | Optional start gate (`dmq::os::StartGate`) holds a group of threads, created and ready but processing nothing, until one `Open()` starts them all together. Stops threads from running while others are still being created or wired up. |
 | Watchdog | Configurable timeout to detect and handle unresponsive threads. |
 | Signal and Slots | Standard Signal-Slot pattern (`dmq::Signal<Sig>`). `Connect()` returns a `dmq::ScopedConnection` for RAII auto-disconnect. Thread-safe by default; no `shared_ptr` required. |
 | Multicast | Broadcast invoke anonymous callable targets onto multiple threads |
@@ -480,19 +497,25 @@ The [`example`](example/README.md) directory ranges from single-file snippets to
 
 | Example | Description | Docs |
 | :--- | :--- | :--- |
-| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS port, or transport/serializer pairing: bare metal, FreeRTOS, ThreadX, Zephyr, NuttX, ZeroMQ, NNG, MQTT, UDP/TCP, serial. Most need third-party libraries; the [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds them. | [README.md](example/sample-projects/README.md) |
+| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS, transport or serializer. The [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds the third-party libraries they need. | [README.md](example/sample-projects/README.md) |
 | **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
 | **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
 
 # Other Projects Using DelegateMQ
 
-Repositories utilizing the DelegateMQ library.
+Repositories built on DelegateMQ.
 
 | Project | Description |
 | :--- | :--- |
-| [Integration Test Framework](https://github.com/DelegateMQ/IntegrationTestFramework) | A multi-threaded C++ software integration test framework using Google Test and DelegateMQ libraries. |
-| [Active-Object State Machine in C++](https://github.com/DelegateMQ/active-fsm) | A modern active-object C++ finite state machine providing RAII-safe asynchronous dispatch and pub/sub signals. |
-| [Device Params in C++](https://github.com/DelegateMQ/device-params) | Typed device parameters for embedded C++ with range checks, change notification, power-loss-safe persistence (flash, file, SQLite) and remote get/set. |
-| [Async-SQLite](https://github.com/DelegateMQ/Async-SQLite) | An asynchronous SQLite thread-safe wrapper implemented using an asynchronous delegate library. |
-| [Async-DuckDB](https://github.com/DelegateMQ/Async-DuckDB) | An asynchronous DuckDB thread-safe wrapper implemented using an asynchronous delegate library. |
-| [Async-HTTP](https://github.com/DelegateMQ/Async-HTTP) | An asynchronous HTTP thread-safe client wrapper implemented using an asynchronous delegate library. |
+| [Integration Test Framework](https://github.com/DelegateMQ/IntegrationTestFramework) | Multi-threaded C++ integration test framework using Google Test. |
+| [Active-Object State Machine in C++](https://github.com/DelegateMQ/active-fsm) | Active-object finite state machine with RAII-safe asynchronous dispatch and pub/sub signals. |
+| [Device Params in C++](https://github.com/DelegateMQ/device-params) | Typed device parameters for embedded C++: range checks, change notification, power-loss-safe persistence (flash, file, SQLite) and remote get/set. |
+| [Async-SQLite](https://github.com/DelegateMQ/Async-SQLite) | Thread-safe asynchronous wrapper for SQLite. |
+| [Async-DuckDB](https://github.com/DelegateMQ/Async-DuckDB) | Thread-safe asynchronous wrapper for DuckDB. |
+| [Async-HTTP](https://github.com/DelegateMQ/Async-HTTP) | Thread-safe asynchronous HTTP client wrapper. |
+
+# History
+
+DelegateMQ is the result of more than two decades of delegate implementations, starting with C++03. C++17 features such as variadic templates and template metaprogramming finally made it possible to express asynchronous delegates concisely and generically on any platform.
+
+Earlier delegate libraries and other portable C/C++ libraries for state machines, callbacks, threading, memory allocation, communication, and testing are collected in [Portable C/C++ Libraries](https://github.com/endurodave/portable-c-cpp-libs).

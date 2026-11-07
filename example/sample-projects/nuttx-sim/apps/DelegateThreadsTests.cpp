@@ -7,6 +7,7 @@
 /// (pthread_create/pthread_join, POSIX mqueue) on NuttX's `sim` board.
 
 #include "DelegateMQ.h"
+#include "../../../../test/unit-tests/StartGatePortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -519,4 +520,6 @@ void DelegateThreadsTests()
     workerThread2().ExitThread();
 
     ThreadFullPolicyTests();
+
+    StartGatePortableTest::Run();   // StartGate on this port
 }

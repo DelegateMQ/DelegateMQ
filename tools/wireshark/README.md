@@ -5,8 +5,10 @@ A [Wireshark](https://www.wireshark.org/) Lua plugin that decodes DelegateMQ rem
 Without it, DelegateMQ packets show as raw UDP/TCP data. With it, each message shows its header fields, an ACK flag, an optional topic label and the payload, and Wireshark's filters and statistics work on those fields.
 
 ```
-DelegateMQ, ID=103 (cell/status/run) seq=42 len=22
+DelegateMQ, node=2 ID=103 (cell/status/run) seq=42 len=22
     Marker: 0xaa55
+    Node ID: 2
+    Version: 1
     Remote ID: 103
     [ACK: False]
     [Topic: cell/status/run]
@@ -17,15 +19,17 @@ DelegateMQ, ID=103 (cell/status/run) seq=42 len=22
 
 ## What It Decodes
 
-Every DelegateMQ message on a network transport starts with an 8-byte header, big-endian (`src/delegate-mq/port/transport/common/DmqHeader.h`):
+Every DelegateMQ message on a network transport starts with a 10-byte header, big-endian (`src/delegate-mq/port/transport/common/DmqHeader.h`):
 
 | Offset | Field | Notes |
 |--------|-------|-------|
 | 0 | Marker (`uint16`) | Always `0xAA55` |
-| 2 | Remote ID (`uint16`) | `DelegateRemoteId`. `0` is an ACK |
-| 4 | Sequence (`uint16`) | Per-sender sequence number. An ACK echoes the sequence it acknowledges |
-| 6 | Length (`uint16`) | Payload length in bytes. `0` for an ACK |
-| 8 | Payload | Serializer output (`serialize`, MessagePack, ...) |
+| 2 | Node ID (`uint8`) | Sender's node ID (`DMQ_NODE_ID`). `0` = unset |
+| 3 | Version (`uint8`) | Wire protocol version. Currently `1` |
+| 4 | Remote ID (`uint16`) | `DelegateRemoteId`. `0` is an ACK |
+| 6 | Sequence (`uint16`) | Per-sender sequence number. An ACK echoes the sequence it acknowledges |
+| 8 | Length (`uint16`) | Payload length in bytes. `0` for an ACK |
+| 10 | Payload | Serializer output (`serialize`, MessagePack, ...) |
 
 - **UDP:** one message per datagram.
 - **TCP:** a stream of back-to-back messages. The dissector reassembles messages that span TCP segments.
@@ -61,6 +65,7 @@ TCP has no heuristic: set the TCP port preference or use Decode As.
 | `dmq && !dmq.ack` | Data messages only |
 | `dmq.ack` | ACKs only |
 | `dmq.id == 103` | One remote ID |
+| `dmq.node == 2` | One sending node |
 | `dmq.topic contains "heartbeat"` | Messages whose topic label matches (needs a topic table) |
 | `dmq.seq == 42` | A message and its ACK |
 | `_ws.expert && dmq` | Malformed messages (see below) |
@@ -74,6 +79,7 @@ The dissector flags problems in Wireshark's **Expert Information**:
 | Warning | Meaning |
 |---------|---------|
 | Invalid DelegateMQ marker | First two bytes aren't `0xAA55`. On TCP, usually means the stream lost sync |
+| Unsupported DelegateMQ protocol version | Valid marker, but a version this dissector doesn't know. Usually a peer built from an older or newer DelegateMQ |
 | Payload shorter than header length | Header length claims more bytes than the packet holds |
 | Extra bytes after payload | UDP datagram longer than header plus payload |
 | ACK with non-zero payload length | Remote ID 0 with a payload |

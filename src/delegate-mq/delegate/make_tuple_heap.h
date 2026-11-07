@@ -5,19 +5,18 @@
 // David Lafreniere, Aug 2020.
 
 /// @file
-/// @brief Helper functions for creating dynamic copies of function arguments stored
-/// within a tuple.
-/// 
-/// @details The template function `make_tuple_heap()` creates dynamic copies of 
-/// function arguments, storing them within a tuple for transport through a thread
-/// message queue. It supports all types of function arguments, including by value,
-/// pointer, pointer-to-pointer, and reference.
-/// 
+/// @brief Helpers for storing the arguments of a non-blocking async call.
+///
+/// @details `DelegateAsyncMsg` (`DelegateAsync.h`) builds its `std::tuple<Args...>` of
+/// arguments with `store_async_arg()`, one argument at a time, for transport through a
+/// thread message queue. By-value arguments are stored in the tuple directly; for
+/// pointer, pointer-to-pointer and reference arguments, `heap_copy_arg()` makes a heap
+/// copy of the data, freed by a `heap_arg_deleter` once the call is done.
+///
 /// The destination thread uses `std::apply()` to invoke the target function using
-/// the tuple of arguments. See `Invoke()` and `DelegateAsyncMsg()` in the
-/// file `DelegateAsync.h` for example usage.
+/// the tuple of arguments.
 
-#include <tuple>
+#include <utility>
 #include <memory>
 #include <type_traits>
 #include "DelegateOpt.h"
@@ -96,9 +95,20 @@ private:
     T*  m_inner;  // original value of *arg at dispatch time
 };
 
-/// @brief Append a pointer to pointer argument to the tuple
-template <typename Arg, typename... TupleElem>
-auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg** arg)
+// The three heap_copy_arg() overloads below make the heap copy for a pointer,
+// pointer-to-pointer or reference argument and register a deleter for it in
+// `heapArgs`; the deleter frees the copy when the message is destroyed. They are
+// overloads (not one function with if constexpr) so the same overload is chosen for
+// every argument type as when they were `tuple_append()`.
+//
+// Failure handling: BAD_ALLOC() never returns (DMQ_ASSERTS calls the noreturn
+// FaultHandler, otherwise it throws std::bad_alloc), so code after it doesn't run.
+// If heapArgs.push_back() throws, the local `deleter` going out of scope frees the copy.
+
+/// @brief Heap-copy a pointer-to-pointer argument: the pointee and the pointer.
+/// @return The heap copy (a `nullptr` inner pointer if `arg` or `*arg` is null).
+template <typename Arg>
+Arg** heap_copy_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, Arg** arg)
 {
     Arg** heap_arg = nullptr;
     Arg** del_arg = nullptr;
@@ -107,8 +117,6 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
         // Allocate memory for heap_arg and copy the value
         heap_arg = xnew<Arg*>();
         if (!heap_arg) {
-            // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
-            // otherwise it throws std::bad_alloc. Nothing below this call executes.
             BAD_ALLOC();
         } else {
             *heap_arg = xnew<Arg>(**arg);
@@ -138,35 +146,20 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
         }
         BAD_ALLOC();
     }
-
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    if (deleter) {
-        heapArgs.push_back(deleter);
-    }
-    return std::tuple_cat(tup, std::make_tuple(heap_arg));
-#else
-    try {
-        heapArgs.push_back(deleter);
-        return std::tuple_cat(tup, std::make_tuple(heap_arg));
-    }
-    catch (const std::bad_alloc&) {
-        BAD_ALLOC();
-        throw;
-    }
-#endif
+    heapArgs.push_back(deleter);
+    return heap_arg;
 }
 
-/// @brief Append a pointer argument to the tuple
-template <typename Arg, typename... TupleElem>
-auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg* arg)
+/// @brief Heap-copy a pointer argument's pointee.
+/// @return The heap copy, or `nullptr` if `arg` is null.
+template <typename Arg>
+Arg* heap_copy_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, Arg* arg)
 {
     Arg* heap_arg = nullptr;
     Arg* del_arg = nullptr;
     if (arg != nullptr) {
         heap_arg = xnew<Arg>(*arg);
         if (!heap_arg) {
-            // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
-            // otherwise it throws std::bad_alloc. Nothing below this call executes.
             BAD_ALLOC();
         } else {
             del_arg = heap_arg;
@@ -179,33 +172,18 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
         }
         BAD_ALLOC();
     }
-
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    if (deleter) {
-        heapArgs.push_back(deleter);
-    }
-    return std::tuple_cat(tup, std::make_tuple(heap_arg));
-#else
-    try {
-        heapArgs.push_back(deleter);
-        return std::tuple_cat(tup, std::make_tuple(heap_arg));
-    }
-    catch (const std::bad_alloc&) {
-        BAD_ALLOC();
-        throw;
-    }
-#endif
+    heapArgs.push_back(deleter);
+    return heap_arg;
 }
 
-/// @brief Append a reference argument to the tuple
-template <typename Arg, typename... TupleElem>
-auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg& arg)
+/// @brief Heap-copy a reference argument.
+/// @return A reference to the heap copy.
+template <typename Arg>
+Arg& heap_copy_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, Arg& arg)
 {
     Arg* heap_arg = xnew<Arg>(arg);
     Arg* del_arg = nullptr;
     if (!heap_arg) {
-        // BAD_ALLOC() never returns: DMQ_ASSERTS calls the noreturn FaultHandler,
-        // otherwise it throws std::bad_alloc. Nothing below this call executes.
         BAD_ALLOC();
     } else {
         del_arg = heap_arg;
@@ -217,65 +195,46 @@ auto tuple_append(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, const
         }
         BAD_ALLOC();
     }
-
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-    if (deleter) {
-        heapArgs.push_back(deleter);
-    }
-
-    auto temp = std::make_tuple(std::forward_as_tuple(*heap_arg));  // Dereference heap_arg when creating tuple element
-    auto new_type = std::get<0>(temp);
-    return std::tuple_cat(tup, new_type);
-#else
-    try {
-        heapArgs.push_back(deleter);
-
-        auto temp = std::make_tuple(std::forward_as_tuple(*heap_arg));  // Dereference heap_arg when creating tuple element
-        auto new_type = std::get<0>(temp);
-        return std::tuple_cat(tup, new_type);
-    }
-    catch (const std::bad_alloc&) {
-        BAD_ALLOC();
-        throw;
-    }
-#endif
+    heapArgs.push_back(deleter);
+    return *heap_arg;
 }
 
-/// @brief Terminate the template metaprogramming argument loop. This function is 
-/// called when there are no more arguments to process.
-/// @tparam Ts The types of the remaining arguments.
-/// @param heapArgs The list of deleters for heap - allocated arguments.
-/// @param tup The current tuple of arguments.
-/// @return The final tuple.
-template<typename... Ts>
-auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup)
+/// @brief Store one argument of a non-blocking async call. Chooses by `Param`, the
+/// bound function's declared parameter type, not by how the argument arrives.
+/// @details
+/// - By-value parameter: returned as-is (moved). The message's `std::tuple<Args...>`
+///   element holds its own copy, so a heap copy would only be copied again.
+/// - Reference or pointer parameter: the caller's data is copied to the heap (freed
+///   through `heapArgs` once the call is done) and a reference/pointer to that copy is
+///   returned, using the `heap_copy_arg()` overloads above.
+///
+/// This replaced `make_tuple_heap()`, which heap-copied every argument, by-value ones
+/// too. An earlier attempt to skip the copy for values added an `Arg&&` overload of
+/// `tuple_append()` (now `heap_copy_arg()`), i.e. chose by the argument's value
+/// category. It silently stopped applying when `make_tuple_heap()` began passing its
+/// arguments on as lvalues, and was later removed. Deciding from `Param` with
+/// `if constexpr` doesn't depend on overload resolution.
+/// @tparam Param The declared parameter type of the bound function.
+/// @param heapArgs The list of deleters for heap-allocated arguments.
+/// @param arg The argument, forwarded as `Param`.
+/// @return The value (by-value `Param`), or a reference/pointer to the heap copy.
+template <typename Param, typename A>
+decltype(auto) store_async_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, A&& arg)
 {
-    (void)heapArgs;
-    return tup;
-}
-
-/// @brief Creates a tuple with all tuple elements created on the heap using
-/// `operator new()`. 
-/// @details Call with an empty list and empty tuple. The empty tuple is concatenated
-/// with each heap element. The list contains `heap_arg_deleter_base` objects for each 
-/// argument heap memory block that will be automatically deleted after the bound
-/// function is invoked on the target thread.
-/// @tparam Arg1 The type of the first argument.
-/// @tparam Args The types of the remaining arguments.
-/// @tparam Ts The types of the existing tuple elements.
-/// @param heapArgs The list of deleters for heap - allocated arguments.
-/// @param tup The existing tuple of arguments. Typically call with an empty tuple. 
-/// @param arg1 The first argument to append to the tuple.
-/// @param args The remaining arguments to append to the tuple.
-/// @return A new tuple with all arguments appended.
-/// @throws std::bad_alloc If dynamic allocation of arguments created on the heap
-/// for appending to the tuple fails and DMQ_ASSERTS not defined.
-template<typename Arg1, typename... Args, typename... Ts>
-auto make_tuple_heap(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1 arg1, Args... args)
-{
-    static_assert(!std::is_same<std::decay_t<Arg1>, void*>::value, "void* argument not allowed");
-    auto new_tup = tuple_append(heapArgs, tup, arg1);
-    return make_tuple_heap(heapArgs, new_tup, args...);
+    static_assert(!std::is_same<std::decay_t<Param>, void*>::value, "void* argument not allowed");
+    if constexpr (std::is_reference_v<Param>) {
+        // Pass as an lvalue so heap_copy_arg()'s Arg& overload makes the heap copy;
+        // it returns a reference to that copy.
+        auto& lv = arg;
+        return heap_copy_arg(heapArgs, lv);
+    } else if constexpr (std::is_pointer_v<Param>) {
+        // Pointer and pointer-to-pointer: heap copy of the pointee, as before.
+        auto& lv = arg;
+        Param heapPtr = heap_copy_arg(heapArgs, lv);
+        return heapPtr;
+    } else {
+        return std::forward<A>(arg);
+    }
 }
 
 }

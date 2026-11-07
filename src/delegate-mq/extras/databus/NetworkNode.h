@@ -173,7 +173,10 @@ public:
         char threadName[64];
         snprintf(threadName, sizeof(threadName), "%s_NetworkThread", nodeName);
 
-        if (m_recvTransport.Create(Transport::Type::SUB, "127.0.0.1", listenPort) != 0) {
+        // Listen on all interfaces so peers on other machines can reach this node.
+        // (LinuxUdpTransport binds the address it's given; the other UDP ports
+        // already bind INADDR_ANY for SUB and ignore it.)
+        if (m_recvTransport.Create(Transport::Type::SUB, "0.0.0.0", listenPort) != 0) {
             printf("NetworkNode [%s]: ERROR - failed to open recv port %u\n", nodeName, listenPort);
             return false;
         }
@@ -232,11 +235,11 @@ public:
         if (m_thread)
             m_thread->ExitThread();
 
-        // Only safe to disconnect (and thereby free) the TimerDelegate now that
-        // ExitThread() above has fully drained m_thread's queue. m_recvTimer.Stop()
-        // only prevents NEW ticks -- a tick Timer::ProcessTimers() already fired on
-        // another thread just before Stop() ran may still be queued on m_thread,
-        // referencing this same TimerDelegate.
+        // Disconnect only after ExitThread() above has drained m_thread's queue.
+        // Neither m_recvTimer.Stop() nor Disconnect() stops a tick that's already
+        // running, and a ProcessTimers() emit racing Stop() can still queue one.
+        // Draining first guarantees no ReceiverThread() call on `this` is left
+        // once Stop() returns, so the NetworkNode can be destroyed safely.
         m_recvConn.Disconnect();
 
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);

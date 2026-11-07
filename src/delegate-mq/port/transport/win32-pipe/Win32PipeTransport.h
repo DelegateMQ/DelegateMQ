@@ -137,16 +137,9 @@ public:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy header to start of send buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         // Copy payload after header
         if (payloadLen > 0) {
@@ -178,36 +171,35 @@ public:
 
             // If not connected yet, we can't read.
             if (connected == FALSE && GetLastError() == ERROR_NO_DATA) {
-                 return -1;
+                 return RECEIVE_NO_DATA;
             }
         }
 
         DWORD size = 0;
         BOOL success = ReadFile(m_hPipe, m_buffer, BUFFER_SIZE, &size, NULL);
 
-        if (success == FALSE || size < DmqHeader::HEADER_SIZE)
+        if (success == FALSE) {
+            // PIPE_NOWAIT: no message waiting, or no client connected yet.
+            const DWORD err = GetLastError();
+            if (err == ERROR_NO_DATA || err == ERROR_PIPE_LISTENING)
+                return RECEIVE_NO_DATA;
+            return -1;  // includes ERROR_MORE_DATA: message larger than the buffer
+        }
+        if (size < DmqHeader::HEADER_SIZE)
             return -1;
 
         // 1. Read Header directly from m_buffer (Network Byte Order)
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, m_buffer, 2);
-        memcpy(&id,     m_buffer + 2, 2);
-        memcpy(&seqNum, m_buffer + 4, 2);
-        memcpy(&length, m_buffer + 6, 2);
+        header.Decode(m_buffer);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER) {
+        if (!header.IsValid()) {
             return -1;
         }
 
-        // 2. Write payload to provided stream
+        // 2. Write payload to provided stream. Message-mode pipe: one message
+        // per read, so the header length must match exactly.
         uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+        if (payloadSize != size - DmqHeader::HEADER_SIZE)
+            return -1;
 
         if (payloadSize > 0) {
             is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);

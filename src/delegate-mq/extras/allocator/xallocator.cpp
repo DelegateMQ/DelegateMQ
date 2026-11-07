@@ -12,8 +12,8 @@
 #include <new>
 
 
-#ifndef char_BIT
-#define char_BIT	8 
+#ifndef CHAR_BIT
+#define CHAR_BIT	8 
 #endif
 
 namespace dmq {
@@ -111,7 +111,7 @@ template <class T>
 T nexthigher(T k) 
 {
     k--;
-    for (size_t i=1; i<sizeof(T)*char_BIT; i<<=1)
+    for (size_t i=1; i<sizeof(T)*CHAR_BIT; i<<=1)
         k |= (k >> i);
     return k+1;
 }
@@ -293,9 +293,16 @@ extern "C" void xalloc_destroy()
 ///	then a new Allocator instance is create.
 ///	@param[in] size - the client's requested block size.
 ///	@return An Allocator instance that handles blocks of the requested
-///	size.
+///	size, or NULL if size is too large to round up to a power of two or no
+///	memory is available for a new Allocator.
 extern "C" dmq::Allocator* xallocator_get_allocator(size_t size)
 {
+	// Too large to round up to a power of two without overflowing size_t:
+	// nexthigher() would wrap to 0 and hand back a block smaller than size
+	const size_t maxBlockSize = (static_cast<size_t>(-1) >> 1) + 1;
+	if (size > maxBlockSize - dmq::BLOCK_HEADER_SIZE - dmq::BLOCK_FOOTER_SIZE)
+		return NULL;
+
 	// Based on the size, find the next higher powers of two value.
 	size_t blockSize = size + dmq::BLOCK_HEADER_SIZE + dmq::BLOCK_FOOTER_SIZE;
 	blockSize = dmq::nexthigher<size_t>(blockSize);
@@ -312,7 +319,10 @@ extern "C" dmq::Allocator* xallocator_get_allocator(size_t size)
 	{
 		// Note: Creating the Allocator object is done OUTSIDE the lock to avoid
 		// AB/BA deadlocks with the system standard library locks.
-		allocator = new dmq::Allocator(blockSize, 0, 0, "xallocator");
+		// nothrow: an exception must not leave this extern "C" function
+		allocator = new (std::nothrow) dmq::Allocator(blockSize, 0, 0, "xallocator");
+		if (allocator == NULL)
+			return NULL;
 
 		// Re-check and insert atomically under the same lock — eliminates the TOCTOU
 		// window where two concurrent threads could each insert an Allocator for
@@ -346,8 +356,10 @@ extern "C" dmq::Allocator* xallocator_get_allocator(size_t size)
 /// @return	A pointer to the client's memory block.
 extern "C" void *xmalloc(size_t size)
 {
-	// 1. Get the bucket (surgical global locking inside)
+	// 1. Get the bucket (surgical global locking inside). NULL: size too large.
 	dmq::Allocator* allocator = xallocator_get_allocator(size);
+	if (allocator == NULL)
+		return NULL;
 	size_t blockSize = allocator->GetBlockSize();
 
 	void* blockMemoryPtr = NULL;
@@ -370,7 +382,9 @@ extern "C" void *xmalloc(size_t size)
 	{
 		// 3. Slow Path: fetch from heap OUTSIDE the lock to prevent AB/BA deadlocks
 		// with standard library internal locks (e.g., MSVC _Lockit in debug builds).
-		blockMemoryPtr = (void*)new char[blockSize];
+		// nothrow: an exception must not leave this extern "C" function (see
+		// CLAUDE.md). Callers (XALLOCATOR, stl_allocator) report NULL with BAD_ALLOC().
+		blockMemoryPtr = (void*)new (std::nothrow) char[blockSize];
 		if (blockMemoryPtr != NULL)
 		{
 			dmq::get_mutex().lock();

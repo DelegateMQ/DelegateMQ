@@ -93,29 +93,46 @@ public:
         UINT msgSizeWords = (sizeof(ThreadMsg*) + sizeof(ULONG) - 1) / sizeof(ULONG);
         ULONG queueMemSizeWords = static_cast<ULONG>(capacity) * msgSizeWords;
 
+        // Queue buffers use new (std::nothrow) for the same reason as the thread
+        // stack (see ThreadXThread::CreateThread()): ThreadX needs caller-supplied
+        // memory, and multi-KB buffers don't belong in the fixed-block allocator.
+        //
+        // On any failure below, Destroy() deletes whatever was already created
+        // and frees the buffers, so a later Create() never re-creates a live
+        // queue or frees memory a live queue still uses.
         m_highQueueMemory.reset(new (std::nothrow) ULONG[queueMemSizeWords]);
         m_normalQueueMemory.reset(new (std::nothrow) ULONG[queueMemSizeWords]);
-        if (!m_highQueueMemory || !m_normalQueueMemory)
+        if (!m_highQueueMemory || !m_normalQueueMemory) {
+            Destroy();
             return false;
+        }
 
         UINT ret = tx_queue_create(&m_highQueue,
                                     const_cast<CHAR*>(name),
                                     msgSizeWords,
                                     m_highQueueMemory.get(),
                                     queueMemSizeWords * sizeof(ULONG));
-        if (ret != TX_SUCCESS)
+        if (ret != TX_SUCCESS) {
+            Destroy();
             return false;
+        }
 
         ret = tx_queue_create(&m_normalQueue,
                                const_cast<CHAR*>(name),
                                msgSizeWords,
                                m_normalQueueMemory.get(),
                                queueMemSizeWords * sizeof(ULONG));
-        if (ret != TX_SUCCESS)
+        if (ret != TX_SUCCESS) {
+            Destroy();
             return false;
+        }
 
         ret = tx_semaphore_create(&m_countSem, const_cast<CHAR*>(name), 0);
-        return ret == TX_SUCCESS;
+        if (ret != TX_SUCCESS) {
+            Destroy();
+            return false;
+        }
+        return true;
     }
 
     bool IsCreated() const

@@ -64,7 +64,9 @@ public:
 
     int Create(Type type, const char* addr, uint16_t port)
     {
+        const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        Close();    // a second Create() replaces the socket instead of leaking it
         m_type = type;
 
         // Create UDP socket
@@ -90,6 +92,7 @@ public:
             if (inet_aton(addr, &m_addr.sin_addr) == 0)
             {
                 std::cerr << "Invalid IP address format." << std::endl;
+                Close();
                 return -1;
             }
 
@@ -102,6 +105,7 @@ public:
             if (setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
                 std::cerr << "setsockopt(SO_RCVTIMEO) failed: " << strerror(errno) << std::endl;
+                Close();
                 return -1;
             }
         }
@@ -115,6 +119,7 @@ public:
             if (bind(m_socket, (struct sockaddr*)&m_addr, sizeof(m_addr)) < 0)
             {
                 std::cerr << "Bind failed: " << strerror(errno) << std::endl;
+                Close();
                 return -1;
             }
 
@@ -125,6 +130,7 @@ public:
             if (setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
                 std::cerr << "setsockopt(SO_RCVTIMEO) failed: " << strerror(errno) << std::endl;
+                Close();
                 return -1;
             }
         }
@@ -132,12 +138,15 @@ public:
         return 0;
     }
 
+    /// @details Waits for a Receive() in progress on another thread to return
+    /// (at most its receive timeout) before closing, so the socket is never
+    /// closed under it.
     void Close()
     {
+        const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket != -1)
         {
-            // SHUT_RDWR breaks the blocking recvfrom() immediately
             shutdown(m_socket, SHUT_RDWR);
             close(m_socket);
             m_socket = -1;
@@ -181,16 +190,9 @@ public:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy header to start of send buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         // Copy payload after header
         if (payloadLen > 0) {
@@ -209,49 +211,49 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB socket
+        // that also drains its ACKs here) isn't held up for the receive timeout.
+        const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
         if (m_recvTransport != this) {
             std::cerr << "Receive operation not allowed (Send only)." << std::endl;
             return -1;
         }
+        if (m_socket == -1)
+            return -1;
 
         sockaddr_in fromAddr;
         socklen_t addrLen = sizeof(fromAddr);
-        ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0,
+        // MSG_TRUNC: return the datagram's real length, so one larger than the
+        // buffer is detected and dropped rather than delivered cut short.
+        ssize_t size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), MSG_TRUNC,
             (struct sockaddr*)&fromAddr, &addrLen);
 
         if (size < 0)
         {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
-                return -1; // Timeout
+                return RECEIVE_NO_DATA; // Timeout
             return -1;
         }
 
-        if (size < static_cast<ssize_t>(DmqHeader::HEADER_SIZE)) {
-            return -1;
+        if (size < static_cast<ssize_t>(DmqHeader::HEADER_SIZE) ||
+            size > static_cast<ssize_t>(sizeof(m_buffer))) {
+            return -1;  // runt, or truncated
         }
 
         // 1. Read Header directly from m_buffer (Network Byte Order)
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, m_buffer, 2);
-        memcpy(&id,     m_buffer + 2, 2);
-        memcpy(&seqNum, m_buffer + 4, 2);
-        memcpy(&length, m_buffer + 6, 2);
+        header.Decode(m_buffer);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER)
+        if (!header.IsValid())
         {
             return -1;
         }
 
-        // 2. Write payload to provided stream
+        // 2. Write payload to provided stream. One datagram is one message, so
+        // the header length must match exactly; anything else is malformed and
+        // must not be delivered or ACKed.
         uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
+        if (payloadSize != static_cast<size_t>(size) - DmqHeader::HEADER_SIZE)
+            return -1;
 
         if (payloadSize > 0) {
             is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
@@ -266,16 +268,9 @@ public:
         else if (m_sendTransport && m_type == Type::SUB)
         {
             // Send ACK using a small stack buffer to avoid any heap
-            uint16_t a_marker = htons(DmqHeader::MARKER);
-            uint16_t a_id     = htons(dmq::ACK_REMOTE_ID);
-            uint16_t a_seqNum = htons(header.GetSeqNum());
-            uint16_t a_length = 0;
-
+            DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
             char ackBuf[DmqHeader::HEADER_SIZE];
-            memcpy(ackBuf, &a_marker, 2);
-            memcpy(ackBuf + 2, &a_id, 2);
-            memcpy(ackBuf + 4, &a_seqNum, 2);
-            memcpy(ackBuf + 6, &a_length, 2);
+            ack.Encode(ackBuf);
 
             // Use the subscriber's m_addr which was set by recvfrom if m_type == SUB
             sockaddr_in targetAddr = (m_type == Type::SUB) ? fromAddr : m_addr;
@@ -318,7 +313,8 @@ private:
     static const int BUFFER_SIZE = 4096;
     char m_buffer[BUFFER_SIZE] = { 0 };
     char m_sendBuffer[BUFFER_SIZE] = { 0 };
-    dmq::RecursiveMutex m_mutex;
+    dmq::RecursiveMutex m_mutex;        ///< Socket open/close and Send() state
+    dmq::RecursiveMutex m_recvMutex;    ///< Held by Receive(); taken before m_mutex
 };
 
 using UdpTransport = LinuxUdpTransport;

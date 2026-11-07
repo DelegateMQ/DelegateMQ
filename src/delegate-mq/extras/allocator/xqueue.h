@@ -3,7 +3,7 @@
 
 #include "stl_allocator.h"
 #include <queue>
-#include <list>
+#include <deque>
 
 namespace dmq {
 

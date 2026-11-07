@@ -3,6 +3,9 @@
 #include "UnitTestCommon.h"
 #include <iostream>
 #include <sstream>
+#include <atomic>
+#include <thread>
+#include <vector>
 
 using namespace dmq;
 using namespace dmq::transport;
@@ -585,6 +588,51 @@ static void RemoteChannel_Bind_RawLambda()
     DMQ_ASSERT_TRUE(g_invoked);
 }
 
+// ---- Concurrent sends share the channel's stream --------------------------------
+
+namespace RemoteChannelTest
+{
+    /// Checks every payload is exactly one serialized int (no interleaving).
+    class PayloadCheckTransport : public ITransport {
+    public:
+        int Send(xostringstream& os, const DmqHeader&) override {
+            const xstring payload = os.str();
+            std::this_thread::yield();   // widen the window for another writer
+            if (payload != "1111\n" && payload != "2222\n" && payload != "3333\n")
+                m_bad.fetch_add(1);
+            m_sendCount.fetch_add(1);
+            return 0;
+        }
+        int Receive(xstringstream&, DmqHeader&) override { return 0; }
+
+        std::atomic<int> m_bad{ 0 };
+        std::atomic<int> m_sendCount{ 0 };
+    };
+}
+
+static void RemoteChannel_ConcurrentSenders_DoNotInterleave()
+{
+    // Delegates made by MakeDelegate(..., channel) share the channel's stream with
+    // each other and with channel(). They must all hold the channel's send mutex.
+    PayloadCheckTransport transport;
+    RCSerializer<void(int)> serializer;
+    RemoteChannel<void(int)> channel(transport, serializer, REMOTE_ID);
+
+    auto d1 = MakeDelegate(&FreeFuncInt, REMOTE_ID, channel);
+    auto d2 = MakeDelegate(&FreeFuncInt, REMOTE_ID, channel);
+    static constexpr int perThread = 2000;
+
+    std::thread t1([&d1]() { for (int i = 0; i < perThread; ++i) d1(1111); });
+    std::thread t2([&d2]() { for (int i = 0; i < perThread; ++i) d2(2222); });
+    std::thread t3([&channel]() { for (int i = 0; i < perThread; ++i) channel(3333); });
+    t1.join();
+    t2.join();
+    t3.join();
+
+    DMQ_ASSERT_TRUE(transport.m_sendCount.load() == 3 * perThread);
+    DMQ_ASSERT_TRUE(transport.m_bad.load() == 0);
+}
+
 // ---- Entry point ---------------------------------------------------------------
 
 void RemoteChannelTests()
@@ -611,4 +659,5 @@ void RemoteChannelTests()
     RemoteChannel_MakeDelegate_MatchesManualWiring();
     RemoteChannel_SendOnly_CtorId();
     RemoteChannel_Bind_RawLambda();
+    RemoteChannel_ConcurrentSenders_DoNotInterleave();
 }

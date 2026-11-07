@@ -16,7 +16,7 @@
 /// 1. **Thread-Safe Access**: Uses a recursive mutex to serialize access to the 
 ///    underlying serial port, allowing concurrent Send/Receive calls from different threads.
 /// 2. **Data Framing**: Encapsulates delegate arguments in a binary-safe frame structure:
-///    `[Header (8 bytes)] + [Payload (N bytes)] + [CRC16 (2 bytes)]`.
+///    `[Header (10 bytes)] + [Payload (N bytes)] + [CRC16 (2 bytes)]`.
 /// 3. **Data Integrity**: Automatically calculates and verifies a 16-bit CRC for every 
 ///    packet to detect transmission errors common in serial communication.
 /// 4. **Reliability**: Integrates with `TransportMonitor` to track sequence numbers and 
@@ -49,7 +49,9 @@ public:
 
     int Create(const char* portName, int baudRate)
     {
+        std::lock_guard<std::recursive_mutex> recvLock(m_recvMutex);
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        Close();    // a second Create() replaces the port instead of leaking it
         sp_return ret = sp_get_port_by_name(portName, &m_port);
         if (ret != SP_OK) {
             std::cerr << "SerialTransport: Could not find port " << portName << std::endl;
@@ -72,8 +74,12 @@ public:
         return 0;
     }
 
+    /// @details Waits for a Receive() in progress on another thread to return
+    /// (at most about a second: its reads time out), so the port is never
+    /// freed under it.
     void Close()
     {
+        std::lock_guard<std::recursive_mutex> recvLock(m_recvMutex);
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         if (m_port) {
             sp_close(m_port);
@@ -81,9 +87,6 @@ public:
             m_port = nullptr;
         }
     }
-
-    // Helper: Swap Little Endian <-> Big Endian
-    static uint16_t swap16(uint16_t v) { return (v << 8) | (v >> 8); }
 
     virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
     {
@@ -98,27 +101,18 @@ public:
         dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
 
         // SERIALIZE HEADER (Big Endian)
-        uint16_t val;
-
-        val = swap16(headerCopy.GetMarker());
-        ss.write((char*)&val, 2);
-
-        val = swap16(headerCopy.GetId());
-        ss.write((char*)&val, 2);
-
-        val = swap16(headerCopy.GetSeqNum());
-        ss.write((char*)&val, 2);
-
-        val = swap16(headerCopy.GetLength());
-        ss.write((char*)&val, 2);
+        char headerBuf[DmqHeader::HEADER_SIZE];
+        headerCopy.Encode(headerBuf);
+        ss.write(headerBuf, DmqHeader::HEADER_SIZE);
 
         // Payload
         ss.write(payload.data(), payload.size());
 
-        // CRC
+        // CRC (big-endian)
         dmq::xstring packetWithoutCrc = ss.str();
         uint16_t crc = dmq::util::Crc16CalcBlock((unsigned char*)packetWithoutCrc.c_str(), (int)packetWithoutCrc.length(), 0xFFFF);
-        ss.write(reinterpret_cast<const char*>(&crc), sizeof(crc));
+        const char crcBytes[2] = { static_cast<char>(crc >> 8), static_cast<char>(crc & 0xFF) };
+        ss.write(crcBytes, sizeof(crcBytes));
 
         dmq::xstring packetData = ss.str();
 
@@ -130,27 +124,37 @@ public:
 
     virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
     {
+        // Held for the whole read so Close() can't free m_port under it. Send()
+        // uses m_mutex, so it's never blocked by an idle read.
+        std::lock_guard<std::recursive_mutex> recvLock(m_recvMutex);
         if (!m_port) return -1;
         if (m_recvTransport != this) return -1;
 
         char headerBuf[DmqHeader::HEADER_SIZE];
 
-        // 1. Strict Sync Loop
-        char b = 0;
+        // 1. Sync Loop: both marker bytes, tracked with a sliding previous byte
+        // so a stray 0xAA right before a real marker (0xAA 0xAA 0x55) still
+        // syncs on the real one.
+        const uint8_t markerHigh = (uint8_t)(DmqHeader::MARKER >> 8);
+        const uint8_t markerLow  = (uint8_t)(DmqHeader::MARKER & 0xFF);
+        uint8_t prev = 0;
         while (true) {
-            // Short timeout for Sync, but non-blocking check
-            if (sp_blocking_read(m_port, &b, 1, 10) <= 0) return -1;
-
-            if ((uint8_t)b == 0xAA) {
-                char next_b = 0;
-                if (sp_blocking_read(m_port, &next_b, 1, 100) > 0) {
-                    if ((uint8_t)next_b == 0x55) {
-                        headerBuf[0] = b;
-                        headerBuf[1] = next_b;
-                        break;
-                    }
-                }
+            // Waiting for a frame start: nothing arriving is "no data", not an
+            // error. After a 0xAA, give the next byte longer to arrive.
+            char b = 0;
+            int r = sp_blocking_read(m_port, &b, 1, prev == markerHigh ? 100 : 10);
+            if (r == 0) {
+                if (prev == markerHigh) { prev = 0; continue; }  // lone 0xAA
+                return RECEIVE_NO_DATA;
             }
+            if (r < 0) return -1;
+
+            if (prev == markerHigh && (uint8_t)b == markerLow) {
+                headerBuf[0] = (char)markerHigh;
+                headerBuf[1] = (char)markerLow;
+                break;
+            }
+            prev = (uint8_t)b;
         }
 
         // 2. Read Rest of Header
@@ -159,13 +163,9 @@ public:
             return -1;
 
         // 3. Deserialize
-        uint16_t val;
-        memcpy(&val, &headerBuf[0], 2); header.SetMarker(swap16(val));
-        memcpy(&val, &headerBuf[2], 2); header.SetId(swap16(val));
-        memcpy(&val, &headerBuf[4], 2); header.SetSeqNum(swap16(val));
-        memcpy(&val, &headerBuf[6], 2); header.SetLength(swap16(val));
+        header.Decode(headerBuf);
 
-        if (header.GetMarker() != DmqHeader::MARKER) return -1;
+        if (!header.IsValid()) return -1;
 
         // 4. Payload
         uint16_t len = header.GetLength();
@@ -176,10 +176,11 @@ public:
             is.write(m_buffer, len);
         }
 
-        // 5. CRC Check
-        uint16_t receivedCrc = 0;
+        // 5. CRC Check (big-endian)
+        unsigned char crcBytes[2] = {};
         // INCREASED TIMEOUT: 500ms
-        if (!ReadExact(reinterpret_cast<char*>(&receivedCrc), sizeof(receivedCrc), 500)) return -1;
+        if (!ReadExact(reinterpret_cast<char*>(crcBytes), sizeof(crcBytes), 500)) return -1;
+        const uint16_t receivedCrc = static_cast<uint16_t>((crcBytes[0] << 8) | crcBytes[1]);
 
         uint16_t calcCrc = dmq::util::Crc16CalcBlock((unsigned char*)headerBuf, DmqHeader::HEADER_SIZE, 0xFFFF);
         if (len > 0) calcCrc = dmq::util::Crc16CalcBlock((unsigned char*)m_buffer, len, calcCrc);
@@ -229,7 +230,8 @@ private:
     }
 
     sp_port* m_port = nullptr;
-    std::recursive_mutex m_mutex;
+    std::recursive_mutex m_mutex;       ///< Port open/close and Send()
+    std::recursive_mutex m_recvMutex;   ///< Held by Receive(); Close() takes it first
     ITransport* m_sendTransport = nullptr;
     ITransport* m_recvTransport = nullptr;
     ITransportMonitor* m_transportMonitor = nullptr;

@@ -16,6 +16,10 @@ on:
 # macros, and compiler warnings (-Wdangling-pointer, etc.) that a desktop
 # build with DMQ_THREAD_STDLIB can never exercise, since none of these
 # ports are otherwise compiled by any other workflow in this repo.
+# Least privilege for GITHUB_TOKEN: these jobs only check out code.
+permissions:
+  contents: read
+
 jobs:
   freertos:
     name: FreeRTOS (Cortex-M4)

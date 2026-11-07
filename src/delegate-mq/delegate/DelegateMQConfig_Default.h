@@ -29,6 +29,35 @@
     #define DMQ_DEFAULT_QUEUE_SIZE          20
 #endif
 
+// Stack size of each dmq::os::Thread on the RTOS ports, in each port's native unit.
+#ifndef DMQ_FREERTOS_STACK_WORDS
+    #define DMQ_FREERTOS_STACK_WORDS        4096    // words; dynamic stacks (SetStackMem() overrides)
+#endif
+#ifndef DMQ_THREADX_STACK_BYTES
+    #define DMQ_THREADX_STACK_BYTES         2048
+#endif
+#ifndef DMQ_ZEPHYR_STACK_BYTES
+    #define DMQ_ZEPHYR_STACK_BYTES          2048
+#endif
+#ifndef DMQ_CMSIS_RTOS2_STACK_BYTES
+    #define DMQ_CMSIS_RTOS2_STACK_BYTES     2048
+#endif
+#ifndef DMQ_NUTTX_STACK_BYTES
+    #define DMQ_NUTTX_STACK_BYTES           8192
+#endif
+
+// Default dmq::os::Thread priority on the RTOS ports whose default is a plain number
+// (SetThreadPriority() overrides per thread).
+#ifndef DMQ_THREADX_THREAD_PRIORITY
+    #define DMQ_THREADX_THREAD_PRIORITY     10      // 0 = highest
+#endif
+#ifndef DMQ_ZEPHYR_THREAD_PRIORITY
+    #define DMQ_ZEPHYR_THREAD_PRIORITY      5       // passed to K_PRIO_PREEMPT()
+#endif
+#ifndef DMQ_NUTTX_THREAD_PRIORITY
+    #define DMQ_NUTTX_THREAD_PRIORITY       100     // SCHED_FIFO
+#endif
+
 // Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32 Thread ports
 // only. Unlike DMQ_DEFAULT_QUEUE_SIZE (sized for real RTOS RAM constraints), these
 // ports back their queue with a plain std::deque, so maxQueueSize == 0 otherwise
@@ -44,6 +73,13 @@
     #define DMQ_MAX_WATCHDOG_THREADS        16
 #endif
 
+// A watched thread's queue wait (and Qt's heartbeat timer) is its watchdog timeout
+// divided by this, so an idle thread refreshes its heartbeat this many times per
+// timeout. At least 2.
+#ifndef DMQ_WATCHDOG_HEARTBEAT_DIVISOR
+    #define DMQ_WATCHDOG_HEARTBEAT_DIVISOR  4
+#endif
+
 // Max threads registered for dmq::ThisThread::GetCurrent() at once on RTOS ports
 // (one per running dmq::os::Thread or custom IThread worker). Exceeding it faults.
 #ifndef DMQ_MAX_CURRENT_THREADS
@@ -54,12 +90,56 @@
     #define DMQ_SEQ_HISTORY_SIZE            8
 #endif
 
+// How long a received sequence number counts toward duplicate detection. A real
+// duplicate (a retry after a lost ACK) arrives within the sender's retry window;
+// older entries are ignored so a restarted peer's reused numbers aren't dropped.
+#ifndef DMQ_SEQ_HISTORY_EXPIRY_MS
+    #define DMQ_SEQ_HISTORY_EXPIRY_MS       ((DMQ_RETRY_MONITOR_MAX_RETRIES + 1) * DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC * 1000)
+#endif
+
+// This node's ID, sent in every DmqHeader (1-255). 0 = unset: receivers then
+// track duplicates by remote ID alone, which is only correct with one sender
+// per topic. Can be changed at run time with DmqHeader::SetLocalNodeId().
+#ifndef DMQ_NODE_ID
+    #define DMQ_NODE_ID                     0
+#endif
+
 #ifndef DMQ_MAX_PARTICIPANTS
     #define DMQ_MAX_PARTICIPANTS            8
 #endif
 
 #ifndef DMQ_TRANSPORT_MONITOR_MAX_PENDING
     #define DMQ_TRANSPORT_MONITOR_MAX_PENDING 100
+#endif
+
+// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
+// (header + payload), and receive timeouts. A PUB socket polls briefly for ACKs;
+// a SUB socket waits longer, returning RECEIVE_NO_DATA so its thread can check
+// for exit.
+#ifndef DMQ_UDP_BUFFER_SIZE
+    #define DMQ_UDP_BUFFER_SIZE             1500
+#endif
+#ifndef DMQ_UDP_PUB_RECV_TIMEOUT_MS
+    #define DMQ_UDP_PUB_RECV_TIMEOUT_MS     50
+#endif
+#ifndef DMQ_UDP_SUB_RECV_TIMEOUT_MS
+    #define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
+#endif
+
+// STM32 UART transport: RX ring buffer bytes, max payload per frame, blocking
+// transmit timeout per frame, and the most it waits for the rest of a frame
+// once its marker has arrived.
+#ifndef DMQ_UART_RX_RING_SIZE
+    #define DMQ_UART_RX_RING_SIZE           1024
+#endif
+#ifndef DMQ_UART_MAX_PAYLOAD
+    #define DMQ_UART_MAX_PAYLOAD            512
+#endif
+#ifndef DMQ_UART_TX_TIMEOUT_MS
+    #define DMQ_UART_TX_TIMEOUT_MS          500
+#endif
+#ifndef DMQ_UART_FRAME_TIMEOUT_MS
+    #define DMQ_UART_FRAME_TIMEOUT_MS       100
 #endif
 
 // Maximum number of distinct fixed-block allocator buckets (heap-blocks mode only).
@@ -95,6 +175,20 @@
 // Default per-message ACK timeout (seconds) for TransportMonitor.
 #ifndef DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC
     #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
+#endif
+
+// serialize (msg_serialize.h, DMQ_SERIALIZE_SERIALIZE) limits. Longer strings or
+// larger containers fail with STRING_TOO_LONG / CONTAINER_TOO_MANY, on write and
+// on read. Both must be <= 65535 (16-bit length field on the wire).
+#ifndef DMQ_SERIALIZE_MAX_STRING_SIZE
+    #define DMQ_SERIALIZE_MAX_STRING_SIZE   1024
+#endif
+#ifndef DMQ_SERIALIZE_MAX_CONTAINER_SIZE
+    #define DMQ_SERIALIZE_MAX_CONTAINER_SIZE 64
+#endif
+// Max depth of serialize::I objects nested inside each other (NESTING_TOO_DEEP beyond).
+#ifndef DMQ_SERIALIZE_MAX_NESTING
+    #define DMQ_SERIALIZE_MAX_NESTING       5
 #endif
 
 #endif // _DELEGATEMQ_CONFIG_DEFAULT_H

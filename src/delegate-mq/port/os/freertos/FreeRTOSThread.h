@@ -21,8 +21,9 @@
 ///   dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities (High jumps the FIFO via
-///   `FreeRTOSDelegateQueue::Send`'s highPriority flag).
+/// * **Priority Support:** Normal and High priorities, as two FIFO queue lanes drained
+///   HIGH first, so same-priority messages keep dispatch order (see
+///   `FreeRTOSDelegateQueue` for why one queue + `xQueueSendToFront()` is wrong).
 /// * **Queue-Based Dispatch:** Uses `FreeRTOSDelegateQueue` (a thin RAII wrapper
 ///   around a FreeRTOS `QueueHandle_t`) to receive and process incoming delegate
 ///   messages in a thread-safe manner.
@@ -32,13 +33,17 @@
 ///   though typical embedded tasks often run forever.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
-///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   — typically a hardware timer ISR or the highest-priority task in the system.
+///   Thread::WatchdogCheckAll() to be called periodically from a context that can preempt
+///   watched threads -- the highest-priority task in the system, not an ISR.
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"
 #include "extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/StartGate.h"
 #include "FreeRTOSDelegateQueue.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -168,6 +173,15 @@ public:
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(!IsThreadCreated()); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(!IsThreadCreated()); m_startHandler = std::move(handler); }
 
+    /// @brief Optional: hold this thread at `gate` once it is created, until
+    /// `gate->Open()`. Pass nullptr (the default) to start at once.
+    /// @details CreateThread() still runs the start handler and returns when the
+    /// thread is ready; the thread then processes nothing, at any priority, until
+    /// the gate opens. Use one gate for a group of threads so they all start
+    /// together after setup. See port/os/common/StartGate.h. Must be called while
+    /// the thread is not running; calling it on a running thread faults.
+    void SetStartGate(StartGate* gate) { DMQ_ASSERT_TRUE(!IsThreadCreated()); m_startGate.Set(gate); }
+
     /// @brief Register a handler invoked on the worker thread after it processes
     /// its last message, as the thread exits. Use it to undo SetStartHandler() setup.
     /// @details Must be called while the thread is not running; calling it on a
@@ -272,12 +286,16 @@ private:
 
     // Static allocation support
     StackType_t* m_stackBuffer = nullptr;
-    uint32_t m_stackSize = 4096; // Default size (words)
+    uint32_t m_stackSize = dmq::FREERTOS_STACK_WORDS; // Default size (words), see DMQ_FREERTOS_STACK_WORDS
     StaticTask_t m_tcb;          // TCB storage for static creation
 
     // Watchdog related members
     std::atomic<uint32_t> m_lastAliveTime{0};
     std::atomic<uint32_t> m_watchdogTimeout{0};
+
+    // Optional start gate (SetStartGate()): its state, and whether the thread is
+    // held at it (the watchdog doesn't report a thread waiting by design)
+    StartGateClient m_startGate;
     FreeRTOSThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

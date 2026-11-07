@@ -99,6 +99,13 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_threadCreated)
     {
         m_exit = false;
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_startGate.OnCreate();
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
         m_started = false;
 
         // Held until m_thread is stored and named. Process() takes this lock
@@ -106,7 +113,12 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // dispatch to this thread (both read m_thread).
         pthread_mutex_lock(&m_mutex);
         int rc = pthread_create(&m_thread, nullptr, &PosixThread::ThreadEntry, this);
-        if (rc != 0) { pthread_mutex_unlock(&m_mutex); return false; }
+        if (rc != 0) {
+            pthread_mutex_unlock(&m_mutex);
+            m_watchdogTimeout.store(dmq::Duration(0));  // no thread to refresh the heartbeat
+            m_startGate.OnCreateFailed();
+            return false;
+        }
         m_threadCreated = true;
 
         // Set the thread name for debugging (glibc extension, name truncated to
@@ -128,7 +140,6 @@ bool PosixThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // Caller wants a watchdog timer?
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
             // Add to watchdog registry if not already present
             {
@@ -250,6 +261,11 @@ void PosixThread::ExitThread(ExitPolicy policy)
     CancelAll(discardedHigh);
     CancelAll(discardedNormal);
 
+    // A thread held at its start gate isn't waiting on its queue: wake it so it
+    // sees the exit flag (set above) and leaves. Never touches the gate itself,
+    // which may be destroyed once the thread is released.
+    m_startGate.Wake();
+
     // Prevent deadlock if ExitThread is called from within the thread itself
     if (!pthread_equal(pthread_self(), m_thread))
     {
@@ -262,7 +278,13 @@ void PosixThread::ExitThread(ExitPolicy policy)
         // Signal Process() (running on this thread) to exit without touching
         // 'this' again — the owning object is about to be freed.
         if (t_self_exit) *t_self_exit = true;
+        m_startGate.Leave();     // exited from its start handler: never reaches the gate
     }
+
+    // The thread has finished (or, on a self-exit, is in its last handler):
+    // stop watchdog checks. Not earlier, so a thread that hangs while
+    // ExitThread() waits for it is still reported.
+    m_watchdogTimeout.store(dmq::Duration(0));
 
     pthread_mutex_lock(&m_mutex);
     m_threadCreated = false;
@@ -396,11 +418,32 @@ void PosixThread::Process()
     if (m_startHandler)
         m_startHandler();
 
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
     // Signal that the thread has started processing to notify CreateThread
     pthread_mutex_lock(&m_startMutex);
     m_started = true;
     pthread_cond_signal(&m_startCv);
     pthread_mutex_unlock(&m_startMutex);
+    if (exitedInStart) { t_self_exit = nullptr; return; }
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate.Enabled())
+    {
+        const bool opened = m_startGate.Wait(m_exit);
+        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_startGate.Passed();
+        if (!opened)
+        {
+            // ExitThread() while held: leave without running any message.
+            // ExitThread() cancels what is still queued once this thread ends.
+            t_self_exit = nullptr;
+            return;
+        }
+    }
 
     while (!selfExit)
     {
@@ -420,7 +463,7 @@ void PosixThread::Process()
         // If watchdog active, use a finite timeout so we can periodically update
         // m_lastAliveTime while idle. If an idle handler is set, wake no later
         // than when it is due. Otherwise, block forever (negative wait time).
-        dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / 10 : dmq::Duration(-1));
+        dmq::Duration waitTime = idle.WaitTime(watchdogTimeout.count() > 0 ? watchdogTimeout / dmq::WATCHDOG_HEARTBEAT_DIVISOR : dmq::Duration(-1));
         if (waitTime >= dmq::Duration::zero())
         {
             struct timespec ts;
@@ -582,6 +625,9 @@ void PosixThread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void PosixThread::WatchdogCheck()
 {
+    if (m_startGate.IsHeld())
+        return;     // held at its start gate by design, not hung
+
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();

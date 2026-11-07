@@ -14,8 +14,9 @@
 /// asynchronous delegates and system messages.
 ///
 /// **Key Features:**
-/// * **Priority Queue:** Uses `std::priority_queue` to ensure high-priority delegate 
-///   messages (e.g., system signals) are processed before lower-priority ones.
+/// * **Priority Queue:** One FIFO `std::deque` per priority level, so high-priority
+///   delegate messages (e.g., system signals) are processed before normal ones, and
+///   messages of the same priority are processed in the order they were dispatched.
 /// * **Queue Full Policy:** Configurable `FullPolicy` (DROP or TIMEOUT), always enforced --
 ///   `maxQueueSize == 0` falls back to `dmq::THREAD_DESKTOP_QUEUE_SIZE` rather than disabling
 ///   the cap, since this port backs its queue with a plain `std::deque` and would otherwise
@@ -26,13 +27,17 @@
 ///   stalls (deadlock or infinite loop), the watchdog timer detects the failure.
 /// * **Synchronized Start:** Uses `std::promise` and `std::future` to ensure the thread 
 ///   is fully initialized and running before `CreateThread()` returns.
-/// * **Debug Support:** Sets the native thread name (on supported OSs like Windows) to 
-///   aid debugging in IDEs.
+/// * **Debug Support:** Sets the native thread name on Windows and Linux to aid
+///   debugging in IDEs and tools (Linux truncates names to 15 characters).
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"
 #include "./extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/StartGate.h"
 #include <thread>
 #include <deque>
 #include <atomic>
@@ -147,6 +152,15 @@ public:
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(!m_thread); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(!m_thread); m_startHandler = std::move(handler); }
 
+    /// @brief Optional: hold this thread at `gate` once it is created, until
+    /// `gate->Open()`. Pass nullptr (the default) to start at once.
+    /// @details CreateThread() still runs the start handler and returns when the
+    /// thread is ready; the thread then processes nothing, at any priority, until
+    /// the gate opens. Use one gate for a group of threads so they all start
+    /// together after setup. See port/os/common/StartGate.h. Must be called while
+    /// the thread is not running; calling it on a running thread faults.
+    void SetStartGate(StartGate* gate) { DMQ_ASSERT_TRUE(!m_thread); m_startGate.Set(gate); }
+
     /// @brief Register a handler invoked on the worker thread after it processes
     /// its last message, as the thread exits. Use it to undo SetStartHandler() setup.
     /// @details Must be called while the thread is not running; calling it on a
@@ -205,10 +219,8 @@ private:
 
     void SetThreadName(std::thread::native_handle_type handle, const dmq::xstring& name);
 
-    /// Check watchdog is expired. This function is called by the thread 
-    /// the calls Timer::ProcessTimers(). This function is thread-safe.
-    /// In a real-time OS, Timer::ProcessTimers() typically is called by the highest
-    /// priority task in the system.
+    /// Check watchdog is expired. Called by WatchdogCheckAll(), which the application
+    /// calls periodically, typically from its highest-priority task. Thread-safe.
     void WatchdogCheck();
 
     /// @brief Returns the head of the watchdog linked list.
@@ -259,9 +271,13 @@ private:
     std::optional<std::future<void>> m_threadStartFuture;
 
     // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::atomic<dmq::Duration> m_watchdogTimeout;
+    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
+    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
     StdlibThread* m_watchdogNext = nullptr;
+
+    // Optional start gate (SetStartGate()): its state, and whether the thread is
+    // held at it (the watchdog doesn't report a thread waiting by design)
+    StartGateClient m_startGate;
 
 #if defined(DMQ_DATABUS_TOOLS)
     // Separate mutex for statistics to reduce contention on m_mutex

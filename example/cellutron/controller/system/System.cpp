@@ -36,6 +36,14 @@ void System::Initialize() {
 #ifndef DMQ_THREAD_STDLIB
     m_thread.SetThreadPriority(PRIORITY_SYSTEM);
 #endif
+    // Every controller thread holds at the start gate until step 6. Without
+    // it, each runs as soon as it is created: the Sensors poll timer could
+    // publish before the subscriptions and network below exist. Set before
+    // each Initialize(), which creates that subsystem's thread.
+    m_thread.SetStartGate(&m_startGate);
+    process::Process::GetInstance().GetThread().SetStartGate(&m_startGate);
+    actuators::Actuators::GetInstance().GetThread().SetStartGate(&m_startGate);
+    sensors::Sensors::GetInstance().GetThread().SetStartGate(&m_startGate);
     if (!m_thread.CreateThread(WATCHDOG_TIMEOUT)) {
         printf("Controller: ERROR - Failed to create system thread!\n");
         return;
@@ -56,6 +64,9 @@ void System::Initialize() {
 
     // 5. Start Heartbeat
     m_heartbeat.Start();
+
+    // 6. All threads created and wired: start them together
+    m_startGate.Open();
 
     printf("Controller: System ready.\n");
 }

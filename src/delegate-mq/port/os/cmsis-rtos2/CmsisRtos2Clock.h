@@ -3,12 +3,13 @@
 
 #include "cmsis_os2.h"
 #include "CmsisRtos2CriticalSection.h"
+#include "CmsisRtos2Ticks.h"
 #include <chrono>
 
 namespace dmq::os {
     struct CmsisRtos2Clock {
-        // Assume 1 tick = 1 millisecond.
-        // If your RTOS tick is different, change std::milli to your ratio.
+        // Milliseconds. now() converts the kernel tick count using the
+        // kernel's tick rate (osKernelGetTickFreq()), so any tick rate works.
         using rep = int64_t;
         using period = std::milli;
         using duration = std::chrono::duration<rep, period>;
@@ -17,10 +18,10 @@ namespace dmq::os {
 
         static time_point now() noexcept {
             // Static state to track the 32-bit rollover.
-            // osKernelGetTickCount() wraps every ~49.7 days (at 1ms tick).
+            // osKernelGetTickCount() wraps after 2^32 ticks (~49.7 days at 1 kHz).
 
             // NOTE: This implementation relies on static state.
-            // It must be called at least once every 49 days to detect the wrap.
+            // It must be called at least once per wrap period to detect the wrap.
             //
             // Thread/ISR safety: dmq::util::Timer::ProcessTimers() (the only
             // caller that needs 'last'/'high' updated atomically) is documented
@@ -61,7 +62,7 @@ namespace dmq::os {
 
             lock.unlock();
 
-            return time_point(duration(static_cast<rep>(ticks)));
+            return time_point(duration(static_cast<rep>(CmsisRtos2TicksToMs(ticks))));
         }
     };
 } // namespace dmq::os

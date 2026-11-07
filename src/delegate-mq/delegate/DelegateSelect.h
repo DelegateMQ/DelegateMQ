@@ -82,6 +82,12 @@
     #define DMQ_HAS_THREADING
 #endif
 
+// dmq::os::StartGate / Thread::SetStartGate() (port/os/common/StartGate.h):
+// every thread port. Code also built for bare metal tests this first.
+#if defined(DMQ_HAS_THREADING)
+    #define DMQ_HAS_START_GATE
+#endif
+
 // If no serialization model is defined, attempt to auto-select a default
 #if !defined(DMQ_SERIALIZE_SERIALIZE) && !defined(DMQ_SERIALIZE_RAPIDJSON) && \
     !defined(DMQ_SERIALIZE_MSGPACK) && !defined(DMQ_SERIALIZE_CEREAL) && \

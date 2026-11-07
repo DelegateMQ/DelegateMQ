@@ -4,14 +4,19 @@
 /// @file RapidJsonSerializer.h
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
-/// 
+///
 /// Serialize callable argument data using RapidJSON for transport
-/// to a remote. Endinaness correctly handled by serialize class. 
+/// to a remote. JSON is text, so endianness doesn't apply.
+///
+/// Errors are reported through the stream state (and any exception from an
+/// argument's Write()/Read() propagates); DelegateRemote reports them as
+/// ERR_SERIALIZE / ERR_DESERIALIZE.
 
 #include "delegate/ISerializer.h"
+#include <istream>
+#include <ostream>
 #include "rapidjson/document.h"
 #include "rapidjson/prettywriter.h"
-#include <iostream>
 #include <vector>
 
 namespace dmq::serialization::rapidjson {
@@ -27,19 +32,14 @@ public:
     // Write arguments to a stream
     virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
         os.seekp(0, std::ios::beg);
+        // Empty a reused stream: transports send the whole buffer, so bytes left
+        // over from a longer previous message would follow the JSON and fail
+        // the receiver's parse.
+        if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os))
+            ss->str("");
         ::rapidjson::StringBuffer sb;
         ::rapidjson::PrettyWriter<::rapidjson::StringBuffer> writer(sb);
-#if defined(__cpp_exceptions)
-        try {
-#endif
-            (args.Write(writer, os), ...);  // C++17 fold expression to write each argument
-#if defined(__cpp_exceptions)
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Serialize error: " << e.what() << std::endl;
-            throw;
-        }
-#endif
+        (args.Write(writer, os), ...);  // C++17 fold expression to write each argument
         if (writer.IsComplete())
             os << sb.GetString();
         else
@@ -68,30 +68,16 @@ public:
         is.rdbuf()->sgetn(buf.data(), length);
         buf[length] = 0;   // null terminate incoming data
 
-        // Parse JSON
+        // Parse JSON; a parse error fails the stream (ERR_DESERIALIZE)
         ::rapidjson::Document doc;
         doc.Parse(buf.data());
-
-        // Check for parsing errors
         if (doc.HasParseError())
         {
             is.setstate(std::ios::failbit);
-            std::cout << "Parse error: " << doc.GetParseError() << std::endl;
-            std::cout << "Error offset: " << doc.GetErrorOffset() << std::endl;
             return is;
         }
 
-#if defined(__cpp_exceptions)
-        try {
-#endif
-            (args.Read(doc, is), ...);  // C++17 fold expression to read each argument
-#if defined(__cpp_exceptions)
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Deserialize error: " << e.what() << std::endl;
-            throw;
-        }
-#endif
+        (args.Read(doc, is), ...);  // C++17 fold expression to read each argument
         return is;
     }
 };

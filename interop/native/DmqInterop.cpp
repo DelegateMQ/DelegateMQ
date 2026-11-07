@@ -286,6 +286,13 @@ extern "C" {
         return 0;
     }
 
+    int DMQ_CALL DmqInterop_SetNodeId(uint8_t nodeId) {
+        std::lock_guard<std::mutex> lifecycleLock(g_lifecycleMutex);
+        if (GetState()) return -1;
+        dmq::transport::DmqHeader::SetLocalNodeId(nodeId);
+        return 0;
+    }
+
     /// @brief Initialize and start the transport system and background threads.
     /// @return 0 on success, -1 on failure (e.g. already started or bind error).
     int DMQ_CALL DmqInterop_Start(const char* remoteHost, int recvPort, int sendPort, const char* multicastGroup) {

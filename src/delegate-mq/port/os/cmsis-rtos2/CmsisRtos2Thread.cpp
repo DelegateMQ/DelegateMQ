@@ -5,6 +5,7 @@
 
 #include "DelegateMQ.h"
 #include "CmsisRtos2Thread.h"
+#include "CmsisRtos2Ticks.h"
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
@@ -47,7 +48,7 @@ CmsisRtos2Thread::~CmsisRtos2Thread()
 {
     ExitThread();
 
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     CmsisRtos2Thread** pp = &GetWatchdogHead();
     while (*pp != nullptr)
     {
@@ -88,12 +89,23 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
     {
         // Reset from a previous ExitThread(), so the thread can be created again
         m_exit.store(false);
+        // Held from creation, so the watchdog never sees a gated thread as hung
+        // before it reaches the gate (e.g. created before the scheduler runs)
+        m_startGate.OnCreate();
+        // Set before the thread exists: its loop reads the timeout before its
+        // first queue wait, and an idle thread waits forever with no timeout
+        m_lastAliveTime.store(Timer::GetNow());
+        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
         m_discard.store(false);
 
         // 1. Create Exit Semaphore (Max 1, Initial 0)
-        // We use this to wait for the thread to shut down gracefully.
-        m_exitSem = osSemaphoreNew(1, 0, NULL);
-        DMQ_ASSERT_TRUE(m_exitSem != NULL);
+        // We use this to wait for the thread to shut down gracefully. Created
+        // once and reused across ExitThread()/CreateThread() cycles (ExitThread()
+        // doesn't delete it; the destructor does), so a restart doesn't leak one.
+        if (m_exitSem == NULL) {
+            m_exitSem = osSemaphoreNew(1, 0, NULL);
+            DMQ_ASSERT_TRUE(m_exitSem != NULL);
+        }
 
         // 2. Create Message Queue
         DMQ_ASSERT_TRUE(m_queue.Create(m_queueSize));
@@ -138,9 +150,8 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
 
         if (watchdogTimeout.has_value())
         {
-            m_watchdogTimeout = watchdogTimeout.value();
 
-            const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
 
             // Add to watchdog registry if not already present
             bool found = false;
@@ -197,6 +208,11 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
+        // A thread held at its start gate isn't waiting on its queue: wake it so it
+        // sees the exit flag (set above) and leaves. Never touches the gate itself,
+        // which may be destroyed once the thread is released.
+        m_startGate.Wake();
+
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
         // callback, it is not consuming its own queue right now -- it is
@@ -206,7 +222,8 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         // checks m_selfExitPtr immediately after the current callback invoke
         // returns, and unwinds without touching 'this' again.
         if (osThreadGetId() == m_thread) {
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
+            m_startGate.Leave();     // exited from its start handler: never reaches the gate
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
@@ -225,6 +242,11 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
 
         // Thread has finished Run(). Now we can safely clean up resources.
         m_thread = NULL;
+
+        // The thread has finished (or, on a self-exit, is in its last handler):
+        // stop watchdog checks. Not earlier, so a thread that hangs while
+        // ExitThread() waits for it is still reported.
+        m_watchdogTimeout.store(dmq::Duration(0));
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -284,11 +306,11 @@ bool CmsisRtos2Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // 2. Send pointer to queue
     uint32_t timeout;
     if (FULL_POLICY == FullPolicy::TIMEOUT)
-        timeout = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
+        timeout = CmsisRtos2ToTicks(m_dispatchTimeout);
     else
         timeout = 0;  // DROP and FAULT: non-blocking
 
-    // High priority uses osMessageQueuePut's native msg_prio argument.
+    // High priority goes to the queue's HIGH lane, drained first (see CmsisRtos2DelegateQueue).
     bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::HIGH, timeout);
     if (!sent)
     {
@@ -340,6 +362,9 @@ void CmsisRtos2Thread::Process(void* argument)
 //----------------------------------------------------------------------------
 void CmsisRtos2Thread::WatchdogCheck()
 {
+    if (m_startGate.IsHeld())
+        return;     // held at its start gate by design, not hung
+
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
@@ -367,7 +392,7 @@ void CmsisRtos2Thread::ThreadCheck()
 //----------------------------------------------------------------------------
 void CmsisRtos2Thread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     CmsisRtos2Thread* p = GetWatchdogHead();
     while (p != nullptr)
     {
@@ -419,8 +444,29 @@ void CmsisRtos2Thread::Run()
     if (m_startHandler)
         m_startHandler();
 
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
     if (startSync)
         osSemaphoreRelease(m_startSem);
+    if (exitedInStart)
+        return;
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate.Enabled())
+    {
+        const bool opened = m_startGate.Wait(m_exit);
+        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_startGate.Passed();
+        // ExitThread() while held: run nothing. Cancel each queued message
+        // (DISCARD) until the exit message. Consuming them also keeps
+        // ExitThread()'s blocking send of the exit message from waiting on a
+        // full queue.
+        if (!opened)
+            m_discard.store(true);
+    }
 
     ThreadMsg* msg = nullptr;
 
@@ -438,14 +484,15 @@ void CmsisRtos2Thread::Run()
         uint32_t waitOption = osWaitForever;
         if (watchdogTimeout.count() > 0)
         {
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(watchdogTimeout).count();
-            waitOption = static_cast<uint32_t>(ms / 4);
-            if (waitOption == 0) waitOption = 1;
+            // Divide in microseconds so a 1-3 ms watchdog doesn't truncate to 0;
+            // CmsisRtos2ToTicks() rounds any nonzero wait up to at least 1 tick.
+            waitOption = CmsisRtos2ToTicks(
+                std::chrono::duration_cast<std::chrono::microseconds>(watchdogTimeout) / dmq::WATCHDOG_HEARTBEAT_DIVISOR);
         }
         if (idle.Enabled())
         {
-            auto ms = std::chrono::ceil<std::chrono::milliseconds>(idle.WaitTime(dmq::Duration(-1))).count();
-            if (static_cast<uint32_t>(ms) < waitOption) waitOption = static_cast<uint32_t>(ms);
+            uint32_t idleTicks = CmsisRtos2ToTicks(idle.WaitTime(dmq::Duration(-1)));
+            if (idleTicks < waitOption) waitOption = idleTicks;
         }
 
         // Block for a message or timeout
@@ -458,7 +505,13 @@ void CmsisRtos2Thread::Run()
 
             // Timed out with the queue empty: run the idle handler if it is due
             if (idle.IsDue())
+            {
                 idle.Run();
+                // The idle handler exited this thread (and may have deleted it): leave
+                // without touching 'this', as the message path does
+                if (selfExit)
+                    return;
+            }
         }
         else
         {
@@ -496,7 +549,7 @@ void CmsisRtos2Thread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    DMQ_ASSERT_TRUE(success);
+                    if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
@@ -524,7 +577,6 @@ void CmsisRtos2Thread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
-                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -556,11 +608,12 @@ void CmsisRtos2Thread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     // Signal ExitThread() that we are done
     if (m_exitSem) {
         osSemaphoreRelease(m_exitSem);
     }
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)

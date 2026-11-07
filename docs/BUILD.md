@@ -5,6 +5,7 @@ DelegateMQ is mostly headers. The delegates themselves are header-only; the OS p
 ## Table of Contents
 - [Prerequisites](#prerequisites)
 - [Main Application Build](#main-application-build)
+  - [Checking for Heap Use Outside the Fixed-Block Allocator](#checking-for-heap-use-outside-the-fixed-block-allocator)
 - [Adding DelegateMQ to Your Project](#adding-delegatemq-to-your-project)
   - [With CMake](#with-cmake)
   - [Without CMake](#without-cmake)
@@ -21,7 +22,7 @@ DelegateMQ is mostly headers. The delegates themselves are header-only; the OS p
 ---
 
 ## Prerequisites
-- **CMake**: 3.15 or higher.
+- **CMake**: 3.16 or higher for the library and most samples; 3.20 or higher for `build_all.py` (it also configures the Pumptron STM32F4 firmware) and the Zephyr samples. On Windows, CMake must also know your Visual Studio version: 3.21+ for Visual Studio 2022, 4.2+ for Visual Studio 2026. `build_all.py` checks this before it starts.
 - **C++ Compiler**: C++17 compliant (GCC 8+, Clang 7+, MSVC 2019+).
 - **Python 3**: Required for the automated sample build scripts.
 
@@ -38,6 +39,19 @@ cmake --build build
 ```
 
 The output executable will be located in `build/delegate_app/`.
+
+### Checking for Heap Use Outside the Fixed-Block Allocator
+
+With `DMQ_ALLOCATOR`, the library should allocate through the fixed-block allocator, not global `operator new`. `test/AllocTrack.cpp` checks this (Windows/MSVC only, off unless `DMQ_ALLOC_TRACK` is defined). It replaces global `new`/`delete` with `malloc`/`free`, records the call stack of every global `new` during the 2nd and 3rd pass of the test loop in `test/main.cpp` (the 1st pass warms up the allocator pools), and writes `alloc_report.txt`, grouped by the innermost DelegateMQ or test frame:
+
+```bash
+cmake -S test -B build-alloctrack -A x64 -DDMQ_ALLOCATOR=ON "-DCMAKE_CXX_FLAGS=-DWIN32 -D_WINDOWS -EHsc -DDMQ_ALLOC_TRACK" "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -Ob0 -Zi -DNDEBUG"
+cmake --build build-alloctrack --config RelWithDebInfo
+cd build-alloctrack/RelWithDebInfo
+./delegate_app.exe
+```
+
+`-Ob0` turns off inlining so every frame and line number shows up. In the report, `LIBRARY` groups are library code allocating with global `new`. `LIBRARY desktop-only port` groups are the stdlib/Win32 thread ports and desktop transports, which may use `std::` allocation. `TEST/SAMPLE` groups are test code, including user-owned types (`std::string`, `std::vector`) passed through the library.
 
 ---
 
@@ -78,7 +92,7 @@ What you get:
 **Third-party ports need `DMQ_DEPS_DIR`.** `external/` is empty in a fresh clone, so selecting a port that uses a third-party library (ZeroMQ, NNG, MQTT, MessagePack, FreeRTOS, ThreadX, ...) stops configuration until `DMQ_DEPS_DIR` points at those libraries. Run `scripts/01_fetch_repos.py` and `02_build_libs.py` once (see [Third-Party Directory](#third-party-directory-dmq_deps_dir)), or lay out your own builds the same way.
 
 Your application still provides:
-- **NNG, MQTT and libserialport libraries.** The target has their include directories; your project links the library itself, as the samples do.
+- **NNG, MQTT and libserialport libraries.** The target has their include directories; your project links the library itself, as the samples do. NNG and Paho MQTT C come from `DMQ_DEPS_DIR` (`<lib>/install`, where `02_build_libs.py` puts them) on Linux as on Windows; to use another install instead, such as a system one under `/usr/local`, set `-DDMQ_NNG_PREFIX=<path>` or `-DDMQ_MQTT_PREFIX=<path>` (Linux).
 - **The RTOS kernel and its config header.** Add the directory with your `FreeRTOSConfig.h` (or equivalent) to the target: `target_include_directories(DelegateMQ PUBLIC config/)`. Your application builds the FreeRTOS kernel sources (`FREERTOS_SOURCES` when using `DMQ_DEPS_DIR`), since they depend on your config, port and heap choice. ThreadX's own CMake target is linked for you. Zephyr and NuttX also need the target linked to the RTOS build's interface target.
 - **A user config header**, if you use one: set `DMQ_USER_CONFIG` and `DMQ_USER_CONFIG_DIR` (see [User Config File](#2-user-config-file-delegatemqconfigh)).
 
@@ -169,8 +183,11 @@ Passed via `-D` flags during configuration. These are the most common overrides:
 | `DMQ_TRANSPORT` | Platform UDP (Windows/Linux) | Transport port, e.g. `DMQ_TRANSPORT_ZEROMQ`, `DMQ_TRANSPORT_WIN32_TCP`, `DMQ_TRANSPORT_NONE`. |
 | `DMQ_ASSERTS` | `OFF` | Use asserts routed to `FaultHandler` instead of C++ exceptions (auto-enabled when exceptions are disabled). |
 | `DMQ_ALLOCATOR` | `OFF` | Use fixed-block memory allocator (deterministic) instead of heap. |
+| `DMQ_DATABUS` | `ON` (`OFF` on RTOS and bare metal) | Build the DataBus middleware (`extras/databus`). |
+| `DMQ_UTIL` | `ON` | Build the utility classes (`extras/util`: `Timer`, monitors, `ReliableTransport`, ...). |
 | `DMQ_LOG` | `OFF` | Enable verbose internal debug logging (requires spdlog). |
-| `DMQ_TOOLS` | `OFF` | Build the diagnostic tools (`dmq-spy`, `dmq-monitor`, `dmq-thread`); see [Tools](../tools/TOOLS.md). |
+| `DMQ_TOOLS` | `OFF` | Build the diagnostic tools (`dmq-spy`, `dmq-monitor`, `dmq-thread`, and the `dmq-target` test app); see [Tools](../tools/TOOLS.md). |
+| `DMQ_STRICT` | `OFF` | Enable strict compiler warnings, treated as errors, for DelegateMQ sources. |
 | `DMQ_FORCE_OPTIMIZE_DEBUG` | `OFF` | Force `-Os` template optimization in unoptimized GCC/Clang Debug builds to reduce embedded flash bloat (silent no-op on MSVC). |
 
 ### 2. User Config File (`DelegateMQConfig.h`)

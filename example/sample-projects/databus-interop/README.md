@@ -89,8 +89,12 @@ All three components must agree on the following constants (defined in
 |---|---|---|
 | `DataMsgId` | 100 | Server → Client (DataMsg) |
 | `CommandMsgId` | 101 | Client → Server (CommandMsg) |
-| `DataRecvPort` | 8000 | Server PUBs / Client binds |
+| `DataRecvPort` | 8000 | Server PUBs to multicast group `239.1.1.1` / Client joins |
 | `CmdSendPort` | 8001 | Client sends / Server SUBs |
+
+`DataMsg` goes to the multicast group, so every running client receives it;
+it's best-effort (clients don't ACK it). `CommandMsg` is sent reliably: the
+server ACKs it and the client library resends on timeout.
 
 ---
 
@@ -129,19 +133,21 @@ struct CommandMsg {
 
 ## Protocol
 
-Each UDP datagram starts with an 8-byte big-endian header (`DmqHeader`):
+Each UDP datagram starts with a 10-byte big-endian header (`DmqHeader`):
 
 ```
 Offset  Size  Field
 0       2     Marker   (always 0xAA55)
-2       2     ID       (message type ID, e.g. 100 or 101)
-4       2     SeqNum   (wraps at 65536)
-6       2     Length   (payload length in bytes)
+2       1     NodeId   (sender's node ID, 0 = unset)
+3       1     Version  (wire protocol version, currently 1)
+4       2     ID       (message type ID, e.g. 100 or 101)
+6       2     SeqNum   (wraps at 65536)
+8       2     Length   (payload length in bytes)
 ```
 
 The header is immediately followed by `Length` bytes of MessagePack-encoded
-payload.  After every non-ACK message the receiver sends a header-only ACK
-(`ID=0`, `SeqNum` echoed, `Length=0`).
+payload.  For a reliable message (`CommandMsg` here) the receiver sends a
+header-only ACK (`ID=0`, `SeqNum` echoed, `Length=0`).
 
 See `interop/README.md` for the full protocol specification.
 

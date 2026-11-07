@@ -95,15 +95,9 @@ public:
         headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
 
         dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-        uint16_t marker = htons(headerCopy.GetMarker());
-        uint16_t id = htons(headerCopy.GetId());
-        uint16_t seq = htons(headerCopy.GetSeqNum());
-        uint16_t len = htons(headerCopy.GetLength());
-
-        ss.write((char*)&marker, 2);
-        ss.write((char*)&id, 2);
-        ss.write((char*)&seq, 2);
-        ss.write((char*)&len, 2);
+        char headerBuf[DmqHeader::HEADER_SIZE];
+        headerCopy.Encode(headerBuf);
+        ss.write(headerBuf, DmqHeader::HEADER_SIZE);
         ss.write(payload.data(), payload.size());
 
         auto fullData = ss.str();
@@ -122,23 +116,20 @@ public:
         int addrLen = sizeof(m_addr);
         int size = recvfrom(m_socket, m_buffer, sizeof(m_buffer), 0, (sockaddr*)&m_addr, &addrLen);
         
-        if (size == SOCKET_ERROR) return -1;
+        if (size == SOCKET_ERROR) {
+            const int err = WSAGetLastError();
+            // WSAEMSGSIZE (datagram larger than the buffer) stays an error
+            return (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK) ? RECEIVE_NO_DATA : -1;
+        }
         if (size < (int)DmqHeader::HEADER_SIZE) return -1;
 
-        dmq::xstringstream headerStream(std::ios::in | std::ios::out | std::ios::binary);
-        headerStream.write(m_buffer, DmqHeader::HEADER_SIZE);
-        headerStream.seekg(0);
+        header.Decode(m_buffer);
 
-        uint16_t val = 0;
-        headerStream.read((char*)&val, 2); header.SetMarker(ntohs(val));
-        headerStream.read((char*)&val, 2); header.SetId(ntohs(val));
-        headerStream.read((char*)&val, 2); header.SetSeqNum(ntohs(val));
-        headerStream.read((char*)&val, 2); header.SetLength(ntohs(val));
+        if (!header.IsValid()) return -1;
 
-        if (header.GetMarker() != DmqHeader::MARKER) return -1;
-
-        int payloadSize = size - DmqHeader::HEADER_SIZE;
-        if (header.GetLength() > payloadSize) return -1;
+        // One datagram is one message: the header length must match exactly.
+        int payloadSize = size - static_cast<int>(DmqHeader::HEADER_SIZE);
+        if (header.GetLength() != payloadSize) return -1;
         is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }

@@ -48,7 +48,7 @@ FreeRTOSThread::~FreeRTOSThread()
     ExitThread();
 
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
         FreeRTOSThread** pp = &GetWatchdogHead();
         while (*pp != nullptr)
         {
@@ -94,6 +94,11 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
     // Reset from a previous ExitThread(), so the thread can be created again
     m_exit.store(false);
+    // Held from creation, so the watchdog never sees a gated thread as hung
+    // before it reaches the gate (e.g. created before the scheduler runs)
+    m_startGate.OnCreate();
+    // No watchdog unless one is given below; set before the task exists
+    m_watchdogTimeout.store(0);
     m_discard.store(false);
 
     // 1. Create Synchronization Semaphore (Critical for cleanup)
@@ -107,6 +112,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_queue.IsCreated()) {
         if (!m_queue.Create(m_queueSize)) {
             printf("Error: Thread '%s' failed to create queue.\n", THREAD_NAME.c_str());
+            m_startGate.OnCreateFailed();
             return false;
         }
     }
@@ -117,7 +123,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     {
         m_watchdogTimeout.store(static_cast<uint32_t>(watchdogTimeout.value().count()));
 
-        const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
         
         // Add to watchdog registry if not already present
         bool found = false;
@@ -165,20 +171,21 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     else
     {
         // --- DYNAMIC ALLOCATION (Heap) ---
-        // Increase default stack to 4096 words (16KB) for safety
-        const uint32_t DYNAMIC_STACK_SIZE = 4096; 
-        
+        // m_stackSize is the DMQ_FREERTOS_STACK_WORDS default here: SetStackMem()
+        // changes it only together with a static buffer (the branch above).
         BaseType_t xReturn = xTaskCreate(
             (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
-            DYNAMIC_STACK_SIZE, 
+            m_stackSize,
             this,
             m_priority,
             &m_thread);
 
         if (xReturn != pdPASS) {
             printf("Error: Failed to create task '%s'. OOM?\n", THREAD_NAME.c_str());
-            return false; 
+            m_watchdogTimeout.store(0);     // no task to refresh the heartbeat
+            m_startGate.OnCreateFailed();
+            return false;
         }
     }
 
@@ -203,6 +210,11 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
         m_discard.store(policy == ExitPolicy::DISCARD);
         m_exit.store(true);
 
+        // A thread held at its start gate isn't waiting on its queue: wake it so it
+        // sees the exit flag (set above) and leaves. Never touches the gate itself,
+        // which may be destroyed once the thread is released.
+        m_startGate.Wake();
+
         // Check self-exit BEFORE attempting to enqueue the exit message. If
         // this thread is destroying itself from within its own dispatched
         // callback, it is not consuming its own queue right now -- it is
@@ -212,7 +224,8 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
         // m_selfExitPtr immediately after the current callback invoke
         // returns, and unwinds without touching 'this' again.
         if (xTaskGetCurrentTaskHandle() == m_thread) {
-            if (m_selfExitPtr) *m_selfExitPtr = true;
+            if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
+            m_startGate.Leave();     // exited from its start handler: never reaches the gate
         } else {
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
 
@@ -229,6 +242,11 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
                 xSemaphoreTake(m_exitSem, portMAX_DELAY);
             }
         }
+
+        // The thread has finished (or, on a self-exit, is in its last handler):
+        // stop watchdog checks. Not earlier, so a thread that hangs while
+        // ExitThread() waits for it is still reported.
+        m_watchdogTimeout.store(0);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -343,7 +361,7 @@ void FreeRTOSThread::Process(void* instance)
 //----------------------------------------------------------------------------
 void FreeRTOSThread::WatchdogCheckAll()
 {
-    const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
     FreeRTOSThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
@@ -357,6 +375,9 @@ void FreeRTOSThread::WatchdogCheckAll()
 //----------------------------------------------------------------------------
 void FreeRTOSThread::WatchdogCheck()
 {
+    if (m_startGate.IsHeld())
+        return;     // held at its start gate by design, not hung
+
     auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
     auto lastAlive = m_lastAliveTime.load();
     auto watchdogTimeout = m_watchdogTimeout.load();
@@ -404,8 +425,30 @@ void FreeRTOSThread::Run()
     if (m_startHandler)
         m_startHandler();
 
+    // A start handler that exited this thread (ExitThread() on itself) leaves
+    // right after the signal below: once CreateThread() returns, the Thread may
+    // be destroyed, so nothing after the signal may touch 'this'.
+    const bool exitedInStart = selfExit;
+
     if (startSync)
         xSemaphoreGive(m_startSem);
+    if (exitedInStart)
+        return;
+
+    // Optional start gate: wait here, ready but processing nothing, until it opens
+    if (m_startGate.Enabled())
+    {
+        const bool opened = m_startGate.Wait(m_exit);
+        // Before Passed(): no stale watchdog read
+        m_lastAliveTime.store(static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count()));
+        m_startGate.Passed();
+        // ExitThread() while held: run nothing. Cancel each queued message
+        // (DISCARD) until the exit message. Consuming them also keeps
+        // ExitThread()'s blocking send of the exit message from waiting on a
+        // full queue.
+        if (!opened)
+            m_discard.store(true);
+    }
 
     ThreadMsg* msg = nullptr;
     while (!selfExit)
@@ -419,7 +462,7 @@ void FreeRTOSThread::Run()
         TickType_t waitTicks = portMAX_DELAY;
         if (watchdogTimeout > 0)
         {
-            waitTicks = pdMS_TO_TICKS(watchdogTimeout / 4);
+            waitTicks = pdMS_TO_TICKS(watchdogTimeout / dmq::WATCHDOG_HEARTBEAT_DIVISOR);
             if (waitTicks == 0) waitTicks = 1;
         }
         if (idle.Enabled())
@@ -439,7 +482,13 @@ void FreeRTOSThread::Run()
 
             // Timed out with the queue empty: run the idle handler if it is due
             if (idle.IsDue())
+            {
                 idle.Run();
+                // The idle handler exited this thread (and may have deleted it): leave
+                // without touching 'this', as the message path does
+                if (selfExit)
+                    return;
+            }
         }
         else
         {
@@ -458,7 +507,7 @@ void FreeRTOSThread::Run()
                 int64_t latNs = std::chrono::duration_cast<std::chrono::nanoseconds>(latency).count();
                 
                 {
-                    const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+                    const dmq::LockGuard<dmq::RecursiveMutex> lock(m_statsLock);
                     m_latencyTotalWindow += latNs;
                     m_latencyCountWindow += 1;
                     if (latNs > m_latencyMaxWindow) m_latencyMaxWindow = latNs;
@@ -479,7 +528,7 @@ void FreeRTOSThread::Run()
                 bool success = false;
                 try {
                     success = invoker->Invoke(delegateMsg);
-                    DMQ_ASSERT_TRUE(success);
+                    if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
                     std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
@@ -507,7 +556,6 @@ void FreeRTOSThread::Run()
 #endif
                 if (selfExit) {
                     delete msg;
-                    m_selfExitPtr = nullptr;
                     return;
                 }
 
@@ -515,7 +563,7 @@ void FreeRTOSThread::Run()
                 dmq::Duration invokeTime = Timer::GetNow() - start;
                 int64_t invokeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(invokeTime).count();
                 {
-                    const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+                    const dmq::LockGuard<dmq::RecursiveMutex> lock(m_statsLock);
                     m_invokeTotalWindow += invokeNs;
                     m_invokeCountWindow += 1;
                     if (invokeNs > m_invokeMaxWindow) m_invokeMaxWindow = invokeNs;
@@ -539,10 +587,11 @@ void FreeRTOSThread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
+    m_selfExitPtr = nullptr;
     if (m_exitSem) {
         xSemaphoreGive(m_exitSem);
     }
-    m_selfExitPtr = nullptr;
 }
 
 #if defined(DMQ_DATABUS_TOOLS)
@@ -560,7 +609,7 @@ FreeRTOSThread::ThreadStats FreeRTOSThread::SnapshotStats()
     stats.queue_size_limit = m_queueSize;
     
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_statsLock);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_statsLock);
         uint32_t count = m_latencyCountWindow;
         m_latencyCountWindow = 0;
         int64_t total = m_latencyTotalWindow;

@@ -21,17 +21,14 @@
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransportMonitor.h"
 
-#include <vector>
 
 // lwIP Netconn Includes
 #include "lwip/api.h"
 #include "lwip/inet.h" 
 #include "lwip/ip_addr.h"
 
-#include <iostream>
-#include <sstream>
 #include <cstring>
-#include <mutex>
+#include <chrono>
 
 namespace dmq::transport {
 
@@ -60,7 +57,9 @@ public:
     /// @return 0 on success, -1 on failure
     int Create(Type type, const char* addr, uint16_t port)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        Close();    // a second Create() replaces the connection instead of leaking it
         m_type = type;
         m_remotePort = port;
 
@@ -80,7 +79,7 @@ public:
                 Close(); // Prevent memory leak on invalid IP
                 return -1; 
             }
-            netconn_set_recvtimeout(m_conn, 50);
+            netconn_set_recvtimeout(m_conn, static_cast<int>(dmq::UDP_PUB_RECV_TIMEOUT.count()));
         }
         else if (type == Type::SUB)
         {
@@ -90,17 +89,19 @@ public:
                 Close(); // Prevent memory leak on bind failure
                 return -1;
             }
-            // Set a 200ms timeout to allow the thread to check for exit signals
-            netconn_set_recvtimeout(m_conn, 200);
+            // Receive timeout, so the receive thread can check for exit
+            netconn_set_recvtimeout(m_conn, static_cast<int>(dmq::UDP_SUB_RECV_TIMEOUT.count()));
         }
 
         return 0;
     }
 
-    /// Clean up the netconn resources
+    /// Clean up the netconn resources. Waits for a Receive() in progress on
+    /// another thread to return (at most its receive timeout) first.
     void Close()
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_conn)
         {
             netconn_delete(m_conn);
@@ -110,7 +111,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_conn)
         {
             netconn_set_recvtimeout(m_conn, static_cast<int>(timeout.count()));
@@ -119,7 +120,7 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail() || !m_conn) {
             return -1;
         }
@@ -141,16 +142,9 @@ public:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Prepare header values in Network Byte Order
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy Header & Payload into the linear buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         if (payloadLen > 0) {
             memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
@@ -181,7 +175,9 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB that
+        // also drains its ACKs here) isn't held up for the receive timeout.
+        const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
         if (m_recvTransport != this || !m_conn) {
             return -1;
         }
@@ -189,14 +185,8 @@ public:
         struct netbuf* buf = nullptr;
         err_t err = netconn_recv(m_conn, &buf);
 
-        if (err == ERR_TIMEOUT) return -1; 
+        if (err == ERR_TIMEOUT) return RECEIVE_NO_DATA;
         if (err != ERR_OK || buf == nullptr) return -1;
-
-        // Capture Sender Info (for ACKs/Replies)
-        ip_addr_t* addr = netbuf_fromaddr(buf);
-        uint16_t port = netbuf_fromport(buf);
-        if (addr) ip_addr_copy(m_remoteIp, *addr);
-        m_remotePort = port;
 
         uint16_t len = netbuf_len(buf);
         if (len < DmqHeader::HEADER_SIZE) {
@@ -208,26 +198,30 @@ public:
         char headerBuf[DmqHeader::HEADER_SIZE];
         netbuf_copy(buf, headerBuf, DmqHeader::HEADER_SIZE);
 
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, headerBuf, 2);
-        memcpy(&id,     headerBuf + 2, 2);
-        memcpy(&seqNum, headerBuf + 4, 2);
-        memcpy(&length, headerBuf + 6, 2);
+        header.Decode(headerBuf);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER || len < DmqHeader::HEADER_SIZE + header.GetLength()) {
+        // One datagram is one message: the header length must match exactly
+        // and fit the buffer. Anything else is malformed and must not be
+        // delivered (cut short) or ACKed.
+        const uint16_t payloadSize = header.GetLength();
+        if (!header.IsValid() || len != DmqHeader::HEADER_SIZE + payloadSize ||
+            payloadSize > BUFFER_SIZE) {
             netbuf_delete(buf);
             return -1;
         }
 
+        // A SUB replies to whoever sent the last valid message. Only a SUB, and
+        // only now: a stray or malformed datagram must never redirect where a
+        // PUB sends.
+        if (m_type == Type::SUB) {
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+            ip_addr_t* addr = netbuf_fromaddr(buf);
+            if (addr) ip_addr_copy(m_remoteIp, *addr);
+            m_remotePort = netbuf_fromport(buf);
+        }
+
         // Extract Payload
-        uint16_t payloadSize = header.GetLength();
         if (payloadSize > 0) {
-            if (payloadSize > BUFFER_SIZE) payloadSize = BUFFER_SIZE;
             netbuf_copy_partial(buf, m_recvBuffer, payloadSize, DmqHeader::HEADER_SIZE);
             is.clear(); 
             is.str(""); 
@@ -240,7 +234,10 @@ public:
         if (header.GetId() == dmq::ACK_REMOTE_ID) {
             if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
         }
-        else if (m_transportMonitor && m_sendTransport) {
+        // ACK whenever a send path exists, whether or not this transport also
+        // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
+        // has no monitor but must still ACK the sender's RELIABLE messages.
+        else if (m_sendTransport) {
             // Auto-ACK using Send logic
             dmq::xostringstream ss_ack;
             DmqHeader ack;
@@ -267,10 +264,13 @@ private:
     ITransport* m_recvTransport = nullptr;
     ITransportMonitor* m_transportMonitor = nullptr;
 
-    static const int BUFFER_SIZE = 1500;
+    // Datagram buffer (header + payload): DMQ_UDP_BUFFER_SIZE, default the
+    // 1500-byte Ethernet MTU.
+    static constexpr size_t BUFFER_SIZE = dmq::UDP_BUFFER_SIZE;
     char m_recvBuffer[BUFFER_SIZE] = { 0 };
     char m_sendBuffer[BUFFER_SIZE] = { 0 };
-    dmq::RecursiveMutex m_mutex;
+    dmq::RecursiveMutex m_mutex;        ///< Connection open/close and Send() state (remote address)
+    dmq::RecursiveMutex m_recvMutex;    ///< Held by Receive(); taken before m_mutex
 };
 
 }

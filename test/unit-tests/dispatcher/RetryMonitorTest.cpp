@@ -2,6 +2,7 @@
 #include "UnitTestCommon.h"
 #include "extras/util/RetryMonitor.h"
 #include "extras/util/TransportMonitor.h"
+#include <atomic>
 #include <chrono>
 #include <thread>
 
@@ -48,6 +49,78 @@ namespace {
         }
         int Receive(xstringstream&, DmqHeader&) override { return -1; }
     };
+
+    // Transport whose first Send() blocks until released, so a TIMEOUT can fire
+    // while the initial send is still in progress.
+    class BlockingFirstSendTransport : public ITransport {
+    public:
+        explicit BlockingFirstSendTransport(int firstResult) : m_firstResult(firstResult) {}
+        std::atomic<int> sendCount{ 0 };
+        std::atomic<bool> inSend{ false };
+        std::atomic<bool> release{ false };
+        int Send(xostringstream&, const DmqHeader&) override {
+            if (sendCount.fetch_add(1) == 0) {
+                inSend.store(true);
+                while (!release.load())
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                return m_firstResult;
+            }
+            return 0;
+        }
+        int Receive(xstringstream&, DmqHeader&) override { return -1; }
+    private:
+        int m_firstResult;
+    };
+
+    // TIMEOUT arrives while the first Send() is still running, and RetryMonitor's
+    // re-registration with TransportMonitor fails. The entry must be abandoned and
+    // reported exactly once, even if that first Send() then fails too.
+    void ReregisterFailure(int firstSendResult)
+    {
+        BlockingFirstSendTransport transport(firstSendResult);
+        TransportMonitor monitor(std::chrono::milliseconds(20));
+        DmqHeader header(/*id=*/21, /*seqNum=*/5);
+
+        // Connected before RetryMonitor's own handler, so it runs first: it takes
+        // the key back in TransportMonitor, making RetryMonitor's re-Add() collide.
+        auto blockConn = monitor.OnSendStatus.Connect(dmq::MakeDelegate(
+            [&monitor, &header](DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
+                if (status == TransportMonitor::Status::TIMEOUT && id == header.GetId() && seq == header.GetSeqNum())
+                    monitor.Add(seq, id);
+            }));
+
+        RetryMonitor retry;
+        retry.Init(transport, monitor, /*maxRetries=*/2);
+
+        std::atomic<int> failedCount{ 0 };
+        auto conn = retry.OnDeliveryFailed.Connect(dmq::MakeDelegate(
+            [&failedCount](DelegateRemoteId, uint16_t) { failedCount.fetch_add(1); }));
+
+        int err = 0;
+        std::thread sender([&]() {
+            xostringstream os;
+            os << "payload";
+            err = retry.SendWithRetry(os, header);
+        });
+
+        while (!transport.inSend.load())
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        monitor.Process();               // TIMEOUT -> re-register fails
+        DMQ_ASSERT_TRUE(failedCount.load() == 1);
+
+        transport.release.store(true);
+        sender.join();
+        DMQ_ASSERT_TRUE(err == firstSendResult);
+        DMQ_ASSERT_TRUE(failedCount.load() == 1);   // not reported twice
+
+        // The entry is gone: the same key can be sent again.
+        monitor.Cancel(header.GetSeqNum(), header.GetId());
+        xostringstream os2;
+        os2 << "payload";
+        DMQ_ASSERT_TRUE(retry.SendWithRetry(os2, header) == 0);
+        DMQ_ASSERT_TRUE(failedCount.load() == 1);
+    }
 }
 
 void RetryMonitorTests()
@@ -217,4 +290,38 @@ void RetryMonitorTests()
         // Pending slot was freed immediately, not left to expire naturally.
         DMQ_ASSERT_TRUE(monitor.Add(header.GetSeqNum(), header.GetId()));
     }
+
+    // A second send with the same (id, seq) while the first is still awaiting its
+    // ACK (16-bit sequence wraparound) is rejected, and the first keeps its retry
+    // data: it is still retried on timeout. The rejection is reported only by the
+    // return value: OnDeliveryFailed(id, seq) would name the first message.
+    {
+        NeverAckTransport transport;
+        TransportMonitor monitor(std::chrono::milliseconds(20));
+        RetryMonitor retry(transport, monitor, /*maxRetries=*/2);
+
+        int failedCount = 0;
+        auto conn = retry.OnDeliveryFailed.Connect(dmq::MakeDelegate(
+            [&](DelegateRemoteId, uint16_t) { failedCount++; }));
+
+        DmqHeader header(/*id=*/31, /*seqNum=*/9);
+        xostringstream os1;
+        os1 << "first";
+        DMQ_ASSERT_TRUE(retry.SendWithRetry(os1, header) == 0);
+
+        xostringstream os2;
+        os2 << "second";
+        DMQ_ASSERT_TRUE(retry.SendWithRetry(os2, header) != 0);
+        DMQ_ASSERT_TRUE(transport.sendCount == 1);   // second never sent
+        DMQ_ASSERT_TRUE(failedCount == 0);           // first not reported as failed
+
+        // The first is still tracked and retried.
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        monitor.Process();
+        DMQ_ASSERT_TRUE(transport.sendCount == 2);
+        DMQ_ASSERT_TRUE(failedCount == 0);
+    }
+
+    ReregisterFailure(/*firstSendResult=*/0);
+    ReregisterFailure(/*firstSendResult=*/-1);
 }

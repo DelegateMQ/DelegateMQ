@@ -291,7 +291,7 @@ See [DATABUS.md](DATABUS.md) for the full API reference, threading model, QoS op
 
 ## Performance Monitoring
 
-DelegateMQ includes high-resolution performance monitoring built directly into the `dmq::os::Thread` port layer. This instrumentation tracks how long every delegate message waits in a thread's queue before being processed, enabling real-time detection of thread contention, jitter, and system bottlenecks.
+DelegateMQ includes high-resolution performance monitoring built directly into every `dmq::os::Thread` port (the OS part of the DelegateMQ Abstraction Layer). This instrumentation tracks how long every delegate message waits in a thread's queue before being processed, enabling real-time detection of thread contention, jitter, and system bottlenecks.
 
 See [tools/TOOLS.md](../tools/TOOLS.md) for DataBus monitoring tools.
 
@@ -334,10 +334,10 @@ Target callable invocation and argument handling based on the delegate type.
 | --- | --- | --- | --- | --- |
 | Overview | Invokes bound callable directly on caller's thread. | Target thread invokes bound callable; caller continues immediately. | Target thread invokes bound callable; caller blocks until complete or timeout. | Remote system invokes bound callable; caller continues immediately. |
 | Dispatch Mechanism | Direct Call. | Message Queue. | Message Queue. | Network Transport. |
-| Synchronization | Caller is blocked by synchronous execution. | None. Fire-and-forget. | Semaphore + Mutex. Caller blocks on semaphore; mutex protects return value. | None. Fire-and-forget (library level). Blocking depends on transport implementation. | 
+| Synchronization | Caller is blocked by synchronous execution. | None. Fire-and-forget. | Semaphore + Mutex. Caller blocks on semaphore; mutex protects return value. | None by default. Fire-and-forget. `RemoteDispatcher::RemoteInvokeWait()` blocks until the remote ACKs or the timeout expires. | 
 | Execution Thread | Caller Thread. | Target Thread. | Target Thread. | Remote Process. |
 | Blocking Behavior¹ | Yes. | No. | Yes. | No. |
-| Arguments (In) | Stack Access. Passed directly via registers/stack. | Deep Heap Copy. Arguments cloned to heap. | Stack Reference. References point to caller's stack (safe because caller blocks). | Serialization. Arguments marshaled to a stream and sent via external transport.|
+| Arguments (In) | Stack Access. Passed directly via registers/stack. | Copied. By-value arguments are stored in the message; data behind reference/pointer arguments is copied to the heap. | Stack Reference. References point to caller's stack (safe because caller blocks). | Serialization. Arguments marshaled to a stream and sent via external transport.|
 | Arguments (Out) | Supported. | Not Supported.	| Supported. Target writes directly to caller's stack reference variables. | Not supported. |
 | Return Value | Yes. Immediate. | No. Ignored. | Yes. Returned after target callable completes. | No. Not supported. |
 
@@ -552,7 +552,7 @@ A blocking delegate waits until the target thread executes the bound delegate fu
 
 Stack arguments passed by pointer/reference do not need to be thread-safe. The reason is that the calling thread blocks waiting for the destination thread to complete. The delegate implementation guarantees only one thread is able to access stack allocated argument data.
 
-A blocking delegate must specify a timeout in milliseconds or `dmq::WAIT_INFINITE`. Unlike a non-blocking asynchronous delegate, which is guaranteed to be invoked, if the timeout expires on a blocking delegate, the function is not invoked. Use `IsSuccess()` to determine if the delegate succeeded or not.
+A blocking delegate must specify a timeout (a `dmq::Duration`, e.g. `std::chrono::milliseconds(100)`) or `dmq::WAIT_INFINITE`. A non-blocking asynchronous delegate is invoked unless the target thread's `FullPolicy` drops it or the thread exits with `ExitPolicy::DISCARD`. If the timeout expires on a blocking delegate, the function is not invoked. Use `IsSuccess()` to determine if the delegate succeeded or not.
 
 ```cpp
 // Asynchronously invoke lambda on workerThread1 and wait for the return value
@@ -685,7 +685,7 @@ delegateRemote.SetSerializer(&serializer);
 
 // TODO: Receiver code obtains the serializers incoming argument data
 // from your application-specific reception code and stored within a stream.
-std::istream& recv_stream;
+std::istream& recv_stream = GetReceivedStream();  // your reception code
 
 // Receiver invokes the remote target function
 delegateRemote.Invoke(recv_stream);
@@ -950,7 +950,7 @@ In short, the DelegateMQ library offers features that are not natively available
 | Synchronous Call | Yes | No | No | No |
 | Asynchronous Call | No | Yes | Yes | Yes |
 | Asynchronous Blocking Call | No | No | Yes | Yes |
-| Asynchronous Wait Timeout | No | No | Yes | No |
+| Asynchronous Wait Timeout | No | No | Yes | Partial<sup>5</sup> |
 | Specify Target Thread | n/a | Yes | Yes | No |
 | Copyable | Yes | Yes | Yes | Yes |
 | Equality | Yes | Yes | Yes | Yes |
@@ -963,7 +963,8 @@ In short, the DelegateMQ library offers features that are not natively available
 <sup>1</sup> `dmq::DelegateAsync<>` function call operator copies all function data arguments using a copy constructor for safe transport to the target thread.   
 <sup>2</sup> `std::async` could fail if dangling reference or pointer function argument is accessed. Delegates copy argument data when needed to prevent this failure mode.  
 <sup>3</sup> `std::function` cannot resolve difference between functions with matching signature `std::function` instances (e.g `void Class:One(int)` and `void Class::Two(int)` are equal).  
-<sup>4</sup> `dmq::MulticastDelegateSafe<>` a thread-safe container used to hold and invoke a collection of delegates.
+<sup>4</sup> `dmq::MulticastDelegateSafe<>` a thread-safe container used to hold and invoke a collection of delegates.  
+<sup>5</sup> `std::future::wait_for()` stops waiting, but the call still runs later. `dmq::DelegateAsyncWait<>` skips the call if the timeout expires before it starts.
 
 # Library
 
@@ -1001,64 +1002,71 @@ Some degree of code duplication exists within the delegate inheritance hierarchy
 
 ## Heap Template Parameter Pack
 
-Non-blocking asynchronous invocations means that all argument data must be copied into the heap for transport to the destination thread. Arguments come in different styles: by value, by reference, pointer and pointer to pointer. For non-blocking delegates, the data is copied to the heap to ensure the data is valid on the destination thread. The key to being able to save each parameter into `dmq::DelegateAsyncMsg<>` is the `make_tuple_heap()` function. This template metaprogramming function creates a `tuple` of arguments where each tuple element is created on the heap.
+Non-blocking asynchronous invocations mean that all argument data must be copied for transport to the destination thread, since the caller doesn't wait. Arguments come in different styles: by value, by reference, pointer and pointer to pointer. `dmq::DelegateAsyncMsg<>` stores them in a `std::tuple` built one argument at a time by `dmq::store_async_arg<Param>()`, which decides from the bound function's declared parameter type:
+
+- **By value:** the argument is moved into the message's tuple. The tuple element is its own copy, so no heap copy is needed.
+- **Reference, pointer, pointer to pointer:** the data is copied to the heap, and the tuple element refers to that copy, so it stays valid after the caller's stack frame is gone.
+
+The choice is made with `if constexpr` on the declared type, not by overloading on the argument's value category, so it doesn't change with how the argument happens to be passed along. The target thread then calls the bound function with the stored arguments, moving by-value ones out of the message (each message is invoked once). The result is one copy per by-value argument, the same as a synchronous call.
 
 ```cpp
-/// @brief Terminate the template metaprogramming argument loop
-template<typename... Ts>
-auto make_tuple_heap(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup)
+template <class... Args>
+class DelegateAsyncMsg : public DelegateMsg
 {
-    return tup;
-}
+public:
+    DelegateAsyncMsg(std::shared_ptr<IThreadInvoker> invoker, Priority priority, Args... args) :
+        DelegateMsg(invoker, priority),
+        m_args{ store_async_arg<Args>(m_heapMem, std::forward<Args>(args))... } {}
+    // ...
+private:
+    xlist<std::shared_ptr<heap_arg_deleter_base>> m_heapMem;  // frees the heap copies
+    std::tuple<Args...> m_args;
+};
 
-/// @brief Creates a tuple with all tuple elements created on the heap using
-/// operator new. Call with an empty list and empty tuple. The empty tuple is concatenated
-/// with each heap element. The list contains heap_arg_deleter_base objects for each 
-/// argument heap memory block that will be automatically deleted after the bound
-/// function is invoked on the target thread. 
-template<typename Arg1, typename... Args, typename... Ts>
-auto make_tuple_heap(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, std::tuple<Ts...> tup, Arg1 arg1, Args... args)
+template <typename Param, typename A>
+decltype(auto) store_async_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, A&& arg)
 {
-    static_assert(!(
-        (dmq::is_shared_ptr<Arg1>::value && (std::is_lvalue_reference_v<Arg1> || std::is_pointer_v<Arg1>))),
-        "std::shared_ptr reference argument not allowed");
-    static_assert(!std::is_same<Arg1, void*>::value, "void* argument not allowed");
-
-    auto new_tup = dmq::tuple_append(heapArgs, tup, arg1);
-    return dmq::make_tuple_heap(heapArgs, new_tup, args...);
+    if constexpr (std::is_reference_v<Param>) {
+        auto& lv = arg;     // heap copy; the tuple element refers to it
+        return heap_copy_arg(heapArgs, lv);
+    } else if constexpr (std::is_pointer_v<Param>) {
+        auto& lv = arg;     // heap copy of the pointee
+        Param heapPtr = heap_copy_arg(heapArgs, lv);
+        return heapPtr;
+    } else {
+        return std::forward<A>(arg);    // by value: stored in the tuple, no heap copy
+    }
 }
 ```
 
-Template metaprogramming uses the C++ template system to perform compile-time computations within the code. Notice the recursive compiler call of `dmq::make_tuple_heap()` as the `Arg1` template parameter gets consumed by the function until no arguments remain and the recursion is terminated. The snippet above shows the concatenation of heap allocated tuple function arguments. This allows for the arguments to be copied into dynamic memory for transport to the target thread through a message queue.</p>
+The pack expansion `store_async_arg<Args>(...)...` handles any number of arguments of any mix of types. The heap copies are made by the `dmq::heap_copy_arg()` overloads in `make_tuple_heap.h`, one each for pointer, pointer to pointer and reference arguments. Each allocates the copy, copies the data, and adds a deleter to `m_heapMem` so the copy is freed once the target function has been invoked. The target thread uses `std::apply()` to invoke the bound function with the tuple of arguments.
 
-This bit of code inside `make_tuple_heap.h` was tricky to create in that each argument must have memory allocated, data copied, appended to the tuple, then subsequently deallocated all based on its type. To further complicate things, this all has to be done generically with N number of disparate template argument parameters. This was the key to getting a template parameter pack of arguments through a message queue. `dmq::DelegateAsyncMsg<>` then stores the tuple parameters for easy usage by the target thread. The target thread uses `std::apply()` to invoke the bound function with the heap allocated tuple argument(s).
-
-The pointer argument `dmq::tuple_append()` implementation is shown below. It creates dynamic memory for the argument, argument data copied, adds to a deleter list for subsequent later cleanup after the target function is invoked, and finally returns the appended tuple.
+The pointer argument `dmq::heap_copy_arg()` implementation is shown below. It allocates a copy of the pointee, registers a deleter in `heapArgs` so the copy is freed after the target function is invoked, and returns the copy.
 
 ```cpp
-/// @brief Append a pointer argument to the tuple
-template <typename Arg, typename... TupleElem>
-auto tuple_append(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, const std::tuple<TupleElem...> &tup, Arg* arg)
+/// @brief Heap-copy a pointer argument's pointee.
+template <typename Arg>
+Arg* heap_copy_arg(dmq::xlist<std::shared_ptr<dmq::heap_arg_deleter_base>>& heapArgs, Arg* arg)
 {
     Arg* heap_arg = nullptr;
+    Arg* del_arg = nullptr;
     if (arg != nullptr) {
-        heap_arg = new(std::nothrow) Arg(*arg);  // Only create a new Arg if arg is not nullptr
+        heap_arg = dmq::xnew<Arg>(*arg);
         if (!heap_arg) {
-            dmq::BAD_ALLOC();
+            BAD_ALLOC();    // never returns
+        } else {
+            del_arg = heap_arg;
         }
     }
-    std::shared_ptr<dmq::heap_arg_deleter_base> deleter(new(std::nothrow) dmq::heap_arg_deleter<Arg*>(heap_arg));
+    auto deleter = dmq::xmake_shared<dmq::heap_arg_deleter<Arg*>>(del_arg);
     if (!deleter) {
-        dmq::BAD_ALLOC();
+        if (del_arg) {
+            dmq::xdelete(del_arg);
+        }
+        BAD_ALLOC();
     }
-    try {
-        heapArgs.push_back(deleter);
-        return std::tuple_cat(tup, std::make_tuple(heap_arg));
-    }
-    catch (...) {
-        dmq::BAD_ALLOC();
-        throw;
-    }
+    heapArgs.push_back(deleter);    // if this throws, `deleter` frees the copy
+    return heap_arg;
 }
 ```
 
@@ -1073,7 +1081,7 @@ public:
     heap_arg_deleter(T* arg) : m_arg(arg) { }
     virtual ~heap_arg_deleter()
     {
-        delete m_arg;
+        xdelete(m_arg);    // matches the xnew() in heap_copy_arg()
     }
 private:
     T* m_arg;
@@ -1082,7 +1090,7 @@ private:
 
 ### Argument Heap Copy
 
-Asynchronous non-blocking delegate invocations mean that all argument data must be copied to the heap for transport to the destination thread. All arguments, regardless of their type, will be duplicated, including: value, pointer, pointer to pointer, and reference. If your data is not plain old data (POD) and cannot be bitwise copied, be sure to implement an appropriate copy constructor to handle the copying yourself.
+Asynchronous non-blocking delegate invocations mean that all argument data must be copied for transport to the destination thread. All arguments, regardless of their type, will be duplicated, including: value, pointer, pointer to pointer, and reference. By-value arguments are stored in the message itself; the data behind pointer, pointer to pointer and reference arguments is copied to the heap. If your data is not plain old data (POD) and cannot be bitwise copied, be sure to implement an appropriate copy constructor to handle the copying yourself.
 
 For instance, invoking this function asynchronously the argument `TestStruct` will be copied.
 
@@ -1132,7 +1140,7 @@ DelegateMQ supports first-class interoperability between C++, **C#**, and **Pyth
 > Full documentation: **[INTEROP.md](INTEROP.md)**
 
 ## Key Features
-- **Shared Native Core**: A C++ DLL (`DmqInterop`) handles UDP sockets, protocol framing, and reliability.
+- **Shared Native Core**: A C++ DLL (`DmqInterop`) handles the transport (UDP or ZeroMQ), protocol framing, and reliability.
 - **Language Wrappers**: Thin, language-friendly libraries for C# (`P/Invoke`) and Python (`ctypes`).
 - **Binary Serialization**: Efficient data exchange using MessagePack.
 - **Location Transparency**: Remote topics look the same to the application whether they are local or on a remote node.

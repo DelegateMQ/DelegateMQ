@@ -2,14 +2,16 @@
 -- @see https://github.com/DelegateMQ/DelegateMQ
 -- Wireshark dissector for the DelegateMQ remote delegate wire format.
 --
--- Every DelegateMQ message on UDP or TCP starts with an 8-byte header, all
+-- Every DelegateMQ message on UDP or TCP starts with a 10-byte header, all
 -- fields big-endian (see src/delegate-mq/port/transport/common/DmqHeader.h):
 --
 --   offset 0  uint16  marker     0xAA55
---   offset 2  uint16  remote ID  DelegateRemoteId; 0 = ACK
---   offset 4  uint16  sequence   per-sender sequence number
---   offset 6  uint16  length     payload length in bytes (0 for an ACK)
---   offset 8  payload            serializer output (not decoded here)
+--   offset 2  uint8   node ID    sender's node ID; 0 = unset
+--   offset 3  uint8   version    wire protocol version (1)
+--   offset 4  uint16  remote ID  DelegateRemoteId; 0 = ACK
+--   offset 6  uint16  sequence   per-sender sequence number
+--   offset 8  uint16  length     payload length in bytes (0 for an ACK)
+--   offset 10 payload            serializer output (not decoded here)
 --
 -- An ACK is a bare header with remote ID 0 that echoes the sequence number of
 -- the message it acknowledges.
@@ -29,7 +31,8 @@ local dmq = Proto("dmq", "DelegateMQ")
 local dmq_tcp = Proto("dmq_tcp", "DelegateMQ over TCP")
 
 local MARKER = 0xAA55
-local HEADER_SIZE = 8
+local VERSION = 1
+local HEADER_SIZE = 10
 local ACK_REMOTE_ID = 0
 
 -- Filled by topic table files (see README.md). Declared here as well so
@@ -38,6 +41,8 @@ dmq_topics = dmq_topics or {}
 
 local f = dmq.fields
 f.marker  = ProtoField.uint16("dmq.marker", "Marker", base.HEX)
+f.node    = ProtoField.uint8("dmq.node", "Node ID", base.DEC)
+f.version = ProtoField.uint8("dmq.version", "Version", base.DEC)
 f.id      = ProtoField.uint16("dmq.id", "Remote ID", base.DEC)
 f.seq     = ProtoField.uint16("dmq.seq", "Sequence", base.DEC)
 f.length  = ProtoField.uint16("dmq.length", "Payload Length", base.DEC)
@@ -47,13 +52,15 @@ f.payload = ProtoField.bytes("dmq.payload", "Payload")
 
 local ef_bad_marker = ProtoExpert.new("dmq.bad_marker", "Invalid DelegateMQ marker",
     expert.group.MALFORMED, expert.severity.ERROR)
+local ef_bad_version = ProtoExpert.new("dmq.bad_version", "Unsupported DelegateMQ protocol version",
+    expert.group.PROTOCOL, expert.severity.ERROR)
 local ef_truncated = ProtoExpert.new("dmq.truncated", "Payload shorter than header length",
     expert.group.MALFORMED, expert.severity.ERROR)
 local ef_trailing = ProtoExpert.new("dmq.trailing", "Extra bytes after payload",
     expert.group.MALFORMED, expert.severity.WARN)
 local ef_ack_payload = ProtoExpert.new("dmq.ack_payload", "ACK with non-zero payload length",
     expert.group.PROTOCOL, expert.severity.WARN)
-dmq.experts = { ef_bad_marker, ef_truncated, ef_trailing, ef_ack_payload }
+dmq.experts = { ef_bad_marker, ef_bad_version, ef_truncated, ef_trailing, ef_ack_payload }
 
 dmq.prefs.udp_ports = Pref.range("UDP ports", "", "UDP ports to decode as DelegateMQ, e.g. 5010-5013", 65535)
 dmq.prefs.tcp_ports = Pref.range("TCP ports", "", "TCP ports to decode as DelegateMQ", 65535)
@@ -63,10 +70,12 @@ dmq.prefs.heuristic = Pref.bool("Detect on any UDP port",
 -- Dissect one complete message starting at the beginning of tvb.
 -- Returns the number of bytes consumed.
 local function dissect_message(tvb, pinfo, tree)
-    local marker = tvb(0, 2):uint()
-    local id     = tvb(2, 2):uint()
-    local seq    = tvb(4, 2):uint()
-    local length = tvb(6, 2):uint()
+    local marker  = tvb(0, 2):uint()
+    local node    = tvb(2, 1):uint()
+    local version = tvb(3, 1):uint()
+    local id      = tvb(4, 2):uint()
+    local seq     = tvb(6, 2):uint()
+    local length  = tvb(8, 2):uint()
     local is_ack = (id == ACK_REMOTE_ID)
     local topic  = dmq_topics[id]
 
@@ -77,14 +86,20 @@ local function dissect_message(tvb, pinfo, tree)
         marker_item:add_proto_expert_info(ef_bad_marker)
     end
 
-    subtree:add(f.id, tvb(2, 2))
+    subtree:add(f.node, tvb(2, 1))
+    local version_item = subtree:add(f.version, tvb(3, 1))
+    if version ~= VERSION then
+        version_item:add_proto_expert_info(ef_bad_version)
+    end
+
+    subtree:add(f.id, tvb(4, 2))
     subtree:add(f.ack, is_ack):set_generated()
     if topic then
         subtree:add(f.topic, topic):set_generated()
     end
-    subtree:add(f.seq, tvb(4, 2))
+    subtree:add(f.seq, tvb(6, 2))
 
-    local length_item = subtree:add(f.length, tvb(6, 2))
+    local length_item = subtree:add(f.length, tvb(8, 2))
     if is_ack and length ~= 0 then
         length_item:add_proto_expert_info(ef_ack_payload)
     end
@@ -101,9 +116,9 @@ local function dissect_message(tvb, pinfo, tree)
     -- Info column summary
     local info
     if is_ack then
-        info = string.format("ACK seq=%d", seq)
+        info = string.format("ACK node=%d seq=%d", node, seq)
     else
-        info = string.format("ID=%d%s seq=%d len=%d", id,
+        info = string.format("node=%d ID=%d%s seq=%d len=%d", node, id,
             topic and (" (" .. topic .. ")") or "", seq, length)
     end
     subtree:append_text(", " .. info)
@@ -129,7 +144,7 @@ end
 
 -- TCP: reassemble the stream into messages using the header's length field.
 local function tcp_message_len(tvb, pinfo, offset)
-    return HEADER_SIZE + tvb(offset + 6, 2):uint()
+    return HEADER_SIZE + tvb(offset + 8, 2):uint()
 end
 
 local function dissect_tcp_message(tvb, pinfo, tree)
@@ -156,8 +171,8 @@ local function heuristic_udp(tvb, pinfo, tree)
     if tvb:len() < HEADER_SIZE or tvb(0, 2):uint() ~= MARKER then
         return false
     end
-    local id     = tvb(2, 2):uint()
-    local length = tvb(6, 2):uint()
+    local id     = tvb(4, 2):uint()
+    local length = tvb(8, 2):uint()
     if HEADER_SIZE + length ~= tvb:len() then
         return false
     end

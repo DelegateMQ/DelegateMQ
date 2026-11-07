@@ -48,12 +48,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
 
-#include <iostream>
-#include <sstream>
 #include <cstring>
+#include <chrono>
 #include <cstdlib>
 #include <cerrno>
-#include <mutex>
 
 namespace dmq::transport {
 
@@ -77,7 +75,9 @@ public:
 
     int Create(Type type, const char* addr, uint16_t port)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        Close();    // a second Create() replaces the socket instead of leaking it
         m_type = type;
 
         // Create UDP socket. zsock_* (not the bare BSD names) so this
@@ -102,11 +102,8 @@ public:
                 return -1;
             }
 
-            // Set a short timeout (e.g. 50ms) so Sender::Send() doesn't hang
-            // while polling for ACKs.
-            struct timeval timeout;
-            timeout.tv_sec = 0;
-            timeout.tv_usec = 50000; // 50ms
+            // Short timeout so polling this socket for ACKs doesn't hang.
+            struct timeval timeout = ToTimeval(dmq::UDP_PUB_RECV_TIMEOUT);
 
             if (zsock_setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
@@ -126,10 +123,8 @@ public:
                 return -1;
             }
 
-            // Set a 2-second receive timeout
-            struct timeval timeout;
-            timeout.tv_sec = 2;
-            timeout.tv_usec = 0;
+            // Receive timeout, so the receive thread can check for exit
+            struct timeval timeout = ToTimeval(dmq::UDP_SUB_RECV_TIMEOUT);
 
             if (zsock_setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
@@ -142,12 +137,16 @@ public:
         return 0;
     }
 
+    /// @details Waits for a Receive() in progress on another thread to return
+    /// (at most its receive timeout) before closing, so the socket is never
+    /// closed under it.
     void Close()
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket >= 0)
         {
-            // zsock_shutdown helps wake up blocked threads
+            // Receive() has returned (m_recvMutex is held), so nothing is blocked on it
             zsock_shutdown(m_socket, ZSOCK_SHUT_RDWR);
             zsock_close(m_socket);
             m_socket = -1;
@@ -156,7 +155,7 @@ public:
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_socket >= 0)
         {
             struct timeval tv;
@@ -168,7 +167,7 @@ public:
 
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (os.bad() || os.fail() || m_socket < 0) {
             return -1;
         }
@@ -190,16 +189,9 @@ public:
         uint16_t payloadLen = static_cast<uint16_t>(payload.length());
 
         // Convert to Network Byte Order (Big Endian)
-        uint16_t marker = htons(header.GetMarker());
-        uint16_t id     = htons(header.GetId());
-        uint16_t seqNum = htons(header.GetSeqNum());
-        uint16_t length = htons(payloadLen);
-
-        // Copy Header & Payload into the linear buffer
-        memcpy(m_sendBuffer, &marker, 2);
-        memcpy(m_sendBuffer + 2, &id, 2);
-        memcpy(m_sendBuffer + 4, &seqNum, 2);
-        memcpy(m_sendBuffer + 6, &length, 2);
+        DmqHeader wireHeader = header;
+        wireHeader.SetLength(payloadLen);
+        wireHeader.Encode(m_sendBuffer);
 
         if (payloadLen > 0) {
             memcpy(m_sendBuffer + DmqHeader::HEADER_SIZE, payload.data(), payloadLen);
@@ -216,7 +208,9 @@ public:
 
     virtual int Receive(xstringstream& is, DmqHeader& header) override
     {
-        const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
+        // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB socket
+        // that also drains its ACKs here) isn't held up for the receive timeout.
+        const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
         if (m_recvTransport != this || m_socket < 0) {
             return -1;
         }
@@ -231,8 +225,8 @@ public:
         {
             // Zephyr uses standard errno values
             if (errno == EWOULDBLOCK || errno == EAGAIN)
-                return -1; // Timeout
-            
+                return RECEIVE_NO_DATA;
+
             return -1;
         }
 
@@ -241,31 +235,26 @@ public:
         }
 
         // 1. Read Header (Network Byte Order)
-        uint16_t marker, id, seqNum, length;
-        memcpy(&marker, m_buffer, 2);
-        memcpy(&id,     m_buffer + 2, 2);
-        memcpy(&seqNum, m_buffer + 4, 2);
-        memcpy(&length, m_buffer + 6, 2);
+        header.Decode(m_buffer);
 
-        header.SetMarker(ntohs(marker));
-        header.SetId(ntohs(id));
-        header.SetSeqNum(ntohs(seqNum));
-        header.SetLength(ntohs(length));
-
-        if (header.GetMarker() != DmqHeader::MARKER)
+        if (!header.IsValid())
         {
             return -1; // Invalid marker
         }
 
-        // Important: Update m_addr to the sender's address so we can ACK back
+        // 2. Extract Payload. One datagram is one message, so the header length
+        // must match exactly; anything else (including a datagram cut short by
+        // the buffer) is malformed and must not be delivered or ACKed.
+        uint16_t payloadSize = header.GetLength();
+        if (payloadSize != static_cast<size_t>(size) - DmqHeader::HEADER_SIZE)
+            return -1;
+
+        // Update m_addr to the sender's address so we can ACK back. Only after
+        // validation, and under m_mutex since Send() uses it.
         if (m_type == Type::SUB) {
+            const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
             m_addr = fromAddr;
         }
-
-        // 2. Extract Payload
-        uint16_t payloadSize = header.GetLength();
-        if (payloadSize > (size - DmqHeader::HEADER_SIZE))
-            payloadSize = static_cast<uint16_t>(size - DmqHeader::HEADER_SIZE);
 
         if (payloadSize > 0) {
             is.clear();
@@ -278,7 +267,10 @@ public:
             if (m_transportMonitor)
                 m_transportMonitor->Remove(header.GetSeqNum());
         }
-        else if (m_transportMonitor && m_sendTransport)
+        // ACK whenever a send path exists, whether or not this transport also
+        // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
+        // has no monitor but must still ACK the sender's RELIABLE messages.
+        else if (m_sendTransport)
         {
             // Send ACK back using Send logic (recursive mutex handles it)
             xostringstream ss_ack;
@@ -316,10 +308,21 @@ private:
     ITransport* m_recvTransport = nullptr;
     ITransportMonitor* m_transportMonitor = nullptr;
 
-    static const int BUFFER_SIZE = 1500; // Ethernet MTU size
+    static struct timeval ToTimeval(std::chrono::milliseconds ms)
+    {
+        struct timeval tv;
+        tv.tv_sec = static_cast<long>(ms.count() / 1000);
+        tv.tv_usec = static_cast<long>((ms.count() % 1000) * 1000);
+        return tv;
+    }
+
+    // Datagram buffer (header + payload): DMQ_UDP_BUFFER_SIZE, default the
+    // 1500-byte Ethernet MTU.
+    static constexpr size_t BUFFER_SIZE = dmq::UDP_BUFFER_SIZE;
     char m_buffer[BUFFER_SIZE] = { 0 };
     char m_sendBuffer[BUFFER_SIZE] = { 0 };
-    dmq::RecursiveMutex m_mutex;
+    dmq::RecursiveMutex m_mutex;        ///< Socket open/close and Send() state (m_addr)
+    dmq::RecursiveMutex m_recvMutex;    ///< Held by Receive(); taken before m_mutex
 };
 
 /// @brief Backward-compatible name: application code (e.g. the sender.h/

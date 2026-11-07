@@ -90,6 +90,41 @@ namespace detail {
         dmq::UnicastDelegate<bool(const T&)> m_predicate;
     };
 
+    // Holds an async subscriber's delegate for the life of its subscription.
+    //
+    // An async subscription is connected as a DelegateMemberAsync holding a
+    // shared_ptr to this holder. Every publish clones that delegate to queue the
+    // call; the clone copies only the shared_ptr. The subscriber used to be
+    // wrapped in a std::function (DelegateFunctionAsync) instead, and each clone
+    // then copied the std::function. libstdc++ (and libc++) keep a callable
+    // inline only if it's trivially copyable, which UnicastDelegate isn't, so on
+    // GCC/Clang toolchains every publish to an async subscriber made a global
+    // heap allocation outside DMQ_ALLOCATOR. MSVC kept it inline, which hid it.
+    //
+    // The holder is allocated once per subscription (xmake_shared). Every clone
+    // runs on the subscriber's own thread, so calls through it are sequential.
+    template <typename Arg>
+    class AsyncSubscriber {
+        XALLOCATOR
+    public:
+        explicit AsyncSubscriber(dmq::UnicastDelegate<void(const Arg&)> func)
+            : m_func(std::move(func)) {}
+
+        void Invoke(const Arg& data) { m_func(data); }
+
+    private:
+        dmq::UnicastDelegate<void(const Arg&)> m_func;
+    };
+
+    // Build the async delegate for a subscriber on `thread` (see AsyncSubscriber).
+    template <typename Arg>
+    dmq::DelegateMemberAsync<AsyncSubscriber<Arg>, void(const Arg&)>
+    MakeAsyncSubscriber(dmq::UnicastDelegate<void(const Arg&)> func, dmq::IThread& thread) {
+        auto holder = dmq::xmake_shared<AsyncSubscriber<Arg>>(std::move(func));
+        return dmq::DelegateMemberAsync<AsyncSubscriber<Arg>, void(const Arg&)>(
+            holder, &AsyncSubscriber<Arg>::Invoke, thread);
+    }
+
 }
 
 // The DataBus is a central registry for topic-based communication.
@@ -183,8 +218,12 @@ public:
             predUD = dmq::DelegateFunction<bool(const T&)>(std::forward<P>(predicate));
 
         auto filter = dmq::xmake_shared<detail::Filter<T>>(std::move(funcUD), std::move(predUD));
-        // Capture filter by shared_ptr so the Filter stays alive for the connection's lifetime.
-        return GetInstance().InternalSubscribe<T>(topic, dmq::DelegateFunction<void(const T&)>([filter](const T& data) { filter->Invoke(data); }), thread, qos);
+        // DelegateMember holds the shared_ptr strongly, so the Filter lives as long as the
+        // connection. No lambda: wrapping one that captures a shared_ptr in a std::function
+        // heap-allocates on GCC/Clang (not trivially copyable), see detail::AsyncSubscriber.
+        return GetInstance().InternalSubscribe<T>(topic,
+            dmq::DelegateMember<detail::Filter<T>, void(const T&)>(std::move(filter), &detail::Filter<T>::Invoke),
+            thread, qos);
     }
 
     /// @brief Publish data to a topic — delivered to every local subscriber
@@ -306,7 +345,7 @@ public:
         // Establish connection OUTSIDE the global DataBus lock to prevent
         // lock inversion deadlocks. Signal::Connect() is already thread-safe.
         if (thread) {
-            auto del = dmq::MakeDelegate(std::function<void(const SpyPacket&)>(std::move(ud)), *thread);
+            auto del = detail::MakeAsyncSubscriber<SpyPacket>(std::move(ud), *thread);  // see detail::AsyncSubscriber
             del.SetPriority(priority);
             return instance.m_monitorSignal.Connect(std::move(del));
         } else {
@@ -408,9 +447,11 @@ private:
         if (qos.minSeparation.has_value()) {
             auto minSepRep = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(qos.minSeparation.value()).count());
             auto limiter = dmq::xmake_shared<detail::RateLimiter<T>>(std::move(typedFunc), minSepRep);
-            // Capture limiter by shared_ptr so the RateLimiter stays alive for the connection's lifetime.
-            // MakeDelegate(limiter.get(), ...) would store a raw pointer; the shared_ptr must be in the closure.
-            typedFunc = dmq::DelegateFunction<void(const T&)>([limiter](const T& data) { limiter->Invoke(data); });
+            // DelegateMember holds the shared_ptr strongly (not MakeDelegate(limiter.get(), ...),
+            // which would store a raw pointer), so the RateLimiter lives as long as the
+            // connection. No lambda/std::function, as for the Filter above.
+            typedFunc = dmq::DelegateMember<detail::RateLimiter<T>, void(const T&)>(
+                std::move(limiter), &detail::RateLimiter<T>::Invoke);
         }
 
         T* cachedValPtr = nullptr;
@@ -442,10 +483,11 @@ private:
         // DataBus lock and acquiring the Signal lock. However, both use RecursiveMutex
         // and InternalPublish also snapshots signals outside its lock, so this is
         // architecturally consistent with the "lock-free dispatch" pattern used elsewhere.
-        using AsyncDelType = dmq::DelegateFunctionAsync<void(const T&)>;
+        using AsyncDelType = dmq::DelegateMemberAsync<detail::AsyncSubscriber<T>, void(const T&)>;
         std::optional<AsyncDelType> asyncDel;
         if (thread) {
-            asyncDel.emplace(dmq::MakeDelegate(std::function<void(const T&)>(std::move(typedFunc)), *thread));
+            // No std::function here: see detail::AsyncSubscriber.
+            asyncDel.emplace(detail::MakeAsyncSubscriber<T>(std::move(typedFunc), *thread));
             conn = signal->Connect(*asyncDel);
         } else {
             conn = signal->Connect(typedFunc);

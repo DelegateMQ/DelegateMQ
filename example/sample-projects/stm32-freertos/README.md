@@ -38,15 +38,18 @@ To run the `RUN_NETWORK_TESTS` mode (Client-Server demo), you need the following
 
 ## ⚙️ Configuration
 
-### 1. Build Paths (`STM32_REPO`)
-This project uses Eclipse **Build Variables** to avoid hardcoded paths. You **must** configure this variable to point to your local STM32 firmware repository.
+### 1. STM32Cube Firmware Path (`STM32_REPO`)
+The project files contain no absolute paths. DelegateMQ sources are found relative to the project, and the STM32Cube F4 firmware (HAL, CMSIS, BSP, USB device library) through one path variable, `STM32_REPO`, that you define once in your own workspace:
 
-1.  Right-click the project -> **Properties**.
-2.  Navigate to **C/C++ Build** > **Build Variables**.
-3.  Edit `STM32_REPO` to match your installation:
-    * *Windows Example:* `C:\Users\YourName\STM32Cube\Repository\STM32Cube_FW_F4_V1.28.3`
-    * *Linux/Mac Example:* `/home/yourname/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3`
-4.  Click **Apply**.
+1.  **Window** > **Preferences** > **General** > **Workspace** > **Linked Resources**.
+2.  Click **New...** and add:
+    * *Name:* `STM32_REPO`
+    * *Location:* your STM32Cube F4 firmware folder, e.g.
+      * *Windows:* `C:\Users\YourName\STM32Cube\Repository\STM32Cube_FW_F4_V1.28.3`
+      * *Linux/Mac:* `/home/yourname/STM32Cube/Repository/STM32Cube_FW_F4_V1.28.3`
+3.  Click **Apply and Close**, then import the project (**File** > **Import** > **Existing Projects into Workspace**, select `server/STM32CubeIDE`), or refresh it if it's already open.
+
+The setting lives in your workspace, not the repository, so it never shows up as a change in git. The project links the firmware's source files under `Drivers/` and `Middlewares/`, and its include folders under `STM32Cube/` (excluded from the build; the compiler include paths point at them).
 
 ### 2. Selecting the Test Mode
 Open `server/Src/main.cpp` and uncomment exactly **ONE** of the following lines to choose the operating mode:

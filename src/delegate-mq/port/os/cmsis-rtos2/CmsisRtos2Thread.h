@@ -21,24 +21,29 @@
 /// * **Task Integration:** Wraps `osThreadNew` to establish a dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities (uses `osMessageQueuePut`'s
-///   native `msg_prio` argument, via `CmsisRtos2DelegateQueue::Send`'s highPriority flag).
+/// * **Priority Support:** Normal and High priorities, as two queue lanes drained
+///   HIGH first (see `CmsisRtos2DelegateQueue` for why `osMessageQueuePut`'s
+///   `msg_prio` isn't relied on).
 /// * **Queue-Based Dispatch:** Uses `CmsisRtos2DelegateQueue` (a thin RAII wrapper
-///   around an `osMessageQueue`) to receive and process incoming delegate
-///   messages in a thread-safe manner.
+///   around two `osMessageQueue` lanes and a counting `osSemaphore`) to receive
+///   and process incoming delegate messages in a thread-safe manner.
 /// * **Priority Control:** Supports runtime priority configuration via `SetThreadPriority`
 ///   using standard `osPriority_t` levels.
 /// * **Graceful Shutdown:** Implements robust termination logic using semaphores to ensure
 ///   the thread exits cleanly before destruction.
 /// * **Watchdog Integration:** Optional heartbeat mechanism detects stalled or deadlocked
 ///   threads. Enable by passing a timeout to CreateThread(). Requires
-///   Timer::ProcessTimers() to be called from a context that can preempt watched threads
-///   — typically a hardware timer ISR or the highest-priority task in the system.
+///   Thread::WatchdogCheckAll() to be called periodically from a context that can preempt
+///   watched threads -- the highest-priority task in the system, not an ISR.
+/// * **Start Gate:** Optional `SetStartGate(StartGate*)`, called before `CreateThread()`,
+///   holds the thread ready but processing no messages, at any priority, until
+///   `StartGate::Open()` releases every thread sharing the gate at once.
 
 #include "delegate/IThread.h"
 #include "delegate/UnicastDelegate.h"
 #include "extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
+#include "port/os/common/StartGate.h"
 #include "CmsisRtos2DelegateQueue.h"
 #include "cmsis_os2.h"
 #include <string>
@@ -149,6 +154,15 @@ public:
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = std::move(handler); }
 
+    /// @brief Optional: hold this thread at `gate` once it is created, until
+    /// `gate->Open()`. Pass nullptr (the default) to start at once.
+    /// @details CreateThread() still runs the start handler and returns when the
+    /// thread is ready; the thread then processes nothing, at any priority, until
+    /// the gate opens. Use one gate for a group of threads so they all start
+    /// together after setup. See port/os/common/StartGate.h. Must be called while
+    /// the thread is not running; calling it on a running thread faults.
+    void SetStartGate(StartGate* gate) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startGate.Set(gate); }
+
     /// @brief Register a handler invoked on the worker thread after it processes
     /// its last message, as the thread exits. Use it to undo SetStartHandler() setup.
     /// @details Must be called while the thread is not running; calling it on a
@@ -206,7 +220,7 @@ private:
     static void Process(void* argument);
     void Run();
 
-    /// Check watchdog is expired. Called from Timer::ProcessTimers() context.
+    /// Check watchdog is expired. Called by WatchdogCheckAll().
     void WatchdogCheck();
 
     /// Get registry head using the "Immortal" Pattern
@@ -237,16 +251,20 @@ private:
     osSemaphoreId_t m_startSem = NULL; // Released by Run() once the start handler has run
     bool m_startSync = false; // CreateThread() waits for the start handler (kernel running)
     std::atomic<bool> m_exit = false;
+
+    // Optional start gate (SetStartGate()): its state, and whether the thread is
+    // held at it (the watchdog doesn't report a thread waiting by design)
+    StartGateClient m_startGate;
     std::atomic<bool> m_discard = false; // ExitPolicy::DISCARD: cancel queued messages instead of invoking
     bool* m_selfExitPtr = nullptr;
     
     // Configurable sizes
-    static const uint32_t STACK_SIZE = 2048; // Bytes
+    static const uint32_t STACK_SIZE = static_cast<uint32_t>(dmq::CMSIS_RTOS2_STACK_BYTES); // Bytes, DMQ_CMSIS_RTOS2_STACK_BYTES
     static const uint32_t START_FLAG = 0x1U; // Thread flag: CreateThread() has stored m_thread
 
     // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime;
-    std::atomic<dmq::Duration> m_watchdogTimeout;
+    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
+    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
     CmsisRtos2Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

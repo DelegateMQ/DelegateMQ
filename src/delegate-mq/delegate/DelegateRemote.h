@@ -183,14 +183,17 @@ public:
 
     RemoteDispatchState(const RemoteDispatchState& rhs)
         : m_id(rhs.m_id), m_errorHandler(rhs.m_errorHandler),
-          m_dispatcher(rhs.m_dispatcher), m_stream(rhs.m_stream) {
+          m_dispatcher(rhs.m_dispatcher), m_stream(rhs.m_stream),
+          m_sendMutex(rhs.m_sendMutex) {
     }
 
     RemoteDispatchState(RemoteDispatchState&& rhs) noexcept
         : m_id(rhs.m_id), m_errorHandler(std::move(rhs.m_errorHandler)),
-          m_dispatcher(rhs.m_dispatcher), m_stream(rhs.m_stream) {
+          m_dispatcher(rhs.m_dispatcher), m_stream(rhs.m_stream),
+          m_sendMutex(rhs.m_sendMutex) {
         rhs.m_dispatcher = nullptr;
         rhs.m_stream = nullptr;
+        rhs.m_sendMutex = nullptr;
     }
 
     RemoteDispatchState& operator=(const RemoteDispatchState& rhs) {
@@ -199,6 +202,7 @@ public:
             m_errorHandler = rhs.m_errorHandler;
             m_dispatcher = rhs.m_dispatcher;
             m_stream = rhs.m_stream;
+            m_sendMutex = rhs.m_sendMutex;
         }
         return *this;
     }
@@ -209,8 +213,10 @@ public:
             m_errorHandler = std::move(rhs.m_errorHandler);
             m_dispatcher = rhs.m_dispatcher;
             m_stream = rhs.m_stream;
+            m_sendMutex = rhs.m_sendMutex;
             rhs.m_dispatcher = nullptr;
             rhs.m_stream = nullptr;
+            rhs.m_sendMutex = nullptr;
         }
         return *this;
     }
@@ -223,6 +229,9 @@ public:
 
     dmq::xostringstream* GetStream() const noexcept { return m_stream; }
     void SetStream(dmq::xostringstream* stream) noexcept { m_stream = stream; }
+
+    dmq::Mutex* GetSendMutex() const noexcept { return m_sendMutex; }
+    void SetSendMutex(dmq::Mutex* mutex) noexcept { m_sendMutex = mutex; }
 
     uint16_t GetLastSeqNum() const noexcept { return m_lastSeqNum; }
 
@@ -322,6 +331,26 @@ private:
     IDispatcher* m_dispatcher = nullptr;
     DelegateError m_error = DelegateError::SUCCESS;
     dmq::xostringstream* m_stream = nullptr;
+    dmq::Mutex* m_sendMutex = nullptr;
+};
+
+/// @brief Holds a remote delegate's send mutex, if it has one, for the whole
+/// serialize-and-dispatch step of one call.
+class RemoteSendLock {
+public:
+    explicit RemoteSendLock(dmq::Mutex* mutex) noexcept : m_mutex(mutex) {
+        if (m_mutex)
+            m_mutex->lock();
+    }
+    ~RemoteSendLock() noexcept {
+        if (m_mutex)
+            m_mutex->unlock();
+    }
+    RemoteSendLock(const RemoteSendLock&) = delete;
+    RemoteSendLock& operator=(const RemoteSendLock&) = delete;
+
+private:
+    dmq::Mutex* m_mutex;
 };
 
 } // namespace detail
@@ -500,6 +529,9 @@ public:
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
         if (m_serializer && m_state.GetStream()) {
+            // Remote delegates may share one stream (e.g. every delegate made from
+            // one RemoteChannel); the send mutex keeps their sends from interleaving.
+            detail::RemoteSendLock sendLock(m_state.GetSendMutex());
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -655,6 +687,13 @@ public:
     /// @param[in] stream An output stream.
     void SetStream(dmq::xostringstream* stream) {
         m_state.SetStream(stream);
+    }
+
+    /// @brief Set the mutex held while serializing into and dispatching the
+    /// stream. Required when several delegates share one stream across threads.
+    /// @param[in] mutex The mutex, or nullptr for none. Caller owns it.
+    void SetSendMutex(dmq::Mutex* mutex) {
+        m_state.SetSendMutex(mutex);
     }
 
     /// @brief Set the error handler
@@ -941,6 +980,9 @@ public:
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
         if (m_serializer && m_state.GetStream()) {
+            // Remote delegates may share one stream (e.g. every delegate made from
+            // one RemoteChannel); the send mutex keeps their sends from interleaving.
+            detail::RemoteSendLock sendLock(m_state.GetSendMutex());
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -1096,6 +1138,13 @@ public:
     /// @param[in] stream An output stream.
     void SetStream(dmq::xostringstream* stream) {
         m_state.SetStream(stream);
+    }
+
+    /// @brief Set the mutex held while serializing into and dispatching the
+    /// stream. Required when several delegates share one stream across threads.
+    /// @param[in] mutex The mutex, or nullptr for none. Caller owns it.
+    void SetSendMutex(dmq::Mutex* mutex) {
+        m_state.SetSendMutex(mutex);
     }
 
     /// @brief Set the error handler
@@ -1322,6 +1371,9 @@ public:
     /// @post Do not use the return value as its not valid.
     virtual RetType operator()(Args... args) override {
         if (m_serializer && m_state.GetStream()) {
+            // Remote delegates may share one stream (e.g. every delegate made from
+            // one RemoteChannel); the send mutex keeps their sends from interleaving.
+            detail::RemoteSendLock sendLock(m_state.GetSendMutex());
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -1477,6 +1529,13 @@ public:
     /// @param[in] stream An output stream.
     void SetStream(dmq::xostringstream* stream) {
         m_state.SetStream(stream);
+    }
+
+    /// @brief Set the mutex held while serializing into and dispatching the
+    /// stream. Required when several delegates share one stream across threads.
+    /// @param[in] mutex The mutex, or nullptr for none. Caller owns it.
+    void SetSendMutex(dmq::Mutex* mutex) {
+        m_state.SetSendMutex(mutex);
     }
 
     /// @brief Set the error handler

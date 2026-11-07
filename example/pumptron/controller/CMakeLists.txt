@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(PumptronController VERSION 1.0 LANGUAGES CXX C)
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumptron_controller)
 
 # Pumptron controller -- FreeRTOS simulator target (Windows/Linux host).
 # The STM32F4 Discovery hardware target is a separate cross-compiled CMake

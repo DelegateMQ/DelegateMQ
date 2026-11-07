@@ -38,6 +38,19 @@ dmq::rpc::RemoteDispatcher* g_netEngine = nullptr;
 // --- DEFINE GLOBAL TRANSPORT INSTANCE ---
 dmq::transport::Stm32UartTransport* g_uartTransportInstance = nullptr;
 
+// Route all C++ allocation (DelegateMQ messages, xallocator blocks, std
+// containers) through the thread-safe FreeRTOS heap (configTOTAL_HEAP_SIZE).
+// Without this, global new uses the newlib heap: only the RAM left between
+// .bss and the MSP stack (a few KB here), which network mode runs out of.
+void* operator new  (size_t n)                                 { void* p = pvPortMalloc(n); configASSERT(p); return p; }
+void* operator new[](size_t n)                                 { void* p = pvPortMalloc(n); configASSERT(p); return p; }
+void* operator new  (size_t n, const std::nothrow_t&) noexcept { return pvPortMalloc(n); }
+void* operator new[](size_t n, const std::nothrow_t&) noexcept { return pvPortMalloc(n); }
+void  operator delete  (void* p)                       noexcept { vPortFree(p); }
+void  operator delete[](void* p)                       noexcept { vPortFree(p); }
+void  operator delete  (void* p, size_t)               noexcept { vPortFree(p); }
+void  operator delete[](void* p, size_t)               noexcept { vPortFree(p); }
+
 // --- DEFINE HAL CALLBACK ---
 extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (g_uartTransportInstance && huart->Instance == USART6) {

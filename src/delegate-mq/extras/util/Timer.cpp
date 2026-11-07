@@ -23,8 +23,11 @@ Timer::Timer()
 //------------------------------------------------------------------------------
 Timer::~Timer()
 {
+    // Wait out a ProcessTimers() that found this timer expired and hasn't
+    // copied its subscribers yet (see GetProcessLock()).
+    const dmq::LockGuard<dmq::RecursiveMutex> processLock(GetProcessLock());
     const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
-    
+
     // Remove 'this' from the intrusive linked list
     Timer** pp = &GetTimersHead();
     while (*pp != nullptr)
@@ -124,10 +127,13 @@ bool Timer::CheckExpired()
 
         // Check if we are still behind (timer starvation)
         // If the new deadline is STILL in the past, we are falling behind.
-        if (GetNow() > m_expireTime)
+        const dmq::TimePoint now = GetNow();
+        if (now > m_expireTime)
         {
-            // The timer has fallen behind so set time expiration further forward.
-            m_expireTime = GetNow();
+            // The timer has fallen behind. Skip the missed periods and expire one
+            // full period from now; expiring at `now` would fire again on the
+            // very next ProcessTimers() call.
+            m_expireTime = now + m_timeout;
 
             // Timer processing is falling behind. Maybe user timer expiration is too 
             // short, time processing takings too long, or CheckExpired not called 
@@ -156,52 +162,62 @@ void Timer::ProcessTimers()
         size_t remaining = 0;
 
         {
-            const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
+            // Held until every timer found expired below has had its subscribers
+            // copied. ~Timer() takes it too, so none of those timers can be
+            // destroyed in between.
+            const dmq::LockGuard<dmq::RecursiveMutex> processLock(GetProcessLock());
 
-            // Remove disabled timer from the list if stopped
-            if (m_timerStopped)
+            std::array<Timer*, dmq::MAX_TIMER_EXPIRED> expired;
             {
-                Timer** pp = &GetTimersHead();
-                while (*pp != nullptr)
+                const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
+
+                // Remove disabled timer from the list if stopped
+                if (m_timerStopped)
                 {
-                    if (!((*pp)->m_enabled))
+                    Timer** pp = &GetTimersHead();
+                    while (*pp != nullptr)
                     {
-                        Timer* next = (*pp)->m_next;
-                        (*pp)->m_next = nullptr;
-                        *pp = next;
+                        if (!((*pp)->m_enabled))
+                        {
+                            Timer* next = (*pp)->m_next;
+                            (*pp)->m_next = nullptr;
+                            *pp = next;
+                        }
+                        else
+                        {
+                            pp = &((*pp)->m_next);
+                        }
                     }
-                    else
-                    {
-                        pp = &((*pp)->m_next);
-                    }
+                    m_timerStopped = false;
                 }
-                m_timerStopped = false;
+
+                // Identify expired timers while holding the lock.
+                Timer* t = GetTimersHead();
+                while (t != nullptr)
+                {
+                    if (count >= dmq::MAX_TIMER_EXPIRED) {
+                        // Batch is full for this pass. Deliberately do NOT call
+                        // CheckExpired() on the remaining timers here — that would
+                        // mutate their expiry state (advance m_expireTime / disable
+                        // a one-shot) without capturing a snapshot, permanently
+                        // dropping that expiration. Leaving them untouched lets the
+                        // next pass process them correctly.
+                        Timer* rem = t;
+                        while (rem != nullptr) { ++remaining; rem = rem->m_next; }
+                        break;
+                    }
+
+                    if (t->CheckExpired())
+                        expired[count++] = t;
+                    t = t->m_next;
+                }
             }
 
-            // Identify expired timers while holding the lock.
-            // NOTE: Snapshots are captured under the lock to ensure the Timer
-            // object is valid. The actual invocation happens outside the lock.
-            Timer* t = GetTimersHead();
-            while (t != nullptr)
-            {
-                if (count >= dmq::MAX_TIMER_EXPIRED) {
-                    // Batch is full for this pass. Deliberately do NOT call
-                    // CheckExpired() on the remaining timers here — that would
-                    // mutate their expiry state (advance m_expireTime / disable
-                    // a one-shot) without capturing a snapshot, permanently
-                    // dropping that expiration. Leaving them untouched lets the
-                    // next pass process them correctly.
-                    Timer* rem = t;
-                    while (rem != nullptr) { ++remaining; rem = rem->m_next; }
-                    break;
-                }
-
-                if (t->CheckExpired())
-                {
-                    snapshots[count++] = t->OnExpired.GetSnapshot();
-                }
-                t = t->m_next;
-            }
+            // Copy each expired timer's subscribers outside the critical section:
+            // GetSnapshot() takes the signal's OS mutexes and can allocate, neither
+            // of which is allowed with interrupts masked.
+            for (size_t i = 0; i < count; ++i)
+                snapshots[i] = expired[i]->OnExpired.GetSnapshot();
         }
 
         // Call the client's expired callback functions outside the lock.

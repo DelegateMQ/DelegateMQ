@@ -367,7 +367,7 @@ public:
 
     /// @brief Move constructor that transfers ownership of resources.
     /// @param[in] rhs The object to move from.
-    DelegateMember(ClassType&& rhs) noexcept : m_object(rhs.m_object), m_func(rhs.m_func) { rhs.Clear(); }
+    DelegateMember(ClassType&& rhs) noexcept : m_object(std::move(rhs.m_object)), m_func(rhs.m_func) { rhs.Clear(); }
 
     /// @brief Default constructor creates an empty delegate.
     DelegateMember() = default;
@@ -477,7 +477,7 @@ public:
     /// @return A reference to the current object.
     ClassType& operator=(ClassType&& rhs) noexcept {
         if (&rhs != this) {
-            m_object = rhs.m_object;
+            m_object = std::move(rhs.m_object);
             m_func = rhs.m_func;
             rhs.Clear();
         }
@@ -743,7 +743,7 @@ public:
 
     /// @brief Move constructor that transfers ownership of resources.
     /// @param[in] rhs The object to move from.
-    DelegateFunction(ClassType&& rhs) noexcept : m_func(rhs.m_func) { rhs.Clear(); }
+    DelegateFunction(ClassType&& rhs) noexcept : m_func(std::move(rhs.m_func)) { rhs.Clear(); }
 
     /// @brief Default constructor creates an empty delegate.
     DelegateFunction() = default;
@@ -824,7 +824,7 @@ public:
     /// @return A reference to the current object.
     ClassType& operator=(ClassType&& rhs) noexcept {
         if (&rhs != this) {
-            m_func = rhs.m_func;
+            m_func = std::move(rhs.m_func);
             rhs.Clear();
         }
         return *this;

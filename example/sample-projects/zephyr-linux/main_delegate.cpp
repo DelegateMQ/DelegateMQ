@@ -30,11 +30,24 @@ extern void TimerDelegateTests();
 // --------------------------------------------------------------------------
 // ZEPHYR CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
+// k_timer expiry runs in ISR context, and Timer::ProcessTimers() takes OS
+// mutexes, so the handler only signals; TimerThreadEntry() does the processing.
+K_SEM_DEFINE(g_timerTick, 0, 1);
+
 static void SystemTimerHandler(struct k_timer* /*timer*/) {
-    // Process all delegate-based timers
-    Timer::ProcessTimers();
+    k_sem_give(&g_timerTick);
 }
 K_TIMER_DEFINE(g_systemTimer, SystemTimerHandler, nullptr);
+
+// Highest-priority application thread: processes all delegate-based timers.
+static void TimerThreadEntry(void*, void*, void*) {
+    while (true) {
+        k_sem_take(&g_timerTick, K_FOREVER);
+        Timer::ProcessTimers();
+    }
+}
+K_THREAD_DEFINE(g_timerThread, 8192, TimerThreadEntry, nullptr, nullptr, nullptr,
+                K_HIGHEST_APPLICATION_THREAD_PRIO, 0, 0);
 
 static const char* CurrentThreadName() {
     const char* name = k_thread_name_get(k_current_get());
@@ -183,7 +196,8 @@ void ExecuteAllTests() {
 // MAIN ENTRY POINT
 // --------------------------------------------------------------------------
 int main() {
-    // Periodic software timer drives DelegateMQ's Timer::ProcessTimers().
+    // Periodic software timer wakes g_timerThread, which runs DelegateMQ's
+    // Timer::ProcessTimers().
     k_timer_start(&g_systemTimer, K_MSEC(10), K_MSEC(10));
 
     ExecuteAllTests();

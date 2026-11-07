@@ -44,12 +44,13 @@ namespace Example
         void Term() {
             m_timer.Stop();
 
-            // Drain the thread before disconnecting: ExitThread() processes all queued
-            // messages, ensuring no in-flight InvokeTarget holds a raw 'this' pointer
-            // into the TimerDelegate after Disconnect() destroys it.
+            // Drain the thread before disconnecting: ExitThread() runs or finishes any
+            // OnTimer() tick already queued or in progress, so none is left running
+            // on this object after Term() returns. (Disconnect() alone cancels ticks
+            // still waiting in the queue, but not one already running, nor one a
+            // ProcessTimers() emit queues while Disconnect() runs.)
             m_thread.ExitThread();
 
-            // Now safe: m_thread queue is empty, no in-flight references to TimerDelegate.
             m_timerConn.Disconnect();
         }
 

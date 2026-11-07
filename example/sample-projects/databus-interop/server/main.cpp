@@ -11,13 +11,22 @@
 ///   ../python-client/main.py     — Python client
 ///   ../csharp-client/Program.cs  — C# client
 ///
-/// Transport:  UDP  (port 8000 PUB, port 8001 SUB)
+/// Transport:  UDP. DataMsg goes to multicast group 239.1.1.1:8000, which every
+///             client joins, so any number of clients receive it (best-effort:
+///             the interop clients don't ACK it). CommandMsg arrives on unicast
+///             port 8001 and is ACKed back to the sending client.
 /// Serializer: MessagePack
 
 #include "DelegateMQ.h"
 #include "SystemMessages.h"
 #include "SystemIds.h"
 #include "extras/util/NetworkConnect.h"
+
+#if defined(_WIN32)
+#include "port/transport/win32-udp/MulticastTransport.h"
+#else
+#include "port/transport/linux-udp/MulticastTransport.h"
+#endif
 
 #include <iostream>
 #include <thread>
@@ -29,6 +38,9 @@ static void SignalHandler(int) { g_running = false; }
 
 std::atomic<int> g_pollingRateMs{ 1000 };
 
+// Must match MULTICAST_GROUP / MulticastGroup in the Python and C# clients.
+static const char* MULTICAST_GROUP = "239.1.1.1";
+
 int main(int argc, char* argv[])
 {
     int duration = 0;
@@ -39,37 +51,31 @@ int main(int argc, char* argv[])
 
     std::cout << "Starting DataBus Interop SERVER..." << std::endl;
 
-#ifdef _WIN32
-    dmq::util::NetworkContext winsock;
-#endif
+    dmq::util::NetworkContext netContext;
+    const std::string localIP = dmq::util::NetworkContext::GetLocalAddress();
 
     // 1. Initialize transports
-    // PUB on 8000: server sends DataMsg to clients
-    dmq::transport::UdpTransport transportData;
-    if (transportData.Create(dmq::transport::UdpTransport::Type::PUB, "127.0.0.1", 8000) != 0) {
-        std::cerr << "Failed to create Data transport (port 8000)" << std::endl;
+    // Multicast PUB on 239.1.1.1:8000: every client that joined the group gets
+    // each DataMsg. (A unicast send to one port reaches only one of several
+    // clients bound to it.)
+    dmq::transport::MulticastTransport transportData;
+    if (transportData.Create(dmq::transport::MulticastTransport::Type::PUB, MULTICAST_GROUP, 8000, localIP.c_str()) != 0) {
+        std::cerr << "Failed to create Data transport (" << MULTICAST_GROUP << ":8000)" << std::endl;
         return -1;
     }
 
-    // SUB on 8001: server receives CommandMsg from clients
+    // SUB on 8001: server receives CommandMsg from clients. It ACKs each one
+    // from this socket back to the sender, which is what the clients' reliable
+    // sends wait for.
     dmq::transport::UdpTransport transportCmd;
-    if (transportCmd.Create(dmq::transport::UdpTransport::Type::SUB, "127.0.0.1", 8001) != 0) {
+    if (transportCmd.Create(dmq::transport::UdpTransport::Type::SUB, "0.0.0.0", 8001) != 0) {
         std::cerr << "Failed to create Command transport (port 8001)" << std::endl;
         return -1;
     }
 
-    // 2. Reliability layer — tracks ACKs for outgoing DataMsg
-    dmq::util::TransportMonitor monitor(std::chrono::seconds(1));
-    dmq::util::RetryMonitor retry(transportData, monitor, 0);
-    dmq::util::ReliableTransport reliableTransport(transportData, retry);
-
-    // Cross-wire: SUB socket sends ACKs back via PUB socket
-    transportData.SetTransportMonitor(&monitor);
-    transportCmd.SetTransportMonitor(&monitor);
-    transportCmd.SetSendTransport(&transportData);
-
-    // 3. DataBus participant for outgoing DataMsg (via reliable transport)
-    auto dataParticipant = std::make_shared<dmq::databus::Participant>(reliableTransport);
+    // 2. DataBus participant for outgoing DataMsg. Best-effort: the interop
+    // clients receive DataMsg without ACKing it, so there's nothing to retry on.
+    auto dataParticipant = std::make_shared<dmq::databus::Participant>(transportData);
     dataParticipant->AddRemoteTopic(SystemTopic::DataMsg, SystemTopic::DataMsgId);
     dmq::databus::DataBus::AddParticipant(dataParticipant);
 
@@ -89,13 +95,11 @@ int main(int argc, char* argv[])
             g_pollingRateMs = msg.pollingRateMs;
         });
 
-    // 7. Background network thread — polls participants and drives ACK timeouts
+    // 7. Background network thread — receives CommandMsg (and ACKs it)
     std::atomic<bool> netRunning{ true };
     std::thread netThread([&]() {
         while (netRunning) {
-            dataParticipant->ProcessIncoming();     // process incoming ACKs
-            commandParticipant->ProcessIncoming();  // process incoming CommandMsg
-            monitor.Process();                      // drive ACK/retry timeouts
+            commandParticipant->ProcessIncoming();
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });

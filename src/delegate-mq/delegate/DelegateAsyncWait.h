@@ -63,7 +63,7 @@
 #include "IInvoker.h"
 #include <atomic>
 #include <optional>
-#include <any>
+#include <tuple>
 #include <chrono>
 
 DMQ_OPTIMIZE_ON
@@ -146,9 +146,6 @@ public:
     void SetInvokeSucceeded(bool invokeSucceeded) { m_invokeSucceeded = invokeSucceeded; }
 
 private:
-    /// An empty starting tuple
-    std::tuple<> m_start;
-
     /// A tuple with each function argument element 
     std::tuple<Args...> m_args;
 
@@ -168,21 +165,45 @@ private:
 
 namespace detail {
 
+/// @brief Lock guarding every `DelegateXAsyncWait` instance's last-call result.
+/// @details One lock shared by all instances rather than one per instance: each call
+/// clones its delegate, and on RTOS ports a `dmq::Mutex` is a kernel object, so a
+/// per-instance lock would create one on every call. It is held only to copy one
+/// result in or out. Intentionally never destroyed (same as `Timer::GetLock()`), so a
+/// delegate destroyed during static destruction can still use it.
+inline RecursiveMutex& AsyncWaitResultLock() {
+    static RecursiveMutex* lock = new(std::nothrow) RecursiveMutex();
+    if (!lock)
+        BAD_ALLOC();
+    return *lock;
+}
+
 /// @brief Non-template holder for a `DelegateXAsyncWait<...>` instance's dispatch state
-/// (destination thread, message priority, timeout, and the last async call's result).
+/// (destination thread, message priority, timeout, and whether the last async call
+/// succeeded). The last call's return value is stored, typed, on the owning delegate.
 /// None of this depends on the bound function's signature or target class, so every
 /// `DelegateFreeAsyncWait`/`DelegateMemberAsyncWait`/`DelegateMemberAsyncWaitSp`/
 /// `DelegateFunctionAsyncWait` instantiation composes this one definition instead of each
 /// generating its own copy of these five fields plus their Assign()/Equal()/move-ctor
 /// plumbing.
-/// @note `m_sync` deliberately stays outside this class (declared on each owning class
-/// instead) — it is never copied/assigned/moved between instances, only ever reset to
-/// `false` on a fresh object, which is exactly what leaving it out of Assign()/the copy
-/// ctor already achieved before this refactor. Folding it in here would require a custom
-/// (non-default) copy assignment operator to preserve that; simpler and safer to leave it
-/// where the "never copied" behavior falls out for free.
 class AsyncWaitDispatchState {
 public:
+    AsyncWaitDispatchState() = default;
+
+    /// A copy takes the dispatch settings but not the last-call result.
+    AsyncWaitDispatchState(const AsyncWaitDispatchState& rhs) noexcept
+        : m_thread(rhs.m_thread), m_priority(rhs.m_priority), m_timeout(rhs.m_timeout) {}
+
+    AsyncWaitDispatchState& operator=(const AsyncWaitDispatchState& rhs) noexcept {
+        if (this != &rhs) {
+            m_thread = rhs.m_thread;
+            m_priority = rhs.m_priority;
+            m_timeout = rhs.m_timeout;
+            ResetResult();
+        }
+        return *this;
+    }
+
     IThread* GetThread() const noexcept { return m_thread; }
     void SetThread(IThread* thread) noexcept { m_thread = thread; }
     Priority GetPriority() const noexcept { return m_priority; }
@@ -190,14 +211,22 @@ public:
     Duration GetTimeout() const noexcept { return m_timeout; }
     void SetTimeout(Duration timeout) noexcept { m_timeout = timeout; }
 
-    bool IsSuccess() const noexcept { return m_success; }
-    std::any& RetVal() noexcept { return m_retVal; }
+    bool IsSuccess() const noexcept {
+        const dmq::LockGuard<RecursiveMutex> lock(AsyncWaitResultLock());
+        return m_success;
+    }
 
-    /// Reset the result of the last async call, called at the top of every `operator()`.
-    void ResetResult() noexcept { m_retVal.reset(); m_success = false; }
+    /// Reset the last call's success flag.
+    void ResetResult() noexcept {
+        const dmq::LockGuard<RecursiveMutex> lock(AsyncWaitResultLock());
+        m_success = false;
+    }
 
-    /// Record the result of a completed async call.
-    void SetResult(bool success, std::any retVal) noexcept { m_success = success; m_retVal = std::move(retVal); }
+    /// Record whether the last call succeeded.
+    void SetSuccess(bool success) noexcept {
+        const dmq::LockGuard<RecursiveMutex> lock(AsyncWaitResultLock());
+        m_success = success;
+    }
 
     bool Equal(const AsyncWaitDispatchState& rhs) const noexcept {
         return m_thread == rhs.m_thread && m_priority == rhs.m_priority && m_timeout == rhs.m_timeout;
@@ -208,7 +237,6 @@ private:
     Priority m_priority = Priority::NORMAL;
     Duration m_timeout = WAIT_INFINITE;
     bool m_success = false;
-    std::any m_retVal;
 };
 
 /// @brief Builds the argument message, dispatches it to `thread`, and waits (up to
@@ -223,8 +251,9 @@ private:
 /// @param[in] priority The message priority.
 /// @param[in] timeout How long to wait for the destination thread to invoke the function.
 /// @param[in] args The function arguments, if any.
-/// @return `true` if the destination thread invoked the target function within `timeout`
-/// and the invoke completed without an exception propagating out of it; `false` otherwise.
+/// @return `true` if the destination thread invoked the target function and the invoke
+/// completed without an exception propagating out of it; `false` otherwise. A call that
+/// had already started when `timeout` expired is waited for and counts as success.
 /// The caller is responsible for pulling the return value off its own cloned delegate
 /// (written there by `Invoke()` on the destination thread) when this returns `true`.
 template <class... Args>
@@ -245,22 +274,25 @@ bool DispatchAsyncWait(std::shared_ptr<IThreadInvoker> invoker, IThread* thread,
     std::shared_ptr<DelegateMsg> msg(msgBase, std::default_delete<DelegateMsg>(), dmq::stl_allocator<DelegateMsg>());
     rawMsg->SetInvokerWaiting(true);
 
-    bool waited = false;
     if (thread) {
         // Dispatch message onto the callback destination thread. Invoke()
         // will be called by the destination thread.
         if (thread->DispatchDelegate(msg)) {
             // Wait for destination thread to execute the delegate function and get return value
-            waited = rawMsg->GetSema().Wait(timeout);
+            // Its result isn't needed: GetInvokeSucceeded() below is the answer.
+            (void)rawMsg->GetSema().Wait(timeout);
         }
     }
 
-    // Single lock: read return value and clear InvokerWaiting atomically
+    // Single lock: read the result and clear InvokerWaiting atomically. Invoke()
+    // holds this lock for the whole target call, so once it's acquired the call has
+    // either completed or will never run (InvokerWaiting is cleared below).
     const dmq::LockGuard<Mutex> lock(rawMsg->GetLock());
-    // Only report success if the target function invoke actually completed;
-    // the semaphore is signaled even when the target function threw, so
-    // `waited` alone is not sufficient to know the call succeeded.
-    bool success = waited && rawMsg->GetInvokeSucceeded();
+    // Success means the target call completed without throwing -- including a call
+    // that was already running when the timeout expired (the lock above waited for
+    // it). The semaphore is signaled even when the target threw or the message was
+    // cancelled, so the wait succeeding doesn't mean the call succeeded.
+    bool success = rawMsg->GetInvokeSucceeded();
     // Set flag that source is not waiting anymore
     rawMsg->SetInvokerWaiting(false);
     return success;
@@ -335,6 +367,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -366,6 +399,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -423,8 +457,9 @@ public:
     /// 
     /// If the destination thread invokes the function within `m_timeout`, the return 
     /// value is obtained from the destination thread function call. If `m_timeout` expires 
-    /// before the destination thread processes the request, the target function is not 
-    /// invoked and a default return value is returned to the caller with an undefined value. 
+    /// before the destination thread starts the call, the target function is not invoked
+    /// and a default return value is returned. If the call has already started when
+    /// `m_timeout` expires, the caller waits for it to finish and gets its return value.
     /// Use `IsSuccess()` to check for success before using the return value. Alternatively, 
     /// use `AsyncInvoke()` and check the `std::optional` return value.
     /// 
@@ -436,65 +471,32 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        m_state.ResetResult();
-        if (this->Empty())
-            return RetType();
+        // The result lives in locals, so concurrent callers sharing this instance
+        // (e.g. one Signal emitted from two threads) each get their own return value.
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        } else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsyncWait kind and signature instead of duplicated per signature.
-            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
-            // and is used below to read back the clone's own result state.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
-
-            // Dispatch to the destination thread and wait (up to the timeout) for
-            // Invoke() to run there and signal completion.
-            bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
-                m_state.GetTimeout(), std::forward<Args>(args)...);
-            if (success) {
-                // Invoke() (running as the clone, on the destination thread) wrote the
-                // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, rawClone->m_state.RetVal());
-            }
-
-            // Does the target function have a return value?
-            if constexpr (std::is_void<RetType>::value == false) {
-                // Is the return value valid?
-                if (m_state.RetVal().has_value()) {
-                    // Return the destination thread target function return value
-                    return GetRetVal();
-                } else {
-                    // Return a default return value
-                    return RetType();
-                }
-            }
+        if constexpr (std::is_void<RetType>::value == false) {
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
     /// @brief Invoke delegate function asynchronously and block for function return value.
-    /// Called by the source thread. Always safe to call.
+    /// Called by the source thread. Always safe to call, including concurrently.
     /// @param[in] args The function arguments, if any.
-    /// @return The bound function return value stored withing `std::optional`. Use  
-    /// `has_value()` to check if the the return value is valid. `value()` contains 
+    /// @return The bound function return value stored withing `std::optional`. Use
+    /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
+
         if constexpr (std::is_void<RetType>::value == true) {
-            operator()(args...);
-            return IsSuccess() ? std::optional<bool>(true) : std::optional<bool>();
+            return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            auto retVal = operator()(args...);
-            return IsSuccess() ? std::optional<RetType>(retVal) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -522,9 +524,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -535,12 +534,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.RetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -549,36 +554,26 @@ public:
         return true;
     }
 
-    /// Returns `true` if asynchronous function successfully invoked on the target thread
-    /// @return `true` if the target asynchronous function call succeeded. `false` if 
+    /// Returns `true` if the last asynchronous call on this delegate succeeded.
+    /// @return `true` if the target asynchronous function call succeeded. `false` if
     /// the timeout expired before the target function could be invoked.
+    /// @note If several threads call this delegate concurrently, this reports whichever
+    /// call finished last. Use `AsyncInvoke()`'s return value to get each call's own result.
     bool IsSuccess() noexcept { return m_state.IsSuccess(); }
 
-    /// Get the asynchronous function return value
+    /// Get the asynchronous function return value of the last call on this delegate.
     /// @return The destination thread target function return value
+    /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&m_state.RetVal());
-        if (p) return *p;
-
-        // Optional: If you want to trap this error in debug mode
-#if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
-#endif
-        return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(m_state.RetVal());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
         }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
-
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
     IThread* GetThread() noexcept { return m_state.GetThread(); }
@@ -589,14 +584,65 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
+    /// Dispatch to the destination thread and wait (up to the timeout) for the call.
+    /// @param[out] retVal The target function's return value, set when this returns `true`.
+    /// @return `true` if the target function was invoked and completed.
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
+        if (this->Empty())
+            return false;
+
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsyncWait kind and signature instead of duplicated per signature.
+        // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+        // and is used below to read back the clone's own result state.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+
+        bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
+            m_state.GetTimeout(), std::forward<Args>(args)...);
+        if (success) {
+            // Invoke() (running as the clone, on the destination thread) wrote the
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
+        }
+        return success;
+    }
+
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
+#if defined(DMQ_ASSERTS)
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
+#endif
+        return RetType();
+    }
+
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
 
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };
@@ -752,6 +798,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -783,6 +830,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -840,8 +888,9 @@ public:
     /// 
     /// If the destination thread invokes the function within `m_timeout`, the return 
     /// value is obtained from the destination thread function call. If `m_timeout` expires 
-    /// before the destination thread processes the request, the target function is not 
-    /// invoked and a default return value is returned to the caller with an undefined value. 
+    /// before the destination thread starts the call, the target function is not invoked
+    /// and a default return value is returned. If the call has already started when
+    /// `m_timeout` expires, the caller waits for it to finish and gets its return value.
     /// Use `IsSuccess()` to check for success before using the return value. Alternatively, 
     /// use `AsyncInvoke()` and check the `std::optional` return value.
     /// 
@@ -853,65 +902,32 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        m_state.ResetResult();
-        if (this->Empty())
-            return RetType();
+        // The result lives in locals, so concurrent callers sharing this instance
+        // (e.g. one Signal emitted from two threads) each get their own return value.
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        } else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsyncWait kind and signature instead of duplicated per signature.
-            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
-            // and is used below to read back the clone's own result state.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
-
-            // Dispatch to the destination thread and wait (up to the timeout) for
-            // Invoke() to run there and signal completion.
-            bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
-                m_state.GetTimeout(), std::forward<Args>(args)...);
-            if (success) {
-                // Invoke() (running as the clone, on the destination thread) wrote the
-                // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, rawClone->m_state.RetVal());
-            }
-
-            // Does the target function have a return value?
-            if constexpr (std::is_void<RetType>::value == false) {
-                // Is the return value valid?
-                if (m_state.RetVal().has_value()) {
-                    // Return the destination thread target function return value
-                    return GetRetVal();
-                } else {
-                    // Return a default return value
-                    return RetType();
-                }
-            }
+        if constexpr (std::is_void<RetType>::value == false) {
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
     /// @brief Invoke delegate function asynchronously and block for function return value.
-    /// Called by the source thread. Always safe to call.
+    /// Called by the source thread. Always safe to call, including concurrently.
     /// @param[in] args The function arguments, if any.
-    /// @return The bound function return value stored withing `std::optional`. Use  
-    /// `has_value()` to check if the the return value is valid. `value()` contains 
+    /// @return The bound function return value stored withing `std::optional`. Use
+    /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
+
         if constexpr (std::is_void<RetType>::value == true) {
-            operator()(args...);
-            return IsSuccess() ? std::optional<bool>(true) : std::optional<bool>();
+            return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            auto retVal = operator()(args...);
-            return IsSuccess() ? std::optional<RetType>(retVal) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -939,9 +955,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -952,12 +965,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.RetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -966,36 +985,26 @@ public:
         return true;
     }
 
-    /// Returns `true` if asynchronous function successfully invoked on the target thread
-    /// @return `true` if the target asynchronous function call succeeded. `false` if 
+    /// Returns `true` if the last asynchronous call on this delegate succeeded.
+    /// @return `true` if the target asynchronous function call succeeded. `false` if
     /// the timeout expired before the target function could be invoked.
+    /// @note If several threads call this delegate concurrently, this reports whichever
+    /// call finished last. Use `AsyncInvoke()`'s return value to get each call's own result.
     bool IsSuccess() noexcept { return m_state.IsSuccess(); }
 
-    /// Get the asynchronous function return value
+    /// Get the asynchronous function return value of the last call on this delegate.
     /// @return The destination thread target function return value
+    /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&m_state.RetVal());
-        if (p) return *p;
-
-        // Optional: If you want to trap this error in debug mode
-#if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
-#endif
-        return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(m_state.RetVal());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
         }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
-
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
     IThread* GetThread() noexcept { return m_state.GetThread(); }
@@ -1006,14 +1015,65 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
+    /// Dispatch to the destination thread and wait (up to the timeout) for the call.
+    /// @param[out] retVal The target function's return value, set when this returns `true`.
+    /// @return `true` if the target function was invoked and completed.
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
+        if (this->Empty())
+            return false;
+
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsyncWait kind and signature instead of duplicated per signature.
+        // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+        // and is used below to read back the clone's own result state.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+
+        bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
+            m_state.GetTimeout(), std::forward<Args>(args)...);
+        if (success) {
+            // Invoke() (running as the clone, on the destination thread) wrote the
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
+        }
+        return success;
+    }
+
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
+#if defined(DMQ_ASSERTS)
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
+#endif
+        return RetType();
+    }
+
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
 
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };
@@ -1086,6 +1146,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -1117,6 +1178,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -1174,8 +1236,9 @@ public:
     /// 
     /// If the destination thread invokes the function within `m_timeout`, the return 
     /// value is obtained from the destination thread function call. If `m_timeout` expires 
-    /// before the destination thread processes the request, the target function is not 
-    /// invoked and a default return value is returned to the caller with an undefined value. 
+    /// before the destination thread starts the call, the target function is not invoked
+    /// and a default return value is returned. If the call has already started when
+    /// `m_timeout` expires, the caller waits for it to finish and gets its return value.
     /// Use `IsSuccess()` to check for success before using the return value. Alternatively, 
     /// use `AsyncInvoke()` and check the `std::optional` return value.
     /// 
@@ -1187,65 +1250,32 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        m_state.ResetResult();
-        if (this->Empty())
-            return RetType();
+        // The result lives in locals, so concurrent callers sharing this instance
+        // (e.g. one Signal emitted from two threads) each get their own return value.
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        } else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsyncWait kind and signature instead of duplicated per signature.
-            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
-            // and is used below to read back the clone's own result state.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
-
-            // Dispatch to the destination thread and wait (up to the timeout) for
-            // Invoke() to run there and signal completion.
-            bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
-                m_state.GetTimeout(), std::forward<Args>(args)...);
-            if (success) {
-                // Invoke() (running as the clone, on the destination thread) wrote the
-                // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, rawClone->m_state.RetVal());
-            }
-
-            // Does the target function have a return value?
-            if constexpr (std::is_void<RetType>::value == false) {
-                // Is the return value valid?
-                if (m_state.RetVal().has_value()) {
-                    // Return the destination thread target function return value
-                    return GetRetVal();
-                } else {
-                    // Return a default return value
-                    return RetType();
-                }
-            }
+        if constexpr (std::is_void<RetType>::value == false) {
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
     /// @brief Invoke delegate function asynchronously and block for function return value.
-    /// Called by the source thread. Always safe to call.
+    /// Called by the source thread. Always safe to call, including concurrently.
     /// @param[in] args The function arguments, if any.
-    /// @return The bound function return value stored withing `std::optional`. Use  
-    /// `has_value()` to check if the the return value is valid. `value()` contains 
+    /// @return The bound function return value stored withing `std::optional`. Use
+    /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
+
         if constexpr (std::is_void<RetType>::value == true) {
-            operator()(args...);
-            return IsSuccess() ? std::optional<bool>(true) : std::optional<bool>();
+            return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            auto retVal = operator()(args...);
-            return IsSuccess() ? std::optional<RetType>(retVal) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -1273,9 +1303,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -1286,12 +1313,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.RetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -1300,36 +1333,26 @@ public:
         return true;
     }
 
-    /// Returns `true` if asynchronous function successfully invoked on the target thread
-    /// @return `true` if the target asynchronous function call succeeded. `false` if 
+    /// Returns `true` if the last asynchronous call on this delegate succeeded.
+    /// @return `true` if the target asynchronous function call succeeded. `false` if
     /// the timeout expired before the target function could be invoked.
+    /// @note If several threads call this delegate concurrently, this reports whichever
+    /// call finished last. Use `AsyncInvoke()`'s return value to get each call's own result.
     bool IsSuccess() noexcept { return m_state.IsSuccess(); }
 
-    /// Get the asynchronous function return value
+    /// Get the asynchronous function return value of the last call on this delegate.
     /// @return The destination thread target function return value
+    /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&m_state.RetVal());
-        if (p) return *p;
-
-        // Optional: If you want to trap this error in debug mode
-#if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
-#endif
-        return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(m_state.RetVal());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
         }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
-
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
     IThread* GetThread() noexcept { return m_state.GetThread(); }
@@ -1340,14 +1363,65 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
+    /// Dispatch to the destination thread and wait (up to the timeout) for the call.
+    /// @param[out] retVal The target function's return value, set when this returns `true`.
+    /// @return `true` if the target function was invoked and completed.
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
+        if (this->Empty())
+            return false;
+
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsyncWait kind and signature instead of duplicated per signature.
+        // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+        // and is used below to read back the clone's own result state.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+
+        bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
+            m_state.GetTimeout(), std::forward<Args>(args)...);
+        if (success) {
+            // Invoke() (running as the clone, on the destination thread) wrote the
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
+        }
+        return success;
+    }
+
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
+#if defined(DMQ_ASSERTS)
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
+#endif
+        return RetType();
+    }
+
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
 
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };
@@ -1422,6 +1496,7 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_state = rhs.m_state;
+        m_retVal.reset();
         BaseType::Assign(rhs);
     }
 
@@ -1453,6 +1528,7 @@ public:
         if (&rhs != this) {
             BaseType::operator=(std::move(rhs));
             m_state = rhs.m_state;    // Use the resource
+            m_retVal.reset();
             rhs.Clear();
         }
         return *this;
@@ -1510,8 +1586,9 @@ public:
     /// 
     /// If the destination thread invokes the function within `m_timeout`, the return 
     /// value is obtained from the destination thread function call. If `m_timeout` expires 
-    /// before the destination thread processes the request, the target function is not 
-    /// invoked and a default return value is returned to the caller with an undefined value. 
+    /// before the destination thread starts the call, the target function is not invoked
+    /// and a default return value is returned. If the call has already started when
+    /// `m_timeout` expires, the caller waits for it to finish and gets its return value.
     /// Use `IsSuccess()` to check for success before using the return value. Alternatively, 
     /// use `AsyncInvoke()` and check the `std::optional` return value.
     /// 
@@ -1523,65 +1600,32 @@ public:
     /// @return The bound function return value, if any. Use `IsSuccess()` to determine if 
     /// the return value is valid before use.
     virtual RetType operator()(Args... args) override {
-        m_state.ResetResult();
-        if (this->Empty())
-            return RetType();
+        // The result lives in locals, so concurrent callers sharing this instance
+        // (e.g. one Signal emitted from two threads) each get their own return value.
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
 
-        // Synchronously invoke the target function?
-        if (m_sync) {
-            // Invoke the target function directly
-            return BaseType::operator()(std::forward<Args>(args)...);
-        } else {
-            // Create a clone instance of this delegate. Erase to the non-templated
-            // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
-            // xmake_shared<ClassType>) so the shared_ptr control block is not templated
-            // on RetType/Args... -- one control-block type is then shared across every
-            // DelegateAsyncWait kind and signature instead of duplicated per signature.
-            // `rawClone` stays valid for the whole function (kept alive by `delegate`)
-            // and is used below to read back the clone's own result state.
-            ClassType* rawClone = this->Clone();
-            if (!rawClone)
-                BAD_ALLOC();
-            IThreadInvoker* invokerBase = rawClone;
-            std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
-
-            // Dispatch to the destination thread and wait (up to the timeout) for
-            // Invoke() to run there and signal completion.
-            bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
-                m_state.GetTimeout(), std::forward<Args>(args)...);
-            if (success) {
-                // Invoke() (running as the clone, on the destination thread) wrote the
-                // target function's return value into the clone's own state; pull it over.
-                m_state.SetResult(true, rawClone->m_state.RetVal());
-            }
-
-            // Does the target function have a return value?
-            if constexpr (std::is_void<RetType>::value == false) {
-                // Is the return value valid?
-                if (m_state.RetVal().has_value()) {
-                    // Return the destination thread target function return value
-                    return GetRetVal();
-                } else {
-                    // Return a default return value
-                    return RetType();
-                }
-            }
+        if constexpr (std::is_void<RetType>::value == false) {
+            return success ? TakeRet(retVal) : RetType();
         }
     }
 
     /// @brief Invoke delegate function asynchronously and block for function return value.
-    /// Called by the source thread. Always safe to call.
+    /// Called by the source thread. Always safe to call, including concurrently.
     /// @param[in] args The function arguments, if any.
-    /// @return The bound function return value stored withing `std::optional`. Use  
-    /// `has_value()` to check if the the return value is valid. `value()` contains 
+    /// @return The bound function return value stored withing `std::optional`. Use
+    /// `has_value()` to check if the the return value is valid. `value()` contains
     /// the target function return value.
     auto AsyncInvoke(Args... args) {
+        std::optional<RetStorage> retVal;
+        bool success = DispatchWait(retVal, std::forward<Args>(args)...);
+        SetLastResult(success, retVal);
+
         if constexpr (std::is_void<RetType>::value == true) {
-            operator()(args...);
-            return IsSuccess() ? std::optional<bool>(true) : std::optional<bool>();
+            return success ? std::optional<bool>(true) : std::optional<bool>();
         } else {
-            auto retVal = operator()(args...);
-            return IsSuccess() ? std::optional<RetType>(retVal) : std::optional<RetType>();
+            return success ? std::optional<RetType>(TakeRet(retVal)) : std::optional<RetType>();
         }
     }
 
@@ -1609,9 +1653,6 @@ public:
 
         // Is the source thread waiting for the target function invoke to complete?
         if (delegateMsg->GetInvokerWaiting()) {
-            // Invoke the delegate function synchronously
-            m_sync = true;
-
             // Signals the source thread when this scope exits, including via an exception
             // propagating out of the target function invoke below. Without this, a target
             // function that throws would leave the source thread blocked until timeout.
@@ -1622,12 +1663,18 @@ public:
 
             // Does target function have a void return value?
             if constexpr (std::is_void<RetType>::value == true) {
-                // Invoke the target function using the source thread supplied function arguments
-                std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // Call the target with the message's stored arguments: a qualified, non-virtual
+                // call, so there is no copy of the argument tuple and no virtual hop back through
+                // operator(). Each argument is forwarded as declared: by-value arguments are moved
+                // out of the message (each message is invoked exactly once), references bind to
+                // the stored copies.
+                std::apply([this](auto&... args) { this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs());
             } else {
-                // Invoke the target function using the source thread supplied function arguments
-                // and get the return value
-                m_state.RetVal() = std::apply(&BaseType::operator(), std::tuple_cat(std::make_tuple(this), delegateMsg->GetArgs()));
+                // As above, and keep the return value (in this clone's typed slot).
+                m_retVal.emplace(std::apply(
+                    [this](auto&... args) -> RetType { return this->BaseType::operator()(std::forward<Args>(args)...); },
+                    delegateMsg->GetArgs()));
             }
 
             // Only reached if the std::apply() call above did not throw
@@ -1636,36 +1683,26 @@ public:
         return true;
     }
 
-    /// Returns `true` if asynchronous function successfully invoked on the target thread
-    /// @return `true` if the target asynchronous function call succeeded. `false` if 
+    /// Returns `true` if the last asynchronous call on this delegate succeeded.
+    /// @return `true` if the target asynchronous function call succeeded. `false` if
     /// the timeout expired before the target function could be invoked.
+    /// @note If several threads call this delegate concurrently, this reports whichever
+    /// call finished last. Use `AsyncInvoke()`'s return value to get each call's own result.
     bool IsSuccess() noexcept { return m_state.IsSuccess(); }
 
-    /// Get the asynchronous function return value
+    /// Get the asynchronous function return value of the last call on this delegate.
     /// @return The destination thread target function return value
+    /// @note Same caveat as `IsSuccess()` for concurrent callers.
     RetType GetRetVal() noexcept {
-        // Use pointer cast if exceptions are disabled OR if user requested Asserts-only mode
-#if !defined(__cpp_exceptions) || defined(DMQ_ASSERTS)
-        // Fast, non-throwing check suitable for Embedded/Real-time
-        auto* p = std::any_cast<RetType>(&m_state.RetVal());
-        if (p) return *p;
-
-        // Optional: If you want to trap this error in debug mode
-#if defined(DMQ_ASSERTS)
-        DMQ_ASSERT();
-#endif
-        return RetType();
-#else
-        // Standard C++ behavior with Exception Handling
-        try {
-            return std::any_cast<RetType>(m_state.RetVal());
+        if constexpr (std::is_void<RetType>::value == false) {
+            std::optional<RetStorage> copy;
+            {
+                const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+                copy = m_retVal;
+            }
+            return TakeRet(copy);
         }
-        catch (const std::bad_any_cast&) {
-            return RetType();
-        }
-#endif
     }
-
     ///@brief Get the destination thread that the target function is invoked on.
     // @return The target thread.
     IThread* GetThread() noexcept { return m_state.GetThread(); }
@@ -1676,14 +1713,65 @@ public:
     void SetPriority(Priority priority) noexcept { m_state.SetPriority(priority); }
 
 private:
-    /// Destination thread, message priority, timeout, and last async call's result. Not
-    /// templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
+    /// Return value storage type (std::optional can't hold void).
+    using RetStorage = std::conditional_t<std::is_void<RetType>::value, bool, std::decay_t<RetType>>;
+
+    /// Dispatch to the destination thread and wait (up to the timeout) for the call.
+    /// @param[out] retVal The target function's return value, set when this returns `true`.
+    /// @return `true` if the target function was invoked and completed.
+    bool DispatchWait(std::optional<RetStorage>& retVal, Args&&... args) {
+        if (this->Empty())
+            return false;
+
+        // Create a clone instance of this delegate. Erase to the non-templated
+        // IThreadInvoker interface BEFORE constructing the shared_ptr (rather than
+        // xmake_shared<ClassType>) so the shared_ptr control block is not templated
+        // on RetType/Args... -- one control-block type is then shared across every
+        // DelegateAsyncWait kind and signature instead of duplicated per signature.
+        // `rawClone` stays valid for the whole function (kept alive by `delegate`)
+        // and is used below to read back the clone's own result state.
+        ClassType* rawClone = this->Clone();
+        if (!rawClone)
+            BAD_ALLOC();
+        IThreadInvoker* invokerBase = rawClone;
+        std::shared_ptr<IThreadInvoker> delegate(invokerBase, std::default_delete<IThreadInvoker>(), dmq::stl_allocator<IThreadInvoker>());
+
+        bool success = detail::DispatchAsyncWait(delegate, m_state.GetThread(), m_state.GetPriority(),
+            m_state.GetTimeout(), std::forward<Args>(args)...);
+        if (success) {
+            // Invoke() (running as the clone, on the destination thread) wrote the
+            // target function's return value into the clone's own m_retVal.
+            retVal = std::move(rawClone->m_retVal);
+        }
+        return success;
+    }
+
+    /// Move the value out of `v`, or return a default value if it holds none.
+    static RetType TakeRet(std::optional<RetStorage>& v) noexcept {
+        if (v) return std::move(*v);
+#if defined(DMQ_ASSERTS)
+        DMQ_ASSERT();    // no result stored (e.g. GetRetVal() before any successful call)
+#endif
+        return RetType();
+    }
+
+    /// Record a call's result as this delegate's last result, for IsSuccess()/GetRetVal().
+    void SetLastResult(bool success, const std::optional<RetStorage>& retVal) {
+        const dmq::LockGuard<RecursiveMutex> lock(detail::AsyncWaitResultLock());
+        m_state.SetSuccess(success);
+        m_retVal = retVal;
+    }
+
+    /// Destination thread, message priority, timeout, and whether the last async call
+    /// succeeded. Not templated on Sig/TClass — see `detail::AsyncWaitDispatchState`.
     detail::AsyncWaitDispatchState m_state;
 
-    /// Flag to control synchronous vs asynchronous target invoke behavior. Deliberately
-    /// kept outside `m_state` — never copied/assigned/moved, see the note on
-    /// `detail::AsyncWaitDispatchState`.
-    std::atomic<bool> m_sync{false};
+    /// Return value, typed so a large return type needs no heap allocation (std::any
+    /// put anything over its small buffer on the global heap). On the per-call clone:
+    /// that call's result, written by Invoke() on the destination thread and read by
+    /// the caller after the message lock. On the caller's delegate: the last call's
+    /// result for GetRetVal(), guarded by detail::AsyncWaitResultLock().
+    std::optional<RetStorage> m_retVal;
 
     // </common_code>
 };

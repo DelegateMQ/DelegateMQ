@@ -13,6 +13,9 @@ if (WIN32 AND NOT CMAKE_GENERATOR_PLATFORM)
 endif()
 
 project(Pumptron VERSION 1.0 LANGUAGES CXX C)
+# Visual Studio: F5 runs the GUI. Start pumptron_controller too for the
+# simulator (or use run_pumptron.py); against the board the GUI runs alone.
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pumptron_gui)
 
 set(PUMPTRON_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 

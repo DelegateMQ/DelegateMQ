@@ -1,6 +1,6 @@
-# OS / Threading Layer
+# OS Ports (DelegateMQ Abstraction Layer)
 
-This directory contains the Operating System abstraction layer for **DelegateMQ**. It provides the concrete threading implementations required to execute asynchronous delegates.
+This directory contains the OS part of the **DelegateMQ Abstraction Layer**: the concrete threading implementations required to execute asynchronous delegates, plus the portable mutex, semaphore, clock and critical-section types the whole library uses. The transport and serializer parts are in `port/transport` and `port/serialize`.
 
 By abstracting the threading model behind the `dmq::IThread` interface, DelegateMQ can run seamlessly on everything from high-performance servers (Windows/Linux) to resource-constrained embedded systems (FreeRTOS, ThreadX, Zephyr).
 

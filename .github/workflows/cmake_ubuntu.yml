@@ -8,6 +8,10 @@ on:
     branches:
       - master  # Trigger on pull request to master
 
+# Least privilege for GITHUB_TOKEN: these jobs only check out code.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest  # Use Ubuntu environment for the build

@@ -238,4 +238,7 @@ def build_deps():
     return not failed
 
 if __name__ == "__main__":
+    import preflight
+    if not preflight.check(need_git=False, need_cmake=True):
+        sys.exit(1)
     sys.exit(0 if build_deps() else 1)
