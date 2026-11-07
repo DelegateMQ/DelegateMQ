@@ -9,6 +9,18 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-07
+
+### Upgrading to 2.3.0
+Check these before upgrading; each can change the behavior, wire format, or build of an existing application. Details are in the Fixed, Changed and Removed entries below.
+
+1. **Wire format break (10-byte header with node ID and protocol version; big-endian serial CRC16).** The message header grows from 8 to 10 bytes (`marker`, `nodeId`, `version`, `id`, `seqNum`, `length`) and serial/STM32 UART framing now sends the CRC16 big-endian. Upgrade all communicating nodes together, and set a unique node ID (`DMQ_NODE_ID` 1–255 or `DmqHeader::SetLocalNodeId()`) on each node when multiple nodes send the same remote IDs. Custom transports should encode/decode headers with `DmqHeader::Encode()`/`Decode()`/`IsValid()`.
+2. **On RTOS ports, `Timer::ProcessTimers()` must run in a task, not an ISR.** `ProcessTimers()` now takes a mutex (`Timer::GetProcessLock()`) outside its critical section when snapshotting expired timers' subscribers. Call it from a timer task (the highest-priority one when using the thread watchdog); bare metal can still call it from an ISR.
+3. **`ITransport::Receive()` returns `ITransport::RECEIVE_NO_DATA` (1) on a receive timeout** instead of `-1` (negative values now mean a transport error). Callers testing `== 0` / `!= 0` are unaffected; custom `ITransport` implementations should return `RECEIVE_NO_DATA` when a receive times out with no data.
+4. **`RemoteInvokeWait()` now waits for the full retry window** when a `RetryMonitor` is attached (`GetInvokeWaitLimit()`, 9.4 s with default settings, up from 2 s), returning only after an ACK or final `OnDeliveryFailed`. Use `RemoteInvokeWaitFor(channel, timeout, args...)` if a shorter wait is needed.
+5. **Deleting a ThreadX or Zephyr `dmq::os::Thread` from one of its own callbacks now faults (`DMQ_ASSERT`).** Call `ExitThread()` from the callback and destroy the `Thread` object from another thread.
+6. **`dmq::make_tuple_heap()` is removed.** Code that called it directly can use `dmq::store_async_arg<Param>()` per argument (see `make_tuple_heap.h`).
+
 ### Added
 - **`DMQ_WATCHDOG_HEARTBEAT_DIVISOR`** (default 4, `dmq::WATCHDOG_HEARTBEAT_DIVISOR`): a watched thread's queue wait, and Qt's heartbeat timer, is its watchdog timeout divided by this. It was a literal in each port, 10 on stdlib, POSIX and Qt and 4 elsewhere; every port now uses 4.
 - **Start gate (synchronized start).** Optional `dmq::os::StartGate` with `Thread::SetStartGate()` holds a group of threads after `CreateThread()`, ready to receive messages but processing none at any priority, until `gate.Open()` starts them all together. It's for startups where a thread that runs early would post to threads not yet created, or publish before subscriptions are wired. A thread exiting while held runs nothing, and its queued messages are canceled. A held thread isn't reported by its watchdog. Available on every thread port: stdlib, Win32, POSIX, Qt, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2 and NuttX (`DMQ_HAS_START_GATE`; not bare metal). `test/unit-tests/StartGatePortableTest.h` runs the same gate tests in the desktop unit tests and in each RTOS sample. Cellutron's controller now holds its System, Process, Actuators and Sensors threads until setup is done; before, the Sensors poll timer could publish before subscriptions and the network were connected. See `docs/PORTING.md`.
@@ -102,6 +114,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **RTOS ports failed to compile with some bare-metal GCC toolchains** (e.g. Arm GNU Toolchain 14): their standard library has `<mutex>` but no `std::scoped_lock` without thread support, so `dmq::ScopedLock` didn't exist. `dmq::ScopedLock` now falls back to its own implementation (locks in address order) when `std::scoped_lock` isn't available.
 - **Including `DelegateMQ.cmake` twice in one directory, or in a parent and then a subdirectory, mixed the two configurations.** Source lists, third-party include paths and libraries, and defaults DelegateMQ filled in (such as `DMQ_DATABUS`, derived from `DMQ_THREAD`) carried over from the first include. Each include now starts from its own options. Sibling directories, as in Cellutron and Pumptron, were not affected.
 - **`bare-metal-arm` failed to link with newlib 4.4** (`undefined reference to '_getentropy'`, via libstdc++'s `std::random_device`). `retarget.c` now provides a `_getentropy` stub.
+- **`stm32-freertos`: Release configuration didn't build, and `RUN_NETWORK_TESTS` ran out of newlib heap.** The STM32CubeIDE Release configuration now matches Debug's include paths, C17/C++17 standard, RTTI and DelegateMQ defines, and global `operator new`/`delete` route to `pvPortMalloc`/`vPortFree`.
 - **`atfe-armv7m-bare-metal` only configured on Windows.** The ATfE tool paths no longer hardcode `.exe`; the README shows the Linux toolchain.
 - **`-Wsign-compare` in `ZephyrUdpTransport.h`**, plus `-Wreorder`/`-Wdouble-promotion` warnings in the `zephyr-udp-serializer` and `databus-zephyr` samples.
 - **`DMQ_STRICT` on MSVC failed in third-party headers** (msgpack under `/analyze`). Strict mode now adds `/analyze:external-`, so code analysis covers DelegateMQ's own code, not external headers.
