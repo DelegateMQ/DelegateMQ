@@ -478,7 +478,12 @@ public:
         SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? TakeRet(retVal) : RetType();
+            // Two returns, not success ? TakeRet() : RetType(): MSVC 2022 copies
+            // a class-type ?: result (an extra temporary and destructor call)
+            // instead of constructing it in place.
+            if (success)
+                return TakeRet(retVal);
+            return RetType();
         }
     }
 
@@ -909,7 +914,12 @@ public:
         SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? TakeRet(retVal) : RetType();
+            // Two returns, not success ? TakeRet() : RetType(): MSVC 2022 copies
+            // a class-type ?: result (an extra temporary and destructor call)
+            // instead of constructing it in place.
+            if (success)
+                return TakeRet(retVal);
+            return RetType();
         }
     }
 
@@ -1257,7 +1267,12 @@ public:
         SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? TakeRet(retVal) : RetType();
+            // Two returns, not success ? TakeRet() : RetType(): MSVC 2022 copies
+            // a class-type ?: result (an extra temporary and destructor call)
+            // instead of constructing it in place.
+            if (success)
+                return TakeRet(retVal);
+            return RetType();
         }
     }
 
@@ -1607,7 +1622,12 @@ public:
         SetLastResult(success, retVal);
 
         if constexpr (std::is_void<RetType>::value == false) {
-            return success ? TakeRet(retVal) : RetType();
+            // Two returns, not success ? TakeRet() : RetType(): MSVC 2022 copies
+            // a class-type ?: result (an extra temporary and destructor call)
+            // instead of constructing it in place.
+            if (success)
+                return TakeRet(retVal);
+            return RetType();
         }
     }
 
