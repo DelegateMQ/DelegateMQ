@@ -481,6 +481,7 @@ DelegateMQ at a glance.
 | Guide | Description | Key Focus |
 | :--- | :--- | :--- |
 | [**Tutorial**](docs/TUTORIAL.md) | Step-by-step system evolution | Adoption & Use Cases |
+| [**Application Guide**](docs/APP-GUIDE.md) | Rules for writing an app with DelegateMQ (also for coding agents) | Setup, Threads, Shutdown Order |
 | [**Build**](docs/BUILD.md) | Build & configuration guide | CMake & Setup |
 | [**Signals**](docs/SIGNALS.md) | Decoupled event handling | Signal/Slot RAII |
 | [**DataBus**](docs/DATABUS.md) | Topic-based pub/sub middleware | DDS Lite & Networking |

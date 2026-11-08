@@ -46,7 +46,10 @@ private:
 
     ~DataMgr()
     {
-        // No manual unregister needed. ScopedConnection handles it.
+        // Exit first: queued messages run while this object is still whole.
+        // The ScopedConnection members then disconnect as they're destroyed.
+        // Safe only because the emitter (NetworkMgr) is stopped before this
+        // singleton is destroyed. See docs/APP-GUIDE.md#shutdown-and-object-lifetime.
         m_thread.ExitThread();
     }
 

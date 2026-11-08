@@ -43,7 +43,14 @@ public:
             dmq::MakeDelegate(this, &UI::HandlePress, m_thread)
         );
     }
-    // No destructor needed — m_conn disconnects automatically when UI is destroyed
+    ~UI()
+    {
+        // Disconnect, then drain the thread while every member is still alive.
+        // Don't rely on the member destructors: members declared after m_thread
+        // would be destroyed before ~Thread() drains the queue.
+        m_conn.Disconnect();
+        m_thread.ExitThread();
+    }
 
 private:
     void HandlePress(int buttonId)
