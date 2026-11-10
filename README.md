@@ -69,6 +69,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 | One invocation model | Sync, async, and remote calls use the same calling code — moving a local callback onto another thread is a one-line change, and onto another processor needs only a channel. |
 | Targeted thread dispatch | Handlers specify the thread they run on; the library queues and dispatches the call, so code always executes in the correct thread context. |
 | Application owns every thread | The library creates no internal threads — scheduling, stack sizes, and watchdogs stay explicit and auditable. |
+| Portable worker threads | One `dmq::os::Thread` API on every supported OS, with delegate dispatch, thread priorities (RTOS ports), a priority message queue, queue-full and shutdown policies, start/exit/idle hooks, a start gate for synchronized startup, a watchdog, and error reporting built in. |
 | Off-target development | Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport. |
 | Location transparency | DataBus subscribers receive data identically whether the publisher is in the same thread, another process, or a remote processor. |
 | Less application code | No hand-coded message queues, mutexes or transport plumbing: the library delivers type-safe data to its destination, across threads and processors. |
@@ -120,7 +121,7 @@ build\delegate_app\Debug\delegate_app.exe
 ./build/delegate_app/delegate_app
 ```
 
-To build and run all the example projects as well, run `build_all.py` from the repository root. It fetches the third-party libraries into `external/` (gitignored), builds them, then builds and runs every sample and reports pass/fail. Requires Python 3 and Git.
+To build and run all the example projects as well, run `build_all.py` from the repository root. It fetches the third-party libraries into `external/`, builds them, then builds and runs every sample and reports pass/fail. Requires Python 3 and Git.
 
 ```bash
 python3 build_all.py            # --from N resumes at step N
@@ -231,7 +232,12 @@ private:
 
 ## Threads
 
-`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS, so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
+Asynchronous delegates dispatch onto any object that implements the small `dmq::IThread` interface. There are two ways to provide one:
+
+- **Use the built-in `dmq::os::Thread`** — a ready-made worker thread with its own message queue, available on every supported OS (described below).
+- **Implement `dmq::IThread` on your project's existing thread** — if your application already has its own thread or event loop (an RTOS task, a GUI loop, a game loop), implement two methods and DelegateMQ dispatches straight onto it. No need to adopt `dmq::os::Thread`. See [`dmq::IThread`](docs/PORTING.md#dmqithread) for details.
+
+`dmq::os::Thread` is the built-in worker thread. The same class is available on every supported OS, so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
 
 A thread can bound its queue and choose what happens when it fills (`dmq::FullPolicy`), enable a watchdog, run code on the worker at start, exit and idle, and choose how shutdown treats queued messages (`dmq::ExitPolicy`):
 
@@ -354,6 +360,8 @@ auto msg = dmq::xmake_shared<SensorMsg>();         // object and control block f
 
 DataBus creates no internal threads and is small enough for embedded targets, unlike full DDS systems. Quality of Service (QoS) options such as Last Value Cache (LVC) deliver the most recent value to new subscribers immediately.
 
+Remote topics travel over any supported transport, such as Ethernet or serial, using any supported serializer. See [Supported Integrations](#supported-integrations).
+
 ```cpp
 #include "DelegateMQ.h"
 
@@ -475,6 +483,36 @@ DelegateMQ at a glance.
 | Embedded Friendly | Yes. Any OS such as Windows, Linux and FreeRTOS. An OS is not required (i.e. "super loop"). |
 | Operating System | Any. Custom `dmq::IThread` implementation may be required. |
 | Language | C++17 or higher |
+
+# FAQ
+
+**Why would I use DelegateMQ?**  
+To simplify multi-threaded and multi-processor application development:
+
+- **One way to call a function**, whether it runs on the same thread, another thread, or another processor.
+- **Less code:** no hand-written queues, mutexes or message packing.
+- **Portable:** the same application code runs on Windows, Linux and embedded RTOS targets.
+
+**Is the DelegateMQ library modular?**  
+Yes. Start with the header-only delegates and signals (async calls add your OS's thread port). Remote calls (RPC), the DataBus, and the fixed-block allocator are optional; enable them only if you need them.
+
+**Do I have to use `dmq::os::Thread`?**  
+No. Implement the two-method `dmq::IThread` interface on your existing thread or event loop and dispatch onto it directly. See [`dmq::IThread`](docs/PORTING.md#dmqithread).
+
+**Why use the DelegateMQ DataBus?**  
+For type-safe publish/subscribe that works the same between threads, processes and processors, so components don't need to know where their data comes from. Each subscriber chooses the thread it runs on, and it's small enough for microcontrollers. It runs over any transport, such as Ethernet or a serial link. See [DataBus](docs/DATABUS.md) and [Comparison](docs/COMPARISON.md).
+
+**What network topologies are supported?**  
+Any: point-to-point, star, mesh, broadcast/multicast, or broker-based. A topology is just which nodes connect to which. Relay nodes bridge between transports, for example UART to Ethernet. See [Topologies](docs/DATABUS.md#topologies).
+
+**Can C# or Python talk to it?**  
+Yes, through a shared native core with C# and Python wrappers. See [Cross-Language Interop](docs/INTEROP.md).
+
+**Is DelegateMQ tested?**  
+Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M.
+
+**Can I maintain DelegateMQ myself?**  
+Yes. The code base is small, ships as full source under the MIT license, and any LLM coding assistant can help you navigate, modify or port it.
 
 # Documentation
 

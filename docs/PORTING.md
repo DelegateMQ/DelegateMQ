@@ -1,14 +1,13 @@
 # Porting Guide
 
-Numerous predefined platforms are already supported — Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare metal (ARM and RISC-V). Ready-made plugins for threading and communication interfaces exist, or you can create new ones.
+Supported out of the box: Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare metal (ARM and RISC-V).
 
-The implementations of these interfaces (OS ports in `src/delegate-mq/port/os`, transports in `port/transport`, serializers in `port/serialize`) form the **DelegateMQ Abstraction Layer** (see the [layer diagram](../README.md#overview)). Porting DelegateMQ means implementing an interface and adding that implementation to the layer; nothing above it changes.
+The OS ports (`src/delegate-mq/port/os`), transports (`port/transport`) and serializers (`port/serialize`) form the **DelegateMQ Abstraction Layer** (see the [layer diagram](../README.md#overview)). Porting means implementing an interface in that layer; nothing above it changes.
 
 ---
 
 ## Table of Contents
 
-- [Table of Contents](#table-of-contents)
 - [Porting Checklist](#porting-checklist)
 - [Embedded Systems](#embedded-systems)
 - [Interfaces](#interfaces)
@@ -23,6 +22,7 @@ The implementations of these interfaces (OS ports in `src/delegate-mq/port/os`, 
     - [dmq::FullPolicy (Back Pressure / Drop)](#dmqfullpolicy-back-pressure--drop)
     - [dmq::ExitPolicy (Shutdown)](#dmqexitpolicy-shutdown)
   - [Start, Exit and Idle Handlers](#start-exit-and-idle-handlers)
+  - [Start Gate (Synchronized Start)](#start-gate-synchronized-start)
   - [Watchdog Integration](#watchdog-integration)
   - [Performance Monitoring](#performance-monitoring)
   - [Current Thread](#current-thread)
@@ -31,51 +31,32 @@ The implementations of these interfaces (OS ports in `src/delegate-mq/port/os`, 
 
 ## Porting Checklist
 
-1. **Search codebase for `@TODO`** — find specific decision locations tagged in the source files.
-2. **Implement `dmq::IThread`** — required to use **Asynchronous** delegates.
-3. **Implement `dmq::transport::ITransport`** for a new transport — required to use **Remote** delegates or the **DataBus** across processes/processors. `dmq::RemoteChannel` and the DataBus `Participant` both send through it; the library's `dmq::Dispatcher` already implements `dmq::IDispatcher` on top of it.
-   - Implement `dmq::ISerializer` only for a new serialization format, and `dmq::IDispatcher` directly only to bypass `ITransport` entirely.
+1. **Search for `@TODO`** — marks the port-specific decisions in the source.
+2. **Implement `dmq::IThread`** — needed for **asynchronous** delegates.
+3. **Implement `dmq::transport::ITransport`** — needed for **remote** delegates or a DataBus across processes/processors. `dmq::RemoteChannel` and DataBus `Participant` send through it; `dmq::Dispatcher` already implements `dmq::IDispatcher` on top of it.
+   - Implement `dmq::ISerializer` only for a new serialization format, and `dmq::IDispatcher` only to bypass `ITransport`.
    - *Optional:* `dmq::util::TransportMonitor`, `RetryMonitor` and `ReliableTransport` add ACKs and retries over an unreliable transport.
-   - See [Sample Projects](../example/sample-projects/README.md) for numerous remote delegate examples.
-4. **Provide a Clock** — timers and transport timeouts use `dmq::Clock`. `DelegateOpt.h` selects it per OS port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`). A new port supplies a clock there, or uses `std::chrono::steady_clock` if the target supports it.
-5. **Call `dmq::util::Timer::ProcessTimers()`** — periodically call `ProcessTimers()` (e.g., from a main loop or a high-priority task) to support timers. Thread watchdogs need `Thread::WatchdogCheckAll()` called the same way (see [Watchdog Integration](#watchdog-integration)). On an RTOS it must run in a task, not an ISR: it takes OS mutexes. Only bare metal (`DMQ_THREAD_NONE`) can call it from a hardware timer ISR.
-6. **Configure Build Options** — set CMake DMQ library build options within `CMakeLists.txt`.
-   - Example: `DMQ_ASSERTS` for debug assertions.
-   - Example: `DMQ_ALLOCATOR` to switch between standard heap (`new`/`delete`) and the deterministic Fixed Block Allocator.
-   - Example: `DMQ_FORCE_OPTIMIZE_DEBUG` to eliminate template bloat in unoptimized builds.
-   - Example: copy `DelegateMQConfig_Template.h` to your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"` to tune numeric library constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_MAX_WATCHDOG_THREADS`, `DMQ_DEFAULT_QUEUE_SIZE`, etc.) without editing library files. See `delegate/DelegateMQConfig_Default.h` for all available constants and their default values.
-7. **Implement Fault Handling** — customize `port/fault/Fault.cpp` to route errors to your system's logger or crash handler. This file is intentionally in the `port/` directory so it can be freely edited without touching the library source.
+   - See [Sample Projects](../example/sample-projects/README.md).
+4. **Provide a clock** — `DelegateOpt.h` selects `dmq::Clock` per port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`).
+5. **Call `dmq::util::Timer::ProcessTimers()` periodically** (main loop or a high-priority task), and `Thread::WatchdogCheckAll()` if you use [watchdogs](#watchdog-integration). On an RTOS call it from a task, not an ISR (it takes OS mutexes); only bare metal (`DMQ_THREAD_NONE`) may call it from a timer ISR.
+6. **Set build options** in `CMakeLists.txt`, e.g. `DMQ_ASSERTS`, `DMQ_ALLOCATOR` (fixed-block allocator instead of `new`/`delete`), `DMQ_FORCE_OPTIMIZE_DEBUG` (smaller debug templates). To tune constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`, ...), copy `DelegateMQConfig_Template.h` into your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`; defaults are in `delegate/DelegateMQConfig_Default.h`.
+7. **Route faults** — edit `port/fault/Fault.cpp` to call your logger or crash handler.
 
 ---
 
 ## Embedded Systems
 
-Running C++ messaging on embedded targets (like STM32) requires specific attention to resources.
-
-1. **Stack Usage & Debug Mode**
-   **Issue:** In Debug mode (`-O0`), C++ templates generate deep call stacks, possibly causing stack overflows.  
-   **Fix:** Increase task stack (e.g. 8 KB), use Release mode (`-O2`), or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON` to eliminate template bloat in Debug mode.
-
-2. **Transport Implementation (if using remote delegates)**
-
-   **Issue:** Blocking UART calls (e.g., `HAL_UART_Receive`) starve high-priority tasks.  
-   **Fix:** Use an interrupt-driven ring buffer. The ISR captures data immediately, and the receive task sleeps on a semaphore until data is available.
-
-See the `stm32-freertos` example `README.md` for a complete implementation of static stacks, interrupt-driven UART, and correct FreeRTOS configuration.
-
-3. **Transport Buffer Sizes**
-
-   Every transport declares its own `BUFFER_SIZE` (send/receive scratch buffer) as a fixed literal local to that transport's header, rather than a tunable exposed via `DelegateMQConfig_Default.h`/`DelegateOpt.h`. Some are wire-constrained (sized to the Ethernet MTU) and shouldn't be raised without also handling fragmentation; others are just the size the transport happened to ship with and can likely be lowered on memory-constrained targets or raised for desktop throughput. If you're tuning memory on a constrained target, or need larger messages than a transport currently supports, grep that transport's header for `BUFFER_SIZE` (NetX UDP inlines its receive buffer as a bare literal instead of a named constant) and adjust it directly — don't assume the current value without checking, and treat any specific number as a snapshot that can drift out of date with the code.
+1. **Stack usage in debug builds.** At `-O0`, templates produce deep call stacks. Increase task stacks (e.g. 8 KB), build with `-O2`, or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON`.
+2. **Non-blocking transport receive.** Blocking UART calls (e.g. `HAL_UART_Receive`) starve other tasks. Use an interrupt-driven ring buffer and have the receive task wait on a semaphore. The `stm32-freertos` example shows this, plus static stacks and FreeRTOS configuration.
+3. **Transport buffer sizes.** Each transport defines its own `BUFFER_SIZE` in its header (NetX UDP uses a bare literal). Some are sized to the Ethernet MTU and can't grow without fragmentation; others can be lowered to save RAM or raised for larger messages. Check the header for the current value.
 
 ---
 
 ## Interfaces
 
-DelegateMQ interface classes allow customizing the library's runtime behavior.
-
 ### `dmq::IThread`
 
-The `dmq::IThread` interface sends a delegate and its argument data through a message queue. A delegate thread is required to dispatch asynchronous delegates to a specified target thread. The delegate library automatically constructs a `dmq::DelegateMsg` containing everything necessary for the destination thread.
+An asynchronous delegate sends its call to a target thread through `dmq::IThread`. Use a built-in `dmq::os::Thread`, or implement `IThread` on your project's own thread or event loop:
 
 ```cpp
 class IThread
@@ -83,42 +64,39 @@ class IThread
 public:
     virtual ~IThread() = default;
 
-    /// Dispatch a DelegateMsg onto this thread. The implementer is responsible
-    /// for getting the DelegateMsg into an OS message queue. Once DelegateMsg
-    /// is on the correct thread of control, the IThreadInvoker::Invoke() function
-    /// must be called to execute the delegate.
-    /// @param[in] msg - a pointer to the delegate message that must be created dynamically.
-    /// @pre Caller *must* create the DelegateMsg argument dynamically.
-    /// @post The destination thread calls Invoke().
-    /// @return true if the message was successfully enqueued, false otherwise.
+    /// Called on the sender's thread. Queue msg to this thread; return false if not queued.
     virtual bool DispatchDelegate(std::shared_ptr<DelegateMsg> msg) = 0;
 
-    /// Returns true if the calling thread is this thread.
-    /// @return true if the calling thread is this thread, false otherwise.
+    /// Return true if the calling thread is this thread.
     virtual bool IsCurrentThread() = 0;
 };
 ```
 
+A custom implementation needs:
+
+1. **`DispatchDelegate()`** — post `msg` to your thread's queue (thread-safe).
+2. **Invoke on your thread** — when your loop dequeues it, call `msg->GetInvoker()->Invoke(msg)` ([below](#receive-dmqdelegatemsg)).
+3. **`IsCurrentThread()`** — compare the caller to your thread's ID.
+4. **Cancel what you drop** — call `msg->Cancel()` on a queued message you'll never invoke, or a blocked sender waits out its timeout ([details](#dmqexitpolicy-shutdown)).
+5. *Optional:* create a `dmq::CurrentThreadScope` at the top of your loop so `dmq::ThisThread::GetCurrent()` finds it ([Current Thread](#current-thread)).
+
+Pass your object anywhere a thread is accepted, e.g. `dmq::MakeDelegate(&func, myThread)`.
+
 #### Send `dmq::DelegateMsg`
 
-An asynchronous delegate's `operator()(Args... args)` calls `DispatchDelegate()` to send a delegate message to the destination thread.
+Calling an asynchronous delegate builds a `dmq::DelegateMsg` and hands it to the target thread:
 
 ```cpp
 auto thread = this->GetThread();
-if (thread) {
-    // Dispatch message onto the callback destination thread. Invoke()
-    // will be called by the destination thread.
-    thread->DispatchDelegate(msg);
-}
+if (thread)
+    thread->DispatchDelegate(msg);  // target thread later calls Invoke()
 ```
 
-`DispatchDelegate()` inserts a message into the thread's message queue. Name your concrete class `<Platform>Thread` (e.g. `FreeRTOSThread`, matching the existing `StdlibThread`, `Win32Thread`, `PosixThread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `NuttXThread`, `QtThread` ports) in a `<Platform>Thread.h`/`.cpp` pair under `port/os/<platform>/`, and add `using Thread = <Platform>Thread;` inside `namespace dmq::os` at the end of the header — this is what lets application code, tests, and the rest of the library keep referring to `dmq::os::Thread` regardless of which port is active. Create a unique `DispatchDelegate()` implementation based on your platform's OS API.
+**Adding a new OS port.** Name the class `<Platform>Thread` in `port/os/<platform>/<Platform>Thread.h/.cpp` and end the header with `using Thread = <Platform>Thread;` in `namespace dmq::os`, so all code keeps using `dmq::os::Thread`. Use the shared `port/os/common/ThreadMsg.h` for queue messages (all ports but Qt); don't copy it.
 
-The message type itself, `dmq::os::ThreadMsg`, is a single shared file — `port/os/common/ThreadMsg.h` — used by every port except Qt (which dispatches through Qt's own signal/slot queued-connection mechanism instead). Don't create a per-port copy; `#include "port/os/common/ThreadMsg.h"` from your new port's header.
+Handle a full queue per `FullPolicy` (aliased into `dmq::os`). With a lockable queue (stdlib, Win32), check space before allocating; with an atomic RTOS queue (FreeRTOS, Zephyr, ...), allocate, send, and delete on failure.
 
-The implementation should handle the queue-full case according to `dmq::FullPolicy` (defined once in `DelegateOpt.h`; each port aliases it as `using FullPolicy = dmq::FullPolicy;` inside `namespace dmq::os`, so port code just says `FullPolicy` unqualified) before allocating the message. On platforms with a lockable queue (stdlib, Win32), check first then allocate to avoid wasting heap on drops. On RTOS platforms (FreeRTOS, Zephyr, etc.) the OS queue API is atomic, so allocate first and delete on failure.
-
-If your target's native queue API needs more than a couple of calls (buffer sizing, alignment, a create/destroy pair), isolate it behind a small RAII wrapper class — e.g. `port/os/freertos/FreeRTOSDelegateQueue.h` — rather than inlining native calls directly in `DispatchDelegate()`/`Run()`. The wrapper should expose `Create()`/`IsCreated()`/`Send(msg, highPriority, timeout)`/`Receive(timeout)`/`Size()`/`DrainAndDelete()`/`Destroy()` and own no policy decisions itself — `FullPolicy`, timeout computation, watchdog, and stats stay in `<Platform>Thread.cpp`. Use `FreeRTOSDelegateQueue.h`, `ThreadXDelegateQueue.h`, `CmsisRtos2DelegateQueue.h` as direct models; `ZephyrDelegateQueue.h` additionally shows the pattern for a native queue with no priority-send primitive (two queues, high-priority drained first):
+Wrap a native queue API that takes more than a couple of calls in a small RAII class exposing `Create()`/`IsCreated()`/`Send(msg, highPriority, timeout)`/`Receive(timeout)`/`Size()`/`DrainAndDelete()`/`Destroy()`. It holds no policy: `FullPolicy`, timeouts, watchdog and stats stay in `<Platform>Thread.cpp`. Models: `FreeRTOSDelegateQueue.h`, `ThreadXDelegateQueue.h`, `CmsisRtos2DelegateQueue.h`; `ZephyrDelegateQueue.h` for a queue with no priority send.
 
 ```cpp
 // stdlib / Win32 style — check under lock before allocating
@@ -172,24 +150,21 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
 #### Receive `dmq::DelegateMsg`
 
-Inherit from `dmq::IThreadInvoker` and implement the `Invoke()` function. The destination thread calls `Invoke()` once the message is dequeued.
+The target thread runs the call through the message's `dmq::IThreadInvoker` (implemented by the library):
 
 ```cpp
-/// @brief Abstract base class to support asynchronous delegate function invoke
-/// on destination thread of control.
 class IThreadInvoker
 {
 public:
     virtual ~IThreadInvoker() = default;
 
-    /// Called to invoke the bound target function by the destination thread of control.
-    /// @param[in] msg - the incoming delegate message.
-    /// @return `true` if function was invoked; `false` if failed.
+    /// Invoke the bound target function. Called on the destination thread.
+    /// @return true if the function was invoked.
     virtual bool Invoke(std::shared_ptr<DelegateMsg> msg) = 0;
 };
 ```
 
-The `dmq::os::Thread::Process()` loop below shows the dispatch pattern. `Invoke()` is called for each incoming `MSG_DISPATCH_DELEGATE` queue message.
+Your thread loop calls it for each dequeued message:
 
 ```cpp
 void Thread::Process()
@@ -215,33 +190,20 @@ void Thread::Process()
 
 ### `dmq::ISerializer`
 
-The `dmq::ISerializer` interface serializes argument data for sending to a remote destination endpoint. Each argument is serialized and deserialized according to system requirements. Custom serialization libraries such as [MessagePack](https://msgpack.org/index.html) are supported. The `example/sample-projects` folder contains working examples.
+Serializes remote delegate arguments into a stream (`Write()`, sender) and back (`Read()`, receiver). Any format works, e.g. [MessagePack](https://msgpack.org/index.html); see `example/sample-projects`.
 
 ```cpp
 template <class R>
 struct ISerializer; // Not defined
 
-/// @brief Delegate serializer interface for serializing and deserializing
-/// remote delegate arguments. Implemented by application code if remote
-/// delegates are used.
-///
-/// @details All argument data is serialized into a stream. `Write()` is called
-/// by the sender when the delegate is invoked. `Read()` is called by the receiver
-/// upon reception of the remote message data bytes.
 template<class RetType, class... Args>
 class ISerializer<RetType(Args...)>
 {
 public:
-    /// Serialize data for transport.
-    /// @param[out] os The output stream
-    /// @param[in] args The target function arguments
-    /// @return The output stream
+    /// Serialize args into os. Called by the sender.
     virtual std::ostream& Write(std::ostream& os, const Args&... args) = 0;
 
-    /// Deserialize data from transport.
-    /// @param[in] is The input stream
-    /// @param[out] args The target function arguments
-    /// @return The input stream
+    /// Deserialize args from is. Called by the receiver.
     virtual std::istream& Read(std::istream& is, Args&... args) = 0;
 };
 ```
@@ -250,28 +212,16 @@ public:
 
 ### `dmq::IDispatcher`
 
-The `dmq::IDispatcher` interface dispatches serialized argument data to a remote destination endpoint. Custom dispatchers using sockets, named pipes, ZeroMQ, or any other transport are supported. The `example/sample-projects` folder contains working examples.
+Sends serialized argument bytes to a remote endpoint. `dmq::Dispatcher` implements it over any `ITransport`; implement it directly only to bypass `ITransport`. The receiver passes incoming bytes to `IRemoteInvoker::Invoke()`, which deserializes them and calls the target.
 
 ```cpp
-/// @brief Delegate interface class to dispatch serialized function argument data
-/// to a remote destination. Implemented by the application if using remote delegates.
-///
-/// @details Incoming data from the remote must call `IDispatcher::Dispatch()` to
-/// invoke the target function using argument data. The argument data is serialized
-/// for transport using a concrete class implementing the `ISerializer` interface,
-/// allowing any serialization method to be used.
-/// @post The receiver calls `IRemoteInvoker::Invoke()` when the dispatched message
-/// is received.
 class IDispatcher
 {
 public:
     virtual ~IDispatcher() = default;
 
-    /// Dispatch a stream of bytes to a remote system. The implementer is responsible
-    /// for sending the bytes over a communication transport (UDP, TCP, shared memory,
-    /// serial, ...).
-    /// @param[in] os An outgoing stream to send to the remote destination.
-    /// @param[in] id The unique delegate identifier shared between sender and receiver.
+    /// Send os to the remote system over any transport (UDP, TCP, serial, shared memory, ...).
+    /// @param[in] id The delegate identifier shared by sender and receiver.
     virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
 };
 ```
@@ -280,68 +230,70 @@ public:
 
 ## Thread Implementations
 
-While DelegateMQ provides the `dmq::IThread` interface, the library includes concrete `dmq::os::Thread` class implementations for many OSs (`StdlibThread`, `Win32Thread`, `PosixThread`, `FreeRTOSThread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `NuttXThread`, `QtThread` — each aliased as `dmq::os::Thread`). These implementations provide a standard event loop and several advanced features for robustness and flow control.
+Each OS port provides a `dmq::os::Thread` (`StdlibThread`, `Win32Thread`, `PosixThread`, `FreeRTOSThread`, `ThreadXThread`, `ZephyrThread`, `CmsisRtos2Thread`, `NuttXThread`, `QtThread`) with an event loop and the features below.
 
 ### Thread Priority and Latency
 
-When a delegate is dispatched to a worker thread, it is posted to that thread's message queue. The thread's OS priority determines how quickly the callback executes relative to other tasks.
-
-- **High Priority**: Use for time-critical delegates (e.g., safety-critical commands, emergency stops).
-- **Medium Priority**: Suitable for general application logic.
-- **Low Priority**: Best for non-critical tasks like background telemetry or logging.
-
-The end-to-end dispatch latency is primarily dominated by the destination thread's priority and the OS scheduler wake-up time.
+A dispatched delegate waits in the target thread's queue, so dispatch latency depends mostly on that thread's OS priority and scheduler wake-up time. Give time-critical work (commands, emergency stops) high-priority threads, general logic medium, and telemetry or logging low.
 
 ### Message Queueing
 
-High-priority delegate messages jump ahead of normal ones, while each priority stays FIFO. Every port does this with two queues (high, normal), new messages always appended, and the high queue drained first: stdlib/Win32/Qt use two `std::deque`s and one condition variable; Zephyr two `k_msgq`s drained with `k_poll` (see `ZephyrDelegateQueue.h`); FreeRTOS, ThreadX and CMSIS-RTOS2 two native queues woken by one counting semaphore (see `FreeRTOSDelegateQueue.h`). Don't send to the front of a single queue (that makes consecutive high-priority messages LIFO), and don't rely on CMSIS-RTOS2's `msg_prio` (implementations may ignore it; Zephyr's does).
+`dmq::Priority::HIGH` messages run ahead of normal ones; each priority stays FIFO. Every port uses two queues (high and normal), always appends, and drains the high queue first:
+
+- stdlib/Win32/Qt: two `std::deque`s and one condition variable.
+- Zephyr: two `k_msgq`s drained with `k_poll` (`ZephyrDelegateQueue.h`).
+- FreeRTOS, ThreadX, CMSIS-RTOS2: two native queues and one counting semaphore (`FreeRTOSDelegateQueue.h`).
+
+Don't push high-priority messages to the front of one queue (consecutive ones become LIFO), and don't rely on CMSIS-RTOS2's `msg_prio` (implementations, including Zephyr's, may ignore it).
 
 #### dmq::FullPolicy (Back Pressure / Drop)
 
-Every thread's message queue has a fixed size, and `dmq::FullPolicy` controls what `DispatchDelegate()` does when the queue is full. It's defined once in `DelegateOpt.h`; every port aliases it as `dmq::os::FullPolicy` for source compatibility, so either name works. The default is `FullPolicy::FAULT`.
+`dmq::FullPolicy` sets what `DispatchDelegate()` does when the queue is full. Default: `FAULT`. (Also available as `dmq::os::FullPolicy`.)
 
 ```cpp
-// Fault on overflow — appropriate for threads that must never silently lose messages
+// Fault on overflow — the thread must never lose messages
 dmq::os::Thread cmdThread("CmdThread", /*maxQueueSize=*/50, dmq::FullPolicy::FAULT);
 
-// Wait up to 2 s for the consumer to drain a slot, then log a warning and drop
+// Wait up to 2 s for a free slot, then warn and drop
 dmq::os::Thread safetyThread("SafetyThread", /*maxQueueSize=*/50, dmq::FullPolicy::TIMEOUT);
 
 // Drop stale samples rather than stall the publisher
 dmq::os::Thread sensorThread("SensorThread", /*maxQueueSize=*/10, dmq::FullPolicy::DROP);
 ```
 
-- **`FullPolicy::FAULT`** *(default)*: `DispatchDelegate()` triggers a system fault if the queue is full. This makes overflow immediately visible during development and integration testing rather than silently degrading. Use when a full queue indicates a design error (producer outrunning consumer) that should not be masked.
-- **`FullPolicy::TIMEOUT`**: `DispatchDelegate()` waits up to `dispatchTimeout` (default `dmq::DEFAULT_DISPATCH_TIMEOUT` = 2 s) for the consumer to drain a slot, then logs a warning and drops the message. This provides bounded back pressure — the publisher is held briefly during transient bursts but is never stalled indefinitely. Use for critical topics (commands, state transitions) where every message should be delivered if possible but unbounded blocking is unacceptable. Choose a timeout shorter than the watchdog timeout so stalls are detected and reported.
-- **`FullPolicy::DROP`**: `DispatchDelegate()` silently discards the message and returns immediately without stalling the caller. Ideal for high-rate best-effort data (sensor telemetry, display updates) where a stale sample is preferable to stalling the publisher.
+| Policy | Behavior | Use for |
+| --- | --- | --- |
+| `FAULT` *(default)* | Fault immediately | Overflow is a design error that must surface in testing |
+| `TIMEOUT` | Wait up to `dispatchTimeout` (default `dmq::DEFAULT_DISPATCH_TIMEOUT`, 2 s), then warn and drop | Commands, state changes: deliver if possible, never block forever. Keep the timeout below the watchdog timeout |
+| `DROP` | Discard and return at once | High-rate best-effort data (telemetry, display updates) |
 
-`maxQueueSize = 0` (the default) means "this port's default size", not "unbounded": `dmq::DEFAULT_QUEUE_SIZE` (`DMQ_DEFAULT_QUEUE_SIZE`, 20) on the RTOS ports and Qt, `dmq::THREAD_DESKTOP_QUEUE_SIZE` (`DMQ_THREAD_DESKTOP_QUEUE_SIZE`, 1000) on stdlib, Win32 and POSIX. `FullPolicy` always applies; no port has an unbounded queue.
+`maxQueueSize = 0` (default) means the port's default size, not unbounded: `DMQ_DEFAULT_QUEUE_SIZE` (20) on RTOS ports and Qt, `DMQ_THREAD_DESKTOP_QUEUE_SIZE` (1000) on stdlib, Win32 and POSIX. No queue is unbounded.
 
-`FullPolicy` is a thread-level setting. All delegates dispatched to the same `dmq::os::Thread` instance share the policy. If a single thread serves both drop-tolerant and loss-intolerant subscribers, split them across separate threads with different policies.
+The policy applies to the whole thread. To mix drop-tolerant and loss-intolerant subscribers, use separate threads.
 
 #### dmq::ExitPolicy (Shutdown)
 
-`dmq::ExitPolicy` controls what `ExitThread()` does with messages still queued when it is called. Like `FullPolicy`, it is defined once in `DelegateOpt.h` and aliased as `dmq::os::ExitPolicy` in every port. It is passed per call, so the same thread can drain on a normal shutdown and discard on an emergency stop.
+`dmq::ExitPolicy` sets what `ExitThread()` does with queued messages. It's passed per call, so a thread can drain on normal shutdown and discard on an emergency stop. (Also available as `dmq::os::ExitPolicy`.)
 
 ```cpp
 workerThread.ExitThread();                          // DRAIN (default)
 workerThread.ExitThread(dmq::ExitPolicy::DISCARD);  // fast shutdown
 ```
 
-- **`ExitPolicy::DRAIN`** *(default)*: every message queued before `ExitThread()` is invoked, then the thread exits. `ExitThread()` returns once they have all run.
-- **`ExitPolicy::DISCARD`**: the message already running finishes; every queued message is discarded without being invoked. Use when pending work is disposable (telemetry, UI refresh) and shutdown must be fast.
+- **`DRAIN`** *(default)*: run every queued message, then exit. `ExitThread()` returns when they've run.
+- **`DISCARD`**: finish the running message; discard the rest.
 
-A discarded message is **canceled**, not just deleted: `DelegateMsg::Cancel()` releases a sender blocked on it (an async-wait delegate such as `MakeDelegate(func, thread, WAIT_INFINITE)`), which then sees the call fail instead of waiting out its timeout. This applies to every message a thread drops at exit, including those left behind when a thread exits itself.
+Discarded messages are **canceled** (`DelegateMsg::Cancel()`): a sender blocked on one (e.g. `MakeDelegate(func, thread, WAIT_INFINITE)`) is released and sees the call fail. This covers every message dropped at exit.
 
-A thread that exits itself (`ExitThread()` called from one of its own message handlers) always discards, whatever the policy, because its owner may already be destroyed.
+A thread that exits itself (`ExitThread()` from its own handler) always discards, since its owner may already be gone.
 
-With `DRAIN`, queued messages still run during shutdown. Call `ExitThread()` **before** destroying objects those messages target, or use `DISCARD`.
+With `DRAIN`, queued messages still run during shutdown, so call `ExitThread()` **before** destroying the objects they target, or use `DISCARD`.
 
-**Custom `IThread` implementations:** if your thread ever drops a queued `DelegateMsg` without invoking it (at exit, or on overflow after it was accepted), call `msg->Cancel()` on it first. Otherwise a sender blocked on that message waits for its full timeout. `port/os/common/ThreadMsg.h` provides `CancelThreadMsg()` and `CancelAll()` for queues of `ThreadMsg`.
+**Custom `IThread`:** call `msg->Cancel()` on any queued message you drop without invoking (at exit, or on overflow after accepting it). `port/os/common/ThreadMsg.h` provides `CancelThreadMsg()` and `CancelAll()`.
 
 ### Start, Exit and Idle Handlers
 
-Every `dmq::os::Thread` port can run application code on the worker thread at points no dispatched delegate can reach:
+Run application code on the worker thread at start, exit and idle:
 
 ```cpp
 dmq::os::Thread worker("Worker");
@@ -351,17 +303,17 @@ worker.SetIdleHandler(dmq::MakeDelegate([] { /* background work */ }), std::chro
 worker.CreateThread();
 ```
 
-- **Start handler**: runs on the worker before any message. `CreateThread()` returns after it completes. On RTOS ports, a thread created before the scheduler/kernel starts cannot block `CreateThread()`; its start handler runs when the scheduler starts, still before any message. Use it for per-thread setup: COM initialization, attaching to a language runtime, thread-local state, CPU affinity.
-- **Exit handler**: runs on the worker after its last message, on every exit path. `ExitThread()` returns after it completes. When a thread exits itself, the handler runs after the `Thread` object may be destroyed, so it must not touch that object.
-- **Idle handler**: runs on the worker once its queue has been empty for the interval, then every interval while it stays empty. Any processed message restarts the countdown, so it means "quiet for N ms", not a fixed rate (use `dmq::util::Timer` for that). The interval defaults to `DMQ_THREAD_IDLE_INTERVAL` (100 ms). Not called once `ExitThread()` has been requested.
+- **Start**: runs before any message; `CreateThread()` returns after it. For per-thread setup (COM init, runtime attach, thread-locals, CPU affinity). On an RTOS, a thread created before the scheduler starts runs it when the scheduler starts, still before any message.
+- **Exit**: runs after the last message on every exit path; `ExitThread()` returns after it. On a self-exit the `Thread` object may already be destroyed, so don't touch it.
+- **Idle**: runs once the queue has been empty for the interval, then every interval while it stays empty ("quiet for N ms", not a fixed rate; use `dmq::util::Timer` for that). Default interval `DMQ_THREAD_IDLE_INTERVAL` (100 ms). Stops once `ExitThread()` is requested.
 
-The setters must be called while the thread is not running (before `CreateThread()`, or after `ExitThread()`); calling one on a running thread faults. Handlers run again on each `CreateThread()`.
+Set handlers only while the thread isn't running (setting one on a running thread faults). They run again on each `CreateThread()`.
 
-A new port implements these with the helpers in `port/os/common/ThreadHooks.h`: `ThreadExitGuard` runs the exit handler on every return path of the worker loop (`Fire()` runs it early, e.g. before signalling `ExitThread()`), and `ThreadIdleTimer` bounds each queue wait and tracks when the idle handler is due. See `port/os/stdlib/StdlibThread.cpp` for a reference loop.
+**Porting:** use `port/os/common/ThreadHooks.h`. `ThreadExitGuard` runs the exit handler on every return path (`Fire()` runs it early, e.g. before signalling `ExitThread()`); `ThreadIdleTimer` bounds each queue wait and tracks when idle is due. Reference: `port/os/stdlib/StdlibThread.cpp`.
 
 ### Start Gate (Synchronized Start)
 
-At startup, a thread runs as soon as `CreateThread()` returns. If one thread starts publishing or posting while others are still being created, or before subscriptions and connections are wired, those early messages can be lost or handled out of order. An optional `dmq::os::StartGate` holds any number of threads until one "go":
+A thread runs as soon as `CreateThread()` returns, so messages sent before other threads or subscriptions exist can be lost or reordered. An optional `dmq::os::StartGate` holds threads until one "go":
 
 ```cpp
 dmq::os::StartGate gate;
@@ -373,35 +325,38 @@ network.CreateThread();
 gate.Open();                    // every held thread starts together
 ```
 
-- **Optional:** a thread with no gate (the default) starts as it always has.
-- **Ready before "go":** `CreateThread()` still runs the start handler and returns once the thread is ready, so other threads can dispatch to it. The held thread then processes nothing, at any priority (high-priority messages wait too), until `Open()`.
-- **Start handler:** runs before the gate. Keep it to local setup, since other threads may not exist yet.
-- **No blocking calls to a held thread** from the code that will open the gate: a blocking (async-wait) delegate to a held thread can't complete until `Open()`, so it times out (or, with `WAIT_INFINITE`, never returns).
-- **`Open()` is permanent:** a thread created or re-created afterwards passes straight through. `Close()` makes the gate hold threads again.
-- **No timeout:** a gate that is never opened holds its threads until they exit.
-- **Exit while held:** `ExitThread()` releases the thread without running any queued message; the messages are canceled as for `ExitPolicy::DISCARD`, so a blocked sender is released.
-- **Watchdog:** a held thread is not reported; its watchdog starts when the gate opens.
-- **Lifetime:** the gate may be destroyed right after `Open()`, for example as a local in a startup function: its destructor waits for every released thread to leave it, even one that hasn't run yet. Destroying it while a thread is still held (gate not opened, thread not exited) faults. `CreateThread()` uses the gate, so call `SetStartGate(nullptr)` before re-creating a thread whose gate is gone. On an RTOS, don't destroy it before the scheduler starts. On an RTOS, construct it after the RTOS heap is available (for example inside the startup task), not as a global, since its mutex is an RTOS object.
+- **Ready but held:** `CreateThread()` runs the start handler and returns, so others can dispatch to the thread; it runs nothing (not even high priority) until `Open()`. Keep start handlers to local setup.
+- **No blocking calls to a held thread** before `Open()`: an async-wait delegate times out (or hangs with `WAIT_INFINITE`).
+- **`Open()` is permanent** until `Close()`; threads created after it pass straight through. A gate never opened holds its threads until they exit.
+- **Exit while held:** queued messages are canceled, as with `DISCARD`.
+- **Watchdog** starts when the gate opens.
+- **Lifetime:** the gate may be destroyed right after `Open()` (e.g. a local); destroying it while a thread is held faults. Call `SetStartGate(nullptr)` before re-creating a thread whose gate is gone. On an RTOS, construct it after the RTOS heap is available (not as a global) and don't destroy it before the scheduler starts.
 
-On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same "all ready, one go" at boot without a gate; the gate also covers threads created after the scheduler starts, and the desktop ports.
+On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same effect at boot without a gate.
 
-**Supported ports:** every thread port (stdlib, Win32, POSIX, Qt, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX). Not bare metal (`DMQ_THREAD_NONE`), which has no threads; `DMQ_HAS_START_GATE` (`delegate/DelegateSelect.h`) is defined wherever the gate exists, for code also built for bare metal. Cellutron's controller (`System::Initialize()` in `example/cellutron/controller/system/System.cpp`) is a worked example.
+**Supported** on every thread port; not bare metal. `DMQ_HAS_START_GATE` (`delegate/DelegateSelect.h`) is defined where it exists. Example: `System::Initialize()` in `example/cellutron/controller/system/System.cpp`.
 
-**Porting:** a port holds a `dmq::os::StartGateClient m_startGate` (`port/os/common/StartGate.h`), which keeps the gate state the same on every port. `SetStartGate()` calls `m_startGate.Set(gate)`. In `CreateThread()`, before the thread exists, call `m_startGate.OnCreate()` (it attaches to the gate and marks the thread held, so the watchdog skips it from the start), and `m_startGate.OnCreateFailed()` if the thread can't then be created. In the worker's entry function, after signalling `CreateThread()` that the thread is running and before the message loop: if `m_startGate.Enabled()`, call `m_startGate.Wait(m_exit)`, refresh the watchdog heartbeat, then `m_startGate.Passed()`. `Wait()` returns `true` if the gate was opened, even when an exit was also requested (so `ExitThread(DRAIN)` still runs queued messages), and `false` if the thread exits while still held; then leave without running a message. In `ExitThread()`, call `m_startGate.Wake()` after setting the exit flag; it never touches the gate itself. In `WatchdogCheck()`, skip the thread while `m_startGate.IsHeld()`. See `StdlibThread.cpp`, and `FreeRTOSThread.cpp` for a port whose exit message send can block on a full queue: there a thread exiting while held turns on discard and drains to the exit message instead of returning. `test/unit-tests/StartGatePortableTest.h` has tests any port can run.
+**Porting:** hold a `dmq::os::StartGateClient m_startGate` (`port/os/common/StartGate.h`):
+
+- `SetStartGate()` → `m_startGate.Set(gate)`.
+- `CreateThread()`: call `OnCreate()` before creating the thread, `OnCreateFailed()` if creation fails.
+- Worker entry, after signalling `CreateThread()` and before the loop: if `Enabled()`, call `Wait(m_exit)`, refresh the watchdog heartbeat, then `Passed()`. `Wait()` returns `true` if opened (even with an exit pending, so `DRAIN` still runs), `false` if exiting while held; then return without running messages.
+- `ExitThread()`: call `Wake()` after setting the exit flag.
+- `WatchdogCheck()`: skip while `IsHeld()`.
+
+References: `StdlibThread.cpp`; `FreeRTOSThread.cpp` for a port whose exit send can block on a full queue. Portable tests: `test/unit-tests/StartGatePortableTest.h`.
 
 ### Watchdog Integration
 
-All `dmq::os::Thread` port implementations (stdlib, Win32, POSIX, FreeRTOS, CMSIS-RTOS2, ThreadX, Zephyr, NuttX, Qt) support an optional watchdog. Enable it by passing a timeout to `CreateThread()`:
+Every `dmq::os::Thread` port supports an optional watchdog, enabled by passing a timeout:
 
 ```cpp
 thread.CreateThread(std::chrono::seconds(2));  // fault if thread stalls > 2s
 ```
 
-No timer and no extra OS thread are involved. The application drives the check:
+There's no timer or extra thread. The application calls the static `Thread::WatchdogCheckAll()` periodically (e.g. every 100 ms); `ProcessTimers()` doesn't. It checks each watched thread's `m_lastAliveTime` and calls `WatchdogHandler()` (fault by default) if it's older than the timeout.
 
-- **`Thread::WatchdogCheckAll()`** (static): the application calls it periodically (e.g. every 100 ms) from its own loop or task. The library doesn't schedule it, and `ProcessTimers()` doesn't call it. It walks the list of threads created with a watchdog timeout and calls each one's `WatchdogCheck()`, which reads `m_lastAliveTime` atomically. If `now − m_lastAliveTime > timeout`, `WatchdogHandler()` is called (a fault by default).
-
-The worker thread's loop updates `m_lastAliveTime` directly at the top of every iteration. When a watchdog timeout is configured, the queue wait is finite (the timeout divided by `DMQ_WATCHDOG_HEARTBEAT_DIVISOR`, default 4, on every port; Qt refreshes from a timer at the same interval), so the loop cycles and refreshes the timestamp even when the thread is completely idle. No queue messages are needed to maintain liveness — there is no cross-thread dispatch involved in the watchdog path.
+The worker refreshes `m_lastAliveTime` at the top of each loop. With a watchdog set, its queue wait is finite (timeout / `DMQ_WATCHDOG_HEARTBEAT_DIVISOR`, default 4; Qt uses a timer), so an idle thread still refreshes without any messages.
 
 ```
 Application watchdog task (highest priority)
@@ -418,17 +373,15 @@ worker loop
 
 #### Priority Requirement — Critical on Single-Core RTOS
 
-The watchdog **only catches CPU-spinning runaway threads** if `WatchdogCheckAll()` runs at a **higher priority** than the threads it watches. On a single-core RTOS (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX), a runaway high-priority task starves all lower-priority tasks, including the one calling `WatchdogCheckAll()`, so the check never runs and the fault is never detected.
+On a single-core RTOS, a CPU-spinning thread starves lower-priority tasks, including the one calling `WatchdogCheckAll()`:
 
-| Failure mode | `WatchdogCheckAll()` priority requirement |
+| Failure mode | `WatchdogCheckAll()` priority |
 |:---|:---|
-| Deadlocked thread (blocked on mutex/semaphore) | Any — blocked threads don't consume CPU |
-| Idle thread (waiting for messages) | Any — the loop cycles on its finite queue wait even with no messages |
-| CPU-spinning runaway (infinite loop in callback) | **Must be higher** than the watched thread |
+| Deadlocked thread | Any (it doesn't use CPU) |
+| Idle thread | Any (its loop still cycles) |
+| CPU-spinning runaway | **Higher** than the watched thread |
 
-`WatchdogCheckAll()` takes the thread list's `dmq::RecursiveMutex`, an OS mutex, so it must run in a task, never an ISR. That leaves the highest-priority task:
-
-**Highest-priority task:** Dedicate the system's highest-priority task to calling `WatchdogCheckAll()` periodically. It must be strictly higher priority than any thread it watches — a runaway task at equal or higher priority will starve it and defeat the watchdog. The same task can also call `dmq::util::Timer::ProcessTimers()`.
+`WatchdogCheckAll()` takes an OS mutex, so it can't run in an ISR. Call it from the system's highest-priority task, which can also call `Timer::ProcessTimers()`:
 
 ```cpp
 // FreeRTOS example: dedicated watchdog task at highest priority
@@ -445,30 +398,21 @@ void WatchdogTask(void*)
 xTaskCreate(WatchdogTask, "Watchdog", 512, nullptr, configMAX_PRIORITIES - 1, nullptr);
 ```
 
-`example/cellutron` calls `Thread::WatchdogCheckAll()` from each node's main loop (stdlib, FreeRTOS and ThreadX builds).
+`example/cellutron` calls it from each node's main loop (stdlib, FreeRTOS and ThreadX).
 
 #### Watchdog Limitations
 
-**1. Long-running message handlers.**
-The loop updates `m_lastAliveTime` only at the top of each iteration, before blocking on the queue. If a message handler runs longer than `watchdogTimeout`, the watchdog fires — this is the correct behavior (the thread is unresponsive to new messages during that time). If a handler is legitimately long (e.g., a blocking flash write or a slow I/O call), either:
-- Call `ThreadCheck()` periodically inside the handler to reset the alive timestamp, or
-- Set `watchdogTimeout` large enough to cover the worst-case handler duration.
-
-**2. The `WatchdogCheckAll()` caller must remain alive.**
-If the task that calls `WatchdogCheckAll()` itself deadlocks, starves, or is never scheduled, no check runs and no fault is detected. Mitigations:
-- Call it from the system's highest-priority task, so only an equal- or higher-priority runaway can starve it.
-- For a final backstop against total system freeze, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) kicked in the same loop, right after `WatchdogCheckAll()` returns. The software watchdog detects soft stalls; the hardware watchdog catches a frozen watchdog task.
-
-**3. Priority requirement on single-core RTOS (see table above).**  
-For CPU-spinning runaways, `WatchdogCheckAll()` must run at a higher priority than the watched thread. A deadlocked or idle thread does not require elevated priority because it yields the CPU voluntarily.
+1. **Long handlers trip it.** A handler running longer than the timeout fires the watchdog (the thread really is unresponsive). For legitimately long work, call `ThreadCheck()` inside the handler or raise the timeout.
+2. **The checker must stay alive.** If the `WatchdogCheckAll()` task stalls, nothing is checked. Run it at highest priority, and kick a hardware watchdog (e.g. STM32 IWDG) right after it returns to catch a frozen system.
+3. **Priority** — see the table above.
 
 ### Performance Monitoring
 
-Every `dmq::os::Thread` port supports high-resolution performance monitoring. This requires three pieces of instrumentation in the thread port:
+Under `DMQ_DATABUS_TOOLS`, each port reports queue and latency stats. A port needs:
 
-1. **Enqueue Timestamp**: The shared `ThreadMsg` class (`port/os/common/ThreadMsg.h`) already captures a `dmq::TimePoint` (steady clock) via `SetEnqueueTime()`/`GetEnqueueTime()` under `DMQ_DATABUS_TOOLS` — call `SetEnqueueTime(Timer::GetNow())` right after constructing each message in your `DispatchDelegate()`.
-2. **Latency Calculation**: In the thread's `Run()` loop, calculate the "Queue Latency" (Dispatch Time - Enqueue Time) just before invoking the delegate.
-3. **`SnapshotStats()` Implementation**: Implement the `SnapshotStats()` method to return an atomic snapshot of windowed and all-time statistics.
+1. **Enqueue time:** in `DispatchDelegate()`, call `SetEnqueueTime(Timer::GetNow())` on each new `ThreadMsg`.
+2. **Latency:** in the loop, compute dispatch time minus enqueue time just before invoking.
+3. **`SnapshotStats()`:** return windowed and all-time stats, then reset the window:
 
 ```cpp
 #if defined(DMQ_DATABUS_TOOLS)
@@ -505,13 +449,13 @@ Thread::ThreadStats Thread::SnapshotStats()
 #endif
 ```
 
-The windowed counters (`m_queueDepthMaxWindow`, `m_latencyMaxWindow`, etc.) must be updated during every `DispatchDelegate()` and message processing iteration under the same internal lock used by `SnapshotStats()`.
+Update the window counters on every dispatch and message under the same lock `SnapshotStats()` uses.
 
 ### Current Thread
 
-`dmq::ThisThread::GetCurrent()` returns the `dmq::IThread` whose worker is the calling thread, or `nullptr` (the main thread, an ISR, or a thread no `IThread` registered). Code can use it to capture the calling thread and later dispatch a reply back to it.
+`dmq::ThisThread::GetCurrent()` returns the `dmq::IThread` running the caller, or `nullptr` (main thread, ISR, or unregistered thread). Use it to capture the caller's thread and reply to it later.
 
-**Registering a worker.** Every `dmq::os::Thread` port registers its worker automatically. A custom `IThread` creates a `dmq::CurrentThreadScope` on its worker thread, at the top of its loop, before running any message:
+Every `dmq::os::Thread` registers itself. A custom `IThread` creates a `dmq::CurrentThreadScope` at the top of its loop:
 
 ```cpp
 void MyThread::Process()
@@ -521,7 +465,7 @@ void MyThread::Process()
 }
 ```
 
-**Storage.** Each port's `ThisThread` (`port/os/<os>/<Os>ThisThread.h`) supplies the per-thread storage by deriving from one of the types in `port/os/common/CurrentThreadStorage.h`:
+Each port's `ThisThread` (`port/os/<os>/<Os>ThisThread.h`) derives its storage from `port/os/common/CurrentThreadStorage.h`:
 
 | Port | Storage | ISR behavior |
 |---|---|---|
@@ -533,12 +477,12 @@ void MyThread::Process()
 | NuttX | `RegistryCurrentThread`, keyed by `pthread_self()` | `nullptr` (`up_interrupt_context()`) |
 | Bare metal | `NoCurrentThread` (always `nullptr`) | N/A |
 
-`RegistryCurrentThread` is a fixed table with one slot per thread currently registered; it needs no heap and no RTOS configuration. Registering more than `DMQ_MAX_CURRENT_THREADS` threads at once (default 16) faults. Raise it in your `DelegateMQConfig.h` if the application runs more threads. Slots are released when a worker exits, so threads created and destroyed over time do not use them up.
+`RegistryCurrentThread` is a fixed table (no heap) with one slot per live registered thread, released on exit. More than `DMQ_MAX_CURRENT_THREADS` (default 16) at once faults; raise it in your `DelegateMQConfig.h`.
 
-A new RTOS port supplies a key function (a nonzero value unique to the calling thread, or 0 inside an ISR) and derives its `ThisThread` from `RegistryCurrentThread<KeyFunction, PortMutex>`.
+A new RTOS port supplies a key function (nonzero and unique per thread, 0 in an ISR) and derives `ThisThread` from `RegistryCurrentThread<KeyFunction, PortMutex>`.
 
-**Porting TODOs** (tagged `@TODO` in the source):
+**Porting TODOs** (tagged `@TODO`):
 
-- **ThreadX** (`ThreadXThisThread.h`): `tx_thread_identify()` returns the interrupted thread inside an ISR, so `GetCurrent()` from an ISR returns that thread's `IThread` instead of `nullptr`. Return 0 from `ThreadXCurrentThreadKey()` inside an ISR if your target can detect it (e.g. read IPSR on ARM Cortex-M).
-- **CMSIS-RTOS2** (`CmsisRtos2ThisThread.h`): same issue, since CMSIS-RTOS2 has no portable ISR check. Return 0 from `CmsisRtos2CurrentThreadKey()` inside an ISR (e.g. `__get_IPSR() != 0` on ARM Cortex-M).
-- **FreeRTOS on non-ARM targets** (`FreeRTOSThisThread.h`): ISR detection uses `xPortIsInsideInterrupt()`, available on ARM Cortex-M only. On RISC-V, Xtensa, etc., extend `detail::IsInsideFreeRTOSInterrupt()` in `FreeRTOSCriticalSection.h` for that architecture.
+- **ThreadX** (`ThreadXThisThread.h`): in an ISR `tx_thread_identify()` returns the interrupted thread, so `GetCurrent()` returns its `IThread`. Return 0 from `ThreadXCurrentThreadKey()` in an ISR if you can detect it (e.g. IPSR on Cortex-M).
+- **CMSIS-RTOS2** (`CmsisRtos2ThisThread.h`): same issue. Return 0 from `CmsisRtos2CurrentThreadKey()` in an ISR (e.g. `__get_IPSR() != 0`).
+- **FreeRTOS on non-ARM** (`FreeRTOSThisThread.h`): ISR detection uses `xPortIsInsideInterrupt()` (Cortex-M only). Extend `detail::IsInsideFreeRTOSInterrupt()` in `FreeRTOSCriticalSection.h` for RISC-V, Xtensa, etc.
