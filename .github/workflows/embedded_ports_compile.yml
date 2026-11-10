@@ -24,14 +24,18 @@ jobs:
   freertos:
     name: FreeRTOS (Cortex-M4)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
 
+    # ARM's official toolchain tarball, cached between runs. Ubuntu's apt
+    # package pulls ~600 MB (every libstdc++ multilib) and blew the timeout.
     - name: Install ARM GCC toolchain
-      run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '14.2.Rel1'
 
     # FreeRTOS-Kernel source and a working FreeRTOSConfig.h are already
     # vendored under the stm32-freertos sample project -- reuse them
@@ -52,14 +56,18 @@ jobs:
   threadx:
     name: ThreadX (Cortex-M4)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
 
+    # ARM's official toolchain tarball, cached between runs. Ubuntu's apt
+    # package pulls ~600 MB (every libstdc++ multilib) and blew the timeout.
     - name: Install ARM GCC toolchain
-      run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '14.2.Rel1'
 
     # Fetch only the two headers actually needed (tx_api.h + the Cortex-M4
     # GNU port's tx_port.h) directly from the upstream Eclipse ThreadX repo,
@@ -88,14 +96,18 @@ jobs:
   cmsis-rtos2:
     name: CMSIS-RTOS2 (Cortex-M4)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
 
+    # ARM's official toolchain tarball, cached between runs. Ubuntu's apt
+    # package pulls ~600 MB (every libstdc++ multilib) and blew the timeout.
     - name: Install ARM GCC toolchain
-      run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '14.2.Rel1'
 
     # cmsis_os2.h is a self-contained API header (only <stdint.h>/<stddef.h>
     # deps) from ARM's CMSIS_5 -- no RTX5 kernel implementation needed for
