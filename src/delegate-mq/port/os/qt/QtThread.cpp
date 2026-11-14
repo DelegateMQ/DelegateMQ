@@ -370,7 +370,14 @@ void QtThread::ExitThread(ExitPolicy policy)
 {
     if (m_thread)
     {
+        // Under m_mutex: DispatchDelegate() checks m_exiting and emits under it,
+        // so a message is either dispatched ahead of the quit posted below (and
+        // drained or canceled) or sees m_exiting and is dropped. Never queued
+        // behind the quit, where it would never run and an async-wait sender
+        // would wait out its timeout.
+        m_mutex.lock();
         m_exiting.store(true);
+        m_mutex.unlock();
         const bool selfExit = (QThread::currentThread() == m_thread);
         if (selfExit)
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
@@ -413,9 +420,11 @@ void QtThread::ExitThread(ExitPolicy policy)
         // ExitThread() waits for it is still reported.
         m_watchdogTimeout.store(dmq::Duration(0));
 
-        // Worker thread has fully stopped; null the back-pointer so the Worker
-        // cannot access this Thread if it is kept alive by deleteLater.
-        if (m_worker) {
+        // Self-exit: the Worker outlives this call (deleted later on its own
+        // thread), so null its back-pointer to this Thread. Otherwise don't
+        // touch it: QThread::finished -> deleteLater already deleted it on the
+        // worker thread before wait() returned.
+        if (selfExit && m_worker) {
             m_worker->ClearThread();
         }
 
