@@ -138,11 +138,14 @@ DelegateMQ is a PlatformIO library (`library.json` at the repo root). PlatformIO
 platform  = espressif32
 board     = esp32dev
 framework = arduino
-lib_deps  = DelegateMQ
+lib_deps  = endurodave/DelegateMQ@^2.4.0
 ; DelegateMQ needs C++17 and RTTI; Arduino cores default to C++11 and -fno-rtti
-build_unflags = -std=gnu++11 -fno-rtti
-build_flags   = -std=gnu++17 -frtti
+build_unflags = -std=gnu++11 -std=gnu++14 -fno-rtti
+build_flags   = -std=gnu++17
+extra_scripts = pre:cxx_flags.py   ; adds -frtti to C++ files only
 ```
+
+**RTTI:** `-frtti` in `build_flags` also works, but `build_flags` reaches C files too, and GCC warns on each one that `-frtti` is C++ only. To avoid the warnings, copy [`cxx_flags.py`](../example/platformio/async-delegates/cxx_flags.py) from the example into your project folder, as above. It adds `-frtti` to C++ compiles only.
 
 **Example and tested boards:** `example/platformio/async-delegates` is one sketch built for every board in its `platformio.ini`: ESP32 and ESP32-C3 (FreeRTOS, async delegates on worker threads), STM32 Nucleo-F401RE and Raspberry Pi Pico (bare metal, synchronous delegates and signals), and the desktop (`native`, stdlib threads). Run `pio run` there to build them all. Other 32-bit GCC targets with C++17 should work, but aren't built.
 

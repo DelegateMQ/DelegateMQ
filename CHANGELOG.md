@@ -15,8 +15,13 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **Rename `dmq::Priority::HIGH` to `dmq::Priority::URGENT`.** Arduino cores `#define HIGH`, so any code that included `Arduino.h` before DelegateMQ failed to compile. `NORMAL` is unchanged, and messages are ordered the same way.
 
 ### Added
-- **PlatformIO library.** `library.json` at the repo root; add `lib_deps = DelegateMQ`. See BUILD.md "PlatformIO" for the C++17/RTTI flags and where to put `DelegateMQConfig.h`. `example/platformio/async-delegates` is one sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, Raspberry Pi Pico and the desktop.
+- **PlatformIO library.** `library.json` at the repo root; add `lib_deps = endurodave/DelegateMQ@^2.4.0`. See BUILD.md "PlatformIO" for the C++17/RTTI flags and where to put `DelegateMQConfig.h`. `example/platformio/async-delegates` is one sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, Raspberry Pi Pico and the desktop.
 - **ESP32 (ESP-IDF and Arduino-ESP32) on the FreeRTOS port.** Kernel headers come from `freertos/` (new `FreeRTOSHeaders.h`), `FreeRTOSCriticalSection` uses an SMP spinlock (`portENTER_CRITICAL_SAFE`), and ISR detection uses `xPortInIsrContext()`. Selected by `ESP_PLATFORM`. Compiled for ESP32 with PlatformIO; not yet run on hardware.
+- **`qt-linux` sample and CI for the Qt port.** Runs the same thread, FullPolicy and timer tests as the other ports on `DMQ_THREAD_QT`. Built and run by the new Qt workflow; needs Qt 6 Core, so `build_all.py` skips it.
+- **PlatformIO CI.** A workflow builds the PlatformIO example for every board and runs the desktop build.
+
+### Fixed
+- **Qt port: queue count only dropped with an event loop on the creating thread.** The worker's "message processed" signal was queued to the thread that created the `Thread`, so without a running Qt event loop there, `GetQueueSize()` never fell and a bounded queue filled up. A `FullPolicy::TIMEOUT` dispatch also blocked that loop while waiting for space, so it always timed out. It now runs directly on the worker thread.
 
 ## [2.3.0] - 2026-11-07
 
