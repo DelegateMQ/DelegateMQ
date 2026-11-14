@@ -73,6 +73,14 @@ Task 99 is sent last with `Priority::URGENT` and runs first.
 
 ### platformio.ini
 
+Create a project for your board, then edit its `platformio.ini`:
+
+```bash
+pio project init --board esp32dev --project-option "framework=arduino"
+```
+
+`pio boards <text>` finds a board's ID (e.g. `pio boards discovery`). PlatformIO downloads DelegateMQ from `lib_deps` on the first build into `.pio/libdeps/<env>/DelegateMQ`; the project itself holds only your code.
+
 A minimal ESP32 project:
 
 ```ini
