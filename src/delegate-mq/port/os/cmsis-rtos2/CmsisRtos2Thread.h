@@ -21,7 +21,7 @@
 /// * **Task Integration:** Wraps `osThreadNew` to establish a dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities, as two queue lanes drained
+/// * **Priority Support:** NORMAL and URGENT priorities, as two queue lanes drained
 ///   URGENT first (see `CmsisRtos2DelegateQueue` for why `osMessageQueuePut`'s
 ///   `msg_prio` isn't relied on).
 /// * **Queue-Based Dispatch:** Uses `CmsisRtos2DelegateQueue` (a thin RAII wrapper

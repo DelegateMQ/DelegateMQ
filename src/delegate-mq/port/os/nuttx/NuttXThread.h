@@ -15,7 +15,7 @@
 ///   kernel-object wrapper.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities, using POSIX mq_send()'s
+/// * **Priority Support:** NORMAL and URGENT priorities, using POSIX mq_send()'s
 ///   native msg_prio argument -- see NuttXDelegateQueue.h.
 /// * **Queue-Based Dispatch:** Uses `NuttXDelegateQueue` (a thin RAII wrapper
 ///   around a POSIX mqueue) to receive and process incoming delegate

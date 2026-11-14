@@ -66,6 +66,7 @@
       "files": [
         "platformio.ini",
         "cxx_flags.py",
+        "freertos_path.py",
         "include/DelegateMQConfig.h",
         "src/main.cpp"
       ]
