@@ -165,8 +165,9 @@ def build_samples(use_clang=False, clean=False):
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
             # zephyr-linux/zephyr-udp-serializer/databus-zephyr/cmsis-rtos2-linux need
-            # `west build` + a west workspace, not `cmake -B build`
-            skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal", "stm32-freertos", "zephyr-linux", "zephyr-udp-serializer", "databus-zephyr", "cmsis-rtos2-linux"]
+            # `west build` + a west workspace, not `cmake -B build`. qt-linux needs
+            # Qt 6 installed; .github/workflows/qt.yml builds and runs it.
+            skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal", "stm32-freertos", "zephyr-linux", "zephyr-udp-serializer", "databus-zephyr", "cmsis-rtos2-linux", "qt-linux"]
             for sd in skip_dirs:
                 if sd in dirnames: dirnames.remove(sd)
 

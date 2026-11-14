@@ -14,6 +14,7 @@ The following projects demonstrate DelegateMQ delegate types (sync, async, async
 | **[keil-bare-metal](./keil-bare-metal/)** | Bare-metal example for ARM Cortex-M4. | None | Keil MDK (ARMCLANG) |
 | **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
 | **[posix-linux](./posix-linux/)** | Verifies the `DMQ_THREAD_POSIX` port (`dmq::os::PosixThread`), built directly on `pthread_create`/`pthread_mutex_t`/`pthread_cond_t` instead of `std::thread`. Linux only. | POSIX pthreads | Linux GCC |
+| **[qt-linux](./qt-linux/)** | Verifies the `DMQ_THREAD_QT` port (`dmq::os::QtThread`): each thread is a `QThread` with its own event loop. Same test suite as `posix-linux`. Needs Qt 6 Core; not built by `build_all.py`, built and run in CI. | Qt 6 | Linux GCC + Qt 6 |
 | **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
 | **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
 | **[zephyr-linux](./zephyr-linux/)** | Zephyr example using the official `native_sim` simulation port (host GCC, no cross-compiler). Manual-only: needs a `west` workspace, not built by 04_build_samples.py. Linux only. | Zephyr | Linux GCC + west |

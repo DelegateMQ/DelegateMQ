@@ -259,8 +259,12 @@ signals:
     void SignalDispatch(std::shared_ptr<dmq::DelegateMsg> msg);
 
 private slots:
-    void OnMessageProcessed() { 
-        m_queueSize--; 
+    // Runs on the worker thread (Qt::DirectConnection). Under m_mutex so a
+    // dispatcher between its queue-full check and m_cvNotFull.wait() can't
+    // miss the wake.
+    void OnMessageProcessed() {
+        QMutexLocker lock(&m_mutex);
+        m_queueSize--;
         m_cvNotFull.wakeAll();
     }
 

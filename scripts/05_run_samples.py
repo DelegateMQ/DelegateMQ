@@ -24,6 +24,7 @@ Skip List (always excluded):
     - stm32-freertos          Embedded STM32 target, cannot run on host
     - mqtt-rapidjson          Requires an external MQTT broker
     - serialport-serializer   Requires physical serial port hardware
+    - qt-linux                Needs Qt 6; built and run by .github/workflows/qt.yml
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
@@ -68,6 +69,7 @@ SKIP_ALWAYS = {
     "stm32-freertos",
     "mqtt-rapidjson",
     "serialport-serializer",
+    "qt-linux",
     "test",
     "tools",
 }

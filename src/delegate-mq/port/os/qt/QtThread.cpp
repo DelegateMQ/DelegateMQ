@@ -195,9 +195,14 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                 m_worker, &Worker::OnDispatch, 
                 Qt::QueuedConnection);
 
-        // Track when message is processed to decrement m_queueSize
+        // Track when message is processed to decrement m_queueSize.
+        // Qt::DirectConnection: runs on the worker thread as the message
+        // finishes. The default (queued, since this object lives on the
+        // creating thread) would decrement only when the creating thread runs
+        // a Qt event loop: without one the count never drops, and a TIMEOUT
+        // dispatch blocked on m_cvNotFull holds that loop, so it can't drain.
         connect(m_worker, &Worker::MessageProcessed,
-                this, &QtThread::OnMessageProcessed);
+                this, &QtThread::OnMessageProcessed, Qt::DirectConnection);
 
         // Ensure worker is deleted when thread finishes
         connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
@@ -498,7 +503,7 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             // Unlike the other thread ports, msg->GetPriority() is ignored here:
             // the queued signal goes into Qt's single FIFO event queue, so a
             // Priority::URGENT message runs after every message dispatched before
-            // it. The other ports keep a HIGH and a NORMAL queue and drain HIGH
+            // it. The other ports keep an URGENT and a NORMAL queue and drain URGENT
             // first. Supporting priority would need a two-lane queue here, with
             // the signal only waking the worker to drain it.
             emit SignalDispatch(msg);
