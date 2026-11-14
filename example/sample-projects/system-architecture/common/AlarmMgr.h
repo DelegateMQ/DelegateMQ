@@ -53,8 +53,10 @@ private:
 
     ~AlarmMgr()
     {
-        // No manual unsubscription needed. 
-        // ScopedConnections (m_errorConn, m_alarmConn) handle it automatically.
+        // Exit first: queued messages run while this object is still whole.
+        // The ScopedConnection members then disconnect as they're destroyed.
+        // Safe only because the emitter (NetworkMgr) is stopped before this
+        // singleton is destroyed. See docs/APP-GUIDE.md#shutdown-and-object-lifetime.
         m_thread.ExitThread();
     }
 

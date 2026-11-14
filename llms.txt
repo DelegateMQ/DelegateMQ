@@ -105,9 +105,16 @@ dmq::databus::DataBus::Publish<float>("sensor/temp", 25.5f);
 
 ## Object Lifetime Safety
 
-- **Raw pointer targets**: unsafe for non-blocking async — object may be destroyed before the queued callback executes.
-- **`std::shared_ptr` targets**: safe — delegate holds a `weak_ptr`; if the object is destroyed before dispatch the callback is silently skipped, no crash.
-- **Singletons / globals**: safe because their lifetime exceeds any thread.
+The samples bind async delegates with a raw `this` (`MakeDelegate(this, &X::F, m_thread)`) almost everywhere. That is safe only under the conditions below, which the samples meet by how they shut down. Don't copy the pattern without them.
+
+- **Raw `this`, non-blocking async**: safe only when both hold:
+  1. **Nothing queued runs after the object dies.** The object owns its target thread and calls `m_thread.ExitThread()` explicitly in its destructor or `Stop()`, before any member is destroyed; don't rely on `~Thread()`, since members declared after `m_thread` are destroyed first (the default `ExitPolicy::DRAIN` runs what's queued while the object is still whole), or the target thread is otherwise exited before the object is destroyed.
+  2. **Nothing new is queued once destruction starts.** Every subscription feeding the object (`ScopedConnection`, DataBus subscription, timer connection) is disconnected before its target `Thread` object is destroyed, and no other thread is still emitting to it. `Disconnect()` doesn't wait for an emit already in progress on another thread: that emit can still dispatch to the object's thread once after `Disconnect()` returns (see [SIGNALS](docs/SIGNALS.md#disconnect-and-calls-already-in-progress)). So stop the emitters (network nodes, timer threads, other workers) before destroying subscribers.
+  - Typical safe shapes: a singleton or static whose emitters `main` stops before returning (system-architecture, cellutron/pumptron GUI); an object in a never-ending RTOS task (pumptron/cellutron controller); a stack object whose `Stop()` disconnects, stops its timer and exits its thread, followed in `main` by joining the timer thread (the sender/receiver samples).
+- **Objects created and destroyed while the system runs** (sessions, per-connection handlers, UI panels, plugins): bind with a `std::shared_ptr` instead: `MakeDelegate(sp, &X::F, thread)` returns `DelegateMemberAsyncSp`, which holds a `weak_ptr` and skips the call if the object is gone; while a call runs, it holds a strong reference. This covers both a queued message and a late emit. It doesn't stop a call already running, so if the handler must not run at all after a stop, also gate it with a flag. **The `weak_ptr` protects the object, not the thread:** the delegate holds the target thread as a raw `IThread*`, and an emit calls `DispatchDelegate()` on it before the `weak_ptr` is checked. So the target thread must outlive the object: dispatch to a long-lived shared worker or UI thread, not to a `dmq::os::Thread` member of the object itself.
+- **`DataBus::Subscribe` takes the thread, not the delegate:** `Subscribe<T>(topic, MakeDelegate(this, &X::F), &m_thread)`, with a synchronous `MakeDelegate` (two arguments) and the thread as a pointer. Passing the thread to `MakeDelegate` as well sends every message through the queue twice. The handler signature must be `void(const T&)`: `void(T)` still compiles but loses the fast path and wraps the delegate in a `std::function` (which may allocate), and `void(T&)` doesn't compile.
+- **Synchronous slots on a `Signal` emitted from other threads**: the same in-progress caveat applies. Stop the emitters first, or gate the slot ([SIGNALS](docs/SIGNALS.md#disconnect-and-calls-already-in-progress)).
+- **Blocking async (`DelegateAsyncWait`)**: safe with raw `this`; the caller waits, and a timed-out call is abandoned, not run later.
 - Never call `shared_from_this()` in a destructor when delegates are involved.
 
 ## Known Constraints and Gotchas
@@ -383,6 +390,7 @@ Bridges an application links in (`tools/bridge/`):
 ## Documentation
 
 - [README](README.md) — overview, quick start, feature table
+- [APP-GUIDE](docs/APP-GUIDE.md) — rules for writing an application with DelegateMQ: setup, connections, threads, timers, shutdown order, which library rules don't apply to app code. Read this before generating application code
 - [TUTORIAL](docs/TUTORIAL.md) — step-by-step from local delegates to distributed DataBus
 - [DETAILS](docs/DETAILS.md) — in-depth API documentation and design rationale
 - [PORTING](docs/PORTING.md) — how to port to a new OS or thread model
@@ -402,4 +410,4 @@ DelegateMQ differs from Qt signals (requires moc, Qt base class, Qt event loop),
 
 ## Contributor Conventions (Modifying the Library)
 
-Code under `src/delegate-mq/` follows strict rules because the library targets embedded/RTOS platforms: no heap in library internals (`std::array`, `xmap`, `xlist`, `xstring` instead of std containers), allocator and platform types selected only through `DelegateOpt.h`, portable `dmq::` locking/thread/clock types, tunable limits as `DMQ_*` config macros, `BAD_ALLOC()`/`DMQ_ASSERT` instead of `throw`/`assert`, and self-guarding `.cpp` files. The complete, authoritative rules are in [CLAUDE.md](CLAUDE.md).
+These rules are for changing the library, not for application code that uses it; for that, see [APP-GUIDE](docs/APP-GUIDE.md). Code under `src/delegate-mq/` follows strict rules because the library targets embedded/RTOS platforms: no heap in library internals (`std::array`, `xmap`, `xlist`, `xstring` instead of std containers), allocator and platform types selected only through `DelegateOpt.h`, portable `dmq::` locking/thread/clock types, tunable limits as `DMQ_*` config macros, `BAD_ALLOC()`/`DMQ_ASSERT` instead of `throw`/`assert`, and self-guarding `.cpp` files. The complete, authoritative rules are in [CLAUDE.md](CLAUDE.md).

@@ -2,6 +2,8 @@
 
 Rules for modifying the `delegate-mq` library itself. Apply these whenever adding or changing code under `src/delegate-mq/`.
 
+**Scope: these rules are for the library, not for application code that uses it.** Code in `example/`, `test/`, `interop/` samples, or a user's own project is application code. It may use `std::vector`, `std::string`, `std::mutex`, lambdas, exceptions and the heap as its own platform allows, and follows [docs/APP-GUIDE.md](docs/APP-GUIDE.md) instead. If this repository is a submodule or dependency of another project, these rules apply only to edits inside `src/delegate-mq/`. `tools/` has its own exemptions (see "Port Exception" below).
+
 ## Memory Allocation
 
 **No heap allocation in library internals.** The library targets embedded/RTOS platforms where heap use is either forbidden or must be explicit.
