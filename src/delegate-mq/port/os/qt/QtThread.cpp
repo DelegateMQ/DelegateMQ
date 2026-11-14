@@ -176,6 +176,9 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     if (!m_thread)
     {
         m_exiting.store(false);
+        // A message dispatched while the previous thread was exiting may have
+        // been counted but never dequeued: start the new thread empty
+        m_queueSize.store(0);
         // Held from creation, so the watchdog never sees a gated thread as hung
         // before it reaches the gate (e.g. created before the scheduler runs)
         m_startGate.OnCreate();
@@ -481,7 +484,9 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             {
                 auto ms = static_cast<unsigned long>(
                     std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count());
-                while (m_queueSize >= m_maxQueueSize && m_thread->isRunning())
+                // m_exiting first: ExitThread() wakes this wait, then deletes
+                // m_thread without m_mutex, so once exiting, don't touch it
+                while (!m_exiting.load() && m_queueSize >= m_maxQueueSize && m_thread->isRunning())
                 {
                     if (!m_cvNotFull.wait(&m_mutex, ms))
                     {
@@ -496,8 +501,10 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             }
         }
 
-        // Re-check running status after wait
-        if (m_thread->isRunning())
+        // Re-check after the wait. Exiting: the quit is already queued, so a
+        // message sent now would never run; drop it (m_exiting checked first,
+        // see above)
+        if (!m_exiting.load() && m_thread->isRunning())
         {
             m_queueSize++;
             
