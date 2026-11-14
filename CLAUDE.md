@@ -35,7 +35,7 @@ To add a new allocator-gated type (e.g., `xunordered_map`):
 
 ## Library `.cpp` Files — Self-Guarding
 
-Builds without CMake compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq`, so each library `.cpp` must compile to nothing unless the options select it:
+Builds without CMake (including PlatformIO, which compiles every `.cpp` under `src/delegate-mq`) compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq`, so each library `.cpp` must compile to nothing unless the options select it:
 
 1. First line of code: `#include "delegate/DelegateSelect.h"` (macros only, so an unselected file adds no code or static objects), then `#if <condition>` around the whole file, closed with `#endif // <condition>`. Use the same condition `Port.cmake` uses to pick the file (e.g. `defined(DMQ_THREAD_FREERTOS)`, `defined(DMQ_ALLOCATOR)`, `defined(DMQ_HAS_THREADING)`). No `#error` for "this file wasn't selected". Files compiled on every port (currently only `extras/util/Timer.cpp`) need no guard.
 2. Add the file to `src/DelegateMQ.cpp`.
@@ -211,11 +211,22 @@ Rules when touching this:
 
 - **Never use `dmq::CriticalSection` as a general-purpose lock.** It masks *all* maskable interrupts on the CPU for as long as it's held. Reach for it only to protect something genuinely tiny and bounded that may be touched from ISR context (`Timer`'s use case). Anything that can block, take a while, or is normally protected by `dmq::Mutex`/`RecursiveMutex` (DataBus internals, a `Thread`'s message queue, etc.) must never be moved to `CriticalSection` — that's a real-time correctness bug on hardware, not a style choice.
 - **There is no `RecursiveCriticalSection`.** A critical section has no ownership concept, so recursion isn't meaningful the way it is for `RecursiveMutex` — nesting *different* instances in proper LIFO lock/unlock order is safe by construction (each saves/restores its own interrupt state), but calling `lock()` twice on the **same** instance without an intervening `unlock()` is not (see the warning in each `*CriticalSection.h`).
-- **FreeRTOS's ISR detection is scoped to ARM Cortex-M.** `FreeRTOSCriticalSection.h` selects the real `xPortIsInsideInterrupt()` vs. a dummy `pdFALSE` stub via the `__arm__`/`__ARM_ARCH` compiler predefines (set by `arm-none-eabi-gcc`, never set by desktop GCC/Clang building the POSIX/Win32 simulators) — no new `DMQ_*` build option needed. A RISC-V or Xtensa FreeRTOS port would need that detection extended for its own architecture predefines.
+- **FreeRTOS's ISR detection covers ARM Cortex-M and ESP32.** `FreeRTOSCriticalSection.h` checks `ESP_PLATFORM` first (ESP32 Xtensa and RISC-V: SMP spinlock `portMUX_TYPE` with `portENTER_CRITICAL_SAFE()`, ISR detection via `xPortInIsrContext()`), then the `__arm__`/`__ARM_ARCH` predefines for the real `xPortIsInsideInterrupt()`, else a dummy `pdFALSE` stub (desktop GCC/Clang building the POSIX/Win32 simulators). No `DMQ_*` build option needed. Another architecture's FreeRTOS port would need its own branch.
 - **Porting to a new RTOS**: use `port/os/threadx/ThreadXCriticalSection.h` as the reference implementation, and pick that port's true interrupt-masking primitive — not its OS mutex, no matter how it's configured.
 - **Porting bare metal (`DMQ_THREAD_NONE`) to a new architecture**: `BareMetalCriticalSection.h`/`BareMetalClock.h` branch internally per architecture (`#if defined(__riscv)` / `#elif defined(__arm__) && ...` / ARMCC / fallback) rather than each architecture getting its own file — follow that pattern for a new one (e.g. Xtensa, AVR) rather than creating a parallel `port/os/bare-metal-<arch>/` tree. Check the architecture macro *before* any generic `__GNUC__`/`__clang__` check, since those are true for every GCC/Clang target regardless of architecture — checking compiler before architecture is what caused RISC-V to briefly try to assemble ARM `cpsid`/`cpsie` opcodes when this port was extended for RISC-V.
 - **`CmsisRtos2CriticalSection` itself is still unverified** — its CMSIS-Core intrinsics need real ARM Cortex-M (hardware, QEMU, or a CMSIS-RTOS2 SDK), none available here. Review carefully and exercise on real hardware or an appropriate simulator before relying on it in production. The rest of the CMSIS-RTOS2 port (`Thread`/`Mutex`/`Semaphore`/`DelegateQueue`/`Clock`) is now verified against a real CMSIS-RTOS2 implementation (Zephyr's, on `native_sim`) — see the table above and `example/sample-projects/cmsis-rtos2-linux`.
 - **The NuttX port (`port/os/nuttx/`) is now verified** — built and run via `example/sample-projects/nuttx-sim` (NuttX's own `sim` board, native host process, no cross-compiler/hardware). `NuttXThread`/`Mutex`/`Semaphore`/`DelegateQueue`/`Clock`/`CriticalSection` all genuinely exercised: cross-thread async dispatch, `MulticastDelegateSafe`, a real one-shot `Timer` (via `NuttXCriticalSection`), and the full `FullPolicy`/`PacedDispatch` stress-test suite (Tests 1-10) all pass. See the sample's README for what this took to get building (a working `libstdc++`/RTTI toolchain for NuttX's own build, and two real NuttX/mkdeps build-system quirks worked around, not DelegateMQ bugs).
+
+## FreeRTOS Port Portability
+
+The FreeRTOS port builds against many FreeRTOS packagings (vendor SDKs, ESP-IDF, STM32duino FreeRTOS, the POSIX/Win32 simulators), each with its own `FreeRTOSConfig.h`:
+
+- Include kernel headers through `port/os/freertos/FreeRTOSHeaders.h`, never `FreeRTOS.h`/`task.h` directly: ESP-IDF puts them under `freertos/`.
+- Never assume an optional kernel feature is on. Guard its use with the config macro (e.g. `xTaskCreateStatic()` only `#if (configSUPPORT_STATIC_ALLOCATION == 1)`; STM32duino FreeRTOS leaves it 0), and fault with `DMQ_ASSERT` where an API needs it.
+
+## Arduino Compatibility
+
+Arduino cores `#define` common names (`HIGH`, `LOW`, `INPUT`, `OUTPUT`, `abs`, `min`, `max`, `round`, ...). Don't use them as identifiers in public headers: that is why the message priority is `dmq::Priority::URGENT`, not `HIGH`. Check a new public name against `Arduino.h` before adding it.
 
 ## Testing Conventions
 
