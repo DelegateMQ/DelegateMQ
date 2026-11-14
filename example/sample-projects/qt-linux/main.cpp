@@ -30,6 +30,9 @@ extern void DelegateThreadsTests();
 // Defined in TimerDelegateTests.cpp
 extern void TimerDelegateTests();
 
+// Defined in QtThreadExitTests.cpp
+extern void QtThreadExitTests();
+
 // --------------------------------------------------------------------------
 // CALLBACK FUNCTIONS
 // --------------------------------------------------------------------------
@@ -156,6 +159,10 @@ static void ExecuteAllTests() {
     // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
     printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
     TimerDelegateTests();
+
+    // --- TEST 11: Qt port ExitThread() with a blocked producer ---
+    printf("\n[Test 11] Qt ExitThread() With a Blocked Producer:\n");
+    QtThreadExitTests();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

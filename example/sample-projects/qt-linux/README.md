@@ -10,6 +10,11 @@ Signal, ScopedConnection, Thread and Timer usage, plus the full `DelegateThreads
 `TimerDelegateTests()` battery (ported unchanged from `test/unit-tests/`). The application
 code is unchanged across every port; only `DMQ_THREAD` changes.
 
+Test 11 (`QtThreadExitTests.cpp`) is Qt-only: it exits a thread while a producer is
+blocked on its full `FullPolicy::TIMEOUT` queue, checks the producer returns and its
+message is dropped, then re-creates the thread. Run it under AddressSanitizer too: the
+exits cover the worker being deleted by its own thread.
+
 Built and run in CI by `.github/workflows/qt.yml`. Not built by `build_all.py`, since most
 machines don't have Qt installed.
 
@@ -71,6 +76,11 @@ FreeTests() complete!
 [Test 10] PacedDispatch & TimerDelegate Tests:
 ...
 TimerDelegateTests() complete!
+
+[Test 11] Qt ExitThread() With a Blocked Producer:
+ExitThread_ReleasesBlockedProducer() complete!
+ExitThread_ReleasesBlockedAsyncWaitProducer() complete!
+QtThreadExitTests() complete!
 
 =========================================
            ALL TESTS PASSED
