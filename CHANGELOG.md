@@ -9,7 +9,12 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+### Upgrading
+- **Rename `dmq::Priority::HIGH` to `dmq::Priority::URGENT`.** Arduino cores `#define HIGH`, so any code that included `Arduino.h` before DelegateMQ failed to compile. `NORMAL` is unchanged, and messages are ordered the same way.
+
 ### Added
+- **PlatformIO library.** `library.json` at the repo root; add `lib_deps = DelegateMQ`. See BUILD.md "PlatformIO" for the C++17/RTTI flags and where to put `DelegateMQConfig.h`.
+- **ESP32 (ESP-IDF and Arduino-ESP32) on the FreeRTOS port.** Kernel headers come from `freertos/` (new `FreeRTOSHeaders.h`), `FreeRTOSCriticalSection` uses an SMP spinlock (`portENTER_CRITICAL_SAFE`), and ISR detection uses `xPortInIsrContext()`. Selected by `ESP_PLATFORM`. Compiled for ESP32 with PlatformIO; not yet run on hardware.
 - **`DMQ_WATCHDOG_HEARTBEAT_DIVISOR`** (default 4, `dmq::WATCHDOG_HEARTBEAT_DIVISOR`): a watched thread's queue wait, and Qt's heartbeat timer, is its watchdog timeout divided by this. It was a literal in each port, 10 on stdlib, POSIX and Qt and 4 elsewhere; every port now uses 4.
 - **Start gate (synchronized start).** Optional `dmq::os::StartGate` with `Thread::SetStartGate()` holds a group of threads after `CreateThread()`, ready to receive messages but processing none at any priority, until `gate.Open()` starts them all together. It's for startups where a thread that runs early would post to threads not yet created, or publish before subscriptions are wired. A thread exiting while held runs nothing, and its queued messages are canceled. A held thread isn't reported by its watchdog. Available on every thread port: stdlib, Win32, POSIX, Qt, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2 and NuttX (`DMQ_HAS_START_GATE`; not bare metal). `test/unit-tests/StartGatePortableTest.h` runs the same gate tests in the desktop unit tests and in each RTOS sample. Cellutron's controller now holds its System, Process, Actuators and Sensors threads until setup is done; before, the Sensors poll timer could publish before subscriptions and the network were connected. See `docs/PORTING.md`.
 - **Node IDs.** `DMQ_NODE_ID` (1-255, default 0 = unset) or `DmqHeader::SetLocalNodeId()` sets the ID a process sends in every header; the interop C API adds `DmqInterop_SetNodeId()` (`SetNodeId` in C#, `set_node_id` in Python). Give every node a unique ID when more than one sends the same remote IDs. Cellutron, Pumptron and the interop samples now set one per node.

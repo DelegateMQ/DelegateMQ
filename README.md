@@ -132,6 +132,7 @@ See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individ
 
 - **CMake:** `FetchContent` or `add_subdirectory()`, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. Options such as `DMQ_THREAD` are set in CMake. See [With CMake](docs/BUILD.md#with-cmake).
 - **Without CMake (Keil, IAR, STM32CubeIDE, Makefiles):** add `src/delegate-mq` to the include path, put your options in a `DelegateMQConfig.h`, and compile either `src/DelegateMQ.cpp` or every `.cpp` in `src/delegate-mq`. See [Without CMake](docs/BUILD.md#without-cmake).
+- **PlatformIO:** add `lib_deps = DelegateMQ` and enable C++17 and RTTI. See [PlatformIO](docs/BUILD.md#platformio).
 
 # Overview
 
@@ -231,7 +232,7 @@ private:
 
 ## Threads
 
-`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS, so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::HIGH`) are dispatched ahead of normal ones.
+`dmq::os::Thread` is the worker thread that asynchronous delegates dispatch onto. The same class is available on every supported OS, so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::URGENT`) are dispatched ahead of normal ones.
 
 A thread can bound its queue and choose what happens when it fills (`dmq::FullPolicy`), enable a watchdog, run code on the worker at start, exit and idle, and choose how shutdown treats queued messages (`dmq::ExitPolicy`):
 

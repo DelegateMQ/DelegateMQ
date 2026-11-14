@@ -374,7 +374,7 @@ bool PosixThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         return false;
     }
 
-    if (threadMsg->GetPriority() == dmq::Priority::HIGH)
+    if (threadMsg->GetPriority() == dmq::Priority::URGENT)
         m_highQueue.push_back(threadMsg);
     else
         m_normalQueue.push_back(threadMsg);

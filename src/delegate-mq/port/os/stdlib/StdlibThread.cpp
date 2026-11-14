@@ -218,7 +218,7 @@ void StdlibThread::ExitThread(ExitPolicy policy)
 
         // Explicitly allow Exit message to bypass the MAX_QUEUE_SIZE limit.
         // We do not wait on m_cvNotFull here to prevent deadlock during shutdown.
-        if (threadMsg->GetPriority() == dmq::Priority::HIGH)
+        if (threadMsg->GetPriority() == dmq::Priority::URGENT)
             m_highQueue.push_back(threadMsg);
         else
             m_normalQueue.push_back(threadMsg);
@@ -338,7 +338,7 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     if (m_exit.load())
         return false;
 
-    if (threadMsg->GetPriority() == dmq::Priority::HIGH)
+    if (threadMsg->GetPriority() == dmq::Priority::URGENT)
         m_highQueue.push_back(threadMsg);
     else
         m_normalQueue.push_back(threadMsg);

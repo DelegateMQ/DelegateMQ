@@ -1,0 +1,22 @@
+{
+  "name": "DelegateMQ",
+  "version": "2.3.0",
+  "description": "C++17 delegates, signals and async messaging for embedded and desktop. Sync/async/remote function calls across threads, processes and CPUs; DataBus pub/sub; FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX and bare-metal ports; no heap option.",
+  "keywords": ["delegate", "signal slot", "async", "messaging", "publish subscribe", "rtos", "freertos", "embedded", "cpp17"],
+  "repository": { "type": "git", "url": "https://github.com/DelegateMQ/DelegateMQ.git" },
+  "authors": [{ "name": "David Lafreniere", "url": "https://github.com/endurodave", "maintainer": true }],
+  "license": "MIT",
+  "homepage": "https://github.com/DelegateMQ/DelegateMQ",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": "DelegateMQ.h",
+  "export": {
+    "include": ["src", "docs", "LICENSE", "README.md", "CHANGELOG.md", "library.json"]
+  },
+  "build": {
+    "srcDir": "src/delegate-mq",
+    "includeDir": "src/delegate-mq",
+    "flags": ["-std=gnu++17"],
+    "unflags": ["-std=gnu++11", "-std=gnu++14"]
+  }
+}

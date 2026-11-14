@@ -1,9 +1,8 @@
 #ifndef FREERTOS_CONDITION_VARIABLE_H
 #define FREERTOS_CONDITION_VARIABLE_H
 
-#include "FreeRTOS.h"
-#include "semphr.h"
-#include "task.h" 
+#include "FreeRTOSHeaders.h"
+#include "FreeRTOSCriticalSection.h"
 #include <chrono>
 
 namespace dmq::os {
@@ -49,9 +48,9 @@ namespace dmq::os {
             // often does not exist. Standard API is safe here.
             xSemaphoreGive(m_sem);
 #else
-            // Embedded (e.g., ARM Cortex-M): 
+            // Embedded (ARM Cortex-M, ESP32): 
             // Must check if running in ISR context to use FromISR API.
-            if (xPortIsInsideInterrupt())
+            if (detail::IsInsideFreeRTOSInterrupt() != pdFALSE)
             {
                 BaseType_t xHigherPriorityTaskWoken = pdFALSE;
                 xSemaphoreGiveFromISR(m_sem, &xHigherPriorityTaskWoken);

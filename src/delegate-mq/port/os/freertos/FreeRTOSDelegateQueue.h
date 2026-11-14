@@ -53,10 +53,7 @@
 /// @note Requires configUSE_COUNTING_SEMAPHORES == 1 in the application's
 /// FreeRTOSConfig.h (needed for xSemaphoreCreateCounting).
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "semphr.h"
+#include "FreeRTOSHeaders.h"
 #include "port/os/common/ThreadMsg.h"
 
 namespace dmq::os {

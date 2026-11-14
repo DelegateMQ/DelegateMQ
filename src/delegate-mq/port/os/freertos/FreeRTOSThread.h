@@ -45,10 +45,7 @@
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
 #include "FreeRTOSDelegateQueue.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "semphr.h"
+#include "FreeRTOSHeaders.h"
 #include <string>
 #include <memory>
 #include <atomic>

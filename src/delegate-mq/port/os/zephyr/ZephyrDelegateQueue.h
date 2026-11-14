@@ -12,7 +12,7 @@
 /// Zephyr's k_msgq has no native "send to front" / priority-put primitive
 /// (unlike FreeRTOS's xQueueSendToFront, ThreadX's tx_queue_front_send, or
 /// CMSIS-RTOS2's osMessageQueuePut msg_prio argument) -- a single k_msgq is
-/// strict FIFO, which previously meant dmq::Priority::HIGH was silently
+/// strict FIFO, which previously meant dmq::Priority::URGENT was silently
 /// treated as NORMAL on this port. To give HIGH the same "jumps the FIFO"
 /// semantics here as on every other RTOS port, this wrapper keeps two
 /// independent k_msgq instances (mirroring the desktop stdlib/win32/qt ports'

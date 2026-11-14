@@ -1,5 +1,5 @@
 /// @file
-/// @brief Demonstrate dmq::Priority::HIGH messages bypassing queued NORMAL work.
+/// @brief Demonstrate dmq::Priority::URGENT messages bypassing queued NORMAL work.
 ///
 /// Each async delegate carries a priority tag (LOW / NORMAL / HIGH). The thread
 /// message queue is a std::priority_queue, so when a HIGH message is enqueued
@@ -66,7 +66,7 @@ namespace Example
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         auto d = MakeDelegate(&EmergencyTask, worker_thread);
-        d.SetPriority(Priority::HIGH);
+        d.SetPriority(Priority::URGENT);
         d();
 
         // Wait for all work to finish: ~6 tasks * 30ms + margin

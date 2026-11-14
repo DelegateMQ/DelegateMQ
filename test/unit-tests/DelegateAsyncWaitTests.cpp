@@ -62,10 +62,10 @@ static void DelegateFreeAsyncWaitTests()
     std::invoke(delegate1, TEST_INT);
     DMQ_ASSERT_TRUE(delegate1.IsSuccess());
 
-    delegate1.SetPriority(Priority::HIGH);
+    delegate1.SetPriority(Priority::URGENT);
     auto delegate2 = delegate1;
     DMQ_ASSERT_TRUE(delegate1 == delegate2);
-    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate1.Empty());
     DMQ_ASSERT_TRUE(!delegate2.Empty());
 
@@ -83,7 +83,7 @@ static void DelegateFreeAsyncWaitTests()
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate5.Empty());
     DMQ_ASSERT_TRUE(delegate1.Empty());
 
@@ -275,10 +275,10 @@ static void DelegateMemberAsyncWaitTests()
     std::invoke(delegate1, TEST_INT);
     DMQ_ASSERT_TRUE(delegate1.IsSuccess());
 
-    delegate1.SetPriority(Priority::HIGH);
+    delegate1.SetPriority(Priority::URGENT);
     auto delegate2 = delegate1;
     DMQ_ASSERT_TRUE(delegate1 == delegate2);
-    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate1.Empty());
     DMQ_ASSERT_TRUE(!delegate2.Empty());
 
@@ -296,7 +296,7 @@ static void DelegateMemberAsyncWaitTests()
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate5.Empty());
     DMQ_ASSERT_TRUE(delegate1.Empty());
 
@@ -460,10 +460,10 @@ static void DelegateMemberSpAsyncWaitTests()
     std::invoke(delegate1, TEST_INT);
     DMQ_ASSERT_TRUE(delegate1.IsSuccess());
 
-    delegate1.SetPriority(Priority::HIGH);
+    delegate1.SetPriority(Priority::URGENT);
     auto delegate2 = delegate1;
     DMQ_ASSERT_TRUE(delegate1 == delegate2);
-    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate1.Empty());
     DMQ_ASSERT_TRUE(!delegate2.Empty());
 
@@ -481,7 +481,7 @@ static void DelegateMemberSpAsyncWaitTests()
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate5.Empty());
     DMQ_ASSERT_TRUE(delegate1.Empty());
 
@@ -606,10 +606,10 @@ static void DelegateMemberAsyncWaitSpTests()
     DMQ_ASSERT_TRUE(delegate1.IsSuccess());
 
     // 2. Priority and Copy
-    delegate1.SetPriority(Priority::HIGH);
+    delegate1.SetPriority(Priority::URGENT);
     auto delegate2 = delegate1;
     DMQ_ASSERT_TRUE(delegate1 == delegate2);
-    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate1.Empty());
     DMQ_ASSERT_TRUE(!delegate2.Empty());
 
@@ -630,7 +630,7 @@ static void DelegateMemberAsyncWaitSpTests()
 
     // 5. Move Semantics
     auto delegate5 = std::move(delegate1);
-    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate5.Empty());
     DMQ_ASSERT_TRUE(delegate1.Empty());
 
@@ -725,10 +725,10 @@ static void DelegateFunctionAsyncWaitTests()
     std::invoke(delegate1, TEST_INT);
     DMQ_ASSERT_TRUE(delegate1.IsSuccess());
 
-    delegate1.SetPriority(Priority::HIGH);
+    delegate1.SetPriority(Priority::URGENT);
     auto delegate2 = delegate1;
     DMQ_ASSERT_TRUE(delegate1 == delegate2);
-    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate2.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate1.Empty());
     DMQ_ASSERT_TRUE(!delegate2.Empty());
 
@@ -746,7 +746,7 @@ static void DelegateFunctionAsyncWaitTests()
     delete delegate4;
 
     auto delegate5 = std::move(delegate1);
-    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::HIGH);
+    DMQ_ASSERT_TRUE(delegate5.GetPriority() == Priority::URGENT);
     DMQ_ASSERT_TRUE(!delegate5.Empty());
     DMQ_ASSERT_TRUE(delegate1.Empty());
 

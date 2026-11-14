@@ -56,7 +56,7 @@ inline void HoldsUntilOpen(bool twoThreads)
             break;
         dmq::MakeDelegate(&Count, *t)(0);
         auto high = dmq::MakeDelegate(&Count, *t);
-        high.SetPriority(dmq::Priority::HIGH);   // must wait at the gate too
+        high.SetPriority(dmq::Priority::URGENT);   // must wait at the gate too
         high(0);
     }
     SleepMs(100);

@@ -1,8 +1,7 @@
 #ifndef FREERTOS_MUTEX_H
 #define FREERTOS_MUTEX_H
 
-#include "FreeRTOS.h"
-#include "semphr.h"
+#include "FreeRTOSHeaders.h"
 
 namespace dmq::os {
 

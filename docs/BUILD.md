@@ -130,6 +130,26 @@ Requirements:
 
 ---
 
+### PlatformIO
+DelegateMQ is a PlatformIO library (`library.json` at the repo root). PlatformIO compiles every `.cpp` in `src/delegate-mq`, so it follows the [Without CMake](#without-cmake) rules.
+
+```ini
+[env:esp32dev]
+platform  = espressif32
+board     = esp32dev
+framework = arduino
+lib_deps  = DelegateMQ
+; DelegateMQ needs C++17 and RTTI; Arduino cores default to C++11 and -fno-rtti
+build_unflags = -std=gnu++11 -fno-rtti
+build_flags   = -std=gnu++17 -frtti
+```
+
+- **Options:** put `DelegateMQConfig.h` in the project's `include/` folder, not `src/`. PlatformIO builds libraries with `include/` on the path but not `src/`, so a config in `src/` is seen by your code but not by the library, and the two disagree (for example, link errors for `FreeRTOSThread`).
+- **ESP32 (Arduino-ESP32 or ESP-IDF):** `#define DMQ_THREAD_FREERTOS` for worker threads. The FreeRTOS port uses ESP-IDF's `freertos/` header paths and its SMP spinlock critical section automatically (`ESP_PLATFORM`).
+- **Arduino macros:** Arduino cores `#define HIGH` and `LOW`, which is why the urgent message priority is `dmq::Priority::URGENT`.
+
+---
+
 ## Example Ecosystem (Sandbox)
 Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party libraries. We provide scripts that fetch and build all dependencies into `external/` inside the repository (gitignored).
 

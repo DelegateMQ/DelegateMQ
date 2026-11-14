@@ -333,7 +333,7 @@ bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
         timeout = K_NO_WAIT;  // DROP and FAULT: non-blocking
 
     // High priority routes to the queue Receive() always drains first.
-    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::HIGH, timeout);
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::URGENT, timeout);
     if (!sent)
     {
         if (FULL_POLICY == FullPolicy::FAULT) {

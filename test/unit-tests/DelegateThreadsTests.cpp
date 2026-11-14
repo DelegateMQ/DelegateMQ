@@ -852,7 +852,7 @@ static void StartGate_HoldsUntilOpen()
     {
         MakeDelegate(inc, *t)();
         auto high = MakeDelegate(inc, *t);
-        high.SetPriority(Priority::HIGH);   // must wait at the gate too
+        high.SetPriority(Priority::URGENT);   // must wait at the gate too
         high();
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(200));

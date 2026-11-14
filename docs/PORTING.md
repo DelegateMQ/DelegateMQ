@@ -161,7 +161,7 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     TickType_t timeout = (FULL_POLICY == FullPolicy::TIMEOUT)
         ? pdMS_TO_TICKS(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count())
         : 0;
-    if (!m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::HIGH, timeout))
+    if (!m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::URGENT, timeout))
     {
         delete threadMsg;  // queue full, dropped per policy
         return false;

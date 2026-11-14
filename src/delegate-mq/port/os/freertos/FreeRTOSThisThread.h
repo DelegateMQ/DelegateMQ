@@ -16,8 +16,7 @@
 /// sleep. dmq::os::Thread::Sleep() forwards here too, so the FreeRTOS delay
 /// call is implemented exactly once.
 
-#include "FreeRTOS.h"
-#include "task.h"
+#include "FreeRTOSHeaders.h"
 #include "FreeRTOSMutex.h"
 #include "FreeRTOSCriticalSection.h"
 #include "port/os/common/CurrentThreadStorage.h"
