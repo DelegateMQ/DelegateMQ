@@ -60,7 +60,7 @@ Try it on the desktop with [CMake](https://cmake.org/) (Visual Studio, GCC or Cl
 
 Clone and build the main delegate application. No third-party libraries needed.
 
-```bash
+```shell
 git clone https://github.com/DelegateMQ/DelegateMQ.git
 cd DelegateMQ
 cmake -B build
@@ -69,7 +69,7 @@ cmake --build build
 
 Run the built executable:
 
-```bash
+```shell
 # Windows
 build\delegate_app\Debug\delegate_app.exe
 
@@ -79,7 +79,7 @@ build\delegate_app\Debug\delegate_app.exe
 
 To build and run all the example projects as well, run `build_all.py` from the repository root. It fetches the third-party libraries into `external/`, builds them, then builds and runs every sample and reports pass/fail. Requires Python 3 and Git.
 
-```bash
+```shell
 python3 build_all.py            # --from N resumes at step N
 ```
 
@@ -89,7 +89,7 @@ See [Example Ecosystem](https://github.com/DelegateMQ/DelegateMQ/blob/master/doc
 
 From the clone above, build the example sketch for a board, flash it and watch the serial output. Boards in the example: `esp32dev`, `esp32-c3`, `nucleo_f401re`, `disco_f407vg`, `pico`; `native` runs it on the desktop.
 
-```bash
+```shell
 cd example/platformio/async-delegates
 pio run -e esp32dev -t upload -t monitor
 ```
@@ -157,11 +157,11 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](https://github.com/DelegateMQ/DelegateMQ#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
 
 | Category | Supported |
 | :--- | :--- |
-| **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal (see [Platform Support](#platform-support)) |
+| **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal (see [Platform Support](https://github.com/DelegateMQ/DelegateMQ#platform-support)) |
 | **Build** | [CMake](https://cmake.org/), [PlatformIO](https://platformio.org/), or any build system (Keil, IAR, STM32CubeIDE, Makefiles, ...) |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
@@ -403,7 +403,7 @@ auto msg = dmq::xmake_shared<SensorMsg>();         // object and control block f
 
 DataBus creates no internal threads and is small enough for embedded targets, unlike full DDS systems. Quality of Service (QoS) options such as Last Value Cache (LVC) deliver the most recent value to new subscribers immediately.
 
-Remote topics travel over any supported transport, such as Ethernet or serial, using any supported serializer. See [Supported Integrations](#supported-integrations).
+Remote topics travel over any supported transport, such as Ethernet or serial, using any supported serializer. See [Supported Integrations](https://github.com/DelegateMQ/DelegateMQ#supported-integrations).
 
 ```cpp
 #include "DelegateMQ.h"
@@ -552,7 +552,7 @@ Any: point-to-point, star, mesh, broadcast/multicast, or broker-based. A topolog
 Yes, through a shared native core with C# and Python wrappers. See [Cross-Language Interop](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/INTEROP.md).
 
 **Is DelegateMQ tested?**  
-Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M, builds and runs the Qt port's test suite, and builds the PlatformIO example for each board. See [Platform Support](#platform-support) for how each platform is verified, including simulators and real boards.
+Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M, builds and runs the Qt port's test suite, and builds the PlatformIO example for each board. See [Platform Support](https://github.com/DelegateMQ/DelegateMQ#platform-support) for how each platform is verified, including simulators and real boards.
 
 **Can I maintain DelegateMQ myself?**  
 Yes. The code base is small, ships as full source under the MIT license, and any LLM coding assistant can help you navigate, modify or port it.
