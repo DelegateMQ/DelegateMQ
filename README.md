@@ -87,7 +87,7 @@ See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individ
 
 ### Microcontroller (PlatformIO)
 
-From the clone above, build the example sketch for a board, flash it and watch the serial output. Boards in the example: `esp32dev`, `esp32-c3`, `nucleo_f401re`, `pico`; `native` runs it on the desktop.
+From the clone above, build the example sketch for a board, flash it and watch the serial output. Boards in the example: `esp32dev`, `esp32-c3`, `nucleo_f401re`, `disco_f407vg`, `pico`; `native` runs it on the desktop.
 
 ```bash
 cd example/platformio/async-delegates
@@ -111,7 +111,7 @@ Each platform below states how it has been verified. The OS port is selected wit
 | Windows (MSVC) | `STDLIB`, `WIN32` | CI: build and unit tests | [`test/`](test/) |
 | Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests | [`posix-linux`](example/sample-projects/posix-linux/) |
 | FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile; STM32F4 Discovery board; POSIX simulator | [`stm32-freertos`](example/sample-projects/stm32-freertos/), [`pumptron`](example/pumptron/), [`cellutron`](example/cellutron/) |
-| ESP32, ESP32-C3 (Arduino) | `FREERTOS` | CI: PlatformIO build | [`platformio`](example/platformio/async-delegates/) |
+| ESP32, ESP32-C3, STM32F4 Discovery (Arduino) | `FREERTOS` | CI: PlatformIO build; run on an STM32F4 Discovery | [`platformio`](example/platformio/async-delegates/) |
 | ThreadX | `THREADX` | CI: Cortex-M4 compile; Linux simulator | [`threadx-linux`](example/sample-projects/threadx-linux/) |
 | CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile; Zephyr `native_sim` | [`cmsis-rtos2-linux`](example/sample-projects/cmsis-rtos2-linux/) |
 | Zephyr | `ZEPHYR` | `native_sim` | [`zephyr-linux`](example/sample-projects/zephyr-linux/), [`databus-zephyr`](example/sample-projects/databus-zephyr/) |

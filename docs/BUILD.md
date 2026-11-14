@@ -147,10 +147,11 @@ extra_scripts = pre:cxx_flags.py   ; adds -frtti to C++ files only
 
 **RTTI:** `-frtti` in `build_flags` also works, but `build_flags` reaches C files too, and GCC warns on each one that `-frtti` is C++ only. To avoid the warnings, copy [`cxx_flags.py`](../example/platformio/async-delegates/cxx_flags.py) from the example into your project folder, as above. It adds `-frtti` to C++ compiles only.
 
-**Example and tested boards:** `example/platformio/async-delegates` is one sketch built for every board in its `platformio.ini`: ESP32 and ESP32-C3 (FreeRTOS, async delegates on worker threads), STM32 Nucleo-F401RE and Raspberry Pi Pico (bare metal, synchronous delegates and signals), and the desktop (`native`, stdlib threads). Run `pio run` there to build them all. Other 32-bit GCC targets with C++17 should work, but aren't built.
+**Example and tested boards:** `example/platformio/async-delegates` is one sketch built for every board in its `platformio.ini`: ESP32, ESP32-C3 and STM32F4 Discovery (FreeRTOS, async delegates on worker threads; run on an STM32F4 Discovery board), STM32 Nucleo-F401RE and Raspberry Pi Pico (bare metal, synchronous delegates and signals), and the desktop (`native`, stdlib threads). Run `pio run` there to build them all. Other 32-bit GCC targets with C++17 should work, but aren't built.
 
 - **Options:** put `DelegateMQConfig.h` in the project's `include/` folder, not `src/`. PlatformIO builds libraries with `include/` on the path but not `src/`, so a config in `src/` is seen by your code but not by the library, and the two disagree (for example, link errors for `FreeRTOSThread`).
 - **ESP32 (Arduino-ESP32 or ESP-IDF):** `#define DMQ_THREAD_FREERTOS` for worker threads. The FreeRTOS port uses ESP-IDF's `freertos/` header paths and its SMP spinlock critical section automatically (`ESP_PLATFORM`).
+- **STM32 (Arduino) with FreeRTOS:** add `stm32duino/STM32duino FreeRTOS` to `lib_deps` and `#define DMQ_THREAD_FREERTOS`. That core doesn't start FreeRTOS, so `setup()` creates a task for the application and calls `vTaskStartScheduler()`; see the `disco_f407vg` environment in the example.
 - **Arduino macros:** Arduino cores `#define HIGH` and `LOW`, which is why the urgent message priority is `dmq::Priority::URGENT`.
 
 ---

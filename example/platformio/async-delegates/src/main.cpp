@@ -1,7 +1,7 @@
 // DelegateMQ PlatformIO example: one sketch for every board in platformio.ini.
 //
 // All boards: synchronous delegates and a Signal with a ScopedConnection.
-// Boards with threads (ESP32, desktop): asynchronous delegates on a worker
+// Boards with threads (ESP32, STM32F4 Discovery, desktop): asynchronous delegates on a worker
 // thread, an URGENT message that runs ahead of queued NORMAL ones, and a
 // blocking async-wait call that returns a value from the worker thread.
 
@@ -11,6 +11,14 @@
 
 #ifdef ARDUINO
 #include <Arduino.h>
+#endif
+
+// FreeRTOS on a core that doesn't start it (STM32duino FreeRTOS): setup()
+// runs the demo in a task and starts the scheduler. Arduino-ESP32 already
+// runs setup() in a FreeRTOS task.
+#if defined(ARDUINO) && defined(DMQ_THREAD_FREERTOS) && !defined(ESP_PLATFORM)
+#define DEMO_STARTS_SCHEDULER
+#include <STM32FreeRTOS.h>
 #endif
 
 // ---------------------------------------------------------------------------
@@ -152,12 +160,27 @@ static void RunDemo()
 // Entry points
 // ---------------------------------------------------------------------------
 #ifdef ARDUINO
+#if defined(DEMO_STARTS_SCHEDULER)
+static void DemoTask(void*)
+{
+    RunDemo();
+    for (;;)
+        vTaskDelay(pdMS_TO_TICKS(1000));
+}
+#endif
+
 void setup()
 {
     Serial.begin(115200);
     delay(2000);    // time to open the serial monitor
     UpdateTicks();
+#if defined(DEMO_STARTS_SCHEDULER)
+    // Below the worker's priority (configMAX_PRIORITIES - 2), as on ESP32
+    xTaskCreate(DemoTask, "Demo", 1024, nullptr, tskIDLE_PRIORITY + 1, nullptr);
+    vTaskStartScheduler();  // doesn't return
+#else
     RunDemo();
+#endif
 }
 
 void loop()
