@@ -1,6 +1,6 @@
 {
   "name": "DelegateMQ",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "C++17 delegates, signals and async messaging for embedded and desktop. Sync/async/remote function calls across threads, processes and CPUs; DataBus pub/sub; FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX and bare-metal ports; no heap option.",
   "keywords": [
     "delegate",

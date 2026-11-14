@@ -12,7 +12,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Project name and language (C or C++)
-project(DelegateProject VERSION 2.4.0 LANGUAGES CXX)
+project(DelegateProject VERSION 2.4.1 LANGUAGES CXX)
 
 option(DMQ_FORCE_OPTIMIZE_DEBUG "Force compiler optimizations on DelegateMQ templates even in Debug builds" OFF)
 

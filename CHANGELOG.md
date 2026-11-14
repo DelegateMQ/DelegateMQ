@@ -9,6 +9,13 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-11-14
+
+Documentation only; no code changes.
+
+### Fixed
+- **README on the PlatformIO registry page.** The registry renders the packaged README without the repository, so the layer diagram and screenshot didn't load and relative links went nowhere; they now use absolute GitHub URLs. Also: bold text containing inline code showed literal `**` (now HTML `<b>`), links labelled with inline code showed in a small monospace font, links to sections of the page did nothing (headings have no IDs there), and `bash` code blocks weren't highlighted (now `shell`).
+
 ## [2.4.0] - 2026-11-14
 
 ### Upgrading to 2.4.0

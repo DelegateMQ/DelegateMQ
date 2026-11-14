@@ -60,7 +60,7 @@ Try it on the desktop with [CMake](https://cmake.org/) (Visual Studio, GCC or Cl
 
 Clone and build the main delegate application. No third-party libraries needed.
 
-```bash
+```shell
 git clone https://github.com/DelegateMQ/DelegateMQ.git
 cd DelegateMQ
 cmake -B build
@@ -69,7 +69,7 @@ cmake --build build
 
 Run the built executable:
 
-```bash
+```shell
 # Windows
 build\delegate_app\Debug\delegate_app.exe
 
@@ -79,47 +79,47 @@ build\delegate_app\Debug\delegate_app.exe
 
 To build and run all the example projects as well, run `build_all.py` from the repository root. It fetches the third-party libraries into `external/`, builds them, then builds and runs every sample and reports pass/fail. Requires Python 3 and Git.
 
-```bash
+```shell
 python3 build_all.py            # --from N resumes at step N
 ```
 
-See [Example Ecosystem](docs/BUILD.md#example-ecosystem-sandbox) for the individual steps and options.
+See [Example Ecosystem](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/BUILD.md#example-ecosystem-sandbox) for the individual steps and options.
 
 ### Microcontroller (PlatformIO)
 
 From the clone above, build the example sketch for a board, flash it and watch the serial output. Boards in the example: `esp32dev`, `esp32-c3`, `nucleo_f401re`, `disco_f407vg`, `pico`; `native` runs it on the desktop.
 
-```bash
+```shell
 cd example/platformio/async-delegates
 pio run -e esp32dev -t upload -t monitor
 ```
 
-See [`async-delegates`](example/platformio/async-delegates/) and [PlatformIO](example/platformio/PLATFORMIO.md).
+See [async-delegates](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) and [PlatformIO](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/platformio/PLATFORMIO.md).
 
 ## Adding DelegateMQ to Your Project
 
-- **CMake:** `FetchContent` or `add_subdirectory()`, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. Options such as `DMQ_THREAD` are set in CMake. See [With CMake](docs/BUILD.md#with-cmake).
-- **Without CMake (Keil, IAR, STM32CubeIDE, Makefiles):** add `src/delegate-mq` to the include path, put your options in a `DelegateMQConfig.h`, and compile either `src/DelegateMQ.cpp` or every `.cpp` in `src/delegate-mq`. See [Without CMake](docs/BUILD.md#without-cmake).
-- **PlatformIO:** add `lib_deps = endurodave/DelegateMQ@^2.4.0`, enable C++17 and RTTI, and put `DelegateMQConfig.h` in `include/`. See [PlatformIO](example/platformio/PLATFORMIO.md).
+- **CMake:** `FetchContent` or `add_subdirectory()`, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. Options such as `DMQ_THREAD` are set in CMake. See [With CMake](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/BUILD.md#with-cmake).
+- **Without CMake (Keil, IAR, STM32CubeIDE, Makefiles):** add `src/delegate-mq` to the include path, put your options in a `DelegateMQConfig.h`, and compile either `src/DelegateMQ.cpp` or every `.cpp` in `src/delegate-mq`. See [Without CMake](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/BUILD.md#without-cmake).
+- **PlatformIO:** add `lib_deps = endurodave/DelegateMQ@^2.4.0`, enable C++17 and RTTI, and put `DelegateMQConfig.h` in `include/`. See [PlatformIO](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/platformio/PLATFORMIO.md).
 
 # Platform Support
 
-Each platform below states how it has been verified. The OS port is selected with a `DMQ_THREAD_*` define; see [BUILD.md](docs/BUILD.md).
+Each platform below states how it has been verified. The OS port is selected with a `DMQ_THREAD_*` define; see [BUILD.md](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/BUILD.md).
 
 | Platform | Port (`DMQ_THREAD_*`) | Verified by | Example |
 | :--- | :--- | :--- | :--- |
-| Windows (MSVC) | `STDLIB`, `WIN32` | CI: build and unit tests | [`test/`](test/) |
-| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests | [`posix-linux`](example/sample-projects/posix-linux/) |
-| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile; STM32F4 Discovery board; POSIX simulator | [`stm32-freertos`](example/sample-projects/stm32-freertos/), [`pumptron`](example/pumptron/), [`cellutron`](example/cellutron/) |
-| ESP32, ESP32-C3, STM32F4 Discovery (Arduino) | `FREERTOS` | CI: PlatformIO build; run on an STM32F4 Discovery | [`platformio`](example/platformio/async-delegates/) |
-| ThreadX | `THREADX` | CI: Cortex-M4 compile; Linux simulator | [`threadx-linux`](example/sample-projects/threadx-linux/) |
-| CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile; Zephyr `native_sim` | [`cmsis-rtos2-linux`](example/sample-projects/cmsis-rtos2-linux/) |
-| Zephyr | `ZEPHYR` | `native_sim` | [`zephyr-linux`](example/sample-projects/zephyr-linux/), [`databus-zephyr`](example/sample-projects/databus-zephyr/) |
-| NuttX | `NUTTX` | NuttX `sim` | [`nuttx-sim`](example/sample-projects/nuttx-sim/) |
-| Qt | `QT` | CI: Linux build and tests | [`qt-linux`](example/sample-projects/qt-linux/) |
-| Bare metal: Cortex-M, RISC-V | `NONE` | QEMU | [`bare-metal-arm`](example/sample-projects/bare-metal-arm/), [`bare-metal-riscv`](example/sample-projects/bare-metal-riscv/) |
-| STM32 Nucleo, RP2040 (Arduino) | `NONE` (synchronous only) | CI: PlatformIO build | [`platformio`](example/platformio/async-delegates/) |
-| Desktop via PlatformIO | `STDLIB` | CI: PlatformIO build and run | [`platformio`](example/platformio/async-delegates/) |
+| Windows (MSVC) | `STDLIB`, `WIN32` | CI: build and unit tests | [test/](https://github.com/DelegateMQ/DelegateMQ/tree/master/test/) |
+| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests | [posix-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/posix-linux/) |
+| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile; STM32F4 Discovery board; POSIX simulator | [stm32-freertos](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/stm32-freertos/), [pumptron](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/pumptron/), [cellutron](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/cellutron/) |
+| ESP32, ESP32-C3, STM32F4 Discovery (Arduino) | `FREERTOS` | CI: PlatformIO build; run on an STM32F4 Discovery | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
+| ThreadX | `THREADX` | CI: Cortex-M4 compile; Linux simulator | [threadx-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/threadx-linux/) |
+| CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile; Zephyr `native_sim` | [cmsis-rtos2-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/cmsis-rtos2-linux/) |
+| Zephyr | `ZEPHYR` | `native_sim` | [zephyr-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/zephyr-linux/), [databus-zephyr](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/databus-zephyr/) |
+| NuttX | `NUTTX` | NuttX `sim` | [nuttx-sim](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/nuttx-sim/) |
+| Qt | `QT` | CI: Linux build and tests | [qt-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/qt-linux/) |
+| Bare metal: Cortex-M, RISC-V | `NONE` | QEMU | [bare-metal-arm](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/bare-metal-arm/), [bare-metal-riscv](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/bare-metal-riscv/) |
+| STM32 Nucleo, RP2040 (Arduino) | `NONE` (synchronous only) | CI: PlatformIO build | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
+| Desktop via PlatformIO | `STDLIB` | CI: PlatformIO build and run | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
 
 Simulator, QEMU and board entries are sample projects built and run by hand; they are not part of CI.
 
@@ -157,15 +157,15 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](https://github.com/DelegateMQ/DelegateMQ#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
 
 | Category | Supported |
 | :--- | :--- |
-| **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal (see [Platform Support](#platform-support)) |
+| **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal (see [Platform Support](https://github.com/DelegateMQ/DelegateMQ#platform-support)) |
 | **Build** | [CMake](https://cmake.org/), [PlatformIO](https://platformio.org/), or any build system (Keil, IAR, STM32CubeIDE, Makefiles, ...) |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
-| **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
+| **Bridges & Tools** | [MQTT gateway](https://github.com/DelegateMQ/DelegateMQ/blob/master/tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
 
 # Example Use Cases
 
@@ -183,7 +183,7 @@ DelegateMQ builds everything on one primitive, the delegate: the same delegate t
 
 The OS, transport, and serializer sit behind small pure-virtual interfaces, so underlying technologies swap without changing application logic. DelegateMQ's implementations of those interfaces for each supported OS, transport and serializer form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`); only the platform beneath it (OS kernels, network stacks, third-party libraries) is external:
 
-<img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram"><br>
+<img src="https://raw.githubusercontent.com/DelegateMQ/DelegateMQ/master/docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram"><br>
 *DelegateMQ Layer Diagram*
 
 ## Key Concepts
@@ -277,8 +277,8 @@ private:
 
 Asynchronous delegates dispatch onto any object that implements the small `dmq::IThread` interface. There are two ways to provide one:
 
-- **Use the built-in `dmq::os::Thread`** — a ready-made worker thread with its own message queue, available on every supported OS (described below).
-- **Implement `dmq::IThread` on your project's existing thread** — if your application already has its own thread or event loop (an RTOS task, a GUI loop, a game loop), implement two methods and DelegateMQ dispatches straight onto it. No need to adopt `dmq::os::Thread`. See [`dmq::IThread`](docs/PORTING.md#dmqithread) for details.
+- <b>Use the built-in <code>dmq::os::Thread</code></b> — a ready-made worker thread with its own message queue, available on every supported OS (described below).
+- <b>Implement <code>dmq::IThread</code> on your project's existing thread</b> — if your application already has its own thread or event loop (an RTOS task, a GUI loop, a game loop), implement two methods and DelegateMQ dispatches straight onto it. No need to adopt `dmq::os::Thread`. See [dmq::IThread](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/PORTING.md#dmqithread) for details.
 
 `dmq::os::Thread` is the built-in worker thread. The same class is available on every supported OS, so application code doesn't change between ports. Each thread owns a message queue; high-priority messages (`dmq::Priority::URGENT`) are dispatched ahead of normal ones.
 
@@ -304,7 +304,7 @@ worker.ExitThread();                            // runs queued messages first (E
 | `dmq::FullPolicy` (queue full) | `FAULT` (default) — fault immediately; `DROP` — discard the message; `TIMEOUT` — wait for space, then drop |
 | `dmq::ExitPolicy` (`ExitThread()`) | `DRAIN` (default) — run every queued message, then exit; `DISCARD` — finish the running message, cancel the rest |
 
-To start a group of threads together, give each the same optional `dmq::os::StartGate` with `SetStartGate()`: each is created and ready but processes nothing until `gate.Open()`, so no thread runs while others are still being created or wired up. See [Start Gate](docs/PORTING.md#start-gate-synchronized-start).
+To start a group of threads together, give each the same optional `dmq::os::StartGate` with `SetStartGate()`: each is created and ready but processes nothing until `gate.Open()`, so no thread runs while others are still being created or wired up. See [Start Gate](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/PORTING.md#start-gate-synchronized-start).
 
 ## Signal / Slot
 
@@ -395,7 +395,7 @@ dmq::xmap<int, dmq::xstring> names;                // std::map, std::string equi
 auto msg = dmq::xmake_shared<SensorMsg>();         // object and control block from the pool
 ```
 
-`dmq::xset`, `dmq::xqueue`, `dmq::xstringstream`, and others are also available. See [Fixed-Block Memory Allocator](docs/DETAILS.md#fixed-block-memory-allocator).
+`dmq::xset`, `dmq::xqueue`, `dmq::xstringstream`, and others are also available. See [Fixed-Block Memory Allocator](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/DETAILS.md#fixed-block-memory-allocator).
 
 # DataBus (DDS Lite)
 
@@ -403,7 +403,7 @@ auto msg = dmq::xmake_shared<SensorMsg>();         // object and control block f
 
 DataBus creates no internal threads and is small enough for embedded targets, unlike full DDS systems. Quality of Service (QoS) options such as Last Value Cache (LVC) deliver the most recent value to new subscribers immediately.
 
-Remote topics travel over any supported transport, such as Ethernet or serial, using any supported serializer. See [Supported Integrations](#supported-integrations).
+Remote topics travel over any supported transport, such as Ethernet or serial, using any supported serializer. See [Supported Integrations](https://github.com/DelegateMQ/DelegateMQ#supported-integrations).
 
 ```cpp
 #include "DelegateMQ.h"
@@ -480,9 +480,9 @@ DelegateMQ includes three diagnostic TUI (Terminal User Interface) consoles for 
 
 | Tool | Purpose |
 |------|---------|
-| **`dmq-spy`** | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
-| **`dmq-monitor`** | Live network topology view — shows all active nodes, status, uptime, and published topics |
-| **`dmq-thread`** | Performance dashboard — monitors thread health, queue depths, and dispatch latency (Avg/Max) |
+| <b><code>dmq-spy</code></b> | Real-time live feed of all DataBus messages — acts as a "Software Logic Analyzer" |
+| <b><code>dmq-monitor</code></b> | Live network topology view — shows all active nodes, status, uptime, and published topics |
+| <b><code>dmq-thread</code></b> | Performance dashboard — monitors thread health, queue depths, and dispatch latency (Avg/Max) |
 
 The tools also integrate with two popular third-party analyzers:
 
@@ -491,9 +491,9 @@ The tools also integrate with two popular third-party analyzers:
 | **Wireshark** | A Lua dissector plugin (`tools/wireshark/dmq.lua`) decodes DelegateMQ UDP/TCP traffic in [Wireshark](https://www.wireshark.org/): header fields, ACKs, and per-project topic labels, with Wireshark's filters and statistics |
 | **PlotJuggler** | `dmq-spy --plotjuggler` streams numeric DataBus values to [PlotJuggler](https://github.com/facontidavide/PlotJuggler) for live time-series plots |
 
-See [Tools](tools/TOOLS.md) for setup and usage.
+See [Tools](https://github.com/DelegateMQ/DelegateMQ/blob/master/tools/TOOLS.md) for setup and usage.
 
-<img src="docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;">
+<img src="https://raw.githubusercontent.com/DelegateMQ/DelegateMQ/master/docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;">
 
 
 # Features
@@ -514,7 +514,7 @@ DelegateMQ at a glance.
 | Signal and Slots | Standard Signal-Slot pattern (`dmq::Signal<Sig>`). `Connect()` returns a `dmq::ScopedConnection` for RAII auto-disconnect. Thread-safe by default; no `shared_ptr` required. |
 | Multicast | Broadcast invoke anonymous callable targets onto multiple threads |
 | DataBus | Topic-based middleware distribution system (DDS Lite) across threads or remote nodes |
-| Interop | C#, Python, and others supported via a **Shared Native Core** architecture. See [Cross-Language Interop](docs/INTEROP.md). |
+| Interop | C#, Python, and others supported via a **Shared Native Core** architecture. See [Cross-Language Interop](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/INTEROP.md). |
 | Message Priority | Asynchronous delegates support prioritization to ensure timely execution of critical messages |
 | Serialization | External configurable serialization data formats, such as MessagePack, RapidJSON, or custom encoding (`dmq::ISerializer`) |
 | Transport | External configurable transport, such as ZeroMQ, TCP, UDP, serial, data pipe or any custom transport (`dmq::transport::ITransport`)  |
@@ -539,20 +539,20 @@ To simplify multi-threaded and multi-processor application development:
 **Is the DelegateMQ library modular?**  
 Yes. Start with the header-only delegates and signals (async calls add your OS's thread port). Remote calls (RPC), the DataBus, and the fixed-block allocator are optional; enable them only if you need them.
 
-**Do I have to use `dmq::os::Thread`?**  
-No. Implement the two-method `dmq::IThread` interface on your existing thread or event loop and dispatch onto it directly. See [`dmq::IThread`](docs/PORTING.md#dmqithread).
+<b>Do I have to use <code>dmq::os::Thread</code>?</b>  
+No. Implement the two-method `dmq::IThread` interface on your existing thread or event loop and dispatch onto it directly. See [dmq::IThread](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/PORTING.md#dmqithread).
 
 **Why use the DelegateMQ DataBus?**  
-For type-safe publish/subscribe that works the same between threads, processes and processors, so components don't need to know where their data comes from. Each subscriber chooses the thread it runs on, and it's small enough for microcontrollers. It runs over any transport, such as Ethernet or a serial link. See [DataBus](docs/DATABUS.md) and [Comparison](docs/COMPARISON.md).
+For type-safe publish/subscribe that works the same between threads, processes and processors, so components don't need to know where their data comes from. Each subscriber chooses the thread it runs on, and it's small enough for microcontrollers. It runs over any transport, such as Ethernet or a serial link. See [DataBus](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/DATABUS.md) and [Comparison](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/COMPARISON.md).
 
 **What network topologies are supported?**  
-Any: point-to-point, star, mesh, broadcast/multicast, or broker-based. A topology is just which nodes connect to which. Relay nodes bridge between transports, for example UART to Ethernet. See [Topologies](docs/DATABUS.md#topologies).
+Any: point-to-point, star, mesh, broadcast/multicast, or broker-based. A topology is just which nodes connect to which. Relay nodes bridge between transports, for example UART to Ethernet. See [Topologies](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/DATABUS.md#topologies).
 
 **Can C# or Python talk to it?**  
-Yes, through a shared native core with C# and Python wrappers. See [Cross-Language Interop](docs/INTEROP.md).
+Yes, through a shared native core with C# and Python wrappers. See [Cross-Language Interop](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/INTEROP.md).
 
 **Is DelegateMQ tested?**  
-Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M, builds and runs the Qt port's test suite, and builds the PlatformIO example for each board. See [Platform Support](#platform-support) for how each platform is verified, including simulators and real boards.
+Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M, builds and runs the Qt port's test suite, and builds the PlatformIO example for each board. See [Platform Support](https://github.com/DelegateMQ/DelegateMQ#platform-support) for how each platform is verified, including simulators and real boards.
 
 **Can I maintain DelegateMQ myself?**  
 Yes. The code base is small, ships as full source under the MIT license, and any LLM coding assistant can help you navigate, modify or port it.
@@ -561,29 +561,29 @@ Yes. The code base is small, ships as full source under the MIT license, and any
 
 | Guide | Description | Key Focus |
 | :--- | :--- | :--- |
-| [**Tutorial**](docs/TUTORIAL.md) | Step-by-step system evolution | Adoption & Use Cases |
-| [**Application Guide**](docs/APP-GUIDE.md) | Rules for writing an app with DelegateMQ (also for coding agents) | Setup, Threads, Shutdown Order |
-| [**Build**](docs/BUILD.md) | Build & configuration guide | CMake & Setup |
-| [**PlatformIO**](example/platformio/PLATFORMIO.md) | Arduino and PlatformIO boards | ESP32, STM32, Pico, Setup |
-| [**Signals**](docs/SIGNALS.md) | Decoupled event handling | Signal/Slot RAII |
-| [**DataBus**](docs/DATABUS.md) | Topic-based pub/sub middleware | DDS Lite & Networking |
-| [**Design Details**](docs/DETAILS.md) | Deep technical architecture | API Reference |
-| [**Porting Guide**](docs/PORTING.md) | OS & Hardware abstraction | Platform Support |
-| [**Interop**](docs/INTEROP.md) | Multi-language integration | C# & Python |
-| [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards and integrations | Spy, Monitor, Wireshark, PlotJuggler |
-| [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
-| [**Safety Notes**](docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
+| [**Tutorial**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/TUTORIAL.md) | Step-by-step system evolution | Adoption & Use Cases |
+| [**Application Guide**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/APP-GUIDE.md) | Rules for writing an app with DelegateMQ (also for coding agents) | Setup, Threads, Shutdown Order |
+| [**Build**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/BUILD.md) | Build & configuration guide | CMake & Setup |
+| [**PlatformIO**](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/platformio/PLATFORMIO.md) | Arduino and PlatformIO boards | ESP32, STM32, Pico, Setup |
+| [**Signals**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/SIGNALS.md) | Decoupled event handling | Signal/Slot RAII |
+| [**DataBus**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/DATABUS.md) | Topic-based pub/sub middleware | DDS Lite & Networking |
+| [**Design Details**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/DETAILS.md) | Deep technical architecture | API Reference |
+| [**Porting Guide**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/PORTING.md) | OS & Hardware abstraction | Platform Support |
+| [**Interop**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/INTEROP.md) | Multi-language integration | C# & Python |
+| [**Tools**](https://github.com/DelegateMQ/DelegateMQ/blob/master/tools/TOOLS.md) | Diagnostic TUI dashboards and integrations | Spy, Monitor, Wireshark, PlotJuggler |
+| [**Comparison**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
+| [**Safety Notes**](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
 
 # Example Projects
 
-The [`example`](example/README.md) directory ranges from single-file snippets to complete multi-node applications. Highlights:
+The [example](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/README.md) directory ranges from single-file snippets to complete multi-node applications. Highlights:
 
 | Example | Description | Docs |
 | :--- | :--- | :--- |
-| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS, transport or serializer. The [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds the third-party libraries they need. | [README.md](example/sample-projects/README.md) |
-| **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
-| **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
-| **PlatformIO sketch** | One Arduino sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, STM32F4 Discovery, Raspberry Pi Pico and the desktop: synchronous delegates and signals everywhere, async delegates where FreeRTOS or desktop threads exist. | [PLATFORMIO.md](example/platformio/PLATFORMIO.md) |
+| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS, transport or serializer. The [example workspace setup](https://github.com/DelegateMQ/DelegateMQ/blob/master/docs/BUILD.md#example-ecosystem-sandbox) fetches and builds the third-party libraries they need. | [README.md](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/sample-projects/README.md) |
+| **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/cellutron/CELLUTRON.md) |
+| **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/pumptron/PUMPTRON.md) |
+| **PlatformIO sketch** | One Arduino sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, STM32F4 Discovery, Raspberry Pi Pico and the desktop: synchronous delegates and signals everywhere, async delegates where FreeRTOS or desktop threads exist. | [PLATFORMIO.md](https://github.com/DelegateMQ/DelegateMQ/blob/master/example/platformio/PLATFORMIO.md) |
 
 # Other Projects Using DelegateMQ
 
