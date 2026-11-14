@@ -6,7 +6,6 @@
 // blocking async-wait call that returns a value from the worker thread.
 
 #include "DelegateMQ.h"
-#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 
@@ -109,29 +108,26 @@ static int Add(int a, int b)
 static void RunAsyncDemo()
 {
     Log("Asynchronous delegates on thread '%s'", "Worker");
-    worker.CreateThread();
 
-    // Block the worker briefly so the next messages queue up behind this one.
-    // Wait until the worker has started it; otherwise the busy message could
-    // still be queued and URGENT would jump ahead of it too.
-    static std::atomic<bool> busyStarted{false};
-    auto busy = dmq::MakeDelegate(+[](int ms) {
-        busyStarted = true;
-        auto start = dmq::Clock::now();
-        while (dmq::Clock::now() - start < std::chrono::milliseconds(ms)) {}
-        Log("  Busy %d ms done", ms);
-    }, worker);
-    busy(100);
-    while (!busyStarted) {}
+    // A start gate holds the worker: it accepts messages but runs none until
+    // the gate opens. That queues the messages below up regardless of core
+    // count or task priorities (an RTOS worker usually outranks the caller and
+    // would otherwise run each message the moment it's sent).
+    dmq::os::StartGate gate;
+    worker.SetStartGate(&gate);
+    worker.CreateThread();
 
     auto normal = dmq::MakeDelegate(&Task, worker);
     for (int i = 1; i <= 3; i++)
         normal(i);
 
-    // URGENT runs ahead of the NORMAL tasks still waiting in the queue.
+    // URGENT runs ahead of the NORMAL tasks already waiting in the queue.
     auto urgent = dmq::MakeDelegate(&Task, worker);
     urgent.SetPriority(dmq::Priority::URGENT);
     urgent(99);
+
+    // Expected order: Task 99, Task 1, Task 2, Task 3
+    gate.Open();
 
     // Async-wait: runs Add() on the worker and blocks until it returns.
     auto add = dmq::MakeDelegate(&Add, worker, dmq::WAIT_INFINITE);
