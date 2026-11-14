@@ -52,7 +52,8 @@
     "srcDir": "src/delegate-mq",
     "includeDir": "src/delegate-mq",
     "flags": [
-      "-std=gnu++17"
+      "-std=gnu++17",
+      "-Wno-psabi"
     ],
     "unflags": [
       "-std=gnu++11",
