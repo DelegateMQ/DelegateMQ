@@ -23,6 +23,9 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ### Fixed
 - **Qt port: queue count only dropped with an event loop on the creating thread.** The worker's "message processed" signal was queued to the thread that created the `Thread`, so without a running Qt event loop there, `GetQueueSize()` never fell and a bounded queue filled up. A `FullPolicy::TIMEOUT` dispatch also blocked that loop while waiting for space, so it always timed out. It now runs directly on the worker thread.
+- **Qt port: a `FullPolicy::TIMEOUT` dispatch was dropped behind a long-running message.** A queue slot was freed only after its message finished running, so a running message kept its slot and a full queue stayed full until it returned. The slot is now freed when the message is taken off the queue, as on the other ports.
+- **Qt port: exit hung with a static `Thread`.** A `Thread` destroyed after `main()` returns (a static or global) outlives the `QCoreApplication`, and Qt no longer delivers the queued quit that `ExitThread()` posts, so `ExitThread()` waited forever. With no `QCoreApplication`, it now stops the thread's event loop directly; messages still queued then are not run.
+- **`RemoteDispatcher` didn't compile on the Qt and NuttX ports.** `RemoteDispatcher.h` left out the Qt and NuttX thread headers, and relied on the thread header to include `Timer.h`, which `QtThread.h` doesn't. `NetworkNode.h` also left out NuttX.
 
 ## [2.3.0] - 2026-11-07
 
