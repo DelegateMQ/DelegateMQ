@@ -65,6 +65,7 @@
       "base": "example/platformio/async-delegates",
       "files": [
         "platformio.ini",
+        "cxx_flags.py",
         "include/DelegateMQConfig.h",
         "src/main.cpp"
       ]

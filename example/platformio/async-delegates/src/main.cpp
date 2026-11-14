@@ -35,7 +35,7 @@ static void Log(const char* fmt, ...)
 // provides. On Arduino, millis() is that tick.
 // ---------------------------------------------------------------------------
 #if defined(DMQ_THREAD_NONE)
-extern "C" volatile uint64_t g_ticks = 0;
+extern "C" { volatile uint64_t g_ticks = 0; }
 static void UpdateTicks()
 {
 #ifdef ARDUINO
