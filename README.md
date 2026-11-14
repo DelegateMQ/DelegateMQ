@@ -94,13 +94,13 @@ cd example/platformio/async-delegates
 pio run -e esp32dev -t upload -t monitor
 ```
 
-See [`async-delegates`](example/platformio/async-delegates/) and [PlatformIO](docs/BUILD.md#platformio).
+See [`async-delegates`](example/platformio/async-delegates/) and [PlatformIO](example/platformio/PLATFORMIO.md).
 
 ## Adding DelegateMQ to Your Project
 
 - **CMake:** `FetchContent` or `add_subdirectory()`, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. Options such as `DMQ_THREAD` are set in CMake. See [With CMake](docs/BUILD.md#with-cmake).
 - **Without CMake (Keil, IAR, STM32CubeIDE, Makefiles):** add `src/delegate-mq` to the include path, put your options in a `DelegateMQConfig.h`, and compile either `src/DelegateMQ.cpp` or every `.cpp` in `src/delegate-mq`. See [Without CMake](docs/BUILD.md#without-cmake).
-- **PlatformIO:** add `lib_deps = endurodave/DelegateMQ@^2.4.0`, enable C++17 and RTTI, and put `DelegateMQConfig.h` in `include/`. See [PlatformIO](docs/BUILD.md#platformio).
+- **PlatformIO:** add `lib_deps = endurodave/DelegateMQ@^2.4.0`, enable C++17 and RTTI, and put `DelegateMQConfig.h` in `include/`. See [PlatformIO](example/platformio/PLATFORMIO.md).
 
 # Platform Support
 
@@ -162,7 +162,7 @@ Numerous platform, serialization, transport, and tool integrations are available
 | Category | Supported |
 | :--- | :--- |
 | **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal (see [Platform Support](#platform-support)) |
-| **Build** | [CMake](https://cmake.org/), or any build system (Keil, IAR, STM32CubeIDE, Makefiles, ...) |
+| **Build** | [CMake](https://cmake.org/), [PlatformIO](https://platformio.org/), or any build system (Keil, IAR, STM32CubeIDE, Makefiles, ...) |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
 | **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
@@ -552,7 +552,7 @@ Any: point-to-point, star, mesh, broadcast/multicast, or broker-based. A topolog
 Yes, through a shared native core with C# and Python wrappers. See [Cross-Language Interop](docs/INTEROP.md).
 
 **Is DelegateMQ tested?**  
-Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M.
+Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M, builds and runs the Qt port's test suite, and builds the PlatformIO example for each board. See [Platform Support](#platform-support) for how each platform is verified, including simulators and real boards.
 
 **Can I maintain DelegateMQ myself?**  
 Yes. The code base is small, ships as full source under the MIT license, and any LLM coding assistant can help you navigate, modify or port it.
@@ -564,6 +564,7 @@ Yes. The code base is small, ships as full source under the MIT license, and any
 | [**Tutorial**](docs/TUTORIAL.md) | Step-by-step system evolution | Adoption & Use Cases |
 | [**Application Guide**](docs/APP-GUIDE.md) | Rules for writing an app with DelegateMQ (also for coding agents) | Setup, Threads, Shutdown Order |
 | [**Build**](docs/BUILD.md) | Build & configuration guide | CMake & Setup |
+| [**PlatformIO**](example/platformio/PLATFORMIO.md) | Arduino and PlatformIO boards | ESP32, STM32, Pico, Setup |
 | [**Signals**](docs/SIGNALS.md) | Decoupled event handling | Signal/Slot RAII |
 | [**DataBus**](docs/DATABUS.md) | Topic-based pub/sub middleware | DDS Lite & Networking |
 | [**Design Details**](docs/DETAILS.md) | Deep technical architecture | API Reference |
@@ -582,6 +583,7 @@ The [`example`](example/README.md) directory ranges from single-file snippets to
 | **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS, transport or serializer. The [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds the third-party libraries they need. | [README.md](example/sample-projects/README.md) |
 | **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
 | **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
+| **PlatformIO sketch** | One Arduino sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, STM32F4 Discovery, Raspberry Pi Pico and the desktop: synchronous delegates and signals everywhere, async delegates where FreeRTOS or desktop threads exist. | [PLATFORMIO.md](example/platformio/PLATFORMIO.md) |
 
 # Other Projects Using DelegateMQ
 
