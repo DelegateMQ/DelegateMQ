@@ -144,6 +144,8 @@ build_unflags = -std=gnu++11 -fno-rtti
 build_flags   = -std=gnu++17 -frtti
 ```
 
+**Example and tested boards:** `example/platformio/async-delegates` is one sketch built for every board in its `platformio.ini`: ESP32 and ESP32-C3 (FreeRTOS, async delegates on worker threads), STM32 Nucleo-F401RE and Raspberry Pi Pico (bare metal, synchronous delegates and signals), and the desktop (`native`, stdlib threads). Run `pio run` there to build them all. Other 32-bit GCC targets with C++17 should work, but aren't built.
+
 - **Options:** put `DelegateMQConfig.h` in the project's `include/` folder, not `src/`. PlatformIO builds libraries with `include/` on the path but not `src/`, so a config in `src/` is seen by your code but not by the library, and the two disagree (for example, link errors for `FreeRTOSThread`).
 - **ESP32 (Arduino-ESP32 or ESP-IDF):** `#define DMQ_THREAD_FREERTOS` for worker threads. The FreeRTOS port uses ESP-IDF's `freertos/` header paths and its SMP spinlock critical section automatically (`ESP_PLATFORM`).
 - **Arduino macros:** Arduino cores `#define HIGH` and `LOW`, which is why the urgent message priority is `dmq::Priority::URGENT`.

@@ -15,7 +15,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 - **Rename `dmq::Priority::HIGH` to `dmq::Priority::URGENT`.** Arduino cores `#define HIGH`, so any code that included `Arduino.h` before DelegateMQ failed to compile. `NORMAL` is unchanged, and messages are ordered the same way.
 
 ### Added
-- **PlatformIO library.** `library.json` at the repo root; add `lib_deps = DelegateMQ`. See BUILD.md "PlatformIO" for the C++17/RTTI flags and where to put `DelegateMQConfig.h`.
+- **PlatformIO library.** `library.json` at the repo root; add `lib_deps = DelegateMQ`. See BUILD.md "PlatformIO" for the C++17/RTTI flags and where to put `DelegateMQConfig.h`. `example/platformio/async-delegates` is one sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, Raspberry Pi Pico and the desktop.
 - **ESP32 (ESP-IDF and Arduino-ESP32) on the FreeRTOS port.** Kernel headers come from `freertos/` (new `FreeRTOSHeaders.h`), `FreeRTOSCriticalSection` uses an SMP spinlock (`portENTER_CRITICAL_SAFE`), and ISR detection uses `xPortInIsrContext()`. Selected by `ESP_PLATFORM`. Compiled for ESP32 with PlatformIO; not yet run on hardware.
 
 ## [2.3.0] - 2026-11-07
