@@ -6,6 +6,7 @@
 // blocking async-wait call that returns a value from the worker thread.
 
 #include "DelegateMQ.h"
+#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 
@@ -111,12 +112,17 @@ static void RunAsyncDemo()
     worker.CreateThread();
 
     // Block the worker briefly so the next messages queue up behind this one.
+    // Wait until the worker has started it; otherwise the busy message could
+    // still be queued and URGENT would jump ahead of it too.
+    static std::atomic<bool> busyStarted{false};
     auto busy = dmq::MakeDelegate(+[](int ms) {
+        busyStarted = true;
         auto start = dmq::Clock::now();
         while (dmq::Clock::now() - start < std::chrono::milliseconds(ms)) {}
         Log("  Busy %d ms done", ms);
     }, worker);
     busy(100);
+    while (!busyStarted) {}
 
     auto normal = dmq::MakeDelegate(&Task, worker);
     for (int i = 1; i <= 3; i++)
