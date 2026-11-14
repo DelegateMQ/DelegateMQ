@@ -199,7 +199,7 @@ bool Win32Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // If we woke up because of exit (or exit happened while waiting), abort
     if (!m_exit.load())
     {
-        if (threadMsg->GetPriority() == dmq::Priority::HIGH)
+        if (threadMsg->GetPriority() == dmq::Priority::URGENT)
             m_highQueue.push_back(threadMsg);
         else
             m_normalQueue.push_back(threadMsg);

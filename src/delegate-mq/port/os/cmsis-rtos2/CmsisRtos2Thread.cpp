@@ -310,8 +310,8 @@ bool CmsisRtos2Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         timeout = 0;  // DROP and FAULT: non-blocking
 
-    // High priority goes to the queue's HIGH lane, drained first (see CmsisRtos2DelegateQueue).
-    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::HIGH, timeout);
+    // URGENT goes to the queue's URGENT lane, drained first (see CmsisRtos2DelegateQueue).
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::URGENT, timeout);
     if (!sent)
     {
         if (FULL_POLICY == FullPolicy::FAULT) {

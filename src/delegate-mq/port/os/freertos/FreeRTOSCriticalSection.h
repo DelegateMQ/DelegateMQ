@@ -36,10 +36,15 @@
 /// and no risk of colliding with FreeRTOS's own xPortIsInsideInterrupt()
 /// symbol, since we never redefine it under that name ourselves.
 ///
-/// @note Scoping assumption: this assumes ARM Cortex-M is the embedded
-/// target, true for every FreeRTOS port this project currently supports.
-/// A RISC-V or Xtensa FreeRTOS port would need the detection below
-/// extended for its own architecture predefines.
+/// ESP-IDF (ESP32 family, Xtensa and RISC-V, including Arduino-ESP32) is
+/// SMP FreeRTOS: a critical section is a spinlock (portMUX_TYPE) shared by
+/// both cores, and portENTER_CRITICAL_SAFE() picks the task or ISR form
+/// itself. ISR detection there is xPortInIsrContext(). Selected by
+/// ESP_PLATFORM, ahead of the ARM check.
+///
+/// @note Scoping assumption: other than ESP-IDF, this assumes ARM Cortex-M
+/// is the embedded target. Another RISC-V or Xtensa FreeRTOS port would
+/// need the detection below extended for its own architecture predefines.
 ///
 /// *** NARROW PURPOSE -- DO NOT USE THIS AS A GENERAL-PURPOSE LOCK ***
 /// On the ISR path this masks interrupts up to configMAX_SYSCALL_INTERRUPT_PRIORITY
@@ -63,13 +68,15 @@
 /// order is fine: each instance saves and restores its own state
 /// independently.
 
-#include "FreeRTOS.h"
-#include "task.h"
+#include "FreeRTOSHeaders.h"
 
 namespace dmq::os {
 
     namespace detail {
-#if defined(__arm__) || defined(__ARM_ARCH)
+#if defined(ESP_PLATFORM)
+        // ESP-IDF names its ISR-context check differently.
+        inline BaseType_t IsInsideFreeRTOSInterrupt() { return xPortInIsrContext() ? pdTRUE : pdFALSE; }
+#elif defined(__arm__) || defined(__ARM_ARCH)
         // Real ARM Cortex-M FreeRTOS port -- it provides
         // xPortIsInsideInterrupt() itself; call the real thing.
         inline BaseType_t IsInsideFreeRTOSInterrupt() { return xPortIsInsideInterrupt(); }
@@ -84,6 +91,23 @@ namespace dmq::os {
     // FreeRTOSCriticalSection
     // See the file-level comment above before using this type anywhere new.
     // =========================================================================
+#if defined(ESP_PLATFORM)
+    class FreeRTOSCriticalSection {
+    public:
+        FreeRTOSCriticalSection() = default;
+
+        // _SAFE selects the task or ISR form from the current context.
+        void lock() { portENTER_CRITICAL_SAFE(&m_mux); }
+        void unlock() { portEXIT_CRITICAL_SAFE(&m_mux); }
+
+        FreeRTOSCriticalSection(const FreeRTOSCriticalSection&) = delete;
+        FreeRTOSCriticalSection& operator=(const FreeRTOSCriticalSection&) = delete;
+
+    private:
+        // SMP: a spinlock shared by both cores, not just interrupt masking.
+        portMUX_TYPE m_mux = portMUX_INITIALIZER_UNLOCKED;
+    };
+#else
     class FreeRTOSCriticalSection {
     public:
         FreeRTOSCriticalSection() = default;
@@ -116,6 +140,7 @@ namespace dmq::os {
         UBaseType_t m_savedInterruptStatus = 0;
         bool m_lockedFromIsr = false;
     };
+#endif // ESP_PLATFORM
 
 } // namespace dmq::os
 

@@ -67,7 +67,7 @@ int v = w();                                        // blocks for the return val
 - **Queue full:** the default `FullPolicy::FAULT` halts. For a thread fed by a fast or untrusted source, choose `DROP` (with `SetDroppedHandler()`) or `TIMEOUT`.
 - **Arguments are copied** into the message. The data behind pointer and reference arguments is copied too, so out-parameters only work with blocking calls (`WAIT_INFINITE` or a timeout).
 - **Blocking calls with a timeout can fail.** Check `IsSuccess()` on the delegate before using the return value, or call `AsyncInvoke()`, which returns a `std::optional`. A timed-out call is abandoned, not run later.
-- **Priority:** `d.SetPriority(dmq::Priority::HIGH)` puts that delegate's messages ahead of `NORMAL` ones. Within a priority, order is FIFO.
+- **Priority:** `d.SetPriority(dmq::Priority::URGENT)` puts that delegate's messages ahead of `NORMAL` ones. Within a priority, order is FIFO.
 - **Exit:** `ExitThread()` runs everything queued by default (`ExitPolicy::DRAIN`). `ExitPolicy::DISCARD` drops the queue and cancels blocked senders instead.
 - **Synchronized start:** to hold several threads until the whole system is wired, give each a `dmq::os::StartGate` with `SetStartGate(&gate)` before `CreateThread()`, then `gate.Open()`. Not available on bare metal.
 - **Handlers must return.** A handler that loops forever (`while (true) { ...; Sleep(); }`) blocks `ExitThread()`, and a `Thread`'s destructor calls `ExitThread()`, so the program hangs at exit. Loop on a stop flag that shutdown clears, or use a `Timer`.

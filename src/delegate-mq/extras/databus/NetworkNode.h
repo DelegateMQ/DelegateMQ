@@ -78,6 +78,8 @@
     #include "port/os/zephyr/ZephyrThread.h"
 #elif defined(DMQ_THREAD_CMSIS_RTOS2)
     #include "port/os/cmsis-rtos2/CmsisRtos2Thread.h"
+#elif defined(DMQ_THREAD_NUTTX)
+    #include "port/os/nuttx/NuttXThread.h"
 #elif defined(DMQ_THREAD_QT)
     #include "port/os/qt/QtThread.h"
 #endif

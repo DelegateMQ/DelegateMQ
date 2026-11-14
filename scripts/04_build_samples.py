@@ -33,6 +33,7 @@ Skip List (always excluded):
     - zephyr-udp-serializer   Needs `west build` + a west workspace, not `cmake -B build`
     - databus-zephyr          Server needs `west build` + a west workspace, not `cmake -B build`
     - cmsis-rtos2-linux       Needs `west build` + a west workspace, not `cmake -B build`
+    - qt-linux                Needs Qt 6 (qt6-base-dev); built and run by .github/workflows/qt.yml
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
@@ -66,6 +67,7 @@ SKIP_ALWAYS = {
     "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
     "cmsis-rtos2-linux",       # needs `west build`, not a plain `cmake -B build`; see its README.md
     "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
+    "qt-linux",                # needs Qt 6 installed; built and run by .github/workflows/qt.yml
 }
 
 # Projects made of more than two node apps, each in its own sub-directory with

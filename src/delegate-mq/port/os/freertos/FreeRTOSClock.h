@@ -1,8 +1,7 @@
 #ifndef FREERTOS_CLOCK_H
 #define FREERTOS_CLOCK_H
 
-#include "FreeRTOS.h"
-#include "task.h"
+#include "FreeRTOSHeaders.h"
 #include "FreeRTOSCriticalSection.h"
 #include <chrono>
 

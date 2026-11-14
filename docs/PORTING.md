@@ -139,7 +139,7 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     TickType_t timeout = (FULL_POLICY == FullPolicy::TIMEOUT)
         ? pdMS_TO_TICKS(std::chrono::duration_cast<std::chrono::milliseconds>(m_dispatchTimeout).count())
         : 0;
-    if (!m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::HIGH, timeout))
+    if (!m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::URGENT, timeout))
     {
         delete threadMsg;  // queue full, dropped per policy
         return false;
@@ -238,7 +238,7 @@ A dispatched delegate waits in the target thread's queue, so dispatch latency de
 
 ### Message Queueing
 
-`dmq::Priority::HIGH` messages run ahead of normal ones; each priority stays FIFO. Every port uses two queues (high and normal), always appends, and drains the high queue first:
+`dmq::Priority::URGENT` messages run ahead of normal ones; each priority stays FIFO. Every port uses two queues (urgent and normal), always appends, and drains the urgent queue first:
 
 - stdlib/Win32/Qt: two `std::deque`s and one condition variable.
 - Zephyr: two `k_msgq`s drained with `k_poll` (`ZephyrDelegateQueue.h`).

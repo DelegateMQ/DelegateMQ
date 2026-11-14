@@ -58,7 +58,7 @@
     #define DMQ_NUTTX_THREAD_PRIORITY       100     // SCHED_FIFO
 #endif
 
-// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32 Thread ports
+// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32/POSIX/Qt Thread ports
 // only. Unlike DMQ_DEFAULT_QUEUE_SIZE (sized for real RTOS RAM constraints), these
 // ports back their queue with a plain std::deque, so maxQueueSize == 0 otherwise
 // means genuinely unbounded growth if the destination thread is dead/stuck. This

@@ -600,7 +600,7 @@ Asynchronous delegate priority determines the dispatch order when multiple async
 enum class Priority
 {
 	NORMAL,
-	HIGH
+	URGENT
 };
 ```
 
@@ -608,7 +608,7 @@ Use `SetPriority()` to adjust the delegate priority level.
 
 ```cpp
 auto alarmDel = dmq::MakeDelegate(this, &AlarmMgr::RecvAlarmMsg, m_thread);
-alarmDel.SetPriority(dmq::Priority::HIGH);  // Alarm messages high priority
+alarmDel.SetPriority(dmq::Priority::URGENT);  // Alarm messages high priority
 NetworkMgr::AlarmMsgCb += alarmDel;
 ```
 

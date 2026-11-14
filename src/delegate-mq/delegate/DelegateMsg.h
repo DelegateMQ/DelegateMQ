@@ -15,17 +15,17 @@ namespace dmq {
 // Async delegate message priority
 //
 // Contract every dmq::os::Thread port's queue implementation must uphold:
-// a HIGH message is always dispatched ahead of any NORMAL message already
-// waiting, but HIGH does NOT mean "jump to the very front" -- among multiple
-// HIGH messages (or multiple NORMAL messages), FIFO order relative to each
+// an URGENT message is always dispatched ahead of any NORMAL message already
+// waiting, but URGENT does NOT mean "jump to the very front" -- among multiple
+// URGENT messages (or multiple NORMAL messages), FIFO order relative to each
 // other must be preserved. I.e. per-priority-lane FIFO, not a LIFO stack.
 //
 // A single queue with a "send to front" primitive (FreeRTOS xQueueSendToFront,
-// ThreadX tx_queue_front_send) gets this wrong: a second HIGH message sent to
-// the front lands ahead of the first HIGH message, turning HIGH ordering into
+// ThreadX tx_queue_front_send) gets this wrong: a second URGENT message sent to
+// the front lands ahead of the first URGENT message, turning URGENT ordering into
 // a stack. The correct shape -- used by every port -- is two lanes (one per
 // priority) with new messages always pushed to the BACK of their lane, and
-// the consumer draining the HIGH lane before the NORMAL lane:
+// the consumer draining the URGENT lane before the NORMAL lane:
 //   - StdlibThread / Win32Thread: two std::deque, one shared mutex+condition_variable.
 //   - ZephyrDelegateQueue:        two k_msgq,       drained via k_poll on both.
 //   - FreeRTOSDelegateQueue / ThreadXDelegateQueue / CmsisRtos2DelegateQueue: two native queues, woken by
@@ -36,7 +36,7 @@ namespace dmq {
 enum class Priority
 {
 	NORMAL,
-	HIGH
+	URGENT
 };
 
 /// @brief Base class for all delegate inter-thread messages

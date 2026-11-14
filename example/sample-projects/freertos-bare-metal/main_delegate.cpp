@@ -183,7 +183,7 @@ void ExecuteAllTests() {
         for (Thread* t : { &g1, &g2 }) {
             MakeDelegate(&GateCount, *t)(0);
             auto high = MakeDelegate(&GateCount, *t);
-            high.SetPriority(Priority::HIGH);
+            high.SetPriority(Priority::URGENT);
             high(0);
         }
         vTaskDelay(pdMS_TO_TICKS(100));

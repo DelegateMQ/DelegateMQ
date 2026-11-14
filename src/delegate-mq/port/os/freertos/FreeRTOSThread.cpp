@@ -78,6 +78,11 @@ FreeRTOSThread::~FreeRTOSThread()
 //----------------------------------------------------------------------------
 void FreeRTOSThread::SetStackMem(StackType_t* stackBuffer, uint32_t stackSizeInWords)
 {
+#if (configSUPPORT_STATIC_ALLOCATION != 1)
+    // A static stack needs xTaskCreateStatic(): set
+    // configSUPPORT_STATIC_ALLOCATION to 1 in FreeRTOSConfig.h
+    DMQ_ASSERT_TRUE(stackBuffer == nullptr);
+#endif
     if (stackBuffer && stackSizeInWords > 0) {
         m_stackBuffer = stackBuffer;
         m_stackSize = stackSizeInWords;
@@ -155,6 +160,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     }
 
     // 3. Create Task
+#if (configSUPPORT_STATIC_ALLOCATION == 1)
     if (m_stackBuffer != nullptr)
     {
         // --- STATIC ALLOCATION ---
@@ -169,6 +175,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         );
     }
     else
+#endif  // configSUPPORT_STATIC_ALLOCATION; otherwise SetStackMem() faults, so always heap
     {
         // --- DYNAMIC ALLOCATION (Heap) ---
         // m_stackSize is the DMQ_FREERTOS_STACK_WORDS default here: SetStackMem()
@@ -311,10 +318,10 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         timeout = 0;  // DROP and FAULT: non-blocking
 
-    // High priority routes to the HIGH lane (drained before NORMAL), preserving
+    // URGENT routes to its own lane (drained before NORMAL), preserving
     // FIFO order within each lane -- see FreeRTOSDelegateQueue.h for why this is
-    // NOT xQueueSendToFront (that would make HIGH messages LIFO, not FIFO).
-    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::HIGH, timeout);
+    // NOT xQueueSendToFront (that would make URGENT messages LIFO, not FIFO).
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::URGENT, timeout);
 
     if (!sent) {
         if (FULL_POLICY == FullPolicy::FAULT) {

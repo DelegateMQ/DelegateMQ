@@ -13,10 +13,10 @@
 /// @details
 /// *** DO NOT "SIMPLIFY" THIS BACK TO ONE QUEUE + msg_prio ***
 /// osMessageQueuePut() takes a msg_prio argument, and an earlier version of
-/// this class relied on it for HIGH priority with a single queue. CMSIS-RTOS2
+/// this class relied on it for URGENT priority with a single queue. CMSIS-RTOS2
 /// leaves msg_prio's effect to the implementation, and common ones ignore it:
 /// Zephyr's CMSIS-RTOS2 layer (the backend this port is verified on) does
-/// ARG_UNUSED(msg_prio) and always appends with k_msgq_put(), so HIGH messages
+/// ARG_UNUSED(msg_prio) and always appends with k_msgq_put(), so URGENT messages
 /// were delivered behind every NORMAL one already queued, breaking the Priority
 /// contract every other port meets.
 ///
@@ -25,7 +25,7 @@
 /// appended to, and a counting osSemaphore as a shared "doorbell". Every
 /// successful Send() (to either lane) releases the semaphore once; Receive()
 /// acquires it (the single blocking wait) and then does a non-blocking get,
-/// checking the HIGH lane first so it drains ahead of NORMAL while each lane
+/// checking the URGENT lane first so it drains ahead of NORMAL while each lane
 /// stays FIFO.
 ///
 /// Each lane is sized to the full requested 'capacity', so worst-case combined
@@ -80,7 +80,7 @@ public:
 
     bool IsCreated() const { return m_highQueue != NULL && m_normalQueue != NULL && m_countSem != NULL; }
 
-    /// Send a message pointer. 'highPriority' routes to the HIGH lane, which
+    /// Send a message pointer. 'highPriority' routes to the URGENT lane, which
     /// Receive() always drains first; otherwise the NORMAL lane. Both lanes are
     /// always appended to. 'waitOption' is 0 for non-blocking, osWaitForever to
     /// block forever, or a finite timeout in kernel ticks (see CmsisRtos2ToTicks());
@@ -95,7 +95,7 @@ public:
         return true;
     }
 
-    /// Receive a message pointer, HIGH lane first, blocking up to 'waitOption'
+    /// Receive a message pointer, URGENT lane first, blocking up to 'waitOption'
     /// for either lane to have one.
     /// @return the message, or nullptr on timeout.
     ThreadMsg* Receive(uint32_t waitOption)

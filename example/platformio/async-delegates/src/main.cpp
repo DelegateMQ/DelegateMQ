@@ -1,0 +1,200 @@
+// DelegateMQ PlatformIO example: one sketch for every board in platformio.ini.
+//
+// All boards: synchronous delegates and a Signal with a ScopedConnection.
+// Boards with threads (ESP32, STM32F4 Discovery, desktop): asynchronous delegates on a worker
+// thread, an URGENT message that runs ahead of queued NORMAL ones, and a
+// blocking async-wait call that returns a value from the worker thread.
+
+#include "DelegateMQ.h"
+#include <cstdarg>
+#include <cstdio>
+
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
+
+// FreeRTOS on a core that doesn't start it (STM32duino FreeRTOS): setup()
+// runs the demo in a task and starts the scheduler. Arduino-ESP32 already
+// runs setup() in a FreeRTOS task.
+#if defined(ARDUINO) && defined(DMQ_THREAD_FREERTOS) && !defined(ESP_PLATFORM)
+#define DEMO_STARTS_SCHEDULER
+#include <STM32FreeRTOS.h>
+#endif
+
+// ---------------------------------------------------------------------------
+// Output: Serial on Arduino, stdout on the desktop
+// ---------------------------------------------------------------------------
+static void Log(const char* fmt, ...)
+{
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+#ifdef ARDUINO
+    Serial.println(buf);
+#else
+    puts(buf);
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// Bare metal: DelegateMQ's clock reads a millisecond tick the application
+// provides. On Arduino, millis() is that tick.
+// ---------------------------------------------------------------------------
+#if defined(DMQ_THREAD_NONE)
+extern "C" { volatile uint64_t g_ticks = 0; }
+static void UpdateTicks()
+{
+#ifdef ARDUINO
+    g_ticks = millis();
+#endif
+}
+#else
+static void UpdateTicks() {}
+#endif
+
+// ---------------------------------------------------------------------------
+// Demo code
+// ---------------------------------------------------------------------------
+static void OnTemperature(int celsius)
+{
+    Log("  OnTemperature: %d C", celsius);
+}
+
+class Sensor
+{
+public:
+    // Anyone can connect; Signal holds the subscribers.
+    dmq::Signal<void(int)> OnReading;
+
+    void Sample(int value) { OnReading(value); }
+};
+
+class Display
+{
+public:
+    explicit Display(Sensor& sensor)
+    {
+        // The connection lives as long as m_conn, so store it.
+        m_conn = sensor.OnReading.Connect(dmq::MakeDelegate(this, &Display::Show));
+    }
+
+private:
+    void Show(int value) { Log("  Display::Show: %d", value); }
+    dmq::ScopedConnection m_conn;
+};
+
+static void RunSyncDemo()
+{
+    Log("Synchronous delegates");
+    auto d = dmq::MakeDelegate(&OnTemperature);
+    d(21);
+
+    Log("Signal");
+    Sensor sensor;
+    {
+        Display display(sensor);
+        sensor.Sample(42);      // Display receives it
+    }
+    sensor.Sample(43);          // Display is gone: connection closed, nothing runs
+}
+
+#if defined(DMQ_HAS_THREADING)
+static dmq::os::Thread worker("Worker");
+
+static void Task(int id)
+{
+    Log("  Task %d", id);
+}
+
+static int Add(int a, int b)
+{
+    return a + b;
+}
+
+static void RunAsyncDemo()
+{
+    Log("Asynchronous delegates on thread '%s'", "Worker");
+
+    // A start gate holds the worker: it accepts messages but runs none until
+    // the gate opens. That queues the messages below up regardless of core
+    // count or task priorities (an RTOS worker usually outranks the caller and
+    // would otherwise run each message the moment it's sent).
+    dmq::os::StartGate gate;
+    worker.SetStartGate(&gate);
+    worker.CreateThread();
+
+    auto normal = dmq::MakeDelegate(&Task, worker);
+    for (int i = 1; i <= 3; i++)
+        normal(i);
+
+    // URGENT runs ahead of the NORMAL tasks already waiting in the queue.
+    auto urgent = dmq::MakeDelegate(&Task, worker);
+    urgent.SetPriority(dmq::Priority::URGENT);
+    urgent(99);
+
+    // Expected order: Task 99, Task 1, Task 2, Task 3
+    gate.Open();
+
+    // Async-wait: runs Add() on the worker and blocks until it returns.
+    auto add = dmq::MakeDelegate(&Add, worker, dmq::WAIT_INFINITE);
+    int sum = add(2, 3);
+    Log("  Add(2, 3) on Worker returned %d", sum);
+}
+#endif
+
+static void RunDemo()
+{
+    Log("DelegateMQ PlatformIO example");
+    RunSyncDemo();
+#if defined(DMQ_HAS_THREADING)
+    RunAsyncDemo();
+#else
+    Log("No thread port on this board: async demo skipped");
+#endif
+    Log("Done");
+}
+
+// ---------------------------------------------------------------------------
+// Entry points
+// ---------------------------------------------------------------------------
+#ifdef ARDUINO
+#if defined(DEMO_STARTS_SCHEDULER)
+static void DemoTask(void*)
+{
+    RunDemo();
+    for (;;)
+        vTaskDelay(pdMS_TO_TICKS(1000));
+}
+#endif
+
+void setup()
+{
+    Serial.begin(115200);
+    delay(2000);    // time to open the serial monitor
+    UpdateTicks();
+#if defined(DEMO_STARTS_SCHEDULER)
+    // Below the worker's priority (configMAX_PRIORITIES - 2), as on ESP32
+    xTaskCreate(DemoTask, "Demo", 1024, nullptr, tskIDLE_PRIORITY + 1, nullptr);
+    vTaskStartScheduler();  // doesn't return
+#else
+    RunDemo();
+#endif
+}
+
+void loop()
+{
+    UpdateTicks();
+    delay(10);
+}
+#else
+int main()
+{
+    RunDemo();
+#if defined(DMQ_HAS_THREADING)
+    worker.ExitThread();
+#endif
+    return 0;
+}
+#endif

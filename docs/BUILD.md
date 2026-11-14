@@ -130,6 +130,13 @@ Requirements:
 
 ---
 
+### PlatformIO
+DelegateMQ is a PlatformIO library: `lib_deps = endurodave/DelegateMQ@^2.4.0`, with C++17 and RTTI enabled and `DelegateMQConfig.h` in the project's `include/` folder. PlatformIO compiles every `.cpp` in `src/delegate-mq`, so it follows the [Without CMake](#without-cmake) rules.
+
+See [PLATFORMIO.md](../example/platformio/PLATFORMIO.md) for supported boards, project setup, thread ports (ESP32, STM32 with FreeRTOS, bare metal), the example sketch and troubleshooting.
+
+---
+
 ## Example Ecosystem (Sandbox)
 Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party libraries. We provide scripts that fetch and build all dependencies into `external/` inside the repository (gitignored).
 

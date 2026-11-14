@@ -386,10 +386,10 @@ bool ThreadXThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         wait_option = TX_NO_WAIT;  // DROP and FAULT: non-blocking
 
-    // High priority routes to the HIGH lane (drained before NORMAL), preserving
+    // URGENT routes to its own lane (drained before NORMAL), preserving
     // FIFO order within each lane -- see ThreadXDelegateQueue.h for why this is
-    // NOT tx_queue_front_send (that would make HIGH messages LIFO, not FIFO).
-    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::HIGH, wait_option);
+    // NOT tx_queue_front_send (that would make URGENT messages LIFO, not FIFO).
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::URGENT, wait_option);
 
     if (!sent)
     {

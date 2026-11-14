@@ -9,6 +9,29 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-14
+
+### Upgrading to 2.4.0
+- **Rename `dmq::Priority::HIGH` to `dmq::Priority::URGENT`.** Arduino cores `#define HIGH`, so any code that included `Arduino.h` before DelegateMQ failed to compile. `NORMAL` is unchanged, and messages are ordered the same way.
+- **Qt port: default queue size is now 1000, up from 20.** A Qt `Thread` created with `maxQueueSize` 0 (the default) now uses `dmq::THREAD_DESKTOP_QUEUE_SIZE` (`DMQ_THREAD_DESKTOP_QUEUE_SIZE`, 1000) like the stdlib, Win32 and POSIX ports, not the RTOS default `dmq::DEFAULT_QUEUE_SIZE` (20). A burst that used to fault, drop or time out at 20 queued messages is now queued. To keep the old cap, pass `maxQueueSize` 20 to the `Thread` constructor.
+
+### Added
+- **PlatformIO library.** `library.json` at the repo root; add `lib_deps = endurodave/DelegateMQ@^2.4.0`. See `example/platformio/PLATFORMIO.md` for supported boards, the C++17/RTTI flags and where to put `DelegateMQConfig.h`. `example/platformio/async-delegates` is one sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, STM32F4 Discovery, Raspberry Pi Pico and the desktop, and run on an STM32F4 Discovery board (FreeRTOS from the STM32duino FreeRTOS library, async delegates included).
+- **ESP32 (ESP-IDF and Arduino-ESP32) on the FreeRTOS port.** Kernel headers come from `freertos/` (new `FreeRTOSHeaders.h`), `FreeRTOSCriticalSection` uses an SMP spinlock (`portENTER_CRITICAL_SAFE`), and ISR detection uses `xPortInIsrContext()`. Selected by `ESP_PLATFORM`. Compiled for ESP32 with PlatformIO; not yet run on hardware.
+- **`qt-linux` sample and CI for the Qt port.** Runs the same thread, FullPolicy and timer tests as the other ports on `DMQ_THREAD_QT`. Built and run by the new Qt workflow; needs Qt 6 Core, so `build_all.py` skips it.
+- **PlatformIO CI.** A workflow builds the PlatformIO example for every board and runs the desktop build.
+
+### Fixed
+- **FreeRTOS port: build failed without static allocation.** `CreateThread()` called `xTaskCreateStatic()` unconditionally, which FreeRTOS declares only when `configSUPPORT_STATIC_ALLOCATION` is 1 (STM32duino FreeRTOS leaves it 0). It's now compiled only then; otherwise threads use the heap and `SetStackMem()` with a buffer faults.
+- **Qt port: queue count only dropped with an event loop on the creating thread.** The worker's "message processed" signal was queued to the thread that created the `Thread`, so without a running Qt event loop there, `GetQueueSize()` never fell and a bounded queue filled up. A `FullPolicy::TIMEOUT` dispatch also blocked that loop while waiting for space, so it always timed out. It now runs directly on the worker thread.
+- **Qt port: a `FullPolicy::TIMEOUT` dispatch was dropped behind a long-running message.** A queue slot was freed only after its message finished running, so a running message kept its slot and a full queue stayed full until it returned. The slot is now freed when the message is taken off the queue, as on the other ports.
+- **Qt port: exit hung with a static `Thread`.** A `Thread` destroyed after `main()` returns (a static or global) outlives the `QCoreApplication`, and Qt no longer delivers the queued quit that `ExitThread()` posts, so `ExitThread()` waited forever. With no `QCoreApplication`, it now stops the thread's event loop directly; messages still queued then are not run.
+- **Qt port: `ExitThread()` could race a producer blocked on a full queue.** A `FullPolicy::TIMEOUT` dispatch woken during exit checked only `QThread::isRunning()`, so it could wait again, or queue a message behind the quit that never ran (leaving the queue count high for a re-created thread), and could read `m_thread` while `ExitThread()` deleted it. It now stops on the exit flag before touching the thread, and `CreateThread()` resets the queue count.
+- **FreeRTOS port: the static-task control block is compiled only with `configSUPPORT_STATIC_ALLOCATION`,** saving its RAM per `Thread` on heap-only configurations.
+- **Qt port: `ExitThread()` wrote to freed memory.** On every exit not made from the thread itself, `ExitThread()` cleared the worker's back-pointer after the worker thread had already deleted the worker. It now does that only on a self-exit, where the worker is still alive.
+- **Qt port: a message sent while the thread exited could be lost.** A message dispatched during `ExitThread()`, including by a producer blocked on a full `FullPolicy::TIMEOUT` queue, could be queued behind the thread's quit and never run; an async-wait sender then waited out its whole timeout. It is now either run ahead of the quit or dropped, and a blocked producer returns when the thread exits. A re-created thread also starts with an empty queue count. `qt-linux` Test 11 covers this.
+- **`RemoteDispatcher` didn't compile on the Qt and NuttX ports.** `RemoteDispatcher.h` left out the Qt and NuttX thread headers, and relied on the thread header to include `Timer.h`, which `QtThread.h` doesn't. `NetworkNode.h` also left out NuttX.
+
 ## [2.3.0] - 2026-11-07
 
 ### Upgrading to 2.3.0

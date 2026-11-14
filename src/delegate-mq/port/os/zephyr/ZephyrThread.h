@@ -12,9 +12,9 @@
 /// * **Task Integration:** Wraps `k_thread_create` to establish a dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities. Since Zephyr's `k_msgq` has
+/// * **Priority Support:** NORMAL and URGENT priorities. Since Zephyr's `k_msgq` has
 ///   no native "send to front", `ZephyrDelegateQueue` keeps two `k_msgq` instances
-///   (mirroring the desktop two-deque model) and always drains the high-priority
+///   (mirroring the desktop two-deque model) and always drains the URGENT
 ///   one first -- see ZephyrDelegateQueue.h for the tradeoffs this implies.
 /// * **Queue-Based Dispatch:** Uses `ZephyrDelegateQueue` (a thin RAII wrapper
 ///   around a pair of `k_msgq` instances) to receive and process incoming

@@ -311,8 +311,8 @@ bool NuttXThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         timeout = dmq::Duration::zero();  // DROP and FAULT: non-blocking
 
-    // High priority routes through mq_send()'s native msg_prio argument.
-    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::HIGH, timeout);
+    // URGENT routes through mq_send()'s native msg_prio argument.
+    bool sent = m_queue.Send(threadMsg, msg->GetPriority() == dmq::Priority::URGENT, timeout);
     if (!sent)
     {
         if (FULL_POLICY == FullPolicy::FAULT) {

@@ -1,0 +1,41 @@
+name: Qt
+
+# Builds and runs example/sample-projects/qt-linux: the DMQ_THREAD_QT port
+# against the same test suite as the other thread ports.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+# Least privilege for GITHUB_TOKEN: these jobs only check out code.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: example/sample-projects/qt-linux
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Install Qt 6 Core
+      run: sudo apt-get update && sudo apt-get install -y qt6-base-dev
+
+    - name: Configure
+      run: cmake -B build .
+
+    - name: Build
+      run: cmake --build build -j
+
+    - name: Run
+      timeout-minutes: 5
+      run: ./build/delegate_qt_linux

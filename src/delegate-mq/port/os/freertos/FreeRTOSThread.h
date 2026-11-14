@@ -21,8 +21,8 @@
 ///   dedicated worker loop.
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
-/// * **Priority Support:** Normal and High priorities, as two FIFO queue lanes drained
-///   HIGH first, so same-priority messages keep dispatch order (see
+/// * **Priority Support:** NORMAL and URGENT priorities, as two FIFO queue lanes drained
+///   URGENT first, so same-priority messages keep dispatch order (see
 ///   `FreeRTOSDelegateQueue` for why one queue + `xQueueSendToFront()` is wrong).
 /// * **Queue-Based Dispatch:** Uses `FreeRTOSDelegateQueue` (a thin RAII wrapper
 ///   around a FreeRTOS `QueueHandle_t`) to receive and process incoming delegate
@@ -45,10 +45,7 @@
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
 #include "FreeRTOSDelegateQueue.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "semphr.h"
+#include "FreeRTOSHeaders.h"
 #include <string>
 #include <memory>
 #include <atomic>
@@ -287,7 +284,9 @@ private:
     // Static allocation support
     StackType_t* m_stackBuffer = nullptr;
     uint32_t m_stackSize = dmq::FREERTOS_STACK_WORDS; // Default size (words), see DMQ_FREERTOS_STACK_WORDS
+#if (configSUPPORT_STATIC_ALLOCATION == 1)
     StaticTask_t m_tcb;          // TCB storage for static creation
+#endif
 
     // Watchdog related members
     std::atomic<uint32_t> m_lastAliveTime{0};

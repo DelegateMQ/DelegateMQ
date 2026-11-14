@@ -13,14 +13,14 @@
 /// @details
 /// *** DO NOT "SIMPLIFY" THIS BACK TO ONE QUEUE + tx_queue_front_send() ***
 /// An earlier version of this class used a single TX_QUEUE and called
-/// tx_queue_front_send() for HIGH priority messages. That is WRONG: sending
-/// to the front of a single queue makes HIGH messages a LIFO stack relative
+/// tx_queue_front_send() for URGENT priority messages. That is WRONG: sending
+/// to the front of a single queue makes URGENT messages a LIFO stack relative
 /// to each other, not a FIFO lane. Concretely, starting from [Normal1]:
-///   1. HIGH-A sent to front  -> [HIGH-A, Normal1]
-///   2. HIGH-B sent to front  -> [HIGH-B, HIGH-A, Normal1]
-/// The consumer then dequeues HIGH-B before HIGH-A, even though A arrived
+///   1. URGENT-A sent to front  -> [URGENT-A, Normal1]
+///   2. URGENT-B sent to front  -> [URGENT-B, URGENT-A, Normal1]
+/// The consumer then dequeues URGENT-B before URGENT-A, even though A arrived
 /// first -- exactly backwards. See DelegateMsg.h's Priority comment for the
-/// required contract (HIGH jumps ahead of NORMAL, but FIFO is preserved
+/// required contract (URGENT jumps ahead of NORMAL, but FIFO is preserved
 /// within each priority).
 ///
 /// The fix: two independent TX_QUEUE instances, one per priority lane, each
@@ -30,7 +30,7 @@
 /// TX_SEMAPHORE counting semaphore is used as a shared "doorbell": every
 /// successful Send() (to either lane) puts the semaphore once; Receive()
 /// gets the semaphore (the single blocking wait) and then does a
-/// non-blocking pop, checking the HIGH lane first so it still drains ahead
+/// non-blocking pop, checking the URGENT lane first so it still drains ahead
 /// of NORMAL. This mirrors StdlibThread's two-std::deque + one-
 /// condition_variable design and ZephyrDelegateQueue's two-k_msgq + k_poll
 /// design -- same shape, RTOS-native primitives.
@@ -73,7 +73,7 @@ public:
     ThreadXDelegateQueue(const ThreadXDelegateQueue&) = delete;
     ThreadXDelegateQueue& operator=(const ThreadXDelegateQueue&) = delete;
 
-    /// Create the underlying HIGH and NORMAL queues, each with room for
+    /// Create the underlying URGENT and NORMAL queues, each with room for
     /// 'capacity' pointers, plus the counting semaphore doorbell (initial
     /// count 0).
     /// @param name Queue/semaphore name; ThreadX stores this pointer, not a
@@ -140,7 +140,7 @@ public:
         return m_highQueue.tx_queue_id != 0 && m_normalQueue.tx_queue_id != 0 && m_countSem.tx_semaphore_id != 0;
     }
 
-    /// Send a message pointer. 'highPriority' routes to the HIGH lane, which
+    /// Send a message pointer. 'highPriority' routes to the URGENT lane, which
     /// Receive() always drains first; otherwise the NORMAL lane. Both lanes
     /// are always pushed to the BACK -- see the file-level comment for why
     /// "send to front" must never be reintroduced here. 'waitOption' is
@@ -160,8 +160,8 @@ public:
         return true;
     }
 
-    /// Receive a message pointer, blocking up to 'waitOption'. The HIGH lane
-    /// is always checked -- and drained -- first, so a pending HIGH message
+    /// Receive a message pointer, blocking up to 'waitOption'. The URGENT lane
+    /// is always checked -- and drained -- first, so a pending URGENT message
     /// is returned even if NORMAL messages arrived earlier. Blocks on the
     /// doorbell semaphore (the single native wait), then does a
     /// non-blocking pop from whichever lane has data; the semaphore count

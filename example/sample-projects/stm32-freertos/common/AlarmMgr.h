@@ -43,7 +43,7 @@ private:
 
         // Create delegate, set priority, then connect
         auto alarmDel = MakeDelegate(this, &AlarmMgr::RecvAlarmMsg, m_thread);
-        alarmDel.SetPriority(dmq::Priority::HIGH);  // Alarm messages high priority
+        alarmDel.SetPriority(dmq::Priority::URGENT);  // Alarm messages high priority
 
         // Use Connect() and store handle
         m_alarmConn = NetworkMgr::Instance().OnAlarm.Connect(alarmDel);
