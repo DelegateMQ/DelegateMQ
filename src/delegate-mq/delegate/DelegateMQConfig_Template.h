@@ -66,8 +66,8 @@
 #define DMQ_ZEPHYR_THREAD_PRIORITY      5
 #define DMQ_NUTTX_THREAD_PRIORITY       100
 
-/// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32 Thread
-/// ports only. A high-water-mark safety net (not a throughput limiter) against
+/// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32/POSIX/Qt
+/// Thread ports only. A high-water-mark safety net (not a throughput limiter) against
 /// unbounded growth if the destination thread is dead/stuck -- large enough to
 /// never interfere with normal desktop bursts.
 #define DMQ_THREAD_DESKTOP_QUEUE_SIZE   1000

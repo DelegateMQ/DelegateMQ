@@ -237,7 +237,7 @@ namespace dmq
     /// @brief Policy applied when a dmq::os::Thread port's message queue is full.
     /// @details Always enforced -- a constructor's maxQueueSize == 0 is a sentinel meaning
     /// "use this port's default capacity" (dmq::DEFAULT_QUEUE_SIZE for the RTOS ports,
-    /// dmq::THREAD_DESKTOP_QUEUE_SIZE for stdlib/Win32), not "disable the cap." Every port's
+    /// dmq::THREAD_DESKTOP_QUEUE_SIZE for stdlib/Win32/POSIX/Qt), not "disable the cap." Every port's
     /// effective queue capacity is therefore always > 0 at runtime.
     ///   - DROP:    DispatchDelegate() silently discards the message and returns immediately.
     ///   - FAULT:   DispatchDelegate() triggers a system fault if the queue is full.

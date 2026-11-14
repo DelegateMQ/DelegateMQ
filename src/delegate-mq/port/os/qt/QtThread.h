@@ -79,7 +79,7 @@ public slots:
     void OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg);
 
 signals:
-    void MessageProcessed();
+    void MessageDequeued();
 
 private:
     QtThread* m_thread;
@@ -123,12 +123,13 @@ public:
     };
 #endif
 
-    /// Default queue size if 0 is passed
-    static const size_t DEFAULT_QUEUE_SIZE = dmq::DEFAULT_QUEUE_SIZE;
+    /// Default queue size if 0 is passed. Qt is desktop-only, so it uses the
+    /// desktop cap like the stdlib/Win32/POSIX ports, not the RTOS default.
+    static const size_t DEFAULT_QUEUE_SIZE = dmq::THREAD_DESKTOP_QUEUE_SIZE;
 
     /// Constructor
     /// @param threadName Name for debugging (QObject::objectName)
-    /// @param maxQueueSize Max number of messages in queue (0 = Default dmq::DEFAULT_QUEUE_SIZE)
+    /// @param maxQueueSize Max number of messages in queue (0 = Default dmq::THREAD_DESKTOP_QUEUE_SIZE)
     /// @param fullPolicy Action when queue is full: FAULT (default), DROP, or TIMEOUT.
     /// @param dispatchTimeout Duration to wait before giving up when policy is TIMEOUT.
     /// @param cpuName Optional CPU/Core name grouping for monitoring tools.
@@ -262,7 +263,7 @@ private slots:
     // Runs on the worker thread (Qt::DirectConnection). Under m_mutex so a
     // dispatcher between its queue-full check and m_cvNotFull.wait() can't
     // miss the wake.
-    void OnMessageProcessed() {
+    void OnMessageDequeued() {
         QMutexLocker lock(&m_mutex);
         m_queueSize--;
         m_cvNotFull.wakeAll();

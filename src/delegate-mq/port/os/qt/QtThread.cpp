@@ -5,6 +5,7 @@
 
 #include "DelegateMQ.h"
 #include "QtThread.h"
+#include <QCoreApplication>
 #include "extras/util/Fault.h"
 #include <QDebug>
 #include <limits>
@@ -35,6 +36,10 @@ static int registerId = qRegisterMetaType<std::shared_ptr<dmq::DelegateMsg>>();
 // Worker::OnDispatch
 //----------------------------------------------------------------------------
 void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
+    // The message has left the queue: free its slot before running it, as the
+    // other ports do, so a blocked TIMEOUT dispatch can queue behind it.
+    emit MessageDequeued();
+
     // Watchdog heartbeat: the event loop reached another message
     if (m_thread)
         m_thread->ThreadCheck();
@@ -43,7 +48,6 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
     if (m_discard.load()) {
         if (msg)
             msg->Cancel();
-        emit MessageProcessed();
         return;
     }
 
@@ -94,8 +98,6 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
     // Any message restarts the idle countdown
     if (m_idleTimer)
         m_idleTimer->start();
-
-    emit MessageProcessed();
 }
 
 //----------------------------------------------------------------------------
@@ -195,14 +197,14 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                 m_worker, &Worker::OnDispatch, 
                 Qt::QueuedConnection);
 
-        // Track when message is processed to decrement m_queueSize.
+        // Track when a message leaves the queue to decrement m_queueSize.
         // Qt::DirectConnection: runs on the worker thread as the message
-        // finishes. The default (queued, since this object lives on the
+        // is taken. The default (queued, since this object lives on the
         // creating thread) would decrement only when the creating thread runs
         // a Qt event loop: without one the count never drops, and a TIMEOUT
         // dispatch blocked on m_cvNotFull holds that loop, so it can't drain.
-        connect(m_worker, &Worker::MessageProcessed,
-                this, &QtThread::OnMessageProcessed, Qt::DirectConnection);
+        connect(m_worker, &Worker::MessageDequeued,
+                this, &QtThread::OnMessageDequeued, Qt::DirectConnection);
 
         // Ensure worker is deleted when thread finishes
         connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
@@ -380,9 +382,16 @@ void QtThread::ExitThread(ExitPolicy policy)
         m_startGate.Wake();
 
         // Quit queued behind every message already dispatched, so DRAIN invokes
-        // them first and DISCARD cancels them first.
+        // them first and DISCARD cancels them first. With no QCoreApplication
+        // (e.g. a static Thread destroyed after main() returns) Qt no longer
+        // delivers posted events, so the queued quit would never run and wait()
+        // below would hang: stop the event loop directly instead. Messages still
+        // queued then are not run.
         QThread* thread = m_thread;
-        QMetaObject::invokeMethod(m_worker, [thread]() { thread->quit(); }, Qt::QueuedConnection);
+        if (QCoreApplication::instance())
+            QMetaObject::invokeMethod(m_worker, [thread]() { thread->quit(); }, Qt::QueuedConnection);
+        else
+            thread->quit();
 
         // Wake any blocked threads
         m_mutex.lock();
