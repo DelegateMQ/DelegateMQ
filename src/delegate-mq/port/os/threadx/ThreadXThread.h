@@ -21,7 +21,7 @@
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
 /// * **Priority Support:** Normal and High priorities, as two FIFO queue lanes drained
-///   HIGH first, so same-priority messages keep dispatch order (see
+///   URGENT first, so same-priority messages keep dispatch order (see
 ///   `ThreadXDelegateQueue` for why one queue + `tx_queue_front_send()` is wrong).
 /// * **Queue-Based Dispatch:** Uses `ThreadXDelegateQueue` (a thin RAII wrapper
 ///   around a ThreadX `TX_QUEUE`) to receive and process incoming delegate

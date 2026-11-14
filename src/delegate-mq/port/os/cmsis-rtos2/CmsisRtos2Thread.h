@@ -22,7 +22,7 @@
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
 /// * **Priority Support:** Normal and High priorities, as two queue lanes drained
-///   HIGH first (see `CmsisRtos2DelegateQueue` for why `osMessageQueuePut`'s
+///   URGENT first (see `CmsisRtos2DelegateQueue` for why `osMessageQueuePut`'s
 ///   `msg_prio` isn't relied on).
 /// * **Queue-Based Dispatch:** Uses `CmsisRtos2DelegateQueue` (a thin RAII wrapper
 ///   around two `osMessageQueue` lanes and a counting `osSemaphore`) to receive

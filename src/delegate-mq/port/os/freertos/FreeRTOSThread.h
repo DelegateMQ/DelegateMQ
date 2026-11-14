@@ -22,7 +22,7 @@
 /// * **FullPolicy Support:** Configurable back-pressure (DROP or TIMEOUT) when the
 ///   message queue is full.
 /// * **Priority Support:** Normal and High priorities, as two FIFO queue lanes drained
-///   HIGH first, so same-priority messages keep dispatch order (see
+///   URGENT first, so same-priority messages keep dispatch order (see
 ///   `FreeRTOSDelegateQueue` for why one queue + `xQueueSendToFront()` is wrong).
 /// * **Queue-Based Dispatch:** Uses `FreeRTOSDelegateQueue` (a thin RAII wrapper
 ///   around a FreeRTOS `QueueHandle_t`) to receive and process incoming delegate

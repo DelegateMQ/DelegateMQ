@@ -318,9 +318,9 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     else
         timeout = 0;  // DROP and FAULT: non-blocking
 
-    // High priority routes to the HIGH lane (drained before NORMAL), preserving
+    // URGENT routes to its own lane (drained before NORMAL), preserving
     // FIFO order within each lane -- see FreeRTOSDelegateQueue.h for why this is
-    // NOT xQueueSendToFront (that would make HIGH messages LIFO, not FIFO).
+    // NOT xQueueSendToFront (that would make URGENT messages LIFO, not FIFO).
     bool sent = m_queue.Send(threadMsg, msg->GetPriority() == Priority::URGENT, timeout);
 
     if (!sent) {

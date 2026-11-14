@@ -13,7 +13,7 @@
 /// (unlike FreeRTOS's xQueueSendToFront, ThreadX's tx_queue_front_send, or
 /// CMSIS-RTOS2's osMessageQueuePut msg_prio argument) -- a single k_msgq is
 /// strict FIFO, which previously meant dmq::Priority::URGENT was silently
-/// treated as NORMAL on this port. To give HIGH the same "jumps the FIFO"
+/// treated as NORMAL on this port. To give URGENT the same "jumps the FIFO"
 /// semantics here as on every other RTOS port, this wrapper keeps two
 /// independent k_msgq instances (mirroring the desktop stdlib/win32/qt ports'
 /// two-deque model) and Receive() always drains the high-priority queue
@@ -100,7 +100,7 @@ public:
 
     /// Receive a message pointer, blocking up to 'waitOption'. The
     /// high-priority queue is always checked -- and drained -- first, so a
-    /// pending HIGH message is returned even if NORMAL messages arrived
+    /// pending URGENT message is returned even if NORMAL messages arrived
     /// earlier. Uses k_poll() to block efficiently on both queues at once
     /// rather than polling in a loop.
     /// @return the message, or nullptr on timeout.
@@ -124,7 +124,7 @@ public:
         if (k_poll(events, 2, waitOption) != 0)
             return nullptr; // timed out waiting for either queue
 
-        // k_poll only signals readiness; re-check high first so a HIGH
+        // k_poll only signals readiness; re-check high first so an URGENT
         // message still jumps the FIFO even if NORMAL became ready too.
         if (k_msgq_get(&m_highMsgq, &msg, K_NO_WAIT) == 0)
             return msg;
