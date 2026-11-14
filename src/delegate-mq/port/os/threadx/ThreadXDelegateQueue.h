@@ -73,7 +73,7 @@ public:
     ThreadXDelegateQueue(const ThreadXDelegateQueue&) = delete;
     ThreadXDelegateQueue& operator=(const ThreadXDelegateQueue&) = delete;
 
-    /// Create the underlying HIGH and NORMAL queues, each with room for
+    /// Create the underlying URGENT and NORMAL queues, each with room for
     /// 'capacity' pointers, plus the counting semaphore doorbell (initial
     /// count 0).
     /// @param name Queue/semaphore name; ThreadX stores this pointer, not a

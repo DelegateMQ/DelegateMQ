@@ -67,7 +67,7 @@ public:
     FreeRTOSDelegateQueue(const FreeRTOSDelegateQueue&) = delete;
     FreeRTOSDelegateQueue& operator=(const FreeRTOSDelegateQueue&) = delete;
 
-    /// Create the underlying HIGH and NORMAL queues, each with room for
+    /// Create the underlying URGENT and NORMAL queues, each with room for
     /// 'capacity' pointers, plus the counting semaphore doorbell (max count
     /// 2 * capacity, matching the combined capacity of both lanes).
     /// @return true on success, false if any FreeRTOS object could not be
