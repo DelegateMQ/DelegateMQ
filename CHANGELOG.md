@@ -13,6 +13,7 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ### Upgrading to 2.4.0
 - **Rename `dmq::Priority::HIGH` to `dmq::Priority::URGENT`.** Arduino cores `#define HIGH`, so any code that included `Arduino.h` before DelegateMQ failed to compile. `NORMAL` is unchanged, and messages are ordered the same way.
+- **Qt port: default queue size is now 1000, up from 20.** A Qt `Thread` created with `maxQueueSize` 0 (the default) now uses `dmq::THREAD_DESKTOP_QUEUE_SIZE` (`DMQ_THREAD_DESKTOP_QUEUE_SIZE`, 1000) like the stdlib, Win32 and POSIX ports, not the RTOS default `dmq::DEFAULT_QUEUE_SIZE` (20). A burst that used to fault, drop or time out at 20 queued messages is now queued. To keep the old cap, pass `maxQueueSize` 20 to the `Thread` constructor.
 
 ### Added
 - **PlatformIO library.** `library.json` at the repo root; add `lib_deps = endurodave/DelegateMQ@^2.4.0`. See BUILD.md "PlatformIO" for the C++17/RTTI flags and where to put `DelegateMQConfig.h`. `example/platformio/async-delegates` is one sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, Raspberry Pi Pico and the desktop.
