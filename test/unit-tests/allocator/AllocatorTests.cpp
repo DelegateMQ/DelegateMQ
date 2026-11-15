@@ -57,10 +57,12 @@ void AllocatorTests()
         DMQ_ASSERT_TRUE(p1 != NULL);
         DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 1);
         DMQ_ASSERT_TRUE(allocator.GetAllocations() == 1);
+        DMQ_ASSERT_TRUE(allocator.GetBlockCount() == 1);    // pool blocks count too
 
         void* p2 = allocator.Allocate(requestSize);
         DMQ_ASSERT_TRUE(p2 != NULL);
         DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 2);
+        DMQ_ASSERT_TRUE(allocator.GetBlockCount() == 2);
 
         allocator.Deallocate(p1);
         DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 1);

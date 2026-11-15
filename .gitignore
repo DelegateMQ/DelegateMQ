@@ -376,3 +376,6 @@ dump_*.txt
 
 # Third-party repos fetched by 01_fetch_repos.py (see src/delegate-mq/DepsDir.cmake)
 /external/
+
+# PlatformIO
+.pio/

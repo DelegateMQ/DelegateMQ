@@ -45,7 +45,8 @@
       "library.json"
     ],
     "exclude": [
-      "example/platformio/**/.pio"
+      "example/platformio/**/.pio",
+      "**/.gitignore"
     ]
   },
   "build": {
@@ -57,7 +58,10 @@
     ],
     "unflags": [
       "-std=gnu++11",
-      "-std=gnu++14"
+      "-std=gnu++14",
+      "-std=c++11",
+      "-std=c++14",
+      "-fno-rtti"
     ]
   },
   "examples": [

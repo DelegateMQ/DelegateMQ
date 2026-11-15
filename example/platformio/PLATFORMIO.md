@@ -90,7 +90,7 @@ board     = esp32dev
 framework = arduino
 lib_deps  = endurodave/DelegateMQ@^2.4.0
 ; DelegateMQ needs C++17 and RTTI; Arduino cores default to C++11 and -fno-rtti
-build_unflags = -std=gnu++11 -std=gnu++14 -fno-rtti
+build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14 -fno-rtti
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
 extra_scripts = pre:cxx_flags.py   ; adds -frtti to C++ files only
 ```
@@ -142,7 +142,7 @@ board     = disco_f407vg
 framework = arduino
 lib_deps  = endurodave/DelegateMQ@^2.4.0
             stm32duino/STM32duino FreeRTOS@^10.3.2
-build_unflags = -std=gnu++11 -std=gnu++14 -fno-rtti
+build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14 -fno-rtti
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
 extra_scripts = pre:cxx_flags.py
 ```
@@ -208,7 +208,7 @@ To start your own project from it, copy the folder and change `lib_deps = symlin
 | :--- | :--- |
 | `functional: No such file or directory` (or `chrono`, `cstdio`) | 8-bit AVR board (Uno, Mega). Not supported: no C++ standard library. |
 | `'dynamic_cast' not permitted with '-fno-rtti'`, `typeid` errors | RTTI off. Add `-fno-rtti` to `build_unflags` and `-frtti` (or `cxx_flags.py`). |
-| `if constexpr`, `std::optional`, structured-binding errors | Not C++17. Add the core's `-std=gnu++11`/`gnu++14` to `build_unflags` and `-std=gnu++17` to `build_flags`. |
+| `if constexpr`, `std::optional`, structured-binding errors | Not C++17. Add the core's `-std=gnu++11`/`gnu++14` (some cores use `-std=c++11`/`c++14`) to `build_unflags` and `-std=gnu++17` to `build_flags`. |
 | Link errors for `FreeRTOSThread` or other port symbols | `DelegateMQConfig.h` is in `src/`, so the library was built with different options. Move it to `include/`. |
 | `FreeRTOS.h: No such file or directory` | `DMQ_THREAD_FREERTOS` on a core without FreeRTOS. Add an RTOS library (STM32duino FreeRTOS) or use `DMQ_THREAD_NONE`. |
 | `macro "abs" passed 2 arguments` (Raspberry Pi Pico) | PlatformIO's default Pico core (Arduino mbed) breaks under C++17. Use the arduino-pico core: `platform = https://github.com/maxgerhardt/platform-raspberrypi.git` and `board_build.core = earlephilhower`. |
