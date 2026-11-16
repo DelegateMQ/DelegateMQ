@@ -180,7 +180,7 @@ Results are also written to `full-suite-results/<platform>.json` (gitignored).
 python3 build_all.py --full
 ```
 
-Samples that need a broker, a serial port pair or an emulator are run with them: `mqtt-rapidjson` against a mosquitto broker started for the run, `serialport-serializer` over a `socat` pseudo-terminal pair (Linux), and the `bare-metal` targets on QEMU. Samples that need tools `--full` doesn't install yet (Zephyr, NuttX, real hardware) are listed in `full_suite.PENDING` and reported as skipped with the reason. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
+Samples that need a broker, a serial port pair or an emulator are run with them: `mqtt-rapidjson` against a mosquitto broker started for the run, `serialport-serializer` over a `socat` pseudo-terminal pair (Linux), the `bare-metal` targets on QEMU, the Zephyr samples on `native_sim` (with `ZEPHYR_BASE` set) and `nuttx-sim` on NuttX's `sim` board (with `NUTTX_SRC` set). Samples that need real hardware (`stm32-freertos`) are listed in `full_suite.PENDING` and reported as skipped with the reason; `keil-bare-metal` needs Keil MDK and is never built. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
 
 #### In Docker (Linux)
 `docker/Dockerfile` has every Linux tool `--full` needs, and `docker/run.sh` runs `build_all.py` in it on the current checkout. It needs Docker, with your user in the `docker` group:

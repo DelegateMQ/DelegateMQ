@@ -192,6 +192,92 @@ def configure_bare_metal(sample_dir, clean, full):
             report_failure(label, e.stderr)
 
 
+def run_configure(cmd, cwd, label, env=None):
+    """Run one configure command; print and record the outcome. Returns True on success."""
+    try:
+        subprocess.run(cmd, cwd=cwd, check=True, env=env,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        print("   FAILED")
+        report_failure(label, (e.stderr or "") + (e.stdout or ""))
+        return False
+
+
+def configure_host(project_dir, label, clean):
+    """Configure an ordinary CMake project into build/."""
+    build_dir = os.path.join(project_dir, "build")
+    if clean and os.path.exists(build_dir):
+        shutil.rmtree(build_dir, ignore_errors=True)
+    print(f"[CONFIGURING] {label}")
+    if run_configure(["cmake", "-B", "build", "."], project_dir, label):
+        print("   Success!")
+
+
+def configure_zephyr(project_dir, label, clean, full):
+    """Configure a Zephyr app for native_sim into build/ with plain CMake
+    (-DBOARD), against ZEPHYR_BASE; Zephyr's cache goes inside build/."""
+    missing = full_suite.zephyr_missing()
+    if missing:
+        print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+        if full:
+            FAILED.append((label, "--full: missing " + ", ".join(missing)))
+        return
+    build_dir = os.path.join(project_dir, "build")
+    if clean and os.path.exists(build_dir):
+        shutil.rmtree(build_dir, ignore_errors=True)
+    cmd = ["cmake", "-B", "build", f"-DBOARD={full_suite.ZEPHYR_BOARD}",
+           f"-DUSER_CACHE_DIR={os.path.join(build_dir, 'zephyr-cache')}", "."]
+    if shutil.which("ninja"):
+        cmd[3:3] = ["-G", "Ninja"]
+    print(f"[CONFIGURING] {label} (Zephyr {full_suite.ZEPHYR_BOARD})")
+    if run_configure(cmd, project_dir, label):
+        print("   Success!")
+
+
+def configure_nuttx(sample_dir, repo_root, clean, full):
+    """Set up nuttx-sim's NuttX build: copy NUTTX_SRC/nuttx to build/nuttx, link
+    the sample's apps/ beside it as dmq_apps (NuttX wants -a relative to nuttx/),
+    then configure sim:cxxtest with the sample's entry point and libc++, as its
+    README describes. An already configured tree is kept, so builds are
+    incremental (--clean starts over)."""
+    label = full_suite.NUTTX_SAMPLE
+    missing = full_suite.nuttx_missing()
+    if missing:
+        print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+        if full:
+            FAILED.append((label, "--full: missing " + ", ".join(missing)))
+        return
+    build_root = os.path.join(sample_dir, "build")
+    nuttx_dir = os.path.join(build_root, "nuttx")
+    if clean and os.path.exists(build_root):
+        shutil.rmtree(build_root, ignore_errors=True)
+    if os.path.isfile(os.path.join(nuttx_dir, ".config")):
+        print(f"[CONFIGURING] {label} (NuttX sim)\n   Already configured.")
+        return
+
+    print(f"[CONFIGURING] {label} (NuttX sim)")
+    if os.path.exists(build_root):
+        shutil.rmtree(build_root, ignore_errors=True)   # a half-done earlier attempt
+    os.makedirs(build_root)
+    shutil.copytree(os.path.join(os.environ["NUTTX_SRC"], "nuttx"), nuttx_dir, symlinks=True)
+    os.symlink(os.path.join("..", "apps"), os.path.join(build_root, "dmq_apps"))
+    # The sample's apps/Makefile runs during configure too and needs DELEGATEMQ_ROOT
+    env = dict(os.environ, DELEGATEMQ_ROOT=repo_root)
+    for cmd in (["./tools/configure.sh", "-a", "../dmq_apps", "sim:cxxtest"],
+                ["kconfig-tweak", "--file", ".config", "--set-str", "CONFIG_INIT_ENTRYPOINT", "dmq_test_main"],
+                ["kconfig-tweak", "--file", ".config", "--disable", "CONFIG_UCLIBCXX", "--enable", "CONFIG_LIBCXX"],
+                ["kconfig-tweak", "--file", ".config", "--set-str", "CONFIG_CXX_STANDARD", "gnu++20"],
+                ["make", "olddefconfig"]):
+        if not run_configure(cmd, nuttx_dir, label, env=env):
+            # Leave no .config behind, so the next run configures again
+            config = os.path.join(nuttx_dir, ".config")
+            if os.path.exists(config):
+                os.remove(config)
+            return
+    print("   Success!")
+
+
 def build_samples(use_clang=False, clean=False, full=False):
     clang_exe = shutil.which("clang++") if (use_clang and not IS_WINDOWS) else None
     if use_clang and IS_WINDOWS:
@@ -230,9 +316,7 @@ def build_samples(use_clang=False, clean=False, full=False):
             if "install" in dirnames: dirnames.remove("install")
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
-            # zephyr-linux/zephyr-udp-serializer/databus-zephyr/cmsis-rtos2-linux need
-            # `west build` + a west workspace, not `cmake -B build`.
-            skip_dirs = ["unit-tests", "stm32-freertos", "zephyr-linux", "zephyr-udp-serializer", "databus-zephyr", "cmsis-rtos2-linux"]
+            skip_dirs = ["unit-tests", "stm32-freertos"]
             for sd in skip_dirs:
                 if sd in dirnames: dirnames.remove(sd)
 
@@ -241,6 +325,23 @@ def build_samples(use_clang=False, clean=False, full=False):
             if os.path.basename(dirpath) == full_suite.BARE_METAL_SAMPLE:
                 configure_bare_metal(dirpath, clean, full)
                 dirnames.clear()
+                continue
+
+            # Zephyr (native_sim) and NuttX (sim) samples: Linux only, each
+            # configured its own way (see full_suite.py).
+            name = os.path.basename(dirpath)
+            if (name in full_suite.ZEPHYR_SAMPLES or name == full_suite.ZEPHYR_DATABUS_SAMPLE
+                    or name == full_suite.NUTTX_SAMPLE):
+                dirnames.clear()
+                if IS_WINDOWS:
+                    continue
+                if name == full_suite.NUTTX_SAMPLE:
+                    configure_nuttx(dirpath, repo_root, clean, full)
+                elif name == full_suite.ZEPHYR_DATABUS_SAMPLE:
+                    configure_zephyr(os.path.join(dirpath, "server"), f"{name}/server", clean, full)
+                    configure_host(os.path.join(dirpath, "client"), f"{name}/client", clean)
+                else:
+                    configure_zephyr(dirpath, name, clean, full)
                 continue
 
             # Pumptron is configured once from its top-level CMakeLists.txt

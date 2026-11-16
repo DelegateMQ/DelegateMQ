@@ -24,6 +24,10 @@ Key Features:
     7. Results file (--results FILE): writes passed/failed/skipped as JSON,
        for combining runs from several machines.
 
+Zephyr and NuttX: the Zephyr native_sim apps (build/zephyr/zephyr.exe) and
+NuttX's sim (build/nuttx/nuttx) run as host processes, checked for their
+success text (see run_zephyr, run_databus_zephyr, run_nuttx).
+
 MQTT: mqtt-rapidjson's sub and pub run against a mosquitto broker this script
 starts for the run (see run_mqtt).
 
@@ -124,6 +128,11 @@ LINUX_ONLY = {
     "freertos-linux",          # FreeRTOS POSIX simulator port
     "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
     "qt-linux",                # DMQ_THREAD_QT port; Qt 6 Core
+    "zephyr-linux",            # Zephyr native_sim
+    "zephyr-udp-serializer",
+    "cmsis-rtos2-linux",
+    "databus-zephyr",
+    "nuttx-sim",               # NuttX sim
 }
 
 # Projects that cannot exit on their own (e.g. FreeRTOS scheduler never returns).
@@ -550,6 +559,97 @@ def run_mqtt(project_dir, use_clang, passed, failed, skipped):
             _unregister(broker_proc)
 
 
+def run_zephyr(project_dir, name, passed, failed, skipped):
+    """A Zephyr native_sim app (build/zephyr/zephyr.exe): no arguments (it takes
+    native_sim's own options), must exit 0 and print its success text."""
+    exe = os.path.join(project_dir, "build", "zephyr", "zephyr.exe")
+    if not os.path.isfile(exe):
+        skipped.append((name, "not built"))
+        return
+    print(f"[RUNNING] {name}  (Zephyr native_sim)", flush=True)
+    results = {}
+    run_process([exe], project_dir, "app", results)
+    r = results["app"]
+    if not r["failed"] and not r["timed_out"] and full_suite.ZEPHYR_SAMPLES[name] in r["output"]:
+        print("   passed")
+        passed.append(name)
+    else:
+        print("   FAILED")
+        print_result_detail("app", r)
+        failed.append(name)
+
+
+def run_databus_zephyr(project_dir, passed, failed, skipped):
+    """databus-zephyr: the Zephyr server (native_sim, stopped with its --stop_at
+    option once the client is done) and the host client exchange DataBus
+    messages over the host loopback, in both directions."""
+    name = full_suite.ZEPHYR_DATABUS_SAMPLE
+    server_dir = os.path.join(project_dir, "server")
+    client_dir = os.path.join(project_dir, "client")
+    server = os.path.join(server_dir, "build", "zephyr", "zephyr.exe")
+    client = find_executable(os.path.join(client_dir, "build"),
+                             get_exe_name(os.path.join(client_dir, "CMakeLists.txt")))
+    if not os.path.isfile(server) or not client:
+        skipped.append((name, "not built"))
+        return
+    print(f"[RUNNING] {name}  (Zephyr server / host client)", flush=True)
+    did_fail, results = run_group([
+        ("server", [server, f"--stop_at={APP_DURATION + 5}"], server_dir),
+        ("client", [client, str(APP_DURATION)], client_dir),
+    ])
+    for role, text in full_suite.ZEPHYR_DATABUS_REQUIRED.items():
+        r = results.get(role, {})
+        if r.get("timed_out") or text not in r.get("output", ""):
+            r["failed"] = did_fail = True
+    if did_fail:
+        print("   FAILED")
+        for role, r in results.items():
+            print_result_detail(role, r)
+        failed.append(name)
+    else:
+        print("   passed")
+        passed.append(name)
+
+
+def run_nuttx(sample_dir, passed, failed, skipped):
+    """nuttx-sim: the NuttX sim keeps running after its tests (an OS doesn't
+    power off when an app returns), so read its output and stop it as soon as
+    the success text appears; fail if it doesn't within NUTTX_TIMEOUT."""
+    name = full_suite.NUTTX_SAMPLE
+    exe = os.path.join(sample_dir, "build", "nuttx", "nuttx")
+    if not os.path.isfile(exe):
+        skipped.append((name, "not built"))
+        return
+    print(f"[RUNNING] {name}  (NuttX sim)", flush=True)
+    output = []
+    proc = subprocess.Popen([exe], cwd=os.path.dirname(exe), stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            encoding="utf-8", errors="replace")
+    _register(proc)
+    timer = threading.Timer(full_suite.NUTTX_TIMEOUT, proc.kill)
+    timer.start()
+    try:
+        for line in proc.stdout:
+            output.append(line)
+            if full_suite.NUTTX_SUCCESS in line:
+                break
+    finally:
+        timer.cancel()
+        proc.kill()
+        proc.wait()
+        _unregister(proc)
+    text = "".join(output)
+    r = {"failed": False, "returncode": proc.returncode, "timed_out": False, "output": text}
+    if full_suite.NUTTX_SUCCESS in text and not has_failure_text(text):
+        print("   passed")
+        passed.append(name)
+    else:
+        r["failed"] = True
+        print("   FAILED")
+        print_result_detail("app", r)
+        failed.append(name)
+
+
 def write_results(path, passed, failed, skipped):
     """Write the run's outcome as JSON, for combining runs from several machines."""
     data = {
@@ -631,6 +731,15 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
             continue
         if project_name == full_suite.MQTT_SAMPLE:
             run_mqtt(project_dir, use_clang, passed, failed, skipped)
+            continue
+        if project_name in full_suite.ZEPHYR_SAMPLES:
+            run_zephyr(project_dir, project_name, passed, failed, skipped)
+            continue
+        if project_name == full_suite.ZEPHYR_DATABUS_SAMPLE:
+            run_databus_zephyr(project_dir, passed, failed, skipped)
+            continue
+        if project_name == full_suite.NUTTX_SAMPLE:
+            run_nuttx(project_dir, passed, failed, skipped)
             continue
 
         # --- Determine topology ---

@@ -32,10 +32,6 @@ that 03_generate_samples.py configured (targets whose toolchain is installed).
 Skip List (always excluded):
     - stm32-freertos          Embedded STM32 target, requires cross-compiler
     - system-architecture-python  Python-only client, no C++ build
-    - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
-    - zephyr-udp-serializer   Needs `west build` + a west workspace, not `cmake -B build`
-    - databus-zephyr          Server needs `west build` + a west workspace, not `cmake -B build`
-    - cmsis-rtos2-linux       Needs `west build` + a west workspace, not `cmake -B build`
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
@@ -65,10 +61,6 @@ import full_suite
 SKIP_ALWAYS = {
     "stm32-freertos",
     "system-architecture-python",
-    "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
-    "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
-    "cmsis-rtos2-linux",       # needs `west build`, not a plain `cmake -B build`; see its README.md
-    "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
 }
 
 # Projects made of more than two node apps, each in its own sub-directory with
@@ -93,6 +85,11 @@ LINUX_ONLY = {
     "freertos-linux",          # FreeRTOS POSIX simulator port; each task is a real pthread
     "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
     "qt-linux",                # DMQ_THREAD_QT port; Qt 6 Core (qt6-base-dev)
+    "zephyr-linux",            # Zephyr native_sim (host process), configured with -DBOARD
+    "zephyr-udp-serializer",
+    "cmsis-rtos2-linux",
+    "databus-zephyr",          # Zephyr native_sim server + host client
+    "nuttx-sim",               # NuttX sim board, built with NuttX's own make
 }
 
 # Projects that contain dotnet sub-projects requiring 'dotnet build' in addition
@@ -207,6 +204,29 @@ def pumptron_f4_toolchain_present(f4_build_dir):
             if line.startswith("CMAKE_CXX_COMPILER_AR:"):
                 return os.path.isfile(line.split("=", 1)[1].strip())
     return False
+
+
+def build_nuttx(sample_dir, repo_root, passed, failed, skipped):
+    """Build nuttx-sim's NuttX tree (build/nuttx, set up by 03_generate_samples.py)
+    with NuttX's make. -j1: building LLVM's libc++ in parallel has run out of
+    memory on an 8 GB machine (see the sample's README)."""
+    name = full_suite.NUTTX_SAMPLE
+    nuttx_dir = os.path.join(sample_dir, "build", "nuttx")
+    if not os.path.isfile(os.path.join(nuttx_dir, ".config")):
+        skipped.append((name, "not configured — run 03_generate_samples.py first"))
+        return
+    print(f"[BUILDING] {name}  (NuttX make)")
+    env = dict(os.environ, DELEGATEMQ_ROOT=repo_root)
+    result = subprocess.run(["make", "-j1"], cwd=nuttx_dir, env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if result.returncode == 0:
+        print("   ok")
+        passed.append(name)
+    else:
+        print("   FAILED")
+        for line in result.stdout.strip().splitlines()[-15:]:
+            print(f"   {line}")
+        failed.append(name)
 
 
 def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
@@ -393,6 +413,10 @@ def build_samples(use_clang=False, full=False):
             if (project_name == full_suite.SERIAL_SAMPLE and not IS_WINDOWS
                     and not full_suite.serialport_lib_built(repo_root)):
                 skipped.append((project_name, "libserialport not built (02_build_libs.py)"))
+                continue
+
+            if project_name == full_suite.NUTTX_SAMPLE:
+                build_nuttx(project_dir, repo_root, passed, failed, skipped)
                 continue
 
             bare_metal = project_name == full_suite.BARE_METAL_SAMPLE

@@ -2,7 +2,7 @@
 
 This sample project demonstrates how to integrate **DelegateMQ** into a **Zephyr** environment using Zephyr's official `native_sim` simulation port, which compiles a Zephyr application with your host's own GCC (no cross-compiler) and runs it as an ordinary Linux process — no target hardware required.
 
-Unlike `threadx-linux`/`freertos-linux`, this sample is **manual-only**: it is not wired into `01_fetch_repos.py`/`03_generate_samples.py`/`04_build_samples.py`. Zephyr applications are built with `west build`, not a plain `cmake -B build`, and setting up a `west` workspace is a heavier, opt-in step — see Prerequisites below.
+Unlike `threadx-linux`/`freertos-linux`, this sample needs a Zephyr workspace, which `01_fetch_repos.py` doesn't fetch: setting one up is a heavier, opt-in step. `build_all.py` builds and runs this and the other Zephyr samples on Linux when `ZEPHYR_BASE` points at one, as in the Docker image (`docker/run.sh`; see "Full Test Suite" in `docs/BUILD.md`). It configures them with plain CMake (`cmake -B build -DBOARD=native_sim/native/64`), which works the same as `west build` — see Prerequisites below.
 
 ## Features Demonstrated
 

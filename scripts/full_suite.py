@@ -73,6 +73,55 @@ MQTT_PORT = 18830
 MQTT_SUCCESS = "Data Message"
 
 
+# Zephyr samples, built for native_sim (a host process) with the host gcc. A
+# Zephyr app is a folder with prj.conf; it builds with plain CMake (-DBOARD)
+# against ZEPHYR_BASE. The app is build/zephyr/zephyr.exe, which takes
+# native_sim's own options, not the duration the other samples get.
+# Value: text the run must print.
+ZEPHYR_BOARD = "native_sim/native/64"
+ZEPHYR_SAMPLES = {
+    "zephyr-linux":          "ALL TESTS PASSED",
+    "zephyr-udp-serializer": "Data Message:",
+    "cmsis-rtos2-linux":     "ALL TESTS PASSED",
+}
+# databus-zephyr: Zephyr server (server/) and host client (client/), separate
+# processes over the host loopback. The server runs until stopped, so it gets
+# native_sim's --stop_at.
+ZEPHYR_DATABUS_SAMPLE = "databus-zephyr"
+ZEPHYR_DATABUS_REQUIRED = {"client": "[Client] sensor/temp", "server": "Received CmdMsg"}
+
+# nuttx-sim: NuttX's sim board (a host process). NuttX builds in its source
+# tree, so the scripts copy NUTTX_SRC/nuttx to nuttx-sim/build/nuttx, link the
+# sample's apps/ beside it, and configure and build it there (see its README).
+# The simulated OS keeps running after the tests, so the run is stopped once
+# the success text appears.
+NUTTX_SAMPLE = "nuttx-sim"
+NUTTX_SUCCESS = "ALL TESTS PASSED"
+NUTTX_TIMEOUT = 120
+
+
+def zephyr_missing():
+    """What building the Zephyr samples needs that isn't here (empty if none)."""
+    missing = []
+    base = os.environ.get("ZEPHYR_BASE")
+    if not base or not os.path.isfile(os.path.join(base, "VERSION")):
+        missing.append("a Zephyr tree (set ZEPHYR_BASE)")
+    if not shutil.which("dtc"):
+        missing.append("dtc (device-tree-compiler)")
+    return missing
+
+
+def nuttx_missing():
+    """What building nuttx-sim needs that isn't here (empty if none)."""
+    missing = []
+    src = os.environ.get("NUTTX_SRC")
+    if not src or not os.path.isfile(os.path.join(src, "nuttx", "tools", "configure.sh")):
+        missing.append("NuttX and nuttx-apps checkouts (set NUTTX_SRC)")
+    if not shutil.which("kconfig-tweak"):
+        missing.append("kconfig-tweak (kconfig-frontends)")
+    return missing
+
+
 def serialport_lib_built(repo_root):
     """True if 02_build_libs.py built libserialport here (Linux: .libs/libserialport.a)."""
     deps_dir = os.environ.get("DMQ_DEPS_DIR") or os.path.join(repo_root, "external")
@@ -130,11 +179,6 @@ def test_variants():
 
 # Samples --full doesn't cover yet: name -> what it needs.
 PENDING = {
-    "zephyr-linux":           "not yet in --full: needs Zephyr (west)",
-    "zephyr-udp-serializer":  "not yet in --full: needs Zephyr (west)",
-    "databus-zephyr":         "not yet in --full: needs Zephyr (west)",
-    "cmsis-rtos2-linux":      "not yet in --full: needs Zephyr (west)",
-    "nuttx-sim":              "not yet in --full: needs NuttX",
     "stm32-freertos":         "hardware: needs an STM32 board",
 }
 

@@ -4,7 +4,7 @@ This sample project demonstrates **DelegateMQ**'s `DMQ_THREAD_CMSIS_RTOS2` port 
 
 This is **not** the `ZephyrThread` port (see `zephyr-linux` for that) — it's `CmsisRtos2Thread`/`CmsisRtos2Mutex`/`CmsisRtos2Semaphore`/`CmsisRtos2DelegateQueue`/`CmsisRtos2Clock` calling real `osThreadNew`/`osMutexAcquire`/`osSemaphoreAcquire`/`osMessageQueuePut`/`osKernelGetTickCount`, resolved by Zephyr's compatibility layer down to its native kernel. Zephyr's own `philosophers`/`timer_synchronization` CMSIS-RTOS2 samples build and run on `native_sim` in Zephyr's own CI, which is what makes this possible without any ARM toolchain.
 
-Unlike `threadx-linux`/`freertos-linux`, this sample is **manual-only**: it is not wired into `01_fetch_repos.py`/`03_generate_samples.py`/`04_build_samples.py`. It needs the same `west` workspace as `zephyr-linux` — see that sample's README for setup.
+Unlike `threadx-linux`/`freertos-linux`, this sample needs a Zephyr workspace (the same one as `zephyr-linux`), which `01_fetch_repos.py` doesn't fetch; `build_all.py` builds and runs it on Linux when `ZEPHYR_BASE` points at one, as in the Docker image — see that sample's README for setup.
 
 ## What this verifies (and what it doesn't)
 

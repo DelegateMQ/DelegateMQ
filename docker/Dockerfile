@@ -75,6 +75,57 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mosquitto \
     && rm -rf /var/lib/apt/lists/*
 
+# Zephyr for the native_sim samples (zephyr-linux, zephyr-udp-serializer,
+# databus-zephyr, cmsis-rtos2-linux), at the version they were verified with.
+# native_sim compiles with the host gcc (ZEPHYR_TOOLCHAIN_VARIANT=host), so no
+# Zephyr SDK. Zephyr is a shallow clone, and west fetches only the modules
+# native_sim needs (the filters each sample's README gives), also shallow.
+# The venv comes first on PATH, so it also sees the system Python packages
+# (python3-msgpack, python3-zmq for the cross-language sample clients).
+ARG ZEPHYR_VERSION=v4.1.0
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        device-tree-compiler \
+        python3-venv \
+        python3-dev \
+        gperf \
+        file \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv --system-site-packages /opt/zephyr-venv \
+    && /opt/zephyr-venv/bin/pip install --no-cache-dir west \
+    && mkdir /opt/zephyrproject \
+    && git clone --depth 1 --branch ${ZEPHYR_VERSION} https://github.com/zephyrproject-rtos/zephyr.git /opt/zephyrproject/zephyr \
+    && cd /opt/zephyrproject \
+    && /opt/zephyr-venv/bin/west init -l zephyr \
+    && /opt/zephyr-venv/bin/west config manifest.group-filter -- -hal,-optional,-babblesim,-crypto,-debug,-fs,-tee,-tools,-bootloader,-testing \
+    && /opt/zephyr-venv/bin/west config manifest.project-filter -- -nrf_hw_models \
+    && /opt/zephyr-venv/bin/west update --narrow -o=--depth=1 \
+    && /opt/zephyr-venv/bin/pip install --no-cache-dir -r zephyr/scripts/requirements-base.txt
+
+ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr \
+    ZEPHYR_TOOLCHAIN_VARIANT=host \
+    PATH=/opt/zephyr-venv/bin:$PATH
+
+# NuttX for the nuttx-sim sample (NuttX's own sim board, a host process), at
+# the release it was verified with, plus its host build tools. The sample's
+# runner copies /opt/nuttx-src into its build directory, since NuttX builds
+# in its source tree.
+ARG NUTTX_RELEASE=releases/12.4
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        bison \
+        flex \
+        gettext \
+        texinfo \
+        libncurses-dev \
+        xxd \
+        genromfs \
+        kconfig-frontends \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir /opt/nuttx-src \
+    && git clone --depth 1 --branch ${NUTTX_RELEASE} https://github.com/apache/nuttx.git /opt/nuttx-src/nuttx \
+    && git clone --depth 1 --branch ${NUTTX_RELEASE} https://github.com/apache/nuttx-apps.git /opt/nuttx-src/apps
+
+ENV NUTTX_SRC=/opt/nuttx-src
+
 # run.sh runs the container as the calling user so files it writes in the
 # checkout stay theirs; that user has no home directory in the image.
 ENV HOME=/tmp \
