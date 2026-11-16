@@ -11,6 +11,7 @@ DelegateMQ is mostly headers. The delegates themselves are header-only; the OS p
   - [Without CMake](#without-cmake)
 - [Example Ecosystem (Sandbox)](#example-ecosystem-sandbox)
   - [Automated Workspace Setup](#automated-workspace-sandbox-setup)
+  - [Full Test Suite (`--full`)](#full-test-suite---full)
   - [Manual Sample Build](#manual-sample-build)
 - [Configuration and Overrides](#configuration-and-overrides)
   - [CMake Options](#1-cmake-options)
@@ -166,6 +167,42 @@ Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party l
 `git clean -xdf` deletes `external/` along with build output, because it's gitignored. Use `git clean -xdf -e external` to keep it.
 
 Older versions cloned the dependencies next to the repository (`<parent>/zeromq`, `<parent>/FreeRTOS`, ...). That layout is no longer used: rerun `01_fetch_repos.py` and `02_build_libs.py`, then delete the old folders.
+
+### Full Test Suite (`--full`)
+A plain `build_all.py` run skips whatever the machine lacks the tools for. `--full` runs everything the platform can run, and treats a missing tool or an unbuilt sample as a failure, so a clean run means it all ran:
+
+- every sample, as usual, plus the clang builds on Linux (`--full` implies `--clang` there)
+- the unit-test app in `test/`, in every build listed in `scripts/full_suite.py`: the default build, clang, AddressSanitizer, ThreadSanitizer and UndefinedBehaviorSanitizer (Linux), the `DMQ_ALLOCATOR`/`DMQ_ASSERTS` embedded configuration, and the stress tests
+
+Results are also written to `full-suite-results/<platform>.json` (gitignored).
+
+```bash
+python3 build_all.py --full
+```
+
+Samples that need tools `--full` doesn't install yet (QEMU, Qt, an MQTT broker, Zephyr, NuttX, hardware) are listed in `full_suite.PENDING` and reported as skipped with the reason. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
+
+#### In Docker (Linux)
+`docker/Dockerfile` has every Linux tool `--full` needs, and `docker/run.sh` runs `build_all.py` in it on the current checkout. It needs Docker, with your user in the `docker` group:
+
+```bash
+docker/run.sh --full               # builds the image on first use
+docker/run.sh --full --from 3      # resume at step 03
+```
+
+The third-party libraries go to `~/.cache/delegatemq/external` (override with `DMQ_DEPS_DIR`) and are kept between runs. Build directories land in the checkout, configured for the container's `/work` path: rerun `03_generate_samples.py --clean` before building them outside the container.
+
+#### Both Platforms from One Command
+From Windows, `--linux-host` runs the Linux half on a Linux machine at the same time as the local run, and prints one combined table:
+
+```bash
+python build_all.py --linux-host user@linux-box
+python build_all.py --linux-host user@linux-box --from 3    # --from/--to/--clean apply to both
+```
+
+It copies the working tree, uncommitted changes included, to a checkout on that machine (`~/dmq-full/DelegateMQ` by default, cloned on first use; `--linux-dir` changes it) and runs `docker/run.sh --full` there. The copy is a temporary commit pushed to that checkout, so only changes travel and its build directories stay for incremental builds. The Linux output is saved to `full-suite-results/linux.log`; its step banners and failures are also shown with a `[linux]` prefix.
+
+The Linux machine needs git, Docker (with your user in the `docker` group) and key-based ssh login from this machine.
 
 ### Manual Sample Build
 If you want to build a specific sample without scripts, navigate to its directory (its third-party dependencies must already be built, e.g. by `02_build_libs.py`):

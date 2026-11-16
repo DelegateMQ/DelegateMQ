@@ -20,7 +20,7 @@ Dependencies Pinned:
     - Cereal:        v1.3.2       (Serialization stable)
     - Bitsery:       v5.2.3       (Serialization stable)
     - MsgPack:       cpp-8.0.0    (Required for C++ headers)
-    - FreeRTOS:      202212.00    (LTS Release)
+    - FreeRTOS:      V11.1.0      (FreeRTOS-Kernel release)
     - ThreadX:       6.5.1.202602a (Latest stable, Linux/GNU port)
 
 Target Directory:

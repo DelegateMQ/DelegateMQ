@@ -377,5 +377,8 @@ dump_*.txt
 # Third-party repos fetched by 01_fetch_repos.py (see src/delegate-mq/DepsDir.cmake)
 /external/
 
+# Results of build_all.py --full (scripts/full_suite.py)
+/full-suite-results/
+
 # PlatformIO
 .pio/

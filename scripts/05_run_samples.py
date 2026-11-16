@@ -16,6 +16,13 @@ Key Features:
     4. Timeout Handling: Kills apps that do not exit on their own (e.g. infinite-
        loop databus samples). Timeout is not counted as a failure.
     5. Summary Report: Prints a final pass/fail/skipped table.
+    6. Full suite (--full): also runs the unit-test app (test/build, plus
+       test/build-clang with --clang and every full_suite.TEST_VARIANTS
+       build), each to completion. A sample that should have run but wasn't
+       built is then a failure; samples --full doesn't cover yet
+       (full_suite.PENDING) stay skipped.
+    7. Results file (--results FILE): writes passed/failed/skipped as JSON,
+       for combining runs from several machines.
 
 Skip List (always excluded):
     - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
@@ -38,9 +45,11 @@ Cross-language pairs (server from one project, non-C++ client):
 Usage:
     Run this script FIFTH, after building all sample projects.
     > python scripts/05_run_samples.py
+    > python scripts/05_run_samples.py --full --clang --yes --results results.json
 """
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -49,6 +58,8 @@ import signal
 import subprocess
 import threading
 import time
+
+import full_suite
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -110,6 +121,8 @@ WINDOWS_ONLY = {
 LINUX_ONLY = {
     "linux-tcp-serializer",
     "linux-udp-serializer",
+    "threadx-linux",           # ThreadX Linux/GNU simulation port
+    "freertos-linux",          # FreeRTOS POSIX simulator port
     "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
 }
 
@@ -230,7 +243,7 @@ signal.signal(signal.SIGINT, _sigint_handler)
 # Process execution
 # ---------------------------------------------------------------------------
 
-def run_process(cmd, cwd, label, results):
+def run_process(cmd, cwd, label, results, timeout=APP_TIMEOUT, env=None):
     """Run one command, capture output, populate results[label]."""
     try:
         proc = subprocess.Popen(
@@ -241,10 +254,11 @@ def run_process(cmd, cwd, label, results):
             stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
+            env=env,
         )
         _register(proc)
         try:
-            stdout, stderr = proc.communicate(timeout=APP_TIMEOUT)
+            stdout, stderr = proc.communicate(timeout=timeout)
             timed_out = False
         except subprocess.TimeoutExpired:
             proc.kill()
@@ -354,7 +368,62 @@ def print_result_detail(label, r):
         print(f"         {snippet}")
 
 
-def run_samples(use_clang=False, assume_yes=False):
+def run_tests(repo_root, use_clang, passed, failed, skipped):
+    """
+    --full: run each build of the unit-test app (test/build, test/build-clang,
+    full_suite.TEST_VARIANTS) to completion. A run passes if it exits 0 within
+    full_suite.TEST_TIMEOUT and, where the variant has one, prints its success
+    marker. The sanitizer builds exit non-zero on their first report.
+    """
+    test_dir = os.path.join(repo_root, "test")
+    exe_name = get_exe_name(os.path.join(test_dir, "CMakeLists.txt"))
+    runs = [{"suffix": "build", "env": {}, "success": "Success!"}]
+    if use_clang:
+        runs.append({"suffix": "build-clang", "env": {}, "success": "Success!"})
+    runs += full_suite.test_variants()
+
+    for v in runs:
+        label = f"test/{v['suffix']}"
+        exe_path = find_executable(os.path.join(test_dir, v["suffix"]), exe_name)
+        if not exe_path:
+            skipped.append((label, "not built"))
+            continue
+
+        print(f"[RUNNING] {label}  (unit tests)", flush=True)
+        env = dict(os.environ, **v["env"])
+        results = {}
+        start = time.time()
+        run_process([exe_path], test_dir, "app", results, timeout=full_suite.TEST_TIMEOUT, env=env)
+        r = results["app"]
+        elapsed = time.time() - start
+
+        did_fail = r["returncode"] != 0 or r["timed_out"]
+        if not did_fail and v["success"] and v["success"] not in r["output"]:
+            print(f"   FAILED  (output missing: {v['success']!r})")
+            did_fail = True
+        if did_fail:
+            print(f"   FAILED  ({elapsed:.0f}s)")
+            print_result_detail("app", r)
+            failed.append(label)
+        else:
+            print(f"   passed  ({elapsed:.0f}s)")
+            passed.append(label)
+
+
+def write_results(path, passed, failed, skipped):
+    """Write the run's outcome as JSON, for combining runs from several machines."""
+    data = {
+        "platform": "Windows" if IS_WINDOWS else platform.system(),
+        "passed":   passed,
+        "failed":   failed,
+        "skipped":  [[name, reason] for name, reason in skipped],
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None):
     repo_root   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     samples_dir = os.path.join(repo_root, "example", "sample-projects")
 
@@ -363,12 +432,14 @@ def run_samples(use_clang=False, assume_yes=False):
         return False
 
     clang_found = shutil.which("clang++") is not None
+    clang_missing = False
     if use_clang and IS_WINDOWS:
         print("NOTE: --clang is only supported on Linux. Clang builds skipped on Windows.\n")
         use_clang = False
     elif use_clang and not clang_found:
         print("WARNING: --clang requested but clang++ not found in PATH. Clang builds skipped.\n")
         use_clang = False
+        clang_missing = full
 
     os_label = "Windows" if IS_WINDOWS else "Linux"
 
@@ -394,6 +465,8 @@ def run_samples(use_clang=False, assume_yes=False):
     passed  = []
     failed  = []
     skipped = []
+    if clang_missing:
+        failed.append("clang builds (clang++ not found)")
 
     for project_name in sorted(os.listdir(samples_dir)):
         project_dir = os.path.join(samples_dir, project_name)
@@ -550,6 +623,16 @@ def run_samples(use_clang=False, assume_yes=False):
                     print(f"   passed{tout_note}")
                     passed.append(clang_label)
 
+    # --- Unit tests and strict skips (--full) ---
+    if full:
+        run_tests(repo_root, use_clang, passed, failed, skipped)
+        skipped, not_run = full_suite.strict_split(skipped)
+        for name, reason in not_run:
+            failed.append(f"{name} ({reason})")
+
+    if results_path:
+        write_results(results_path, passed, failed, skipped)
+
     # --- Summary ---
     total = len(passed) + len(failed)
     print("\n" + "=" * 60)
@@ -580,6 +663,15 @@ if __name__ == "__main__":
         "--yes", "-y", action="store_true",
         help="Skip the confirmation prompt."
     )
+    parser.add_argument(
+        "--full", action="store_true",
+        help="Also run the unit-test builds in test/; anything not built fails (see full_suite.py)."
+    )
+    parser.add_argument(
+        "--results", metavar="FILE",
+        help="Write passed/failed/skipped to FILE as JSON."
+    )
     args = parser.parse_args()
-    success = run_samples(use_clang=args.clang, assume_yes=args.yes)
+    success = run_samples(use_clang=args.clang, assume_yes=args.yes,
+                          full=args.full, results_path=args.results)
     sys.exit(0 if success else 1)

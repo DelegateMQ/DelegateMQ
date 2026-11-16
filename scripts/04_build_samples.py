@@ -21,6 +21,10 @@ Key Features:
     6. Pumptron: builds the desktop build (GUI + FreeRTOS-simulator
        controller) and, if 03_generate_samples.py configured it, the STM32F4
        firmware in example/pumptron/build/f4.
+    7. Full suite (--full): also builds the extra unit-test builds in test/
+       (full_suite.TEST_VARIANTS). A project that should have been configured
+       but wasn't is then a failure, not a skip; samples --full doesn't cover
+       yet (full_suite.PENDING) stay skipped.
 
 Skip List (always excluded):
     - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
@@ -43,6 +47,7 @@ Windows-only (skipped on Linux):
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
     > python scripts/04_build_samples.py
+    > python scripts/04_build_samples.py --full --clang
 """
 
 import argparse
@@ -51,6 +56,8 @@ import shutil
 import sys
 import platform
 import subprocess
+
+import full_suite
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -247,7 +254,7 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
 # Main
 # ---------------------------------------------------------------------------
 
-def build_samples(use_clang=False):
+def build_samples(use_clang=False, full=False):
     repo_root    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_dirs = [
         os.path.join(repo_root, "interop"),
@@ -266,6 +273,9 @@ def build_samples(use_clang=False):
     elif use_clang and not clang_found:
         print("WARNING: --clang requested but clang++ not found in PATH. Clang builds skipped.\n")
         use_clang = False
+        clang_missing = full
+    else:
+        clang_missing = False
 
     os_label = "Windows" if IS_WINDOWS else "Linux"
 
@@ -290,6 +300,8 @@ def build_samples(use_clang=False):
     passed  = []
     failed  = []
     skipped = []
+    if clang_missing:
+        failed.append("clang builds (clang++ not found)")
 
     for target_dir in target_dirs:
         if not os.path.isdir(target_dir):
@@ -319,6 +331,12 @@ def build_samples(use_clang=False):
         # variant (see 03_generate_samples.py) proving DelegateMQ isolates
         # app code from the RTOS choice.
         extra_suffixes = ["build-threadx"] if project_name == "cellutron" else None
+        # --full: test/ has extra unit-test builds (see full_suite.py).
+        if full and project_name == "test":
+            extra_suffixes = [v["suffix"] for v in full_suite.test_variants()]
+            for s in extra_suffixes:
+                if not os.path.isdir(os.path.join(target_dir, s)):
+                    skipped.append((f"test/{s}", "not configured — run 03_generate_samples.py --full first"))
         targets = collect_build_dirs(target_dir, use_clang=use_clang, extra_suffixes=extra_suffixes)
         # Pumptron's STM32F4 firmware is a separate cross-compiled build tree
         # nested under build/ (configured only when the ARM toolchain exists).
@@ -425,6 +443,10 @@ def build_samples(use_clang=False):
                 passed.append(project_name)
 
     # --- Summary ---
+    if full:
+        skipped, not_built = full_suite.strict_split(skipped)
+        for name, reason in not_built:
+            failed.append(f"{name} ({reason})")
     total = len(passed) + len(failed)
     print("\n" + "=" * 60)
     print(f"RESULTS  {len(passed)}/{total} passed   {len(failed)} failed   {len(skipped)} skipped")
@@ -453,8 +475,12 @@ if __name__ == "__main__":
         "--clang", action="store_true",
         help="Also build build-clang/ directories configured by 03_generate_samples.py --clang (Linux only)."
     )
+    parser.add_argument(
+        "--full", action="store_true",
+        help="Also build the full-suite unit-test builds in test/; anything not configured fails (see full_suite.py)."
+    )
     args = parser.parse_args()
-    success = build_samples(use_clang=args.clang)
+    success = build_samples(use_clang=args.clang, full=args.full)
     sys.exit(0 if success else 1)
 
 # Post-Build Executable Locations (Windows Release):

@@ -8,3 +8,6 @@
 
 # Exclude build/ directory from language stats
 doxygen/* linguist-ignore
+# Shell scripts and Dockerfiles run on Linux: keep LF endings on every checkout
+*.sh text eol=lf
+Dockerfile text eol=lf

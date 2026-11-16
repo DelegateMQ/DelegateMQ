@@ -27,11 +27,16 @@ Key Features:
        controller) from example/pumptron only, and -- when Ninja,
        arm-none-eabi-gcc and the STM32Cube FW_F4 package are available --
        the STM32F4 firmware cross-build into example/pumptron/build/f4.
+    9. Full suite (--full): also configures the extra unit-test builds in
+       test/ listed in full_suite.TEST_VARIANTS (sanitizers, the
+       DMQ_ALLOCATOR/DMQ_ASSERTS build, stress tests). On Linux a missing
+       clang++ is then an error, not a skip.
 
 Usage:
     Run this script THIRD to generate project files for your IDE.
     > python scripts/03_generate_samples.py
     > python scripts/03_generate_samples.py --clang
+    > python scripts/03_generate_samples.py --full --clang
 """
 
 import argparse
@@ -41,6 +46,8 @@ import platform
 import shutil
 import subprocess
 import sys
+
+import full_suite
 
 IS_WINDOWS = platform.system() == "Windows"
 
@@ -128,12 +135,40 @@ def configure_pumptron_f4(pumptron_dir):
         report_failure(label, e.stderr)
 
 
-def build_samples(use_clang=False, clean=False):
+def configure_test_variants(test_dir, clean):
+    """Configure the --full unit-test builds (full_suite.TEST_VARIANTS) in test/."""
+    clang_exe = shutil.which("clang++") if not IS_WINDOWS else None
+    for v in full_suite.test_variants():
+        label = f"test ({v['suffix'].replace('build-', '', 1)})"
+        path = os.path.join(test_dir, v["suffix"])
+        if clean and os.path.exists(path):
+            shutil.rmtree(path, ignore_errors=True)
+        cmd = ["cmake", "-B", v["suffix"]]
+        if v["clang"] and not IS_WINDOWS:
+            if not clang_exe:
+                print(f"[CONFIGURING] {label}\n   FAILED: clang++ not found in PATH")
+                FAILED.append((label, "clang++ not found in PATH"))
+                continue
+            cmd.append(f"-DCMAKE_CXX_COMPILER={clang_exe}")
+        cmd += v["cmake"] + ["."]
+        print(f"[CONFIGURING] {label}")
+        try:
+            subprocess.run(cmd, cwd=test_dir, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            print("   Success!")
+        except subprocess.CalledProcessError as e:
+            print(f"   FAILED")
+            report_failure(label, e.stderr)
+
+
+def build_samples(use_clang=False, clean=False, full=False):
     clang_exe = shutil.which("clang++") if (use_clang and not IS_WINDOWS) else None
     if use_clang and IS_WINDOWS:
         print("NOTE: --clang is only supported on Linux. Clang builds skipped on Windows.\n")
     elif use_clang and not clang_exe:
         print("WARNING: --clang requested but clang++ not found in PATH. Clang builds skipped.\n")
+        if full:
+            FAILED.append(("clang builds", "--full: clang++ not found in PATH"))
     elif use_clang and clang_exe:
         print(f"NOTE: --clang enabled. Using {clang_exe} for additional 'build-clang' directories.\n")
 
@@ -311,6 +346,10 @@ def build_samples(use_clang=False, clean=False):
                         print(f"   FAILED (clang)")
                         report_failure(f"{display_name} (clang)", e.stderr)
 
+                # --- UNIT-TEST VARIANTS (--full) ---
+                if full and dirpath == os.path.join(repo_root, "test"):
+                    configure_test_variants(dirpath, clean)
+
                 # If we found a CMakeLists.txt, we treat this as a standalone project
                 # and stop recursing into its subdirectories.
                 dirnames.clear()
@@ -340,5 +379,9 @@ if __name__ == "__main__":
         "--clean", action="store_true",
         help="Remove existing build directories before configuring."
     )
+    parser.add_argument(
+        "--full", action="store_true",
+        help="Also configure the full-suite unit-test builds in test/ (see full_suite.py)."
+    )
     args = parser.parse_args()
-    sys.exit(0 if build_samples(use_clang=args.clang, clean=args.clean) else 1)
+    sys.exit(0 if build_samples(use_clang=args.clang, clean=args.clean, full=args.full) else 1)
