@@ -110,7 +110,7 @@ TimerDelegateTests() complete!
 
 ## How this fits into NuttX's build
 
-`apps/` here replaces NuttX's own `apps/` directory entirely for this one board build (`Documentation/guides/customapps.rst`'s "method 1"), via `CONFIG_APPS_DIR`. It's hand-rolled (no `$(APPDIR)/Application.mk`/`Directory.mk`, since those live inside the real `nuttx-apps` checkout this replaces) and builds a single `libapps.a` containing the test suite; NuttX's own init calls `dmq_test_main()` directly (`CONFIG_INIT_ENTRYPOINT`) — no NSH shell or command registration needed, matching the "boot straight into the test suite" pattern `zephyr-linux`/`bare-metal-arm`/etc. all use.
+`apps/` here replaces NuttX's own `apps/` directory entirely for this one board build (`Documentation/guides/customapps.rst`'s "method 1"), via `CONFIG_APPS_DIR`. It's hand-rolled (no `$(APPDIR)/Application.mk`/`Directory.mk`, since those live inside the real `nuttx-apps` checkout this replaces) and builds a single `libapps.a` containing the test suite; NuttX's own init calls `dmq_test_main()` directly (`CONFIG_INIT_ENTRYPOINT`) — no NSH shell or command registration needed, matching the "boot straight into the test suite" pattern `zephyr-linux`/`bare-metal`/etc. all use.
 
 ## Project Structure
 

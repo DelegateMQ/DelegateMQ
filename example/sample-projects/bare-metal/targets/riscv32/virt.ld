@@ -3,7 +3,7 @@
  * its entry point (_start, provided by the toolchain's generic crt0.o) in
  * machine mode. RAM-only: QEMU's virt machine reports a single memory
  * region at 0x80000000 (confirmed via `-machine dumpdtb` + dtc), so there's
- * no separate flash/RAM split to manage the way bare-metal-arm's flash.ld
+ * no separate flash/RAM split to manage the way ../arm-m4/flash.ld
  * has -- .data is loaded directly at its runtime address, no copy-down step
  * needed.
  */
@@ -76,8 +76,8 @@ SECTIONS
 
     /* _end is libsemihost.a's _sbrk() heap-start marker; everything from
      * here to the end of RAM is available for the C++ heap (Signal's
-     * internal state, etc. -- same role retarget.c's _sbrk played in
-     * bare-metal-arm). */
+     * internal state, etc. -- same role retarget.c's _sbrk plays in
+     * the arm-m4 target). */
     . = ALIGN(16);
     PROVIDE(_end = .);
     PROVIDE(end = .);

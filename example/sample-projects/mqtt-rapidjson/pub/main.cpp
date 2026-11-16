@@ -5,6 +5,8 @@
 /// @brief MQTT and RapidJSON with remote delegates examples. 
 
 #include "sender.h"
+#include <atomic>
+#include <cstdlib>
 
 std::atomic<bool> processTimerExit = false;
 static void ProcessTimers()
@@ -17,10 +19,13 @@ static void ProcessTimers()
     }
 }
 
-// Usage: delegate_pub_app [broker-uri]   (default: tcp://localhost:1883)
+// Usage: delegate_pub_app [broker-uri] [seconds]
+//   broker-uri  default tcp://localhost:1883
+//   seconds     how long to publish (default 60)
 int main(int argc, char* argv[])
 {
     const char* broker = (argc > 1) ? argv[1] : MqttTransport::DEFAULT_ADDRESS;
+    const int seconds = (argc > 2 && std::atoi(argv[2]) > 0) ? std::atoi(argv[2]) : 60;
 
     // Start the thread that will run ProcessTimers
     std::thread timerThread(ProcessTimers);
@@ -31,7 +36,7 @@ int main(int argc, char* argv[])
     sender.Start();
 
     // Let sender and receiver communicate
-    this_thread::sleep_for(chrono::seconds(60));
+    this_thread::sleep_for(chrono::seconds(seconds));
 
     sender.Stop();
 

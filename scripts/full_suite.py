@@ -17,10 +17,80 @@ Description:
     the reverse) are skipped as usual: the other platform's run covers them.
 """
 
+import os
 import platform
+import shutil
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
+
+# example/sample-projects/bare-metal: one build directory per target
+# (build-<target>, configured with -DBM_TARGET=<target>), each run on QEMU.
+# The program ends QEMU through semihosting with status 0 only if every check
+# passed. tools: what configuring and running the target needs; "$VAR/..."
+# is a path under that environment variable (or the default given), anything
+# else an executable on the PATH.
+BARE_METAL_SAMPLE = "bare-metal"
+QEMU_SEMIHOSTING = ["-nographic", "-monitor", "none", "-serial", "none",
+                    "-semihosting-config", "enable=on,target=native"]
+BARE_METAL_TARGETS = {
+    "arm-m4": {
+        "tools": ["arm-none-eabi-gcc", "qemu-system-arm"],
+        "qemu":  ["qemu-system-arm", "-M", "mps2-an386", "-cpu", "cortex-m4"],
+    },
+    "arm-m3-atfe": {
+        "tools": [("ATFE_PATH", "C:/ATfE-22.1.0-Windows-x86_64", "bin/clang"), "qemu-system-arm"],
+        "qemu":  ["qemu-system-arm", "-M", "mps2-an385", "-cpu", "cortex-m3"],
+    },
+    "riscv32": {
+        "tools": [("RISCV_TOOLCHAIN_PATH", "/opt/xpack-riscv-none-elf-gcc", "bin/riscv-none-elf-gcc"),
+                  "qemu-system-riscv32"],
+        "qemu":  ["qemu-system-riscv32", "-M", "virt", "-bios", "none"],
+    },
+}
+BARE_METAL_TIMEOUT = 60
+BARE_METAL_SUCCESS = "ALL TESTS PASSED"
+
+# Skip reason for a bare-metal target on Windows whose toolchain or QEMU isn't
+# installed: the Linux run (docker/run.sh, which has them all) covers it.
+LINUX_RUN_COVERS = "covered by the Linux run (Docker)"
+
+
+# example/sample-projects/serialport-serializer: a sender and a receiver on two
+# serial ports connected to each other. On Linux the runner makes the pair with
+# socat (two linked pseudo-terminals, a virtual null-modem cable); Windows has
+# no such pair without a virtual COM-port driver, so the Linux run covers it.
+SERIAL_SAMPLE = "serialport-serializer"
+SERIAL_PTYS = ("/tmp/ttyDMQ0", "/tmp/ttyDMQ1")
+SERIAL_SUCCESS = "Data Message:"
+
+
+# example/sample-projects/mqtt-rapidjson: pub and sub apps talking through an
+# MQTT broker. The runner starts mosquitto on its own port for the run (so it
+# can't collide with a broker already on 1883) and passes it to both apps.
+MQTT_SAMPLE = "mqtt-rapidjson"
+MQTT_PORT = 18830
+MQTT_SUCCESS = "Data Message"
+
+
+def serialport_lib_built(repo_root):
+    """True if 02_build_libs.py built libserialport here (Linux: .libs/libserialport.a)."""
+    deps_dir = os.environ.get("DMQ_DEPS_DIR") or os.path.join(repo_root, "external")
+    return os.path.isfile(os.path.join(deps_dir, "libserialport", ".libs", "libserialport.a"))
+
+
+def bare_metal_missing(target):
+    """Tools the bare-metal target needs that aren't installed (empty if none)."""
+    missing = []
+    for tool in BARE_METAL_TARGETS[target]["tools"]:
+        if isinstance(tool, tuple):
+            var, default, rel = tool
+            path = os.path.join(os.environ.get(var, default), rel) + (".exe" if IS_WINDOWS else "")
+            if not os.path.isfile(path):
+                missing.append(f"{path} (set {var})")
+        elif not shutil.which(tool):
+            missing.append(tool)
+    return missing
 
 # Builds of test/ beyond test/build (and test/build-clang with --clang).
 #   suffix:   build directory under test/
@@ -60,12 +130,6 @@ def test_variants():
 
 # Samples --full doesn't cover yet: name -> what it needs.
 PENDING = {
-    "atfe-armv7m-bare-metal": "not yet in --full: needs ATfE + QEMU",
-    "bare-metal-arm":         "not yet in --full: needs QEMU",
-    "bare-metal-riscv":       "not yet in --full: needs xPack RISC-V GCC + QEMU",
-    "mqtt-rapidjson":         "not yet in --full: needs an MQTT broker",
-    "serialport-serializer":  "not yet in --full: needs libserialport + a virtual serial pair",
-    "qt-linux":               "not yet in --full: needs Qt 6",
     "zephyr-linux":           "not yet in --full: needs Zephyr (west)",
     "zephyr-udp-serializer":  "not yet in --full: needs Zephyr (west)",
     "databus-zephyr":         "not yet in --full: needs Zephyr (west)",
@@ -81,7 +145,7 @@ NOT_APPLICABLE = {
 }
 
 # Skip reasons that stay skips under --full: the other platform covers them.
-PLATFORM_REASONS = ("Windows only", "Linux only")
+PLATFORM_REASONS = ("Windows only", "Linux only", LINUX_RUN_COVERS)
 
 
 def combined_report(results):

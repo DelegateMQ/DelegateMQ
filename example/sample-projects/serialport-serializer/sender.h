@@ -22,7 +22,7 @@ using namespace std;
 class Sender
 {
 public:
-    Sender(DelegateRemoteId id) :
+    Sender(DelegateRemoteId id, const char* port) :
         m_thread("Sender"),
         m_sendDelegate(id),
         m_argStream(ios::in | ios::out | ios::binary),
@@ -44,8 +44,8 @@ public:
         m_sendDelegate.SetErrorHandler(MakeDelegate(this, &Sender::ErrorHandler));
 
         // Create the transport
-        if (m_transport.Create("COM1", 115200) != 0) {
-            std::cout << "Error: Failed to open COM1" << std::endl;
+        if (m_transport.Create(port, 115200) != 0) {
+            std::cout << "Error: Failed to open " << port << std::endl;
         }
 
         // Create the sender thread

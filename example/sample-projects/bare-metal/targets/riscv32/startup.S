@@ -6,9 +6,9 @@
  * some earlier boot stage already set up sp/argc/argv before jumping here
  * (a hosted-semihosting convention) -- not true for a from-scratch QEMU
  * "virt" boot, where nothing has touched sp yet. So this sample supplies
- * its own _start instead, the same role bare-metal-arm/startup.c's
+ * its own _start instead, the same role ../arm-m4/startup.c's
  * Reset_Handler plays for ARM: set up sp/gp, zero .bss, run C++ static
- * constructors, call main(). CMakeLists.txt links with -nostartfiles so
+ * constructors, call main(). target.cmake links with -nostartfiles so
  * this _start is the only one -- crt0.o's is never pulled in.
  */
 

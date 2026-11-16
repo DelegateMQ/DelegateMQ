@@ -41,6 +41,10 @@ add_executable(${DELEGATE_APP} ${SOURCES} ${DMQ_LIB_SOURCES})
 if(WIN32)
     # Windows import lib is literally named libserialport.lib (MSVC project name).
     target_link_libraries(${DELEGATE_APP} libserialport)
+elseif(EXISTS "${SERIALPORT_LIBRARY_DIR}/libserialport.a")
+    # The static library 02_build_libs.py builds on Linux, by full path so the
+    # app is relinked when the library is rebuilt
+    target_link_libraries(${DELEGATE_APP} "${SERIALPORT_LIBRARY_DIR}/libserialport.a")
 else()
     # CMake/GCC's bare-name convention prepends "lib" automatically -- "libserialport"
     # here would resolve to -llibserialport (liblibserialport.so/.a), which doesn't

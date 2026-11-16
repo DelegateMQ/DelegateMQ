@@ -66,7 +66,15 @@ int _lseek(int file, int ptr, int dir) { UNUSED(file); UNUSED(ptr); UNUSED(dir);
 int _read(int file, char *ptr, int len) { UNUSED(file); UNUSED(ptr); UNUSED(len); return 0; }
 int _getpid(void) { return 1; }
 int _kill(int pid, int sig) { UNUSED(pid); UNUSED(sig); return -1; }
-void _exit(int status) { UNUSED(status); while (1); }
+/* Semihosting SYS_EXIT (0x18). QEMU exits with status 0 for the reason code
+   ADP_Stopped_ApplicationExit (0x20026) and 1 for any other, here
+   ADP_Stopped_RunTimeErrorUnknown (0x20023). */
+void _exit(int status) {
+    register int r0 asm("r0") = 0x18;
+    register int r1 asm("r1") = (status == 0) ? 0x20026 : 0x20023;
+    __asm volatile ("bkpt 0xAB" : : "r" (r0), "r" (r1) : "memory");
+    while (1);  /* not reached under a debugger or QEMU with semihosting */
+}
 
 /* newlib 4.4+: libstdc++'s std::random_device references getentropy(); no entropy source here */
 int _getentropy(void *buf, size_t len) { UNUSED(buf); UNUSED(len); errno = ENOSYS; return -1; }

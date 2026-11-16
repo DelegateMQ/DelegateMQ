@@ -9,6 +9,17 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ## [Unreleased]
 
+### Added
+- **Full test suite: `build_all.py --full`.** Runs every sample the platform can run plus the unit-test app in all its builds (embedded `DMQ_ALLOCATOR`/`DMQ_ASSERTS`, stress; clang, ASan, TSan and UBSan on Linux), and fails on a missing tool or unbuilt sample instead of skipping it. `docker/run.sh` runs the Linux half in a container with every tool installed, and `build_all.py --linux-host USER@HOST` runs both halves from Windows with one combined report. See "Full Test Suite" in `docs/BUILD.md`.
+
+### Changed
+- **Bare-metal samples merged into `example/sample-projects/bare-metal`.** `bare-metal-arm`, `atfe-armv7m-bare-metal` and `bare-metal-riscv` are now targets of one sample (`-DBM_TARGET=arm-m4|arm-m3-atfe|riscv32`) sharing one set of tests. The tests now check their own results and end QEMU with exit status 0 or 1 through semihosting, instead of always printing `ALL TESTS PASSED` and looping. The Cortex-M3/ATfE target gained the timer test on a real SysTick interrupt. `build_all.py` builds and runs every target whose toolchain is installed.
+- **`serialport-serializer` and `mqtt-rapidjson` take their settings on the command line and report failure.** `serialport-serializer`: `delegate_app [seconds] [sender-port] [receiver-port]` (default `COM1`/`COM2`). `mqtt-rapidjson`: `delegate_pub_app`/`delegate_sub_app [broker-uri] [seconds]` (default 60 s). The receiving app exits with status 1 if nothing arrived. `build_all.py --full` now runs both on Linux, over a `socat` pseudo-terminal pair and a mosquitto broker it starts, and runs `qt-linux`.
+- **libserialport builds on Linux.** `02_build_libs.py` builds it statically with its autotools build. To open the pseudo-terminal pair, it builds libserialport 0.1.2 (the latest release) with `NO_PORT_METADATA` and a small patch so ports without modem-control lines aren't an error; real serial ports behave as before.
+
+### Fixed
+- **`AllocatorPool` overflowed its memory for types smaller than a pointer.** Its buffer was `sizeof(T) * Objects` bytes, but each block is at least pointer-sized, so e.g. `AllocatorPool<int, 5>` on 64-bit used 40 bytes of a 20-byte buffer; odd-sized blocks also misaligned the free-list pointer. New `Allocator::BlockSize()` sizes both.
+
 ## [2.4.1] - 2026-11-14
 
 Documentation only; no code changes.

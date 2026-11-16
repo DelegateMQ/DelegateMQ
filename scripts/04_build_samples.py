@@ -26,23 +26,22 @@ Key Features:
        but wasn't is then a failure, not a skip; samples --full doesn't cover
        yet (full_suite.PENDING) stay skipped.
 
+Bare metal: builds each build-<target> of example/sample-projects/bare-metal
+that 03_generate_samples.py configured (targets whose toolchain is installed).
+
 Skip List (always excluded):
-    - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
-    - bare-metal-riscv        Embedded RISC-V target, requires xPack RISC-V GCC toolchain + QEMU (non-default -DRISCV_TOOLCHAIN_PATH)
-    - bare-metal-arm          Embedded ARM target, requires cross-compiler
-    - mqtt-rapidjson          Requires external MQTT broker (excluded from run)
     - stm32-freertos          Embedded STM32 target, requires cross-compiler
     - system-architecture-python  Python-only client, no C++ build
     - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
     - zephyr-udp-serializer   Needs `west build` + a west workspace, not `cmake -B build`
     - databus-zephyr          Server needs `west build` + a west workspace, not `cmake -B build`
     - cmsis-rtos2-linux       Needs `west build` + a west workspace, not `cmake -B build`
-    - qt-linux                Needs Qt 6 (qt6-base-dev); built and run by .github/workflows/qt.yml
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
-    - serialport-serializer   libserialport is built by 02_build_libs.py on Windows only
-                              (built here; not run, since it needs serial port hardware)
+
+serialport-serializer needs libserialport, which 02_build_libs.py builds (MSBuild
+on Windows, autotools on Linux); on Linux it is skipped if that build is missing.
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
@@ -64,29 +63,24 @@ import full_suite
 # ---------------------------------------------------------------------------
 
 SKIP_ALWAYS = {
-    "atfe-armv7m-bare-metal",
-    "bare-metal-riscv",        # requires xPack RISC-V GCC toolchain, non-default -DRISCV_TOOLCHAIN_PATH; see its README.md
-    "bare-metal-arm",
-    "mqtt-rapidjson",
     "stm32-freertos",
     "system-architecture-python",
     "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
     "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
     "cmsis-rtos2-linux",       # needs `west build`, not a plain `cmake -B build`; see its README.md
     "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
-    "qt-linux",                # needs Qt 6 installed; built and run by .github/workflows/qt.yml
 }
 
 # Projects made of more than two node apps, each in its own sub-directory with
 # its own CMakeLists.txt (client/server projects need no entry).
 MULTI_NODE = {
     "databus-relay": ["gateway", "monitor", "sensor"],
+    "mqtt-rapidjson": ["pub", "sub"],
 }
 
 WINDOWS_ONLY = {
     "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
     "freertos-bare-metal",
-    "serialport-serializer",   # libserialport is built by 02_build_libs.py on Windows only
     "win32-pipe-serializer",
     "win32-tcp-serializer",
     "win32-udp-serializer",
@@ -98,6 +92,7 @@ LINUX_ONLY = {
     "threadx-linux",           # ThreadX Linux/GNU simulation port; scheduling requires POSIX threads/signals
     "freertos-linux",          # FreeRTOS POSIX simulator port; each task is a real pthread
     "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
+    "qt-linux",                # DMQ_THREAD_QT port; Qt 6 Core (qt6-base-dev)
 }
 
 # Projects that contain dotnet sub-projects requiring 'dotnet build' in addition
@@ -395,8 +390,19 @@ def build_samples(use_clang=False, full=False):
             if project_name in LINUX_ONLY and IS_WINDOWS:
                 skipped.append((project_name, "Linux only"))
                 continue
+            if (project_name == full_suite.SERIAL_SAMPLE and not IS_WINDOWS
+                    and not full_suite.serialport_lib_built(repo_root)):
+                skipped.append((project_name, "libserialport not built (02_build_libs.py)"))
+                continue
 
-            targets = collect_build_dirs(project_dir, use_clang=use_clang)
+            bare_metal = project_name == full_suite.BARE_METAL_SAMPLE
+            extra = [f"build-{t}" for t in full_suite.BARE_METAL_TARGETS] if bare_metal else None
+            targets = collect_build_dirs(project_dir, use_clang=use_clang and not bare_metal,
+                                         extra_suffixes=extra)
+            if bare_metal and not targets and IS_WINDOWS:
+                # No bare-metal toolchain here; the Linux run builds them
+                skipped.append((project_name, full_suite.LINUX_RUN_COVERS))
+                continue
             if not targets:
                 # If it's a directory but has no build dir, it might not be a cmake project
                 # or just hasn't been configured. 

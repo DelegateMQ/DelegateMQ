@@ -12,7 +12,7 @@ extern void __libc_init_array(void);
 
 void Reset_Handler(void);
 void Default_Handler(void);
-void SysTick_Handler(void); // defined in main.cpp: increments g_ticks, drives Timer::ProcessTimers()
+void SysTick_Handler(void); // defined in bsp.cpp: increments g_ticks, drives Timer::ProcessTimers()
 
 // --------------------------------------------------------------------------
 // DEBUG PRINT HELPER

@@ -12,7 +12,7 @@ Description:
 Key Features:
     1. Smart Discovery: Recursively scans for 'CMakeLists.txt'.
     2. Exclusion Logic: Automatically skips shared library folders ('common', 'include', 'src')
-       and specific platforms like 'bare-metal-arm'.
+       and samples that need tools these scripts don't run yet (Zephyr).
     3. Clean Generation: Removes old 'build' directories to ensure a fresh configuration.
     4. Project Generation: Runs 'cmake -B build' to create .sln files ready for IDE usage.
     5. Special Handling:
@@ -27,7 +27,10 @@ Key Features:
        controller) from example/pumptron only, and -- when Ninja,
        arm-none-eabi-gcc and the STM32Cube FW_F4 package are available --
        the STM32F4 firmware cross-build into example/pumptron/build/f4.
-    9. Full suite (--full): also configures the extra unit-test builds in
+    9. Bare metal: configures example/sample-projects/bare-metal once per
+       target (build-<target>, see full_suite.BARE_METAL_TARGETS) whose
+       cross toolchain and QEMU are installed.
+    10. Full suite (--full): also configures the extra unit-test builds in
        test/ listed in full_suite.TEST_VARIANTS (sanitizers, the
        DMQ_ALLOCATOR/DMQ_ASSERTS build, stress tests). On Linux a missing
        clang++ is then an error, not a skip.
@@ -161,6 +164,34 @@ def configure_test_variants(test_dir, clean):
             report_failure(label, e.stderr)
 
 
+def configure_bare_metal(sample_dir, clean, full):
+    """Configure build-<target> for each bare-metal target (full_suite.BARE_METAL_TARGETS)
+    whose toolchain and QEMU are installed. Under --full a missing one is an error
+    on Linux; on Windows the Linux run (Docker, every toolchain) covers it."""
+    for target in full_suite.BARE_METAL_TARGETS:
+        label = f"bare-metal/{target}"
+        missing = full_suite.bare_metal_missing(target)
+        if missing:
+            print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+            if full and not IS_WINDOWS:
+                FAILED.append((label, "--full: missing " + ", ".join(missing)))
+            continue
+        build_dir = f"build-{target}"
+        if clean and os.path.exists(os.path.join(sample_dir, build_dir)):
+            shutil.rmtree(os.path.join(sample_dir, build_dir), ignore_errors=True)
+        cmd = ["cmake", "-B", build_dir, f"-DBM_TARGET={target}", "."]
+        if shutil.which("ninja"):
+            cmd[3:3] = ["-G", "Ninja"]
+        print(f"[CONFIGURING] {label}")
+        try:
+            subprocess.run(cmd, cwd=sample_dir, check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            print("   Success!")
+        except subprocess.CalledProcessError as e:
+            print("   FAILED")
+            report_failure(label, e.stderr)
+
+
 def build_samples(use_clang=False, clean=False, full=False):
     clang_exe = shutil.which("clang++") if (use_clang and not IS_WINDOWS) else None
     if use_clang and IS_WINDOWS:
@@ -200,11 +231,17 @@ def build_samples(use_clang=False, clean=False, full=False):
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
             # zephyr-linux/zephyr-udp-serializer/databus-zephyr/cmsis-rtos2-linux need
-            # `west build` + a west workspace, not `cmake -B build`. qt-linux needs
-            # Qt 6 installed; .github/workflows/qt.yml builds and runs it.
-            skip_dirs = ["bare-metal-arm", "unit-tests", "atfe-armv7m-bare-metal", "stm32-freertos", "zephyr-linux", "zephyr-udp-serializer", "databus-zephyr", "cmsis-rtos2-linux", "qt-linux"]
+            # `west build` + a west workspace, not `cmake -B build`.
+            skip_dirs = ["unit-tests", "stm32-freertos", "zephyr-linux", "zephyr-udp-serializer", "databus-zephyr", "cmsis-rtos2-linux"]
             for sd in skip_dirs:
                 if sd in dirnames: dirnames.remove(sd)
+
+            # The bare-metal sample has one build directory per target
+            # (build-<target>), not a plain build/.
+            if os.path.basename(dirpath) == full_suite.BARE_METAL_SAMPLE:
+                configure_bare_metal(dirpath, clean, full)
+                dirnames.clear()
+                continue
 
             # Pumptron is configured once from its top-level CMakeLists.txt
             # (gui + simulator controller). Don't descend: its sub-projects are
@@ -218,7 +255,7 @@ def build_samples(use_clang=False, clean=False, full=False):
                 parent_name  = os.path.basename(os.path.dirname(dirpath))
 
                 # --- SKIP COMMON/SHARED FOLDERS ---
-                if project_name in ["common", "include", "src", "bare-metal-arm", "atfe-armv7m-bare-metal", "bare-metal-riscv"]:
+                if project_name in ["common", "include", "src"]:
                     # These are sub-libraries or skipped platforms, not standalone apps
                     continue
 
@@ -237,7 +274,7 @@ def build_samples(use_clang=False, clean=False, full=False):
                 # CMakeLists.txt refuses to configure on Windows (FATAL_ERROR). Skip
                 # them here instead of letting that surface as a noisy FAILED entry
                 # on every Windows run.
-                LINUX_ONLY_PROJECTS = {"freertos-linux", "threadx-linux", "posix-linux"}
+                LINUX_ONLY_PROJECTS = {"freertos-linux", "threadx-linux", "posix-linux", "qt-linux"}
                 if IS_WINDOWS and (project_name in LINUX_ONLY_PROJECTS or
                                    parent_name in LINUX_ONLY_PROJECTS):
                     continue
@@ -294,7 +331,7 @@ def build_samples(use_clang=False, clean=False, full=False):
                     # --- SPECIAL HANDLING FOR SERIALPORT ---
                     if "serialport-serializer" in project_name:
                         print(f"   >> NOTICE: This project needs libserialport.")
-                        print(f"   >> On Windows, 02_build_libs.py builds it; check that step's output.")
+                        print(f"   >> 02_build_libs.py builds it (MSBuild on Windows, autotools on Linux); check that step's output.")
                         print(f"   >> Otherwise see: {os.path.join(dirpath, 'README.md')}\n")
 
                     report_failure(display_name, e.stderr)

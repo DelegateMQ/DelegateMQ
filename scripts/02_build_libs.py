@@ -22,10 +22,12 @@ Targets Built:
     - ZeroMQ (libzmq):  Static, No Tests, No Docs.
     - NNG:              Static, TLS Disabled (to reduce deps).
     - Eclipse Paho MQTT: Static, Samples Disabled.
-    - libserialport:    Windows only. Debug x64 DLL, built with MSBuild from its
-                        own Visual Studio project (it has no CMake build). Used
-                        by serialport-serializer and stm32-freertos/client. A
-                        failure here is a warning only: other samples don't need it.
+    - libserialport:    No CMake build. Windows: Debug x64 DLL, built with MSBuild
+                        from its own Visual Studio project. Linux: static library
+                        from its autotools build (needs autoconf, automake,
+                        libtool). Used by serialport-serializer and
+                        stm32-freertos/client. A failure here is a warning only:
+                        other samples don't need it.
 
 Usage:
     Run this script SECOND to compile the static libraries.
@@ -38,6 +40,7 @@ Usage:
 
 import argparse
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -149,6 +152,110 @@ def build_libserialport_windows(deps_dir):
               "and stm32-freertos/client won't configure.\n")
         return False
 
+# Patch for libserialport 0.1.2 (the latest release; upstream master has no
+# later changes), applied to the fetched source before the Linux build.
+# sp_open() reads the modem-control lines (DTR/RTS/CTS...) with TIOCMGET and
+# sets RTS and DTR with TIOCMBIS/TIOCMBIC, and fails if those ioctls do.
+# Pseudo-terminals have no modem lines, so they fail with ENOTTY there, and
+# libserialport can't open the socat pty pair 05_run_samples.py connects
+# serialport-serializer's sender and receiver with. The patch treats
+# ENOTTY/EINVAL from them as "no modem lines". Real UARTs support these
+# ioctls, so they behave as before.
+# Entries: (file, old text, new text, number of places old text must occur).
+LIBSERIALPORT_PATCH_MARK = "DelegateMQ patch"
+_NO_MODEM_LINES = "errno != ENOTTY && errno != EINVAL"
+LIBSERIALPORT_PATCHES = [
+    ("serialport.c",
+     "\tif (ioctl(port->fd, TIOCMGET, &data->controlbits) < 0)\n"
+     "\t\tRETURN_FAIL(\"TIOCMGET ioctl failed\");\n",
+     "\t/* DelegateMQ patch: no modem lines (e.g. a pseudo-terminal) is not an error */\n"
+     "\tif (ioctl(port->fd, TIOCMGET, &data->controlbits) < 0) {\n"
+     f"\t\tif ({_NO_MODEM_LINES})\n"
+     "\t\t\tRETURN_FAIL(\"TIOCMGET ioctl failed\");\n"
+     "\t\tdata->controlbits = 0;\n"
+     "\t}\n", 1),
+    # Each is the body of an `if (ioctl(... TIOCMBIS : TIOCMBIC ...) < 0)`
+    ("serialport.c",
+     "RETURN_FAIL(\"Setting RTS signal level failed\");",
+     f"{{ /* DelegateMQ patch */ if ({_NO_MODEM_LINES}) RETURN_FAIL(\"Setting RTS signal level failed\"); }}", 2),
+    ("serialport.c",
+     "RETURN_FAIL(\"Setting DTR signal level failed\");",
+     f"{{ /* DelegateMQ patch */ if ({_NO_MODEM_LINES}) RETURN_FAIL(\"Setting DTR signal level failed\"); }}", 2),
+]
+
+def patch_libserialport(source_dir):
+    """Apply LIBSERIALPORT_PATCHES to the fetched source, once. Returns True if
+    the source is patched (now or already)."""
+    for name, old, new, count in LIBSERIALPORT_PATCHES:
+        path = os.path.join(source_dir, name)
+        with open(path, newline="") as f:
+            text = f.read()
+        if "\r\n" in text:   # a checkout with CRLF line endings
+            old, new = old.replace("\n", "\r\n"), new.replace("\n", "\r\n")
+        if text.count(new) == count:
+            continue   # already applied
+        if text.count(old) != count:
+            print(f"    [WARNING] {name}: code to patch not found {count}x (libserialport version changed?)")
+            return False
+        with open(path, "w", newline="") as f:
+            f.write(text.replace(old, new))
+    return True
+
+def build_libserialport_linux(deps_dir):
+    """Build libserialport as a static library with its autotools build, into
+    .libs/ where External.cmake looks for it (static, so the serial samples
+    need no runtime library path). Needs autoconf, automake and libtool.
+    Returns True on success. Failure only affects the serial-port samples."""
+    source_dir = os.path.join(deps_dir, "libserialport")
+    if not os.path.isfile(os.path.join(source_dir, "autogen.sh")):
+        print(f"[WARNING] Missing {source_dir}/autogen.sh; skipping libserialport.")
+        return False
+    # NO_PORT_METADATA: skip libserialport's /sys/class/tty lookup of USB IDs
+    # and descriptions, which DelegateMQ's SerialTransport doesn't use. With
+    # it, sp_get_port_by_name() rejects ports not listed there, such as the
+    # pseudo-terminal pair 05_run_samples.py makes with socat. libserialport's
+    # own configure.ac sets it on systems without port metadata.
+    configure = ["--disable-shared", "--enable-static", "CFLAGS=-O2 -DNO_PORT_METADATA"]
+    build_id = " ".join(configure) + f" +{len(LIBSERIALPORT_PATCHES)} patch(es)\n"
+
+    # The stamp records how .libs/ was built; a build with other settings is redone
+    stamp = os.path.join(source_dir, ".libs", "dmq-build-flags")
+    try:
+        with open(stamp) as f:
+            built_as = f.read()
+    except OSError:
+        built_as = None
+    if os.path.isfile(os.path.join(source_dir, ".libs", "libserialport.a")) and built_as == build_id:
+        print("--- libserialport already built ---\n")
+        return True
+
+    print("--- Building libserialport (autotools, static, patched for ptys) ---")
+    missing = [t for t in ("autoreconf", "automake", "libtoolize") if not shutil.which(t)]
+    if missing:
+        print(f"    [WARNING] {', '.join(missing)} not found (packages autoconf, automake, "
+              "libtool); serialport-serializer won't build.\n")
+        return False
+    if not patch_libserialport(source_dir):
+        print("    [WARNING] libserialport not patched; serialport-serializer won't run on a pty pair.\n")
+        return False
+    steps = [["sh", "autogen.sh"], ["sh", "configure"] + configure]
+    if os.path.isfile(os.path.join(source_dir, "Makefile")):
+        steps.append(["make", "clean"])   # objects from a build with other flags
+    steps.append(["make", f"-j{os.cpu_count() or 1}"])
+    try:
+        for cmd in steps:
+            subprocess.run(cmd, cwd=source_dir, check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        with open(stamp, "w") as f:
+            f.write(build_id)
+        print("    Success!\n")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"    [WARNING] libserialport failed to build ({' '.join(e.cmd)}); "
+              "serialport-serializer won't build.")
+        print("    " + "\n    ".join((e.stderr or "").strip().splitlines()[-10:]) + "\n")
+        return False
+
 def resolve_deps_dir():
     """Where 01_fetch_repos.py put the repos: --deps-dir, else the DMQ_DEPS_DIR
     env var, else <repo>/external. Same rule as src/delegate-mq/DepsDir.cmake."""
@@ -232,6 +339,8 @@ def build_deps():
     # Not added to `failed`: only the serial-port samples need it.
     if os.name == "nt":
         build_libserialport_windows(deps_dir)
+    elif platform.system() == "Linux":
+        build_libserialport_linux(deps_dir)
 
     if failed:
         print(f"FAILED: {', '.join(failed)}")

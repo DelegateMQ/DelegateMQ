@@ -366,7 +366,7 @@ Key points:
 - **Header-only core**: the delegates and DataBus are templates in headers; the OS port, allocator, fault handler and a few utilities are a small set of `.cpp` files built with your application. Compiled code size scales with the templates instantiated — topics and serializers you don't use contribute zero code.
 - **Predictable allocation**: Per-topic overhead is a `dmq::Signal<>` and a small `xmap` entry. No hidden history queues or discovery tables consume memory in the background.
 - **Fixed-block allocator**: Building with `DMQ_ALLOCATOR=ON` replaces `new`/`delete` with a fixed-block pool, eliminating heap fragmentation. No DDS implementation offers this.
-- **Bare-metal proof**: The `bare-metal-arm` sample runs on a Cortex-M4 with no OS and no transport (delegates allocate from a minimal `_sbrk` heap; `DMQ_ALLOCATOR` can replace it with fixed-block pools) — demonstrating the lower bound of the footprint.
+- **Bare-metal proof**: The `bare-metal` sample runs on Cortex-M4, Cortex-M3 and RISC-V with no OS and no transport (delegates allocate from a minimal `_sbrk` heap; `DMQ_ALLOCATOR` can replace it with fixed-block pools) — demonstrating the lower bound of the footprint.
 
 Micro XRCE-DDS is the embedded-targeted DDS variant and achieves a much smaller footprint (~100 KB flash, ~20 KB RAM) but at the cost of requiring a full DDS broker/agent process on the other end of the connection and losing most standard QoS policies.
 

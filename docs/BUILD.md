@@ -117,7 +117,7 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 1. **Include path:** add `src/delegate-mq`.
 2. **Options:** copy `src/delegate-mq/delegate/DelegateMQConfig_Template.h` into your project as `DelegateMQConfig.h`, on the include path, and select ports and options there (`#define DMQ_THREAD_FREERTOS`, `#define DMQ_ALLOCATOR`, ...). It's found automatically, so no `-D` flags are needed. Anything left undefined is auto-selected: stdlib threads, the built-in serializer and UDP on Windows/Linux, nothing on bare metal.
 3. **Sources:** add **one** of these, not both:
-   - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal-arm/Makefile`.
+   - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal/Makefile`.
    - **Every `.cpp` in `src/delegate-mq`.** Best for IDEs that compile a whole folder (STM32CubeIDE, PlatformIO). Files for ports you didn't select compile to nothing, so there's nothing to exclude. Example: the STM32CubeIDE project in `example/sample-projects/stm32-freertos/server`.
 
    `example/sample-projects/no-cmake-integration` builds the single-file way on Windows and Linux, and `build_all.py` builds and runs it.
@@ -126,7 +126,7 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 Requirements:
 - **The same options everywhere.** Keep them in `DelegateMQConfig.h` (or identical `-D` flags for the whole project), not in per-file settings.
 - **C++17 with RTTI.** Exceptions are optional; `DMQ_ASSERTS` routes errors to `FaultHandler()`.
-- **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal-arm`.
+- **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal` (`targets/*/bsp.cpp`).
 - **Your own fault handler (optional):** define `DMQ_CUSTOM_FAULT_HANDLER`, and the library's `port/fault/Fault.cpp` compiles to nothing. Your application then defines `dmq::util::FaultHandler()`, the C `FaultHandler()` and `WatchdogHandler()`, and `InstallCrashHandlers()` if you call it. See `example/pumptron/controller/platform/f4/Fault.cpp`.
 
 ---
@@ -180,7 +180,7 @@ Results are also written to `full-suite-results/<platform>.json` (gitignored).
 python3 build_all.py --full
 ```
 
-Samples that need tools `--full` doesn't install yet (QEMU, Qt, an MQTT broker, Zephyr, NuttX, hardware) are listed in `full_suite.PENDING` and reported as skipped with the reason. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
+Samples that need a broker, a serial port pair or an emulator are run with them: `mqtt-rapidjson` against a mosquitto broker started for the run, `serialport-serializer` over a `socat` pseudo-terminal pair (Linux), and the `bare-metal` targets on QEMU. Samples that need tools `--full` doesn't install yet (Zephyr, NuttX, real hardware) are listed in `full_suite.PENDING` and reported as skipped with the reason. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
 
 #### In Docker (Linux)
 `docker/Dockerfile` has every Linux tool `--full` needs, and `docker/run.sh` runs `build_all.py` in it on the current checkout. It needs Docker, with your user in the `docker` group:

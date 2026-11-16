@@ -5,6 +5,8 @@
 /// @brief MQTT and RapidJSON with remote delegates examples.
 
 #include "receiver.h"
+#include <atomic>
+#include <cstdlib>
 
 std::atomic<bool> processTimerExit = false;
 static void ProcessTimers()
@@ -17,18 +19,26 @@ static void ProcessTimers()
     }
 }
 
+static std::atomic<int> received{0};
+
 void DataCb(Data& data)
 {
-    if (data.dataPoints.size() > 0)
+    if (data.dataPoints.size() > 0) {
         cout << data.msg << " " << data.dataPoints[0].y << " " << data.dataPoints[0].y << endl;
+        received++;
+    }
     else
         cout << "DataUpdate incoming data error!" << endl;
 }
 
-// Usage: delegate_sub_app [broker-uri]   (default: tcp://localhost:1883)
+// Usage: delegate_sub_app [broker-uri] [seconds]
+//   broker-uri  default tcp://localhost:1883
+//   seconds     how long to receive (default 60)
+// Exits with status 0 if it received at least one message, else 1.
 int main(int argc, char* argv[])
 {
     const char* broker = (argc > 1) ? argv[1] : MqttTransport::DEFAULT_ADDRESS;
+    const int seconds = (argc > 2 && std::atoi(argv[2]) > 0) ? std::atoi(argv[2]) : 60;
 
     // Start the thread that will run ProcessTimers
     std::thread timerThread(ProcessTimers);
@@ -43,7 +53,7 @@ int main(int argc, char* argv[])
     receiver.Start();
 
     // Let sender and receiver communicate
-    this_thread::sleep_for(chrono::seconds(60));
+    this_thread::sleep_for(chrono::seconds(seconds));
 
     receiver.Stop();
 
@@ -52,5 +62,6 @@ int main(int argc, char* argv[])
     if (timerThread.joinable())
         timerThread.join();
 
-    return 0;
+    cout << "Received " << received.load() << " message(s)" << endl;
+    return received.load() > 0 ? 0 : 1;
 }

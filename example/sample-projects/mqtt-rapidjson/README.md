@@ -26,3 +26,5 @@ A public test broker (e.g. `tcp://broker.hivemq.com:1883`) works for a quick try
 4. Start the broker.
 5. Start `delegate_pub_app`, then `delegate_sub_app`, with the same broker argument if you use one.
 6. The apps exchange data through the broker and print it to the console.
+
+Both apps take an optional second argument, how long to run in seconds (default 60), e.g. `delegate_sub_app tcp://localhost:1883 10`. `delegate_sub_app` exits with status 0 if it received at least one message, else 1. `build_all.py` runs the pair this way on Linux, against a mosquitto broker it starts for the run.

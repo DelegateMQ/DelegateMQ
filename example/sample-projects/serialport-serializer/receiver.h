@@ -9,6 +9,7 @@
 
 #include "DelegateMQ.h"
 #include "data.h"
+#include <atomic>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -21,7 +22,7 @@ using namespace std;
 class Receiver
 {
 public:
-    Receiver(DelegateRemoteId id) :
+    Receiver(DelegateRemoteId id, const char* port) :
         m_id(id),
         m_thread("Receiver"),
         m_argStream(ios::in | ios::out | ios::binary),
@@ -36,7 +37,9 @@ public:
         m_recvDelegate.SetSerializer(&m_serializer);
 
         // Set the transport
-        m_transport.Create("COM2", 115200);
+        if (m_transport.Create(port, 115200) != 0) {
+            std::cout << "Error: Failed to open " << port << std::endl;
+        }
 
         // Crucial for ACKs: The receiver's transport must know how to send
         // Since it uses the same COM port for both, link them.
@@ -59,6 +62,9 @@ public:
         m_recvTimerConn = m_recvTimer.OnExpired.Connect(MakeDelegate(this, &Receiver::Poll, m_thread));
         m_recvTimer.Start(std::chrono::milliseconds(50));
     }
+
+    /// Number of messages received so far
+    int GetReceivedCount() const { return m_received.load(); }
 
     void Stop()
     {
@@ -100,8 +106,10 @@ private:
     // Receiver target function called when sender remote delegate is invoked
     void DataUpdate(Data& data, DataAux& dataAux)
     {
-        if (data.dataPoints.size() > 0)
+        if (data.dataPoints.size() > 0) {
             cout << data.msg << " " << data.dataPoints[0].y << " " << data.dataPoints[0].y << " " << dataAux.auxMsg << endl;
+            m_received++;
+        }
         else
             cout << "DataUpdate incoming data error!" << endl;
     }
@@ -120,6 +128,7 @@ private:
     DelegateMemberRemote<Receiver, void(Data&, DataAux&)> m_recvDelegate;
 
     uint16_t m_lastSeqNum = 0xFFFF; // Initialize to an impossible value
+    std::atomic<int> m_received{0};
 };
 
 #endif

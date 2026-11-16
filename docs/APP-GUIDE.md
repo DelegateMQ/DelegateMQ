@@ -33,7 +33,7 @@ Most applications are a small step from an existing sample. Copy its structure, 
 | DataBus topics exposed to MQTT tools as JSON | `example/sample-projects/databus-mqtt-gateway` |
 | FreeRTOS, runnable on a PC | `example/sample-projects/freertos-linux`, `databus-freertos` |
 | Zephyr, ThreadX, NuttX, CMSIS-RTOS2, runnable on a PC | `zephyr-linux`, `threadx-linux`, `nuttx-sim`, `cmsis-rtos2-linux` |
-| Bare metal, runnable in QEMU | `bare-metal-arm`, `bare-metal-riscv` |
+| Bare metal, runnable in QEMU | `bare-metal` (Cortex-M4, Cortex-M3/ATfE and RISC-V targets) |
 | MCU firmware plus a PC GUI over serial | `example/pumptron` (STM32F4 + FTXUI; also runs on a FreeRTOS simulator) |
 | Several nodes (GUI, controller, safety) on one DataBus | `example/cellutron` |
 | Python or C# peers | `example/sample-interop`, `example/sample-projects/databus-interop` |

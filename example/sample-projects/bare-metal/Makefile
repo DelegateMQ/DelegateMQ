@@ -1,4 +1,4 @@
-# Builds the same application as CMakeLists.txt, without CMake: the way a
+# Builds the arm-m4 target of CMakeLists.txt without CMake: the way a
 # Makefile, Keil or IAR project would use DelegateMQ.
 #
 #   - DelegateMQ is one source file, src/DelegateMQ.cpp.
@@ -11,6 +11,7 @@
 #   make clean
 
 DMQ_SRC  := ../../../src
+BSP      := targets/arm-m4
 BUILD    := build-make
 TARGET   := $(BUILD)/delegate_app
 
@@ -18,26 +19,29 @@ CC       := arm-none-eabi-gcc
 CXX      := arm-none-eabi-g++
 
 ARCH     := -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 --specs=nano.specs
-INCLUDES := -I$(DMQ_SRC)/delegate-mq -Iconfig
+INCLUDES := -I$(DMQ_SRC)/delegate-mq -Iconfig -I.
 CFLAGS   := $(ARCH) -Wall
-CXXFLAGS := $(ARCH) -Wall -std=gnu++20 $(INCLUDES)
-LDFLAGS  := $(ARCH) -Tflash.ld -Wl,-Map=$(BUILD)/output.map
+CXXFLAGS := $(ARCH) -Wall -std=gnu++17 $(INCLUDES)
+LDFLAGS  := $(ARCH) -T$(BSP)/flash.ld -Wl,-Map=$(BUILD)/output.map
 LDLIBS   := -lc -lgcc -lnosys
 
-OBJS := $(BUILD)/main.o $(BUILD)/retarget.o $(BUILD)/startup.o $(BUILD)/DelegateMQ.o
+OBJS := $(BUILD)/main.o $(BUILD)/bsp.o $(BUILD)/retarget.o $(BUILD)/startup.o $(BUILD)/DelegateMQ.o
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS) flash.ld
+$(TARGET): $(OBJS) $(BSP)/flash.ld
 	$(CXX) $(LDFLAGS) $(OBJS) $(LDLIBS) -o $@
 
-$(BUILD)/main.o: main.cpp config/DelegateMQConfig.h | $(BUILD)
+$(BUILD)/main.o: main.cpp bsp.h config/DelegateMQConfig.h | $(BUILD)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/bsp.o: $(BSP)/bsp.cpp bsp.h targets/common/cortex_m_systick.h config/DelegateMQConfig.h | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/DelegateMQ.o: $(DMQ_SRC)/DelegateMQ.cpp config/DelegateMQConfig.h | $(BUILD)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/%.o: %.c | $(BUILD)
+$(BUILD)/%.o: $(BSP)/%.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD):

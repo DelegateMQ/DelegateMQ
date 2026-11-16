@@ -24,14 +24,19 @@ Key Features:
     7. Results file (--results FILE): writes passed/failed/skipped as JSON,
        for combining runs from several machines.
 
+MQTT: mqtt-rapidjson's sub and pub run against a mosquitto broker this script
+starts for the run (see run_mqtt).
+
+Serial: serialport-serializer runs on Linux over a socat pty pair, a virtual
+null-modem cable between its sender and receiver ports (see run_serial).
+
+Bare metal: each built target of example/sample-projects/bare-metal
+(build-<target>) runs on QEMU (full_suite.BARE_METAL_TARGETS); it passes if
+QEMU exits 0, which the program's semihosting exit makes happen only when
+every check passed, and prints ALL TESTS PASSED.
+
 Skip List (always excluded):
-    - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
-    - bare-metal-arm          Embedded ARM target, cannot run on host
-    - bare-metal-riscv        Embedded RISC-V target, cannot run on host (needs qemu-system-riscv32)
-    - stm32-freertos          Embedded STM32 target, cannot run on host
-    - mqtt-rapidjson          Requires an external MQTT broker
-    - serialport-serializer   Requires physical serial port hardware
-    - qt-linux                Needs Qt 6; built and run by .github/workflows/qt.yml
+    - stm32-freertos         Embedded STM32 target, cannot run on host
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
@@ -74,13 +79,7 @@ APP_DURATION = 10
 APP_TIMEOUT = APP_DURATION + 15
 
 SKIP_ALWAYS = {
-    "atfe-armv7m-bare-metal",
-    "bare-metal-arm",
-    "bare-metal-riscv",
     "stm32-freertos",
-    "mqtt-rapidjson",
-    "serialport-serializer",
-    "qt-linux",
     "test",
     "tools",
 }
@@ -124,6 +123,7 @@ LINUX_ONLY = {
     "threadx-linux",           # ThreadX Linux/GNU simulation port
     "freertos-linux",          # FreeRTOS POSIX simulator port
     "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
+    "qt-linux",                # DMQ_THREAD_QT port; Qt 6 Core
 }
 
 # Projects that cannot exit on their own (e.g. FreeRTOS scheduler never returns).
@@ -147,6 +147,7 @@ REQUIRED_OUTPUT = {
     "system-architecture":         {"client": "Actuators:"},
     "system-architecture-no-deps": {"client": "Actuators:"},
     "no-cmake-integration":        {"app": "ALL TESTS PASSED"},
+    "qt-linux":                    {"app": "ALL TESTS PASSED"},
     "system-architecture-python":  {"client": "[RECV] Data:"},
     "databus-interop":             {"client": "[RECV] DataMsg"},
 }
@@ -410,6 +411,145 @@ def run_tests(repo_root, use_clang, passed, failed, skipped):
             passed.append(label)
 
 
+def run_bare_metal(project_dir, passed, failed, skipped):
+    """Run each built bare-metal target on QEMU (see full_suite.BARE_METAL_TARGETS)."""
+    for target, spec in full_suite.BARE_METAL_TARGETS.items():
+        label = f"{full_suite.BARE_METAL_SAMPLE}/{target}"
+        # A cross-compiled ELF: no .exe suffix, even when built on Windows
+        kernel = os.path.join(project_dir, f"build-{target}", "delegate_app")
+        if not os.path.isfile(kernel):
+            # On Windows a target whose toolchain isn't installed is left to
+            # the Linux run (Docker has every toolchain)
+            skipped.append((label, full_suite.LINUX_RUN_COVERS if IS_WINDOWS else "not built"))
+            continue
+
+        print(f"[RUNNING] {label}  (QEMU)", flush=True)
+        results = {}
+        cmd = spec["qemu"] + ["-kernel", kernel] + full_suite.QEMU_SEMIHOSTING
+        run_process(cmd, project_dir, "app", results, timeout=full_suite.BARE_METAL_TIMEOUT)
+        r = results["app"]
+        ok = (r["returncode"] == 0 and not r["timed_out"]
+              and full_suite.BARE_METAL_SUCCESS in r["output"])
+        if ok:
+            print("   passed")
+            passed.append(label)
+        else:
+            print("   FAILED")
+            print_result_detail("app", r)
+            failed.append(label)
+
+
+def run_serial(project_dir, use_clang, passed, failed, skipped):
+    """
+    serialport-serializer on a virtual null-modem cable: socat links two
+    pseudo-terminals (full_suite.SERIAL_PTYS), the sender opens one and the
+    receiver the other. Passes if the app exits 0 (it does only when the
+    receiver got messages) and printed one. Linux only; on Windows the Linux
+    run covers it.
+    """
+    name = full_suite.SERIAL_SAMPLE
+    if IS_WINDOWS:
+        skipped.append((name, full_suite.LINUX_RUN_COVERS))
+        return
+    exe_name = get_exe_name(os.path.join(project_dir, "CMakeLists.txt"))
+    builds = [("build", name)] + ([("build-clang", f"{name} (clang)")] if use_clang else [])
+    for build_dir, label in builds:
+        exe = find_executable(os.path.join(project_dir, build_dir), exe_name)
+        if not exe:
+            skipped.append((label, "not built"))
+            continue
+        if not shutil.which("socat"):
+            skipped.append((label, "socat not installed (virtual serial port pair)"))
+            continue
+
+        for link in full_suite.SERIAL_PTYS:
+            if os.path.lexists(link):
+                os.remove(link)   # stale link from an earlier run
+        socat = subprocess.Popen(["socat"] + [f"pty,raw,echo=0,link={p}" for p in full_suite.SERIAL_PTYS],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _register(socat)
+        try:
+            deadline = time.time() + 5
+            while not all(os.path.exists(p) for p in full_suite.SERIAL_PTYS) and time.time() < deadline:
+                time.sleep(0.1)
+            if not all(os.path.exists(p) for p in full_suite.SERIAL_PTYS):
+                print(f"[RUNNING] {label}  (socat pty pair)\n   FAILED  (socat did not create the ptys)")
+                failed.append(label)
+                continue
+
+            print(f"[RUNNING] {label}  (socat pty pair)", flush=True)
+            results = {}
+            run_process([exe, str(APP_DURATION)] + list(full_suite.SERIAL_PTYS), project_dir, "app", results)
+            r = results["app"]
+            if not r["failed"] and not r["timed_out"] and full_suite.SERIAL_SUCCESS in r["output"]:
+                print("   passed")
+                passed.append(label)
+            else:
+                print("   FAILED")
+                print_result_detail("app", r)
+                failed.append(label)
+        finally:
+            socat.kill()
+            socat.wait()
+            _unregister(socat)
+
+
+def run_mqtt(project_dir, use_clang, passed, failed, skipped):
+    """
+    mqtt-rapidjson: start a mosquitto broker on full_suite.MQTT_PORT, run sub
+    then pub against it for APP_DURATION seconds, stop the broker. Passes if
+    both exit cleanly and sub received data (it exits 1 if it got nothing).
+    Runs wherever mosquitto is installed; on Windows without it the Linux run
+    covers it.
+    """
+    name = full_suite.MQTT_SAMPLE
+    mosquitto = shutil.which("mosquitto")
+    if not mosquitto and IS_WINDOWS:
+        skipped.append((name, full_suite.LINUX_RUN_COVERS))
+        return
+    broker = f"tcp://localhost:{full_suite.MQTT_PORT}"
+    builds = [("build", name)] + ([("build-clang", f"{name} (clang)")] if use_clang else [])
+    for build_dir, label in builds:
+        nodes = {}
+        for node in ("sub", "pub"):
+            node_dir = os.path.join(project_dir, node)
+            nodes[node] = find_executable(os.path.join(node_dir, build_dir),
+                                          get_exe_name(os.path.join(node_dir, "CMakeLists.txt")))
+        if not all(nodes.values()):
+            skipped.append((label, "not built"))
+            continue
+        if not mosquitto:
+            skipped.append((label, "mosquitto not installed (MQTT broker)"))
+            continue
+
+        broker_proc = subprocess.Popen([mosquitto, "-p", str(full_suite.MQTT_PORT)],
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+        _register(broker_proc)
+        try:
+            time.sleep(1.0)   # let the broker start listening
+            print(f"[RUNNING] {label}  (sub/pub via mosquitto)", flush=True)
+            # sub first, so it is subscribed before pub publishes
+            did_fail, results = run_group([
+                (node, [nodes[node], broker, str(APP_DURATION)], os.path.join(project_dir, node))
+                for node in ("sub", "pub")])
+            sub = results.get("sub", {})
+            if not did_fail and (sub.get("timed_out") or full_suite.MQTT_SUCCESS not in sub.get("output", "")):
+                did_fail = True
+            if did_fail:
+                print("   FAILED")
+                for node, r in results.items():
+                    print_result_detail(node, r)
+                failed.append(label)
+            else:
+                print("   passed")
+                passed.append(label)
+        finally:
+            broker_proc.kill()
+            broker_proc.wait()
+            _unregister(broker_proc)
+
+
 def write_results(path, passed, failed, skipped):
     """Write the run's outcome as JSON, for combining runs from several machines."""
     data = {
@@ -482,6 +622,15 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
             continue
         if project_name in LINUX_ONLY and IS_WINDOWS:
             skipped.append((project_name, "Linux only"))
+            continue
+        if project_name == full_suite.BARE_METAL_SAMPLE:
+            run_bare_metal(project_dir, passed, failed, skipped)
+            continue
+        if project_name == full_suite.SERIAL_SAMPLE:
+            run_serial(project_dir, use_clang, passed, failed, skipped)
+            continue
+        if project_name == full_suite.MQTT_SAMPLE:
+            run_mqtt(project_dir, use_clang, passed, failed, skipped)
             continue
 
         # --- Determine topology ---

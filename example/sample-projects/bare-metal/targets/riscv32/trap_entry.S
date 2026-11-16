@@ -7,7 +7,7 @@
  * before calling into any C function, and restore them before `mret`.
  *
  * Only the caller-saved set needs saving here (ra, t0-t2, a0-a7, t3-t6):
- * trap_dispatch() (see main.cpp) is an ordinary C function and will itself
+ * trap_dispatch() (see bsp.cpp) is an ordinary C function and will itself
  * preserve every callee-saved register (s0-s11) exactly like any function
  * call would, so this entry stub doesn't need to touch those.
  */

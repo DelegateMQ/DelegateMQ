@@ -117,7 +117,7 @@ Each platform below states how it has been verified. The OS port is selected wit
 | Zephyr | `ZEPHYR` | `native_sim` | [zephyr-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/zephyr-linux/), [databus-zephyr](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/databus-zephyr/) |
 | NuttX | `NUTTX` | NuttX `sim` | [nuttx-sim](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/nuttx-sim/) |
 | Qt | `QT` | CI: Linux build and tests | [qt-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/qt-linux/) |
-| Bare metal: Cortex-M, RISC-V | `NONE` | QEMU | [bare-metal-arm](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/bare-metal-arm/), [bare-metal-riscv](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/bare-metal-riscv/) |
+| Bare metal: Cortex-M, RISC-V | `NONE` | QEMU | [bare-metal](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/bare-metal/) |
 | STM32 Nucleo, RP2040 (Arduino) | `NONE` (synchronous only) | CI: PlatformIO build | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
 | Desktop via PlatformIO | `STDLIB` | CI: PlatformIO build and run | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
 
