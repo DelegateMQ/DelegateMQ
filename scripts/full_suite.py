@@ -165,7 +165,25 @@ TEST_VARIANTS = [
     {"suffix": "build-ubsan", "clang": True, "linux": True,
      "cmake": ["-DCMAKE_BUILD_TYPE=RelWithDebInfo", "-DSANITIZE=undefined"],
      "env": {"UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"}, "success": "Success!"},
+    # Other CPUs, cross-compiled and run under QEMU user mode (qemu-<cpu> -L
+    # /usr/<triple>): big-endian 64-bit (s390x) and 32-bit Arm (armhf), for
+    # byte-order, pointer-size and alignment assumptions. Each run takes about
+    # as long as a native one: the tests are paced by their own sleeps.
+    {"suffix": "build-s390x", "clang": False, "linux": True,
+     "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!",
+     "cross": {"processor": "s390x", "triple": "s390x-linux-gnu", "qemu": "qemu-s390x"}},
+    {"suffix": "build-armhf", "clang": False, "linux": True,
+     "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!",
+     "cross": {"processor": "arm", "triple": "arm-linux-gnueabihf", "qemu": "qemu-arm"}},
 ]
+
+
+def cross_missing(variant):
+    """Cross compiler and QEMU a cross TEST_VARIANTS entry needs that aren't installed."""
+    cross = variant.get("cross")
+    if not cross:
+        return []
+    return [t for t in (f"{cross['triple']}-g++", cross["qemu"]) if not shutil.which(t)]
 
 # Seconds one unit-test run may take before it is killed and failed. The
 # sanitizer builds (TSan especially) run several times slower than a plain one.

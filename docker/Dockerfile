@@ -126,6 +126,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV NUTTX_SRC=/opt/nuttx-src
 
+# Unit tests on other CPUs (full_suite.TEST_VARIANTS "cross"): cross compilers
+# for big-endian s390x and 32-bit Arm (armhf), run under QEMU user mode
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        g++-s390x-linux-gnu \
+        g++-arm-linux-gnueabihf \
+        qemu-user \
+    && rm -rf /var/lib/apt/lists/*
+
 # run.sh runs the container as the calling user so files it writes in the
 # checkout stay theirs; that user has no home directory in the image.
 ENV HOME=/tmp \

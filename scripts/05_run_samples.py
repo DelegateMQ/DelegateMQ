@@ -399,11 +399,16 @@ def run_tests(repo_root, use_clang, passed, failed, skipped):
             skipped.append((label, "not built"))
             continue
 
-        print(f"[RUNNING] {label}  (unit tests)", flush=True)
+        cross = v.get("cross")
+        cmd = [exe_path]
+        if cross:
+            # Another CPU's binary: run it under QEMU user mode with that CPU's libraries
+            cmd = [cross["qemu"], "-L", f"/usr/{cross['triple']}", exe_path]
+        print(f"[RUNNING] {label}  (unit tests{', ' + cross['qemu'] if cross else ''})", flush=True)
         env = dict(os.environ, **v["env"])
         results = {}
         start = time.time()
-        run_process([exe_path], test_dir, "app", results, timeout=full_suite.TEST_TIMEOUT, env=env)
+        run_process(cmd, test_dir, "app", results, timeout=full_suite.TEST_TIMEOUT, env=env)
         r = results["app"]
         elapsed = time.time() - start
 

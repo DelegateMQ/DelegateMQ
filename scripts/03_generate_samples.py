@@ -153,6 +153,16 @@ def configure_test_variants(test_dir, clean):
                 FAILED.append((label, "clang++ not found in PATH"))
                 continue
             cmd.append(f"-DCMAKE_CXX_COMPILER={clang_exe}")
+        cross = v.get("cross")
+        if cross:
+            missing = full_suite.cross_missing(v)
+            if missing:
+                print(f"[CONFIGURING] {label}\n   FAILED: missing {', '.join(missing)}")
+                FAILED.append((label, "missing " + ", ".join(missing)))
+                continue
+            cmd += ["-DCMAKE_SYSTEM_NAME=Linux", f"-DCMAKE_SYSTEM_PROCESSOR={cross['processor']}",
+                    f"-DCMAKE_C_COMPILER={cross['triple']}-gcc",
+                    f"-DCMAKE_CXX_COMPILER={cross['triple']}-g++"]
         cmd += v["cmake"] + ["."]
         print(f"[CONFIGURING] {label}")
         try:

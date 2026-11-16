@@ -172,7 +172,7 @@ Older versions cloned the dependencies next to the repository (`<parent>/zeromq`
 A plain `build_all.py` run skips whatever the machine lacks the tools for. `--full` runs everything the platform can run, and treats a missing tool or an unbuilt sample as a failure, so a clean run means it all ran:
 
 - every sample, as usual, plus the clang builds on Linux (`--full` implies `--clang` there)
-- the unit-test app in `test/`, in every build listed in `scripts/full_suite.py`: the default build, clang, AddressSanitizer, ThreadSanitizer and UndefinedBehaviorSanitizer (Linux), the `DMQ_ALLOCATOR`/`DMQ_ASSERTS` embedded configuration, and the stress tests
+- the unit-test app in `test/`, in every build listed in `scripts/full_suite.py`: the default build, clang, AddressSanitizer, ThreadSanitizer and UndefinedBehaviorSanitizer (Linux), big-endian s390x and 32-bit Arm (armhf) builds run under QEMU user mode (Linux), the `DMQ_ALLOCATOR`/`DMQ_ASSERTS` embedded configuration, and the stress tests
 
 Results are also written to `full-suite-results/<platform>.json` (gitignored).
 
