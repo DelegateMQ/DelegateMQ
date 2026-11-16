@@ -13,7 +13,7 @@ namespace dmq {
 // Constructor
 //------------------------------------------------------------------------------
 Allocator::Allocator(size_t size, uint32_t objects, char* memory, const char* name) :
-    m_blockSize(size < sizeof(long*) ? sizeof(long*):size),
+    m_blockSize(BlockSize(size)),
     m_objectSize(size),
     m_maxObjects(objects),
     m_pHead(NULL),
