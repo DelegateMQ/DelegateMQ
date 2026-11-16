@@ -173,6 +173,7 @@ A plain `build_all.py` run skips whatever the machine lacks the tools for. `--fu
 
 - every sample, as usual, plus the clang builds on Linux (`--full` implies `--clang` there)
 - the unit-test app in `test/`, in every build listed in `scripts/full_suite.py`: the default build, clang, AddressSanitizer, ThreadSanitizer and UndefinedBehaviorSanitizer (Linux), big-endian s390x and 32-bit Arm (armhf) builds run under QEMU user mode (Linux), the `DMQ_ALLOCATOR`/`DMQ_ASSERTS` embedded configuration, and the stress tests
+- a cross-endian check (Linux): `system-architecture-no-deps` with one side native x86 (little-endian) and the other built for s390x (big-endian) under QEMU user mode, both ways round, checking each side decodes the other's IDs
 
 Results are also written to `full-suite-results/<platform>.json` (gitignored).
 

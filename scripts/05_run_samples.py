@@ -403,7 +403,7 @@ def run_tests(repo_root, use_clang, passed, failed, skipped):
         cmd = [exe_path]
         if cross:
             # Another CPU's binary: run it under QEMU user mode with that CPU's libraries
-            cmd = [cross["qemu"], "-L", f"/usr/{cross['triple']}", exe_path]
+            cmd = full_suite.cross_command(cross, exe_path)
         print(f"[RUNNING] {label}  (unit tests{', ' + cross['qemu'] if cross else ''})", flush=True)
         env = dict(os.environ, **v["env"])
         results = {}
@@ -655,6 +655,57 @@ def run_nuttx(sample_dir, passed, failed, skipped):
         failed.append(name)
 
 
+def run_cross_endian(project_dir, passed, failed, skipped):
+    """
+    full_suite.CROSS_ENDIAN_SAMPLE with peers of different byte order: one side
+    native (x86, little-endian), the other its CROSS_ENDIAN_BUILD (big-endian)
+    under QEMU user mode, talking over the host loopback; both ways round.
+    Passes if each side decoded the other's small, known IDs (a byte-swapped
+    1 reads as 16777216) and no unknown ID arrived.
+    """
+    cpu = full_suite.CROSS_ENDIAN_CPU
+    dirs = {role: os.path.join(project_dir, role) for role in ("server", "client")}
+    exes = {}
+    for role, d in dirs.items():
+        name = get_exe_name(os.path.join(d, "CMakeLists.txt"))
+        exes[role] = {"native": find_executable(os.path.join(d, "build"), name),
+                      "cross": find_executable(os.path.join(d, full_suite.CROSS_ENDIAN_BUILD), name)}
+
+    for cross_role in ("client", "server"):
+        label = f"{full_suite.CROSS_ENDIAN_SAMPLE} ({cpu['processor']} {cross_role}, x86 peer)"
+        if not all(e["native"] and e["cross"] for e in exes.values()):
+            skipped.append((label, "not built"))
+            continue
+        if full_suite.cross_missing(cpu):
+            skipped.append((label, "missing " + ", ".join(full_suite.cross_missing(cpu))))
+            continue
+
+        def command(role):
+            if role == cross_role:
+                return full_suite.cross_command(cpu, exes[role]["cross"]) + [str(APP_DURATION)]
+            return [exes[role]["native"], str(APP_DURATION)]
+
+        print(f"[RUNNING] {label}  (cross-endian)", flush=True)
+        did_fail, results = run_group([(role, command(role), dirs[role]) for role in ("server", "client")])
+        for role, texts in full_suite.CROSS_ENDIAN_REQUIRED.items():
+            r = results.get(role, {})
+            out = r.get("output", "")
+            missing = [t for t in texts if t not in out]
+            if missing or full_suite.CROSS_ENDIAN_FORBIDDEN in out:
+                print(f"   {role} output: missing {missing}" if missing
+                      else f"   {role} output has {full_suite.CROSS_ENDIAN_FORBIDDEN!r}")
+                r["failed"] = did_fail = True
+        if did_fail:
+            print("   FAILED")
+            for role, r in results.items():
+                if r.get("failed"):
+                    print_result_detail(role, r)
+            failed.append(label)
+        else:
+            print("   passed")
+            passed.append(label)
+
+
 def write_results(path, passed, failed, skipped):
     """Write the run's outcome as JSON, for combining runs from several machines."""
     data = {
@@ -852,6 +903,10 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
                 tout_note = " (killed after timeout)"
             print(f"   passed{tout_note}")
             passed.append(project_name)
+
+        # --- CROSS-ENDIAN RUNS (Linux) ---
+        if project_name == full_suite.CROSS_ENDIAN_SAMPLE and not IS_WINDOWS:
+            run_cross_endian(project_dir, passed, failed, skipped)
 
         # --- CLANG RUN (optional) ---
         # Cross-pair projects are skipped; their server lives in a different project dir.

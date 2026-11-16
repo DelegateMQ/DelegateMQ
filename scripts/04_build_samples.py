@@ -421,6 +421,8 @@ def build_samples(use_clang=False, full=False):
 
             bare_metal = project_name == full_suite.BARE_METAL_SAMPLE
             extra = [f"build-{t}" for t in full_suite.BARE_METAL_TARGETS] if bare_metal else None
+            if project_name == full_suite.CROSS_ENDIAN_SAMPLE and not IS_WINDOWS:
+                extra = [full_suite.CROSS_ENDIAN_BUILD]   # client/server for the big-endian CPU
             targets = collect_build_dirs(project_dir, use_clang=use_clang and not bare_metal,
                                          extra_suffixes=extra)
             if bare_metal and not targets and IS_WINDOWS:

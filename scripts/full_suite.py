@@ -141,6 +141,24 @@ def bare_metal_missing(target):
             missing.append(tool)
     return missing
 
+# Other CPUs, cross-compiled and run under QEMU user mode (qemu-<cpu> -L
+# /usr/<triple>, an ordinary host process whose system calls, sockets
+# included, go to the host kernel).
+S390X = {"processor": "s390x", "triple": "s390x-linux-gnu", "qemu": "qemu-s390x"}  # 64-bit big-endian
+ARMHF = {"processor": "arm", "triple": "arm-linux-gnueabihf", "qemu": "qemu-arm"}  # 32-bit Arm
+
+
+def cross_cmake_args(cross):
+    """CMake arguments that cross-compile for a S390X/ARMHF-style target."""
+    return ["-DCMAKE_SYSTEM_NAME=Linux", f"-DCMAKE_SYSTEM_PROCESSOR={cross['processor']}",
+            f"-DCMAKE_C_COMPILER={cross['triple']}-gcc", f"-DCMAKE_CXX_COMPILER={cross['triple']}-g++"]
+
+
+def cross_command(cross, exe):
+    """Command line that runs a cross-compiled exe under QEMU user mode."""
+    return [cross["qemu"], "-L", f"/usr/{cross['triple']}", exe]
+
+
 # Builds of test/ beyond test/build (and test/build-clang with --clang).
 #   suffix:   build directory under test/
 #   cmake:    extra configure arguments
@@ -165,25 +183,36 @@ TEST_VARIANTS = [
     {"suffix": "build-ubsan", "clang": True, "linux": True,
      "cmake": ["-DCMAKE_BUILD_TYPE=RelWithDebInfo", "-DSANITIZE=undefined"],
      "env": {"UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"}, "success": "Success!"},
-    # Other CPUs, cross-compiled and run under QEMU user mode (qemu-<cpu> -L
-    # /usr/<triple>): big-endian 64-bit (s390x) and 32-bit Arm (armhf), for
-    # byte-order, pointer-size and alignment assumptions. Each run takes about
-    # as long as a native one: the tests are paced by their own sleeps.
+    # Other CPUs (see S390X/ARMHF above): big-endian 64-bit (s390x) and 32-bit
+    # Arm (armhf), for byte-order, pointer-size and alignment assumptions. Each
+    # run takes about as long as a native one: the tests are paced by their
+    # own sleeps.
     {"suffix": "build-s390x", "clang": False, "linux": True,
-     "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!",
-     "cross": {"processor": "s390x", "triple": "s390x-linux-gnu", "qemu": "qemu-s390x"}},
+     "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!", "cross": S390X},
     {"suffix": "build-armhf", "clang": False, "linux": True,
-     "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!",
-     "cross": {"processor": "arm", "triple": "arm-linux-gnueabihf", "qemu": "qemu-arm"}},
+     "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!", "cross": ARMHF},
 ]
 
 
-def cross_missing(variant):
-    """Cross compiler and QEMU a cross TEST_VARIANTS entry needs that aren't installed."""
-    cross = variant.get("cross")
+def cross_missing(cross):
+    """Cross compiler and QEMU a S390X/ARMHF-style target needs that aren't installed."""
     if not cross:
         return []
     return [t for t in (f"{cross['triple']}-g++", cross["qemu"]) if not shutil.which(t)]
+
+
+# Cross-endian check: tests on one CPU can't catch a byte-order mismatch
+# between peers. system-architecture-no-deps (built-in serializer, Linux UDP,
+# no third-party libraries) is also built for s390x (big-endian) into
+# client/ and server/build-s390x, and run with one side native x86
+# (little-endian) and the other under qemu-s390x, both ways. Its IDs are
+# small known numbers (1..4); a byte-swapped 1 would read as 16777216.
+CROSS_ENDIAN_SAMPLE = "system-architecture-no-deps"
+CROSS_ENDIAN_BUILD = "build-s390x"
+CROSS_ENDIAN_CPU = S390X
+CROSS_ENDIAN_REQUIRED = {"client": ["Actuator ID: 1,", "Sensor ID: 1,"],
+                         "server": ["Actuator 1 position"]}
+CROSS_ENDIAN_FORBIDDEN = "Unknown actuator ID"
 
 # Seconds one unit-test run may take before it is killed and failed. The
 # sanitizer builds (TSan especially) run several times slower than a plain one.

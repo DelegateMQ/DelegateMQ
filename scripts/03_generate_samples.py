@@ -155,14 +155,12 @@ def configure_test_variants(test_dir, clean):
             cmd.append(f"-DCMAKE_CXX_COMPILER={clang_exe}")
         cross = v.get("cross")
         if cross:
-            missing = full_suite.cross_missing(v)
+            missing = full_suite.cross_missing(cross)
             if missing:
                 print(f"[CONFIGURING] {label}\n   FAILED: missing {', '.join(missing)}")
                 FAILED.append((label, "missing " + ", ".join(missing)))
                 continue
-            cmd += ["-DCMAKE_SYSTEM_NAME=Linux", f"-DCMAKE_SYSTEM_PROCESSOR={cross['processor']}",
-                    f"-DCMAKE_C_COMPILER={cross['triple']}-gcc",
-                    f"-DCMAKE_CXX_COMPILER={cross['triple']}-g++"]
+            cmd += full_suite.cross_cmake_args(cross)
         cmd += v["cmake"] + ["."]
         print(f"[CONFIGURING] {label}")
         try:
@@ -474,6 +472,28 @@ def build_samples(use_clang=False, clean=False, full=False):
                     except subprocess.CalledProcessError as e:
                         print(f"   FAILED (ThreadX)")
                         report_failure(f"{display_name} (ThreadX)", e.stderr)
+
+                # --- CROSS-ENDIAN BUILD (Linux) ---
+                # This sample's client and server are also built for a
+                # big-endian CPU, so 05 can run one side under QEMU against a
+                # native peer (see full_suite.CROSS_ENDIAN_SAMPLE).
+                if (parent_name == full_suite.CROSS_ENDIAN_SAMPLE and project_name in ("client", "server")
+                        and not IS_WINDOWS):
+                    label = f"{display_name} ({full_suite.CROSS_ENDIAN_BUILD.replace('build-', '', 1)})"
+                    missing = full_suite.cross_missing(full_suite.CROSS_ENDIAN_CPU)
+                    if missing:
+                        print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+                        if full:
+                            FAILED.append((label, "--full: missing " + ", ".join(missing)))
+                    else:
+                        cross_build = os.path.join(dirpath, full_suite.CROSS_ENDIAN_BUILD)
+                        if clean and os.path.exists(cross_build):
+                            shutil.rmtree(cross_build, ignore_errors=True)
+                        print(f"[CONFIGURING] {label}")
+                        cmd_cross = (["cmake", "-B", full_suite.CROSS_ENDIAN_BUILD]
+                                     + full_suite.cross_cmake_args(full_suite.CROSS_ENDIAN_CPU) + ["."])
+                        if run_configure(cmd_cross, dirpath, label):
+                            print("   Success!")
 
                 # --- CLANG CONFIGURE (optional, Linux only) ---
                 if clang_exe and not needs_win32:
