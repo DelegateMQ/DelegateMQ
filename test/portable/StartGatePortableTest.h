@@ -4,7 +4,7 @@
 /// @file
 /// @brief dmq::os::StartGate tests that use only DelegateMQ's portable APIs
 /// (no std::thread), so the same file runs on every thread port: the desktop
-/// unit tests include it, and so does each RTOS sample's DelegateThreadsTests.cpp
+/// unit tests include it, and so does DelegateThreadsPortableTests.cpp, which every OS port sample runs
 /// (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, POSIX). A failed check
 /// faults through DMQ_ASSERT_TRUE.
 
@@ -240,7 +240,7 @@ inline void StartHandlerExitsGatedThread()
 
 /// @param twoThreads false where the port can't have two DelegateMQ threads
 /// alive at once (the ThreadX Linux simulator; see threadx-linux's
-/// DelegateThreadsTests.cpp). Every other test uses one thread at a time.
+/// DelegateThreadsPortableTests.cpp). Every other test uses one thread at a time.
 inline void Run(bool twoThreads = true)
 {
     HoldsUntilOpen(twoThreads);

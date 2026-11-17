@@ -19,8 +19,8 @@ like any other `example/sample-projects/` entry — no special-casing needed.
 
 Identical test suite to `threadx-linux`/`freertos-linux`/`zephyr-linux`/`cmsis-rtos2-linux`/
 `nuttx-sim` — same delegate, Signal, ScopedConnection, Thread, and Timer usage, plus the full
-`DelegateThreadsTests()`/`TimerDelegateTests()` battery (ported unchanged from
-`test/unit-tests/`) — showing the application code is unchanged across every port; only
+`DelegateThreadsTests()`/`TimerDelegateTests()` battery (from `test/portable/`, the same
+files every OS port sample runs) — showing the application code is unchanged across every port; only
 `DMQ_THREAD` changes.
 
 ## Platform

@@ -1,8 +1,10 @@
-# Copied here at build time from src/delegate-mq/ (see Makefile) -- not this
+# Copied here at build time from src/delegate-mq/ and test/portable/ (see Makefile) -- not this
 # sample's own sources, never commit them.
 /NuttXThread.cpp
 /Timer.cpp
 /Fault.cpp
+/DelegateThreadsPortableTests.cpp
+/TimerDelegatePortableTests.cpp
 /Make.dep
 
 # NuttX's own build bookkeeping marker files (created directly in this

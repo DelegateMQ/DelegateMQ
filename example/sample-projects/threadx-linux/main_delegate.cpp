@@ -18,13 +18,50 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
-// Defined in DelegateThreadsTests.cpp -- see Test 9 below and the
-// file-level comment in DelegateThreadsTests.cpp for what it does and does
-// not currently run.
-extern void DelegateThreadsTests();
+// The portable tests every OS port sample runs (test/portable/PortableTests.h)
+#include "PortableTests.h"
 
-// Defined in TimerDelegateTests.cpp
-extern void TimerDelegateTests();
+// Test consumer threads run below this sample's main thread (priority 16;
+// ThreadX: lower number = higher priority), so posting never preempts it.
+//
+// concurrentThreads = false: ThreadX's Linux/GNU simulation port deadlocks as
+// soon as two DelegateMQ worker threads are alive at once, which the dispatch
+// tests (FreeTests/MemberTests/MemberSpTests/FunctionTests, sharing two worker
+// threads) and TimerDelegate_Equal_DifferentThread need, so they're skipped
+// here. The FullPolicy tests create one thread at a time and pass.
+//
+// Believed to be a bug in the vendored ThreadX kernel, not in DelegateMQ.
+// Root-caused with gdb on a hung run: the second worker thread's startup
+// (_tx_thread_shell_entry -> _tx_thread_interrupt_disable ->
+// _tx_thread_interrupt_control) blocks forever on ThreadX's internal
+// _tx_linux_mutex (PTHREAD_MUTEX_RECURSIVE, so not simple self-nesting);
+// something else in the kernel holds it and never releases it once two
+// application threads are active in this timing pattern.
+//
+// Ruled out, each verified (the hang persisted after each):
+//   - dmq::util::Timer / dmq::CriticalSection: the periodic system timer
+//     stopped (tx_timer_deactivate) before the test, so ProcessTimers() never
+//     ran during it.
+//   - TX_LINUX_DEBUG_ENABLE (ThreadX's ports/linux/gnu/CMakeLists.txt turns it
+//     on; it routes every TX_DISABLE through the same mutex): stripped via
+//     -UTX_LINUX_DEBUG_ENABLE in src/delegate-mq/External.cmake (checked with
+//     nm). Kept stripped anyway: a real latent bug in that tracer.
+//   - Stack overflow: MAIN_THREAD_STACK_SIZE raised 8x (see below).
+//   - Five progressively closer minimal repros in this file (two plain
+//     threads; plus AsyncInvoke; plus a shared mutex in the callback; plus the
+//     synchronous calls and a MulticastDelegateSafe container exactly as in
+//     FreeTests(); delay 0) all succeeded. Only the real test sequence hangs.
+//
+// Next step for whoever picks this up: trace which kernel call site in
+// ThreadX's common/src double-acquires or leaks _tx_linux_mutex under two
+// concurrent threads, e.g. with breakpoints in tx_thread_interrupt_control.c.
+static PortableTests::Options TestOptions()
+{
+    PortableTests::Options options;
+    options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(20); };
+    options.concurrentThreads = false;
+    return options;
+}
 
 // --------------------------------------------------------------------------
 // THREADX CONFIGURATION & HELPERS
@@ -196,16 +233,14 @@ void ExecuteAllTests() {
     myTimer.Stop();
 
     // --- TEST 9: FullPolicy Stress Tests ---
-    // DelegateThreadsTests() only runs ThreadFullPolicyTests() here -- see
-    // the file-level comment in DelegateThreadsTests.cpp for why the other
-    // four sub-tests are disabled (a ThreadX Linux/GNU port kernel deadlock,
-    // not a DelegateMQ bug).
+    // Without the dispatch tests here -- see TestOptions() above for why
+    // (a ThreadX Linux/GNU port kernel deadlock, not a DelegateMQ bug).
     printf("\n[Test 9] FullPolicy Tests:\n");
-    DelegateThreadsTests();
+    PortableTests::DelegateThreadsTests(TestOptions());
 
     // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
     printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
-    TimerDelegateTests();
+    PortableTests::TimerDelegateTests(TestOptions());
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

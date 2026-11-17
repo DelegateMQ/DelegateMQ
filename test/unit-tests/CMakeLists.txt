@@ -8,7 +8,7 @@ file(GLOB SUBDIR_HEADERS CONFIGURE_DEPENDS "*.h" "databus/*.h" "serialize/*.h" "
 add_library(unit_tests_lib STATIC ${SUBDIR_SOURCES} ${SUBDIR_HEADERS})
 
 # Include directories for the library
-target_include_directories(unit_tests_lib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(unit_tests_lib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../portable")
 
 # Add /bigobj flag for MSVC because unit tests are large
 if (MSVC)

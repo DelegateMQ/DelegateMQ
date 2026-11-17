@@ -32,6 +32,11 @@ CXXFLAGS += -I$(DMQ_SRC)
 CXXFLAGS += -I$(DMQ_SRC)/port/os/nuttx -I$(DMQ_SRC)/extras/util -I$(DMQ_SRC)/port/fault
 CXXFLAGS += -DDMQ_THREAD_NUTTX -DDMQ_SERIALIZE_NONE -DDMQ_TRANSPORT_NONE
 
+# The portable tests every OS port sample runs (test/portable): headers from
+# there, sources copied in like the library sources below
+PORTABLE_TESTS = $(DELEGATEMQ_ROOT)/test/portable
+CXXFLAGS += -I$(PORTABLE_TESTS)
+
 # This sample's own sources, plus the DelegateMQ library files this
 # configuration needs: the NuttX thread port implementation, Timer (used by
 # Test 8/10), and the generic fault handler (Fault.cpp's #if defined(__linux__)
@@ -54,7 +59,7 @@ CXXFLAGS += -DDMQ_THREAD_NUTTX -DDMQ_SERIALIZE_NONE -DDMQ_TRANSPORT_NONE
 #     that stray .o looked "up to date".
 # A plain local copy sidesteps both problems: every path from here on is a
 # bare filename in this one directory, exactly like main.cpp.
-CXXSRCS  = main.cpp DelegateThreadsTests.cpp TimerDelegateTests.cpp
+CXXSRCS  = main.cpp DelegateThreadsPortableTests.cpp TimerDelegatePortableTests.cpp
 CXXSRCS += NuttXThread.cpp Timer.cpp Fault.cpp
 
 CXXOBJS = $(CXXSRCS:.cpp=$(OBJEXT))
@@ -75,6 +80,12 @@ Timer.cpp: $(DMQ_SRC)/extras/util/Timer.cpp
 	$(Q) cp -f $< $@
 
 Fault.cpp: $(DMQ_SRC)/port/fault/Fault.cpp
+	$(Q) cp -f $< $@
+
+DelegateThreadsPortableTests.cpp: $(PORTABLE_TESTS)/DelegateThreadsPortableTests.cpp
+	$(Q) cp -f $< $@
+
+TimerDelegatePortableTests.cpp: $(PORTABLE_TESTS)/TimerDelegatePortableTests.cpp
 	$(Q) cp -f $< $@
 
 # Compile C++ Files
@@ -108,7 +119,7 @@ depend: Makefile $(CXXSRCS)
 
 clean:
 	$(call CLEAN)
-	$(Q) $(DELFILE) NuttXThread.cpp Timer.cpp Fault.cpp
+	$(Q) $(DELFILE) NuttXThread.cpp Timer.cpp Fault.cpp DelegateThreadsPortableTests.cpp TimerDelegatePortableTests.cpp
 
 # Remove the build context and directory links
 

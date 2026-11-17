@@ -22,11 +22,8 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
-// Defined in DelegateThreadsTests.cpp -- see Test 9 below.
-extern void DelegateThreadsTests();
-
-// Defined in TimerDelegateTests.cpp
-extern void TimerDelegateTests();
+// The portable tests every OS port sample runs (test/portable/PortableTests.h)
+#include "PortableTests.h"
 
 // --------------------------------------------------------------------------
 // CALLBACK FUNCTIONS
@@ -149,11 +146,11 @@ static void ExecuteAllTests() {
 
     // --- TEST 9: FullPolicy Stress Tests ---
     printf("\n[Test 9] Cross-Thread Dispatch & FullPolicy Tests:\n");
-    DelegateThreadsTests();
+    PortableTests::DelegateThreadsTests();
 
     // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
     printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
-    TimerDelegateTests();
+    PortableTests::TimerDelegateTests();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

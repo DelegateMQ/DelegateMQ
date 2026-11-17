@@ -7,7 +7,7 @@ signal and invoked on that thread.
 
 It runs the same test suite as `posix-linux` and the RTOS simulator samples: delegate,
 Signal, ScopedConnection, Thread and Timer usage, plus the full `DelegateThreadsTests()`/
-`TimerDelegateTests()` battery (ported unchanged from `test/unit-tests/`). The application
+`TimerDelegateTests()` battery (from `test/portable/`, the same files every OS port sample runs). The application
 code is unchanged across every port; only `DMQ_THREAD` changes.
 
 Test 11 (`QtThreadExitTests.cpp`) is Qt-only: it exits a thread while a producer is

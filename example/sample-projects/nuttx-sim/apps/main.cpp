@@ -32,11 +32,17 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
-// Defined in DelegateThreadsTests.cpp
-extern void DelegateThreadsTests();
+// The portable tests every OS port sample runs (test/portable/PortableTests.h)
+#include "PortableTests.h"
 
-// Defined in TimerDelegateTests.cpp
-extern void TimerDelegateTests();
+// Test consumer threads run below the thread running the tests (SCHED_FIFO:
+// higher number = higher priority), so posting never preempts it.
+static PortableTests::Options TestOptions()
+{
+    PortableTests::Options options;
+    options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(50); };
+    return options;
+}
 
 // --------------------------------------------------------------------------
 // SYSTEM TIMER THREAD
@@ -202,11 +208,11 @@ void ExecuteAllTests() {
 
     // --- TEST 9: Cross-Thread Dispatch & FullPolicy Stress Tests ---
     printf("\n[Test 9] Cross-Thread Dispatch & FullPolicy Tests:\n");
-    DelegateThreadsTests();
+    PortableTests::DelegateThreadsTests(TestOptions());
 
     // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
     printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
-    TimerDelegateTests();
+    PortableTests::TimerDelegateTests(TestOptions());
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

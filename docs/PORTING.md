@@ -344,7 +344,7 @@ On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same
 - `ExitThread()`: call `Wake()` after setting the exit flag.
 - `WatchdogCheck()`: skip while `IsHeld()`.
 
-References: `StdlibThread.cpp`; `FreeRTOSThread.cpp` for a port whose exit send can block on a full queue. Portable tests: `test/unit-tests/StartGatePortableTest.h`.
+References: `StdlibThread.cpp`; `FreeRTOSThread.cpp` for a port whose exit send can block on a full queue. Portable tests: `test/portable/` (`StartGatePortableTest.h`, and `PortableTests.h`, which every OS port sample runs).
 
 ### Watchdog Integration
 

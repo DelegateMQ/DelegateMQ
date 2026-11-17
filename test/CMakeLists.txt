@@ -66,6 +66,7 @@ include_directories(
     ${DMQ_INCLUDE_DIR}
     ${SPDLOG_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/unit-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/portable
 )
 
 # Add subdirectories for unit tests, stress tests, and sample code

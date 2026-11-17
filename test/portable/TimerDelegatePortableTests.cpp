@@ -1,52 +1,62 @@
-/// @file TimerDelegateTests.cpp
+/// @file TimerDelegatePortableTests.cpp
 /// @see https://github.com/DelegateMQ/DelegateMQ
 ///
-/// @brief PacedDispatch and TimerDelegate tests, ported from
-/// test/unit-tests/TimerDelegateTests.cpp to exercise dmq::util::Timer +
-/// dmq::util::TimerDelegate dispatching to the real Zephyr (native_sim
-/// simulation) Thread port instead of the desktop stdlib port.
+/// @brief PacedDispatch, TimerDelegate and Timer tests on any thread port,
+/// from test/unit-tests/TimerDelegateTests.cpp. One copy for every OS port
+/// sample (see PortableTests.h for what the sample must provide, and
+/// DelegateThreadsPortableTests.cpp for why only portable APIs are used).
+///
+/// Unlike the unit tests, nothing here starts a thread to drive
+/// Timer::ProcessTimers(): the sample already does (an RTOS timer task, or a
+/// helper thread on the desktop), and a raw host thread isn't safe on an RTOS
+/// simulation.
 
-#include "DelegateMQ.h"
+#include "PortableTests.h"
 #include "extras/util/TimerDelegate.h"
 #include <iostream>
 #include <atomic>
 #include <chrono>
+#include <memory>
+#include <functional>
+#include <vector>
 
 using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
-// Construct-on-first-use -- see DelegateThreadsTests.cpp in this same
-// directory for why a file-scope `static Thread` isn't safe here.
-static Thread& timerThread()
+namespace {
+
+Thread& timerThread()
 {
     static Thread t("TimerDelegateTests");
     return t;
 }
 
+void SleepMs(int ms) { dmq::ThisThread::sleep_for(std::chrono::milliseconds(ms)); }
+
 // Wait until count reaches expected or timeout elapses. Returns true on success.
-static bool WaitCount(const std::atomic<int>& cnt, int expected,
-                      std::chrono::milliseconds timeout = std::chrono::milliseconds(2000))
+bool WaitCount(const std::atomic<int>& cnt, int expected,
+               std::chrono::milliseconds timeout = std::chrono::milliseconds(2000))
 {
-    auto deadline = std::chrono::steady_clock::now() + timeout;
-    while (cnt.load() < expected && std::chrono::steady_clock::now() < deadline)
-        dmq::ThisThread::sleep_for(std::chrono::milliseconds(10));
+    auto deadline = dmq::Clock::now() + timeout;
+    while (cnt.load() < expected && dmq::Clock::now() < deadline)
+        SleepMs(10);
     return cnt.load() >= expected;
 }
 
 // Wait for thread queue to drain and give current message time to finish.
-static void Drain(Thread& t)
+void Drain(Thread& t)
 {
     while (t.GetQueueSize() != 0)
-        dmq::ThisThread::sleep_for(std::chrono::milliseconds(10));
-    dmq::ThisThread::sleep_for(std::chrono::milliseconds(100));
+        SleepMs(10);
+    SleepMs(100);
 }
 
 // =============================================================================
 // PacedDispatch unit tests (no threads required)
 // =============================================================================
 
-static void PacedDispatch_TryFireClearSucceeds()
+void PacedDispatch_TryFireClearSucceeds()
 {
     PacedDispatch gate;
     bool fired = false;
@@ -57,7 +67,7 @@ static void PacedDispatch_TryFireClearSucceeds()
     std::cout << "PacedDispatch_TryFireClearSucceeds() complete!" << std::endl;
 }
 
-static void PacedDispatch_TryFireInFlightFails()
+void PacedDispatch_TryFireInFlightFails()
 {
     PacedDispatch gate;
     std::shared_ptr<DispatchToken> liveToken;
@@ -71,7 +81,7 @@ static void PacedDispatch_TryFireInFlightFails()
     std::cout << "PacedDispatch_TryFireInFlightFails() complete!" << std::endl;
 }
 
-static void PacedDispatch_TryFireAfterTokenReleased()
+void PacedDispatch_TryFireAfterTokenReleased()
 {
     PacedDispatch gate;
     std::shared_ptr<DispatchToken> liveToken;
@@ -87,7 +97,7 @@ static void PacedDispatch_TryFireAfterTokenReleased()
     std::cout << "PacedDispatch_TryFireAfterTokenReleased() complete!" << std::endl;
 }
 
-static void PacedDispatch_Reset()
+void PacedDispatch_Reset()
 {
     PacedDispatch gate;
     std::shared_ptr<DispatchToken> liveToken;
@@ -103,7 +113,7 @@ static void PacedDispatch_Reset()
     std::cout << "PacedDispatch_Reset() complete!" << std::endl;
 }
 
-static void PacedDispatch_PendingFlag()
+void PacedDispatch_PendingFlag()
 {
     PacedDispatch gate;
     std::shared_ptr<DispatchToken> liveToken;
@@ -132,17 +142,17 @@ static void PacedDispatch_PendingFlag()
     std::cout << "PacedDispatch_PendingFlag() complete!" << std::endl;
 }
 
-static void PacedDispatch_OnStuckFires()
+void PacedDispatch_OnStuckFires()
 {
     PacedDispatch gate;
     std::shared_ptr<DispatchToken> liveToken;
     std::atomic<int> stuckCount{ 0 };
-    gate.OnStuck = dmq::MakeDelegate([&stuckCount]() { stuckCount.fetch_add(1); });
+    gate.OnStuck = dmq::MakeDelegate(std::function<void()>([&stuckCount]() { stuckCount.fetch_add(1); }));
 
     gate.TryFire([&liveToken](std::shared_ptr<DispatchToken> t) { liveToken = t; });
 
     // Sleep past the stuck threshold, then trigger with a short stuckTimeout
-    dmq::ThisThread::sleep_for(std::chrono::milliseconds(10));
+    SleepMs(10);
     gate.TryFire([](std::shared_ptr<DispatchToken>) {}, std::chrono::milliseconds(1));
 
     DMQ_ASSERT_TRUE(stuckCount.load() >= 1);
@@ -162,12 +172,12 @@ struct TDTarget
     {
         // Sleeps long enough that rapid timer ticks arrive while this is executing,
         // exercising the at-most-one-in-flight guarantee.
-        dmq::ThisThread::sleep_for(std::chrono::milliseconds(150));
+        SleepMs(150);
         count.fetch_add(1);
     }
 };
 
-static void TimerDelegate_RawPtr_Dispatches()
+void TimerDelegate_RawPtr_Dispatches()
 {
     TDTarget target;
     auto d = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
@@ -177,7 +187,7 @@ static void TimerDelegate_RawPtr_Dispatches()
     std::cout << "TimerDelegate_RawPtr_Dispatches() complete!" << std::endl;
 }
 
-static void TimerDelegate_ConstRawPtr_Dispatches()
+void TimerDelegate_ConstRawPtr_Dispatches()
 {
     std::atomic<int> count{ 0 };
     struct ConstTarget
@@ -195,7 +205,7 @@ static void TimerDelegate_ConstRawPtr_Dispatches()
     std::cout << "TimerDelegate_ConstRawPtr_Dispatches() complete!" << std::endl;
 }
 
-static void TimerDelegate_AtMostOneInFlight()
+void TimerDelegate_AtMostOneInFlight()
 {
     TDTarget target;
     auto d = MakeTimerDelegate(&target, &TDTarget::OnTickSlow, timerThread());
@@ -211,7 +221,7 @@ static void TimerDelegate_AtMostOneInFlight()
     std::cout << "TimerDelegate_AtMostOneInFlight() complete!" << std::endl;
 }
 
-static void TimerDelegate_FiresAgainAfterCompletion()
+void TimerDelegate_FiresAgainAfterCompletion()
 {
     TDTarget target;
     auto d = MakeTimerDelegate(&target, &TDTarget::OnTickSlow, timerThread());
@@ -230,7 +240,7 @@ static void TimerDelegate_FiresAgainAfterCompletion()
     std::cout << "TimerDelegate_FiresAgainAfterCompletion() complete!" << std::endl;
 }
 
-static void TimerDelegate_SharedPtr_Dispatches()
+void TimerDelegate_SharedPtr_Dispatches()
 {
     auto target = std::make_shared<TDTarget>();
     auto d = MakeTimerDelegate(target, &TDTarget::OnTick, timerThread());
@@ -240,7 +250,7 @@ static void TimerDelegate_SharedPtr_Dispatches()
     std::cout << "TimerDelegate_SharedPtr_Dispatches() complete!" << std::endl;
 }
 
-static void TimerDelegate_SharedPtr_SkipsDestroyedObject()
+void TimerDelegate_SharedPtr_SkipsDestroyedObject()
 {
     auto target = std::make_shared<TDTarget>();
     auto d = MakeTimerDelegate(target, &TDTarget::OnTick, timerThread());
@@ -261,17 +271,92 @@ static void TimerDelegate_SharedPtr_SkipsDestroyedObject()
 }
 
 // =============================================================================
+// TimerDelegate::Equal() / Empty() / nullptr comparisons
+// =============================================================================
+
+void FreeFuncForEqualityTests() {}
+
+void TimerDelegate_Equal_SameUnderlyingAndThread()
+{
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
+    auto d2 = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
+    DMQ_ASSERT_TRUE(d1.Equal(d2));
+    DMQ_ASSERT_TRUE(d2.Equal(d1));
+    std::cout << "TimerDelegate_Equal_SameUnderlyingAndThread() complete!" << std::endl;
+}
+
+void TimerDelegate_Equal_DifferentTargetObject()
+{
+    TDTarget target1;
+    TDTarget target2;
+    auto d1 = MakeTimerDelegate(&target1, &TDTarget::OnTick, timerThread());
+    auto d2 = MakeTimerDelegate(&target2, &TDTarget::OnTick, timerThread());
+    DMQ_ASSERT_TRUE(!d1.Equal(d2));
+    std::cout << "TimerDelegate_Equal_DifferentTargetObject() complete!" << std::endl;
+}
+
+// Needs a second thread alive beside timerThread() (Options::concurrentThreads)
+void TimerDelegate_Equal_DifferentThread()
+{
+    Thread otherThread("TimerDelegateTests_OtherThread");
+    otherThread.CreateThread();
+
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
+    auto d2 = MakeTimerDelegate(&target, &TDTarget::OnTick, otherThread);
+    DMQ_ASSERT_TRUE(!d1.Equal(d2));
+
+    otherThread.ExitThread();
+    std::cout << "TimerDelegate_Equal_DifferentThread() complete!" << std::endl;
+}
+
+void TimerDelegate_Equal_DifferentDelegateType()
+{
+    // rhs isn't a TimerDelegate at all -- exercises dynamic_cast failing
+    // safely and Equal() returning false rather than throwing/crashing.
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
+    auto other = dmq::MakeDelegate(&FreeFuncForEqualityTests);
+    DMQ_ASSERT_TRUE(!d1.Equal(other));
+    std::cout << "TimerDelegate_Equal_DifferentDelegateType() complete!" << std::endl;
+}
+
+void TimerDelegate_Equal_BothEmpty()
+{
+    TDTarget target;
+    auto d1 = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
+    auto d2 = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
+    d1.Clear();
+    d2.Clear();
+    DMQ_ASSERT_TRUE(d1.Empty());
+    DMQ_ASSERT_TRUE(d2.Empty());
+    DMQ_ASSERT_TRUE(d1.Equal(d2));
+    std::cout << "TimerDelegate_Equal_BothEmpty() complete!" << std::endl;
+}
+
+void TimerDelegate_EmptyAndNullptrComparisons()
+{
+    TDTarget target;
+    auto d = MakeTimerDelegate(&target, &TDTarget::OnTick, timerThread());
+    DMQ_ASSERT_TRUE(!d.Empty());
+    DMQ_ASSERT_TRUE(d != nullptr);
+    DMQ_ASSERT_TRUE(!(d == nullptr));
+
+    d.Clear();
+    DMQ_ASSERT_TRUE(d.Empty());
+    DMQ_ASSERT_TRUE(d == nullptr);
+    DMQ_ASSERT_TRUE(!(d != nullptr));
+
+    std::cout << "TimerDelegate_EmptyAndNullptrComparisons() complete!" << std::endl;
+}
+
+// =============================================================================
 // Integration: TimerDelegate wired to a real Timer
 // =============================================================================
 
-// Unlike test/unit-tests' version, this doesn't spin up its own thread to
-// drive Timer::ProcessTimers() -- main() already starts g_systemTimer
-// (a k_timer) before ExecuteAllTests() runs, and it's still active here,
-// waking g_timerThread to call Timer::ProcessTimers() every 10ms, the same
-// one Test 8 relies on. Spinning up an extra raw std::thread for this, as
-// test/unit-tests' version does, would be actively unsafe on native_sim --
-// see the dmq::Mutex comment in DelegateThreadsTests.cpp in this directory.
-static void TimerDelegate_WithTimer_DispatchesToThread()
+// The sample's own timer drives Timer::ProcessTimers() (see PortableTests.h)
+void TimerDelegate_WithTimer_DispatchesToThread()
 {
     TDTarget target;
     Timer timer;
@@ -288,11 +373,45 @@ static void TimerDelegate_WithTimer_DispatchesToThread()
     std::cout << "TimerDelegate_WithTimer_DispatchesToThread() complete!" << std::endl;
 }
 
-// =============================================================================
-// Test runner
-// =============================================================================
+void Timer_ProcessTimers_DrainsMultiplePasses()
+{
+    // More than MAX_TIMER_EXPIRED timers all due at once — ProcessTimers() must
+    // drain every batch, not just the first, and must not hard-fault (see
+    // Timer::ProcessTimers()'s multi-pass loop, mirroring
+    // TransportMonitor::Process()'s batch-cap handling).
+    const size_t timerCount = dmq::MAX_TIMER_EXPIRED + 5;
 
-void TimerDelegateTests()
+    std::vector<std::unique_ptr<Timer>> timers;
+    std::vector<dmq::ScopedConnection> conns;
+    std::atomic<int> fireCount{ 0 };
+
+    for (size_t i = 0; i < timerCount; ++i) {
+        auto timer = std::make_unique<Timer>();
+        conns.push_back(timer->OnExpired.Connect(
+            dmq::MakeDelegate(std::function<void()>([&fireCount]() { fireCount.fetch_add(1); }))));
+        timer->Start(std::chrono::milliseconds(1), /*once=*/true);
+        timers.push_back(std::move(timer));
+    }
+
+    // Let every one-shot timer become due.
+    SleepMs(20);
+
+    // OnExpired has no thread argument, so callbacks fire synchronously inside
+    // ProcessTimers(). The sample's own timer may be running ProcessTimers()
+    // at the same time and fire some of them, so wait for all rather than
+    // expect them in this one call (the unit tests, with no other caller,
+    // check the single call).
+    Timer::ProcessTimers();
+    DMQ_ASSERT_TRUE(WaitCount(fireCount, static_cast<int>(timerCount), std::chrono::milliseconds(1000)));
+    DMQ_ASSERT_TRUE(fireCount.load() == static_cast<int>(timerCount));
+    std::cout << "Timer_ProcessTimers_DrainsMultiplePasses() complete!" << std::endl;
+}
+
+} // namespace
+
+namespace PortableTests {
+
+void TimerDelegateTests(const Options& options)
 {
     timerThread().CreateThread();
 
@@ -309,8 +428,20 @@ void TimerDelegateTests()
     TimerDelegate_FiresAgainAfterCompletion();
     TimerDelegate_SharedPtr_Dispatches();
     TimerDelegate_SharedPtr_SkipsDestroyedObject();
+
+    TimerDelegate_Equal_SameUnderlyingAndThread();
+    TimerDelegate_Equal_DifferentTargetObject();
+    if (options.concurrentThreads)
+        TimerDelegate_Equal_DifferentThread();
+    TimerDelegate_Equal_DifferentDelegateType();
+    TimerDelegate_Equal_BothEmpty();
+    TimerDelegate_EmptyAndNullptrComparisons();
+
     TimerDelegate_WithTimer_DispatchesToThread();
+    Timer_ProcessTimers_DrainsMultiplePasses();
 
     timerThread().ExitThread();
     std::cout << "TimerDelegateTests() complete!" << std::endl;
 }
+
+} // namespace PortableTests

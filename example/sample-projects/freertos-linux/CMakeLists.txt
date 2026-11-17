@@ -34,6 +34,10 @@ file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/*.c*" "${CMAKE_SOURCE_DIR}/*.h")
 # Collect DelegateMQ port/extras source files
 list(APPEND SOURCES ${DMQ_PORT_SOURCES})
 
+# The portable tests every OS port sample runs (test/portable)
+include("${CMAKE_SOURCE_DIR}/../../../test/portable/PortableTests.cmake")
+list(APPEND SOURCES ${PORTABLE_TESTS_SOURCES})
+
 # Collect FreeRTOS source files (kernel + POSIX port, set by External.cmake)
 list(APPEND SOURCES ${FREERTOS_SOURCES})
 
@@ -46,6 +50,7 @@ source_group("FreeRTOS Files" FILES ${FREERTOS_SOURCES})
 include_directories(
     .
     ${DMQ_INCLUDE_DIR}
+    ${PORTABLE_TESTS_DIR}
     ${FREERTOS_ROOT_DIR}/include
     ${FREERTOS_ROOT_DIR}/portable/${FREERTOS_PORT_DIR}
 )

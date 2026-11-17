@@ -54,7 +54,9 @@ source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
 source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
 source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 
-target_sources(app PRIVATE main_delegate.cpp DelegateThreadsTests.cpp TimerDelegateTests.cpp ${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES})
+# The portable tests every OS port sample runs (test/portable)
+include("${CMAKE_SOURCE_DIR}/../../../test/portable/PortableTests.cmake")
+target_sources(app PRIVATE main_delegate.cpp ${PORTABLE_TESTS_SOURCES} ${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES})
 
 if(CONFIG_ARCH_POSIX)
     # native_sim: native_sim_stubs/cmsis_compiler.h is a sample-local, no-op
@@ -71,4 +73,4 @@ else()
     target_sources(app PRIVATE cortex_m_qemu.cpp)
     target_compile_definitions(app PRIVATE DMQ_CUSTOM_FAULT_HANDLER)
 endif()
-target_include_directories(app PRIVATE ${DMQ_INCLUDE_DIR} ${ZEPHYR_BASE}/include/zephyr/portability)
+target_include_directories(app PRIVATE ${DMQ_INCLUDE_DIR} ${PORTABLE_TESTS_DIR} ${ZEPHYR_BASE}/include/zephyr/portability)

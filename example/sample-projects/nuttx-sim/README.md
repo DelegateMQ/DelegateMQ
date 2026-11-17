@@ -115,5 +115,5 @@ TimerDelegateTests() complete!
 ## Project Structure
 
 * `apps/main.cpp`: entry point (`dmq_test_main`), Tests 1-8, and the dedicated periodic pthread that drives `Timer::ProcessTimers()` (NuttX's own doc comment for this port names "a hardware timer ISR or the highest-priority task in the system" as the two valid drivers for this — a thread is the simpler of the two for a first verification pass).
-* `apps/DelegateThreadsTests.cpp` / `TimerDelegateTests.cpp`: Tests 9-10, ported from `zephyr-linux`'s copies (see their file comments for the small adjustments: `SetThreadPriority` value and a `std::random_device` → clock-seeded generator swap, `/dev/urandom` isn't available in this minimal `sim` config).
+* Tests 9-10: `PortableTests::DelegateThreadsTests()`/`TimerDelegateTests()` from `test/portable/`, shared by every OS port sample, copied into `apps/` at build time like the library sources (`apps/Makefile`). `TestOptions()` in `apps/main.cpp` sets their consumer threads' priority. They seed their random delays from `dmq::Clock`: `std::random_device` needs `/dev/urandom`, which this minimal `sim` config lacks.
 * `apps/Makefile` / `apps/Kconfig`: the hand-rolled NuttX apps replacement described above.

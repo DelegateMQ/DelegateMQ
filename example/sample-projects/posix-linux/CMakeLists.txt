@@ -37,6 +37,10 @@ file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/*.c*" "${CMAKE_SOURCE_DIR}/*.h")
 # Collect DelegateMQ port/extras source files
 list(APPEND SOURCES ${DMQ_PORT_SOURCES})
 
+# The portable tests every OS port sample runs (test/portable)
+include("${CMAKE_SOURCE_DIR}/../../../test/portable/PortableTests.cmake")
+list(APPEND SOURCES ${PORTABLE_TESTS_SOURCES})
+
 # Organize delegate source files within IDE (Visual Studio)
 source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
 source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
@@ -45,6 +49,7 @@ source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 include_directories(
     .
     ${DMQ_INCLUDE_DIR}
+    ${PORTABLE_TESTS_DIR}
 )
 
 add_executable(${DELEGATE_APP} ${SOURCES} ${DMQ_LIB_SOURCES})

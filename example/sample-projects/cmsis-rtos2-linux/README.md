@@ -78,7 +78,7 @@ west build -b native_sim/native/64 /path/to/DelegateMQ/example/sample-projects/c
 ## Project Structure
 
 * `main_delegate.cpp`: DelegateMQ test logic, using CMSIS-RTOS2 API calls directly (`osTimerNew`/`osTimerStart` drives `Timer::ProcessTimers()`; `osDelay` for pacing; `osThreadGetName`/`osThreadGetId` for the current-thread-name helper).
-* `DelegateThreadsTests.cpp` / `TimerDelegateTests.cpp`: ported from `zephyr-linux`'s copies; only one line differs (`SetThreadPriority(osPriorityLow)` instead of a plain int, since CMSIS-RTOS2's `osPriority_t` is a real enum, not an int typedef).
+* Tests 9-10: `PortableTests::DelegateThreadsTests()`/`TimerDelegateTests()` from `test/portable/`, shared by every OS port sample. `TestOptions()` in `main_delegate.cpp` gives their consumer threads `osPriorityLow` (CMSIS-RTOS2's `osPriority_t` is an enum, not a plain int).
 * `prj.conf`: `CONFIG_CMSIS_RTOS_V2=y` plus its dependencies, the DelegateMQ C++ requirements shared with `zephyr-linux` (full libc++, RTTI, a real heap), and the raised object-pool limits explained above.
 * `native_sim_stubs/cmsis_compiler.h`: sample-local, no-op verification stub — see "What this verifies" above. Never used by a real embedded build.
 * `CMakeLists.txt`: same `find_package(Zephyr)`/`target_sources(app ...)` pattern as `zephyr-linux`, with `DMQ_THREAD_CMSIS_RTOS2` instead of `DMQ_THREAD_ZEPHYR`, plus the Zephyr `zephyr/portability` include path (for `cmsis_os2.h`) and the stub include path (listed first).

@@ -24,11 +24,8 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
-// Defined in DelegateThreadsTests.cpp -- see Test 9 below.
-extern void DelegateThreadsTests();
-
-// Defined in TimerDelegateTests.cpp
-extern void TimerDelegateTests();
+// The portable tests every OS port sample runs (test/portable/PortableTests.h)
+#include "PortableTests.h"
 
 // Defined in QtThreadExitTests.cpp
 extern void QtThreadExitTests();
@@ -154,11 +151,11 @@ static void ExecuteAllTests() {
 
     // --- TEST 9: FullPolicy Stress Tests ---
     printf("\n[Test 9] Cross-Thread Dispatch & FullPolicy Tests:\n");
-    DelegateThreadsTests();
+    PortableTests::DelegateThreadsTests();
 
     // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
     printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
-    TimerDelegateTests();
+    PortableTests::TimerDelegateTests();
 
     // --- TEST 11: Qt port ExitThread() with a blocked producer ---
     printf("\n[Test 11] Qt ExitThread() With a Blocked Producer:\n");

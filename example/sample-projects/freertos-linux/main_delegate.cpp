@@ -26,11 +26,17 @@ using namespace dmq;
 using namespace dmq::os;
 using namespace dmq::util;
 
-// Defined in DelegateThreadsTests.cpp
-extern void DelegateThreadsTests();
+// The portable tests every OS port sample runs (test/portable/PortableTests.h)
+#include "PortableTests.h"
 
-// Defined in TimerDelegateTests.cpp
-extern void TimerDelegateTests();
+// Test consumer threads run below this sample's main task (priority 2;
+// FreeRTOS: higher number = higher priority), so posting never preempts it.
+static PortableTests::Options TestOptions()
+{
+    PortableTests::Options options;
+    options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(1); };
+    return options;
+}
 
 // --------------------------------------------------------------------------
 // FREERTOS CONFIGURATION & HELPERS
@@ -166,11 +172,11 @@ void ExecuteAllTests() {
 
     // --- TEST 9: Cross-Thread Dispatch & FullPolicy Stress Tests ---
     printf("\n[Test 9] Cross-Thread Dispatch & FullPolicy Tests:\n");
-    DelegateThreadsTests();
+    PortableTests::DelegateThreadsTests(TestOptions());
 
     // --- TEST 10: PacedDispatch & TimerDelegate Tests ---
     printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
-    TimerDelegateTests();
+    PortableTests::TimerDelegateTests(TestOptions());
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");
@@ -207,7 +213,7 @@ extern "C" void main_delegate(void)
 
     // Stack size is in words (StackType_t == unsigned long, 8 bytes on this
     // 64-bit POSIX port), not bytes. 2048 words (16KB) was enough for the
-    // original 8-test demo, but DelegateThreadsTests()'s much deeper call
+    // original 8-test demo, but the portable DelegateThreadsTests()'s much deeper call
     // chain -- plus std::mt19937's ~2.5KB of internal state per instance in
     // getRandomTime() -- overflows that. Note task stacks come out of
     // FreeRTOS's own fixed heap_5 pool (configTOTAL_HEAP_SIZE in
