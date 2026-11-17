@@ -25,9 +25,8 @@
 /// reachable from a native_sim userspace process to begin with) and do NOT
 /// exercise or validate CmsisRtos2CriticalSection's real ISR-safety
 /// behavior in any way -- that still requires real ARM Cortex-M hardware or
-/// QEMU + arm-none-eabi-gcc/ATfE with the genuine CMSIS-Core headers. See
-/// CLAUDE.md's "ISR-Safe Locking" section: CmsisRtos2CriticalSection remains
-/// listed there as unverified, and this stub does not change that.
+/// QEMU with the genuine CMSIS-Core headers: this sample's Cortex-M build
+/// (mps2/an385, see README.md), which doesn't use this stub.
 ///
 /// This header is intentionally NOT under src/delegate-mq/ -- it is scoped
 /// to this one sample's include path (see CMakeLists.txt) so it can never be

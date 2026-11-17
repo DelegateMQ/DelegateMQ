@@ -5,11 +5,20 @@
 # This verifies dmq::os::CmsisRtos2Thread/Mutex/Semaphore/DelegateQueue
 # against a real CMSIS-RTOS2 implementation -- Zephyr's own
 # subsys/portability/cmsis_rtos_v2/, not a stub -- without any ARM
-# cross-toolchain, QEMU, or real hardware. It does NOT verify
+# cross-toolchain, QEMU, or real hardware. native_sim does NOT verify
 # CmsisRtos2CriticalSection: that type drops to ARM Cortex-M CMSIS-Core
 # intrinsics (__disable_irq()/__get_PRIMASK()/__set_PRIMASK()) which have no
-# meaning on native_sim's x86-64 host process. See CLAUDE.md's "ISR-Safe
-# Locking" section.
+# meaning on native_sim's x86-64 host process. The Cortex-M build does:
+#
+#   cmake -B build-mps2-an385 -G Ninja -DBOARD=mps2/an385 \
+#         -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb -DGNUARMEMB_TOOLCHAIN_PATH=/usr .
+#   cmake --build build-mps2-an385
+#   qemu-system-arm -M mps2-an385 -cpu cortex-m3 -nographic \
+#         -semihosting-config enable=on,target=native \
+#         -kernel build-mps2-an385/zephyr/zephyr.elf
+#
+# It adds Test 11 (a real interrupt) and ends QEMU with the test result. See
+# README.md and CLAUDE.md's "ISR-Safe Locking" section.
 #
 # Requires a west workspace with Zephyr checked out (NOT the plain sibling
 # clone that ThreadX/FreeRTOS use -- see README.md for setup). Manual-only:
@@ -47,7 +56,19 @@ source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 
 target_sources(app PRIVATE main_delegate.cpp DelegateThreadsTests.cpp TimerDelegateTests.cpp ${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES})
 
-# native_sim_stubs/cmsis_compiler.h is a sample-local, no-op stand-in for the
-# real ARM CMSIS-Core header (see that file's comment) -- listed first so it
-# resolves before anything else on the include path could provide the name.
-target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native_sim_stubs ${DMQ_INCLUDE_DIR} ${ZEPHYR_BASE}/include/zephyr/portability)
+if(CONFIG_ARCH_POSIX)
+    # native_sim: native_sim_stubs/cmsis_compiler.h is a sample-local, no-op
+    # stand-in for the real ARM CMSIS-Core header (see that file's comment) --
+    # listed first so it resolves before anything else on the include path
+    # could provide the name.
+    target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native_sim_stubs)
+else()
+    # A Cortex-M board under QEMU (e.g. mps2/an385): the real CMSIS-Core
+    # (Zephyr's cmsis_6 module), so CmsisRtos2CriticalSection runs its real
+    # PRIMASK intrinsics. cortex_m_qemu.cpp ends QEMU through semihosting with
+    # the test result, including on a fault, which DMQ_CUSTOM_FAULT_HANDLER
+    # routes there instead of the library's halt-in-a-loop handler.
+    target_sources(app PRIVATE cortex_m_qemu.cpp)
+    target_compile_definitions(app PRIVATE DMQ_CUSTOM_FAULT_HANDLER)
+endif()
+target_include_directories(app PRIVATE ${DMQ_INCLUDE_DIR} ${ZEPHYR_BASE}/include/zephyr/portability)

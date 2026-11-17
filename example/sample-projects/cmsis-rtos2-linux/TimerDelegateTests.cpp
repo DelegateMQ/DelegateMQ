@@ -28,8 +28,8 @@ static Thread& timerThread()
 static bool WaitCount(const std::atomic<int>& cnt, int expected,
                       std::chrono::milliseconds timeout = std::chrono::milliseconds(2000))
 {
-    auto deadline = std::chrono::steady_clock::now() + timeout;
-    while (cnt.load() < expected && std::chrono::steady_clock::now() < deadline)
+    auto deadline = dmq::Clock::now() + timeout;
+    while (cnt.load() < expected && dmq::Clock::now() < deadline)
         dmq::ThisThread::sleep_for(std::chrono::milliseconds(10));
     return cnt.load() >= expected;
 }

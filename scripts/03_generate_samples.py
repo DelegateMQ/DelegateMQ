@@ -27,9 +27,10 @@ Key Features:
        controller) from example/pumptron only, and -- when Ninja,
        arm-none-eabi-gcc and the STM32Cube FW_F4 package are available --
        the STM32F4 firmware cross-build into example/pumptron/build/f4.
-    9. Bare metal: configures example/sample-projects/bare-metal once per
-       target (build-<target>, see full_suite.BARE_METAL_TARGETS) whose
-       cross toolchain and QEMU are installed.
+    9. QEMU targets: configures example/sample-projects/bare-metal and
+       freertos-bare-metal once per target (build-<target>, see
+       full_suite.QEMU_TARGET_SAMPLES) whose cross toolchain and QEMU are
+       installed. freertos-bare-metal's Win32 simulator build is extra.
     10. Full suite (--full): also configures the extra unit-test builds in
        test/ listed in full_suite.TEST_VARIANTS (sanitizers, the
        DMQ_ALLOCATOR/DMQ_ASSERTS build, stress tests). On Linux a missing
@@ -173,12 +174,14 @@ def configure_test_variants(test_dir, clean):
 
 
 def configure_bare_metal(sample_dir, clean, full):
-    """Configure build-<target> for each bare-metal target (full_suite.BARE_METAL_TARGETS)
-    whose toolchain and QEMU are installed. Under --full a missing one is an error
-    on Linux; on Windows the Linux run (Docker, every toolchain) covers it."""
-    for target in full_suite.BARE_METAL_TARGETS:
-        label = f"bare-metal/{target}"
-        missing = full_suite.bare_metal_missing(target)
+    """Configure build-<target> for each QEMU target of the sample
+    (full_suite.QEMU_TARGET_SAMPLES) whose toolchain and QEMU are installed.
+    Under --full a missing one is an error on Linux; on Windows the Linux run
+    (Docker, every toolchain) covers it."""
+    sample = os.path.basename(sample_dir)
+    for target in full_suite.QEMU_TARGET_SAMPLES[sample]:
+        label = f"{sample}/{target}"
+        missing = full_suite.bare_metal_missing(target, sample)
         if missing:
             print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
             if full and not IS_WINDOWS:
@@ -239,6 +242,30 @@ def configure_zephyr(project_dir, label, clean, full):
     if shutil.which("ninja"):
         cmd[3:3] = ["-G", "Ninja"]
     print(f"[CONFIGURING] {label} (Zephyr {full_suite.ZEPHYR_BOARD})")
+    if run_configure(cmd, project_dir, label):
+        print("   Success!")
+
+
+def configure_zephyr_qemu(project_dir, name, clean, full):
+    """Configure a Zephyr app for its Cortex-M board (full_suite.ZEPHYR_QEMU_TARGETS)
+    into its own build directory, with the Zephyr SDK's Arm toolchain."""
+    spec = full_suite.ZEPHYR_QEMU_TARGETS[name]
+    label = f"{name}/{spec['board'].replace('/', '-')}"
+    missing = full_suite.zephyr_qemu_missing()
+    if missing:
+        print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+        if full:
+            FAILED.append((label, "--full: missing " + ", ".join(missing)))
+        return
+    build_dir = os.path.join(project_dir, spec["build"])
+    if clean and os.path.exists(build_dir):
+        shutil.rmtree(build_dir, ignore_errors=True)
+    cmd = ["cmake", "-B", spec["build"], f"-DBOARD={spec['board']}",
+           "-DZEPHYR_TOOLCHAIN_VARIANT=zephyr",
+           f"-DUSER_CACHE_DIR={os.path.join(build_dir, 'zephyr-cache')}", "."]
+    if shutil.which("ninja"):
+        cmd[3:3] = ["-G", "Ninja"]
+    print(f"[CONFIGURING] {label} (Zephyr {spec['board']}, QEMU)")
     if run_configure(cmd, project_dir, label):
         print("   Success!")
 
@@ -328,12 +355,14 @@ def build_samples(use_clang=False, clean=False, full=False):
             for sd in skip_dirs:
                 if sd in dirnames: dirnames.remove(sd)
 
-            # The bare-metal sample has one build directory per target
-            # (build-<target>), not a plain build/.
-            if os.path.basename(dirpath) == full_suite.BARE_METAL_SAMPLE:
+            # Samples with QEMU targets have one build directory per target
+            # (build-<target>). bare-metal has nothing else; freertos-bare-metal
+            # also has its Win32 simulator build/, configured below on Windows.
+            if os.path.basename(dirpath) in full_suite.QEMU_TARGET_SAMPLES:
                 configure_bare_metal(dirpath, clean, full)
                 dirnames.clear()
-                continue
+                if os.path.basename(dirpath) == full_suite.BARE_METAL_SAMPLE:
+                    continue
 
             # Zephyr (native_sim) and NuttX (sim) samples: Linux only, each
             # configured its own way (see full_suite.py).
@@ -350,6 +379,8 @@ def build_samples(use_clang=False, clean=False, full=False):
                     configure_host(os.path.join(dirpath, "client"), f"{name}/client", clean)
                 else:
                     configure_zephyr(dirpath, name, clean, full)
+                if name in full_suite.ZEPHYR_QEMU_TARGETS:
+                    configure_zephyr_qemu(dirpath, name, clean, full)
                 continue
 
             # Pumptron is configured once from its top-level CMakeLists.txt

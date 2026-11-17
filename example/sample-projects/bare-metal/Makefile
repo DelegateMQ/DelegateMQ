@@ -44,6 +44,9 @@ $(BUILD)/DelegateMQ.o: $(DMQ_SRC)/DelegateMQ.cpp config/DelegateMQConfig.h | $(B
 $(BUILD)/%.o: $(BSP)/%.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/retarget.o: targets/common/retarget.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD):
 	mkdir -p $(BUILD)
 

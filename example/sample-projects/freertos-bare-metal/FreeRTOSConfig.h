@@ -117,4 +117,18 @@ extern void vAssertCalled( unsigned long ulLine, const char * const pcFileName )
 /* Include the FreeRTOS+Trace FreeRTOS trace macro definitions. */
 // #include "trcRecorder.h"
 
+/* Cortex-M targets (targets/<name>/, run on QEMU), not the Win32 simulator.
+ * The port's interrupt priorities: the kernel (SysTick, PendSV) at the
+ * lowest, and interrupts at or below configMAX_SYSCALL_INTERRUPT_PRIORITY
+ * (numerically >= 2 << 5) may use the FromISR API and are masked by a
+ * task's critical section. bsp.h's timer interrupt runs at 5 << 5. */
+#if defined( __ARM_ARCH )
+	#define configCPU_CLOCK_HZ						( 25000000UL )	/* QEMU MPS2 boards */
+	#define configPRIO_BITS							3				/* QEMU's NVIC on MPS2 */
+	#define configKERNEL_INTERRUPT_PRIORITY			( 7 << ( 8 - configPRIO_BITS ) )
+	#define configMAX_SYSCALL_INTERRUPT_PRIORITY	( 2 << ( 8 - configPRIO_BITS ) )
+	#define configUSE_NEWLIB_REENTRANT				1				/* printf from several tasks */
+	#define configNEWLIB_REENTRANT_IS_DYNAMIC		0
+#endif
+
 #endif /* FREERTOS_CONFIG_H */

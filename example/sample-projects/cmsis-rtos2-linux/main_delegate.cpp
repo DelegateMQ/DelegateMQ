@@ -29,6 +29,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <atomic>
+#include <type_traits>
 
 using namespace dmq;
 using namespace dmq::os;
@@ -59,6 +61,65 @@ static void TimerThreadEntry(void* /*argument*/) {
         Timer::ProcessTimers();
     }
 }
+
+#if !defined(CONFIG_ARCH_POSIX)
+// --------------------------------------------------------------------------
+// HARDWARE ISR TEST HELPERS (Test 11, Cortex-M boards only)
+// --------------------------------------------------------------------------
+// On a Cortex-M board an osTimer callback runs in the kernel's SysTick
+// interrupt (Zephyr's k_timer expiry), a genuine ISR. From there it checks
+// dmq::CriticalSection (CmsisRtos2CriticalSection: PRIMASK through the real
+// CMSIS-Core intrinsics) directly, and calls Timer::Start()/Stop(), which take
+// Timer::GetLock(), while a thread does the same and TimerThreadEntry() runs
+// ProcessTimers().
+static_assert(std::is_same_v<dmq::CriticalSection, dmq::os::CmsisRtos2CriticalSection>,
+              "CMSIS-RTOS2 port: dmq::CriticalSection is CmsisRtos2CriticalSection");
+
+extern "C" DMQ_NORETURN void QemuExit(int status);   // cortex_m_qemu.cpp
+
+// Re-arm the 5 ms one-shot every 17 ms: ProcessTimers() runs every 10 ms, so
+// each expiry is seen (within 15 ms) before the next re-arm. Not a multiple of
+// 10: re-arming on ProcessTimers()'s own tick would restart it every time.
+static constexpr uint32_t ISR_REARM_EVERY = 17;
+static Timer* s_isrOneShot = nullptr;
+static Timer* s_isrChurn = nullptr;
+static volatile uint32_t s_isrCount = 0;
+static volatile uint32_t s_isrNotInIsr = 0;           // callbacks not in an interrupt (IPSR == 0)
+static volatile uint32_t s_isrLockBad = 0;            // CheckCriticalSection() failures in the ISR
+static std::atomic<int> s_isrOneShotFired{0};
+
+static void OnIsrOneShot() { s_isrOneShotFired++; }
+
+// True if dmq::CriticalSection masks interrupts (PRIMASK = 1) while held,
+// nested two deep, and puts back the caller's PRIMASK when released
+static bool CheckCriticalSection() {
+    const uint32_t before = __get_PRIMASK();
+    dmq::CriticalSection outer;
+    dmq::CriticalSection inner;
+    outer.lock();
+    bool ok = __get_PRIMASK() == 1;
+    inner.lock();
+    ok = ok && __get_PRIMASK() == 1;
+    inner.unlock();
+    ok = ok && __get_PRIMASK() == 1;    // inner restored outer's masked state
+    outer.unlock();
+    return ok && __get_PRIMASK() == before;
+}
+
+static void IsrTimerCallback(void* /*argument*/) {
+    s_isrCount = s_isrCount + 1;
+    if (__get_IPSR() == 0)
+        s_isrNotInIsr = s_isrNotInIsr + 1;
+    if (!CheckCriticalSection())
+        s_isrLockBad = s_isrLockBad + 1;
+    if (s_isrCount % ISR_REARM_EVERY == 0)
+        s_isrOneShot->Start(std::chrono::milliseconds(5), true);
+    if (s_isrCount % 2)
+        s_isrChurn->Start(std::chrono::milliseconds(1000));
+    else
+        s_isrChurn->Stop();
+}
+#endif
 
 static const char* CurrentThreadName() {
     const char* name = osThreadGetName(osThreadGetId());
@@ -195,6 +256,66 @@ void ExecuteAllTests() {
     printf("\n[Test 10] PacedDispatch & TimerDelegate Tests:\n");
     TimerDelegateTests();
 
+#if !defined(CONFIG_ARCH_POSIX)
+    // --- TEST 11: CmsisRtos2CriticalSection and Timer from a hardware ISR ---
+    printf("\n[Test 11] CriticalSection and Timer Start/Stop from a hardware ISR:\n");
+    {
+        DMQ_ASSERT_TRUE(CheckCriticalSection());      // thread context
+        printf("  -> thread context: PRIMASK set while held, restored after\n");
+
+        Timer oneShot;
+        Timer churn;
+        ScopedConnection conn = oneShot.OnExpired.Connect(MakeDelegate(&OnIsrOneShot));
+        s_isrOneShot = &oneShot;
+        s_isrChurn = &churn;
+        s_isrCount = 0;
+        s_isrNotInIsr = 0;
+        s_isrLockBad = 0;
+        s_isrOneShotFired = 0;
+
+        // Every tick (1 ms), in the SysTick interrupt
+        osTimerId_t isrTimer = osTimerNew(IsrTimerCallback, osTimerPeriodic, nullptr, nullptr);
+        DMQ_ASSERT_TRUE(isrTimer != nullptr);
+        DMQ_ASSERT_TRUE(osTimerStart(isrTimer, 1) == osOK);
+
+        // Meanwhile the same locks from thread context, contending with the ISR
+        const uint32_t end = osKernelGetTickCount() + 500;
+        unsigned threadOps = 0;
+        unsigned threadLockBad = 0;
+        while (osKernelGetTickCount() < end) {
+            Timer local;
+            local.Start(std::chrono::milliseconds(50));
+            churn.Stop();
+            local.Stop();
+            if (!CheckCriticalSection())
+                threadLockBad++;
+            threadOps++;
+            if (threadOps % 64 == 0)
+                osDelay(1);
+        }
+
+        osTimerStop(isrTimer);
+        osTimerDelete(isrTimer);
+        osDelay(50);    // let a last one-shot expire and fire
+        oneShot.Stop();
+        churn.Stop();
+
+        const uint32_t isrCount = s_isrCount;
+        const int fired = s_isrOneShotFired;
+        printf("  -> %lu interrupts, %u thread-side loops, one-shot fired %d times\n",
+               static_cast<unsigned long>(isrCount), threadOps, fired);
+        DMQ_ASSERT_TRUE(isrCount >= 100);              // ~500 expected in 500 ms
+        DMQ_ASSERT_TRUE(s_isrNotInIsr == 0);           // every callback ran in an interrupt
+        DMQ_ASSERT_TRUE(s_isrLockBad == 0);
+        DMQ_ASSERT_TRUE(threadLockBad == 0);
+        // Each re-arm (5 ms one-shot) normally fires before the next one, but a
+        // re-arm that lands before ProcessTimers() saw the expiry restarts it
+        const int rearms = static_cast<int>(isrCount / ISR_REARM_EVERY);
+        DMQ_ASSERT_TRUE(fired >= rearms / 2 && fired <= rearms + 1);
+        printf("  -> ISR context: PRIMASK set while held, restored after; timers fired\n");
+    }
+#endif
+
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");
     printf("=========================================\n");
@@ -228,10 +349,16 @@ int main() {
 
     ExecuteAllTests();
 
+#if defined(CONFIG_ARCH_POSIX)
     // native_sim runs as an ordinary Linux process -- exit() tears down
     // every thread in the process (WorkerThread, everything) in one step,
     // the same approach zephyr-linux/freertos-linux/threadx-linux use.
     // Returning from main() normally hits a native_sim/posix-arch
     // thread-table teardown edge case instead.
     exit(0);
+#else
+    // Cortex-M under QEMU: end QEMU with status 0 (a failed check faults
+    // before here, and cortex_m_qemu.cpp ends it with a non-zero status)
+    QemuExit(0);
+#endif
 }

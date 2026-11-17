@@ -38,6 +38,28 @@ python scripts/04_build_samples.py
    cmake --build build --config Release
    ```
 
+## On a Real Cortex-M: QEMU (`-DBM_TARGET=arm-m3`)
+
+The same tests (`main_delegate.cpp`) also build for a real Cortex-M3 and run on QEMU's `mps2-an385` board, with the FreeRTOS `GCC/ARM_CM3` port instead of the Win32 simulator. That build adds **Test 11**: a hardware timer interrupt (the CMSDK APB timer, IRQ 8, at a priority allowed to use the FromISR API) calls `dmq::util::Timer::Start()`/`Stop()`, which take `Timer::GetLock()`, a `dmq::CriticalSection`, while a task does the same and the FreeRTOS timer task runs `ProcessTimers()`. On FreeRTOS that is `FreeRTOSCriticalSection`, which must detect the interrupt and use `taskENTER_CRITICAL_FROM_ISR()`: with detection forced off, the Cortex-M port's own `configASSERT` (no task-level critical section inside an interrupt) ends the run.
+
+Needs `arm-none-eabi-gcc` and `qemu-system-arm`; runs on Windows and Linux:
+
+```shell
+cmake -B build-arm-m3 -G Ninja -DBM_TARGET=arm-m3 .
+cmake --build build-arm-m3
+qemu-system-arm -M mps2-an385 -cpu cortex-m3 -kernel build-arm-m3/delegate_app -nographic -semihosting-config enable=on,target=native
+```
+
+QEMU exits with status 0 when every test passed. `targets/arm-m3/`:
+- `toolchain.cmake`: compilers and flags, and the FreeRTOS port (`GCC/ARM_CM3`) and heap (`heap_4`) for DelegateMQ's `External.cmake`.
+- `startup.c`: vector table with the kernel's SVC, PendSV and SysTick handlers and the timer interrupt; fault handlers that report and end the run.
+- `main.c`: FreeRTOS hooks, and newlib's malloc lock (tasks allocate concurrently).
+- `bsp.c`: the timer interrupt (`bsp.h`), and `BspExit()`.
+- `fault.cpp`: DelegateMQ's fault handlers (`DMQ_CUSTOM_FAULT_HANDLER`), which print and exit instead of halting.
+- The newlib syscalls over semihosting and the linker script are the [bare-metal](../bare-metal/) sample's (`targets/common/retarget.c`, `targets/arm-m4/flash.ld`).
+
+`FreeRTOSConfig.h` adds the Cortex-M settings (interrupt priorities, newlib reentrancy) under `__ARM_ARCH`. On Windows, QEMU delivers timer interrupts at the host's coarse timer granularity, so Test 11 sees fewer interrupts and takes several seconds; its checks don't assume a rate. `build_all.py` builds and runs this target on both platforms (`full_suite.QEMU_TARGET_SAMPLES`).
+
 ## Project Structure
 
 *   `main.c`: The application entry point. Initializes the FreeRTOS heap and starts the scheduler.

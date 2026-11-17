@@ -4,7 +4,7 @@
 
 target_sources(${DELEGATE_APP} PRIVATE
     ${BM_TARGET_DIR}/startup.c
-    ${BM_TARGET_DIR}/retarget.c
+    ${BM_TARGET_DIR}/../common/retarget.c
     ${BM_TARGET_DIR}/bsp.cpp
 )
 

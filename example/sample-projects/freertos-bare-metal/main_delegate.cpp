@@ -14,6 +14,7 @@
 #include "task.h"
 #include "queue.h"
 #include "timers.h"
+#include "bsp.h"
 
 using namespace dmq;
 using namespace dmq::os;
@@ -42,9 +43,46 @@ static Thread* s_earlyThread = nullptr;
 static std::atomic<bool> s_earlyStarted{false};
 
 static void TimerCallback(TimerHandle_t xTimerHandle) {
-    // 
+    // A task (the FreeRTOS timer daemon), never an ISR: ProcessTimers()
+    // takes OS mutexes on an RTOS port
     Timer::ProcessTimers();
 }
+
+#if defined(BSP_TARGET)
+// --------------------------------------------------------------------------
+// HARDWARE ISR TEST HELPERS (Test 11, Cortex-M targets only)
+// --------------------------------------------------------------------------
+// A real timer interrupt (bsp.h) re-arms a one-shot dmq::util::Timer with
+// Start(), and starts and stops a second one, while a task does the same to
+// other timers and the timer daemon task runs ProcessTimers(). Start() and
+// Stop() take Timer::GetLock(), a dmq::CriticalSection: on FreeRTOS,
+// FreeRTOSCriticalSection, which must pick taskENTER_CRITICAL_FROM_ISR() in
+// the interrupt. taskENTER_CRITICAL() there would trip the Cortex-M port's
+// configASSERT (it checks it isn't called from an interrupt), ending the run.
+static constexpr uint32_t ISR_HZ = 2000;          // interrupt every 0.5 ms
+// Re-arm the 5 ms one-shot every 34 interrupts (17 ms): ProcessTimers() runs
+// every 10 ms, so each expiry is seen (within 15 ms) before the next re-arm
+static constexpr uint32_t ISR_REARM_EVERY = 34;
+static Timer* s_isrOneShot = nullptr;             // started from the ISR, fires in the daemon task
+static Timer* s_isrChurn = nullptr;               // started and stopped from the ISR
+static volatile uint32_t s_isrCount = 0;
+static volatile uint32_t s_isrNotInInterrupt = 0; // ISR entries that FreeRTOS didn't see as an interrupt
+static std::atomic<int> s_isrOneShotFired{0};
+
+static void OnIsrOneShot() { s_isrOneShotFired++; }
+
+static void TimerIsr() {
+    s_isrCount = s_isrCount + 1;
+    if (xPortIsInsideInterrupt() == pdFALSE)
+        s_isrNotInInterrupt = s_isrNotInInterrupt + 1;
+    if (s_isrCount % ISR_REARM_EVERY == 0)
+        s_isrOneShot->Start(std::chrono::milliseconds(5), true);
+    if (s_isrCount % 2)
+        s_isrChurn->Start(std::chrono::milliseconds(1000));
+    else
+        s_isrChurn->Stop();
+}
+#endif
 
 // --------------------------------------------------------------------------
 // CALLBACK FUNCTIONS
@@ -247,6 +285,59 @@ void ExecuteAllTests() {
         printf("  -> thread exited and deleted itself from its idle handler\n");
     }
 
+#if defined(BSP_TARGET)
+    // --- TEST 11: Timer API from a hardware ISR (see TimerIsr()) ---
+    printf("\n[Test 11] Timer Start/Stop from a hardware timer ISR:\n");
+    {
+        Timer oneShot;
+        Timer churn;
+        ScopedConnection conn = oneShot.OnExpired.Connect(MakeDelegate(&OnIsrOneShot));
+        s_isrOneShot = &oneShot;
+        s_isrChurn = &churn;
+        s_isrCount = 0;
+        s_isrNotInInterrupt = 0;
+        s_isrOneShotFired = 0;
+
+        BspStartTimerIsr(ISR_HZ, &TimerIsr);
+
+        // Meanwhile, the same lock from task context: timers created, started,
+        // stopped and destroyed here, contending with the interrupt
+        const TickType_t end = xTaskGetTickCount() + pdMS_TO_TICKS(500);
+        unsigned taskOps = 0;
+        while (xTaskGetTickCount() < end) {
+            Timer local;
+            local.Start(std::chrono::milliseconds(50));
+            churn.Stop();
+            local.Stop();
+            taskOps++;
+            if (taskOps % 64 == 0)
+                vTaskDelay(1);
+        }
+
+        BspStopTimerIsr();
+        vTaskDelay(pdMS_TO_TICKS(50));   // let a last one-shot expire and fire
+        oneShot.Stop();
+        churn.Stop();
+
+        const uint32_t isrCount = s_isrCount;
+        const int fired = s_isrOneShotFired;
+        printf("  -> %lu interrupts, %u task-side loops, one-shot fired %d times\n",
+               static_cast<unsigned long>(isrCount), taskOps, fired);
+        // ~1000 interrupts in 500 ms on a Linux host. QEMU on Windows delivers
+        // its timers at the host's ~15 ms granularity, so fewer interrupts
+        // there (coalesced, as a masked interrupt pending twice is on real
+        // hardware) and a longer run: the checks don't assume a rate.
+        DMQ_ASSERT_TRUE(isrCount >= 100);
+        DMQ_ASSERT_TRUE(s_isrNotInInterrupt == 0);        // FreeRTOS saw every one as an interrupt
+        DMQ_ASSERT_TRUE(taskOps > 0);
+        // Each re-arm (5 ms one-shot) normally fires before the next one, but
+        // a re-arm that lands before ProcessTimers() saw the expiry restarts it
+        const int rearms = static_cast<int>(isrCount / ISR_REARM_EVERY);
+        DMQ_ASSERT_TRUE(fired >= rearms / 2 && fired <= rearms + 1);
+        printf("  -> ISR-context critical sections ran without a configASSERT\n");
+    }
+#endif
+
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");
     printf("=========================================\n");
@@ -263,6 +354,11 @@ void RunTestsTask(void* pvParameters) {
 
     // Run all tests in a function to ensure stack unwinding happens
     ExecuteAllTests();
+
+#if defined(BSP_TARGET)
+    // On QEMU: end the run with status 0 (a failed check faults before here)
+    BspExit(0);
+#endif
 
     // Now it is safe to delete the task because 'myTimer' is destroyed.
     vTaskDelete(NULL);

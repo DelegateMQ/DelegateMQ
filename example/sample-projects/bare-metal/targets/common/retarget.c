@@ -31,9 +31,12 @@ int _write(int file, char *ptr, int len) {
     return len;
 }
 
+/* No-op malloc locks: single-threaded bare metal, and no allocation in
+   interrupts. Weak, so an RTOS build (freertos-bare-metal) can lock. */
+__attribute__((weak)) void __malloc_lock(struct _reent *r)   { UNUSED(r); }
+__attribute__((weak)) void __malloc_unlock(struct _reent *r) { UNUSED(r); }
+
 /* Stubs */
-void __malloc_lock(struct _reent *r)   { UNUSED(r); }
-void __malloc_unlock(struct _reent *r) { UNUSED(r); }
 
 extern char _end;
 void *_sbrk(int incr) {

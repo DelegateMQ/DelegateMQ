@@ -38,6 +38,10 @@ BARE_METAL_TARGETS = {
         "tools": ["arm-none-eabi-gcc", "qemu-system-arm"],
         "qemu":  ["qemu-system-arm", "-M", "mps2-an386", "-cpu", "cortex-m4"],
     },
+    "arm-m0": {
+        "tools": ["arm-none-eabi-gcc", "qemu-system-arm"],
+        "qemu":  ["qemu-system-arm", "-M", "microbit"],
+    },
     "arm-m3-atfe": {
         "tools": [("ATFE_PATH", "C:/ATfE-22.1.0-Windows-x86_64", "bin/clang"), "qemu-system-arm"],
         "qemu":  ["qemu-system-arm", "-M", "mps2-an385", "-cpu", "cortex-m3"],
@@ -50,6 +54,25 @@ BARE_METAL_TARGETS = {
 }
 BARE_METAL_TIMEOUT = 60
 BARE_METAL_SUCCESS = "ALL TESTS PASSED"
+
+# example/sample-projects/freertos-bare-metal: its default build is the
+# FreeRTOS Win32 simulator (Windows only); its targets/<name>/ run the same
+# tests on a real Cortex-M under QEMU, on both platforms, and add a test of
+# FreeRTOSCriticalSection from a hardware timer interrupt. Configured, built
+# and run like the bare-metal targets.
+FREERTOS_QEMU_SAMPLE = "freertos-bare-metal"
+FREERTOS_QEMU_TARGETS = {
+    "arm-m3": {
+        "tools": ["arm-none-eabi-gcc", "qemu-system-arm"],
+        "qemu":  ["qemu-system-arm", "-M", "mps2-an385", "-cpu", "cortex-m3"],
+    },
+}
+
+# Samples with QEMU targets (build-<target> each, -DBM_TARGET=<target>)
+QEMU_TARGET_SAMPLES = {
+    BARE_METAL_SAMPLE: BARE_METAL_TARGETS,
+    FREERTOS_QEMU_SAMPLE: FREERTOS_QEMU_TARGETS,
+}
 
 # Skip reason for a bare-metal target on Windows whose toolchain or QEMU isn't
 # installed: the Linux run (docker/run.sh, which has them all) covers it.
@@ -84,6 +107,19 @@ ZEPHYR_SAMPLES = {
     "zephyr-udp-serializer": "Data Message:",
     "cmsis-rtos2-linux":     "ALL TESTS PASSED",
 }
+# Zephyr samples also built for a Cortex-M board and run under QEMU, with the
+# Zephyr SDK's Arm toolchain: cmsis-rtos2-linux verifies CmsisRtos2CriticalSection
+# there (real CMSIS-Core, a real interrupt). Configured into its own build
+# directory; the app ends QEMU through semihosting with status 0 only if every
+# check passed.
+ZEPHYR_QEMU_TARGETS = {
+    "cmsis-rtos2-linux": {
+        "board": "mps2/an385",
+        "build": "build-mps2-an385",
+        "qemu":  ["qemu-system-arm", "-M", "mps2-an385", "-cpu", "cortex-m3", "-nographic",
+                  "-monitor", "none", "-semihosting-config", "enable=on,target=native"],
+    },
+}
 # databus-zephyr: Zephyr server (server/) and host client (client/), separate
 # processes over the host loopback. The server runs until stopped, so it gets
 # native_sim's --stop_at.
@@ -111,6 +147,22 @@ def zephyr_missing():
     return missing
 
 
+def zephyr_qemu_missing():
+    """What the Cortex-M Zephyr builds (ZEPHYR_QEMU_TARGETS) need beyond
+    zephyr_missing(): the cmsis HAL module, the Zephyr SDK's Arm toolchain and
+    QEMU (empty if none)."""
+    missing = zephyr_missing()
+    base = os.environ.get("ZEPHYR_BASE", "")
+    if base and not os.path.isdir(os.path.join(base, "..", "modules", "hal", "cmsis")):
+        missing.append("Zephyr's cmsis module (west update cmsis)")
+    sdk = os.environ.get("ZEPHYR_SDK_INSTALL_DIR", "")
+    if not os.path.isfile(os.path.join(sdk, "arm-zephyr-eabi", "bin", "arm-zephyr-eabi-gcc")):
+        missing.append("the Zephyr SDK's arm-zephyr-eabi toolchain (set ZEPHYR_SDK_INSTALL_DIR)")
+    if not shutil.which("qemu-system-arm"):
+        missing.append("qemu-system-arm")
+    return missing
+
+
 def nuttx_missing():
     """What building nuttx-sim needs that isn't here (empty if none)."""
     missing = []
@@ -128,10 +180,11 @@ def serialport_lib_built(repo_root):
     return os.path.isfile(os.path.join(deps_dir, "libserialport", ".libs", "libserialport.a"))
 
 
-def bare_metal_missing(target):
-    """Tools the bare-metal target needs that aren't installed (empty if none)."""
+def bare_metal_missing(target, sample=BARE_METAL_SAMPLE):
+    """Tools a QEMU target of sample (QEMU_TARGET_SAMPLES) needs that aren't
+    installed (empty if none)."""
     missing = []
-    for tool in BARE_METAL_TARGETS[target]["tools"]:
+    for tool in QEMU_TARGET_SAMPLES[sample][target]["tools"]:
         if isinstance(tool, tuple):
             var, default, rel = tool
             path = os.path.join(os.environ.get(var, default), rel) + (".exe" if IS_WINDOWS else "")

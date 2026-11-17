@@ -467,10 +467,9 @@ namespace dmq
     using Mutex = dmq::os::CmsisRtos2Mutex;
     using RecursiveMutex = dmq::os::CmsisRtos2RecursiveMutex;
     // ISR-safe (__disable_irq()/__enable_irq() via CMSIS-Core, bypassing
-    // osMutex entirely) -- see CmsisRtos2CriticalSection.h. UNVERIFIED: no
-    // CMSIS-RTOS2 SDK or Cortex-M hardware/QEMU target is available in this
-    // development environment to build and run it; review before relying
-    // on it in production.
+    // osMutex entirely) -- see CmsisRtos2CriticalSection.h. Verified on a
+    // Cortex-M3 under QEMU (cmsis-rtos2-linux, Zephyr mps2/an385), from
+    // thread and ISR context.
     using CriticalSection = dmq::os::CmsisRtos2CriticalSection;
     // No dmq::ConditionVariable port for CMSIS-RTOS2 (no DMQ_HAS_CV, and no
     // native condvar primitive to build one from), but dmq::Semaphore is

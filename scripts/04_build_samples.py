@@ -26,8 +26,9 @@ Key Features:
        but wasn't is then a failure, not a skip; samples --full doesn't cover
        yet (full_suite.PENDING) stay skipped.
 
-Bare metal: builds each build-<target> of example/sample-projects/bare-metal
-that 03_generate_samples.py configured (targets whose toolchain is installed).
+QEMU targets: builds each build-<target> of example/sample-projects/bare-metal
+and freertos-bare-metal (full_suite.QEMU_TARGET_SAMPLES) that
+03_generate_samples.py configured (targets whose toolchain is installed).
 
 Skip List (always excluded):
     - stm32-freertos          Embedded STM32 target, requires cross-compiler
@@ -404,9 +405,11 @@ def build_samples(use_clang=False, full=False):
             if project_name in SKIP_ALWAYS:
                 skipped.append((project_name, "excluded"))
                 continue
+            qemu_targets = full_suite.QEMU_TARGET_SAMPLES.get(project_name)
             if project_name in WINDOWS_ONLY and not IS_WINDOWS:
                 skipped.append((project_name, "Windows only"))
-                continue
+                if not qemu_targets:
+                    continue
             if project_name in LINUX_ONLY and IS_WINDOWS:
                 skipped.append((project_name, "Linux only"))
                 continue
@@ -419,15 +422,21 @@ def build_samples(use_clang=False, full=False):
                 build_nuttx(project_dir, repo_root, passed, failed, skipped)
                 continue
 
-            bare_metal = project_name == full_suite.BARE_METAL_SAMPLE
-            extra = [f"build-{t}" for t in full_suite.BARE_METAL_TARGETS] if bare_metal else None
+            bare_metal = qemu_targets is not None
+            extra = [f"build-{t}" for t in qemu_targets] if bare_metal else None
             if project_name == full_suite.CROSS_ENDIAN_SAMPLE and not IS_WINDOWS:
                 extra = [full_suite.CROSS_ENDIAN_BUILD]   # client/server for the big-endian CPU
+            if project_name in full_suite.ZEPHYR_QEMU_TARGETS and not IS_WINDOWS:
+                extra = [full_suite.ZEPHYR_QEMU_TARGETS[project_name]["build"]]   # Cortex-M board
             targets = collect_build_dirs(project_dir, use_clang=use_clang and not bare_metal,
                                          extra_suffixes=extra)
-            if bare_metal and not targets and IS_WINDOWS:
-                # No bare-metal toolchain here; the Linux run builds them
-                skipped.append((project_name, full_suite.LINUX_RUN_COVERS))
+            if bare_metal and project_name in WINDOWS_ONLY and not IS_WINDOWS:
+                # Only the QEMU targets here, not a stale Win32 build/
+                targets = [t for t in targets if t[0]]
+            if bare_metal and not targets:
+                if IS_WINDOWS:
+                    # No cross toolchain here; the Linux run builds them
+                    skipped.append((project_name, full_suite.LINUX_RUN_COVERS))
                 continue
             if not targets:
                 # If it's a directory but has no build dir, it might not be a cmake project

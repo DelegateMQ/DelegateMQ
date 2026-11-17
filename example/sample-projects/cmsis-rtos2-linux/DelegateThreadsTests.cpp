@@ -349,12 +349,12 @@ static void FullPolicy_Drop_DropsWhenFull()
         deliveredCount++;
     };
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = dmq::Clock::now();
 
     for (int i = 0; i < 10; i++)
         MakeDelegate(slowConsumer, dropThread)(/* no args */);
 
-    auto elapsed = std::chrono::steady_clock::now() - start;
+    auto elapsed = dmq::Clock::now() - start;
 
     // Publisher must NOT have blocked — posting 10 messages should finish well
     // under the time it would take to drain even one slot (50ms).

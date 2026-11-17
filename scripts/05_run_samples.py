@@ -34,17 +34,18 @@ starts for the run (see run_mqtt).
 Serial: serialport-serializer runs on Linux over a socat pty pair, a virtual
 null-modem cable between its sender and receiver ports (see run_serial).
 
-Bare metal: each built target of example/sample-projects/bare-metal
-(build-<target>) runs on QEMU (full_suite.BARE_METAL_TARGETS); it passes if
-QEMU exits 0, which the program's semihosting exit makes happen only when
-every check passed, and prints ALL TESTS PASSED.
+QEMU targets: each built target of example/sample-projects/bare-metal and
+freertos-bare-metal (build-<target>, full_suite.QEMU_TARGET_SAMPLES) runs on
+QEMU; it passes if QEMU exits 0, which the program's semihosting exit makes
+happen only when every check passed, and prints ALL TESTS PASSED.
+freertos-bare-metal's Win32 simulator build/ also runs, on Windows.
 
 Skip List (always excluded):
     - stm32-freertos         Embedded STM32 target, cannot run on host
 
 Windows-only (skipped on Linux):
     - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
-    - freertos-bare-metal     FreeRTOS Windows simulator
+    - freertos-bare-metal     FreeRTOS Windows simulator (its QEMU targets run on both)
     - win32-*                 Windows API transport projects
 
 Cross-language pairs (server from one project, non-C++ client):
@@ -426,9 +427,10 @@ def run_tests(repo_root, use_clang, passed, failed, skipped):
 
 
 def run_bare_metal(project_dir, passed, failed, skipped):
-    """Run each built bare-metal target on QEMU (see full_suite.BARE_METAL_TARGETS)."""
-    for target, spec in full_suite.BARE_METAL_TARGETS.items():
-        label = f"{full_suite.BARE_METAL_SAMPLE}/{target}"
+    """Run each built QEMU target of the sample (full_suite.QEMU_TARGET_SAMPLES)."""
+    sample = os.path.basename(project_dir)
+    for target, spec in full_suite.QEMU_TARGET_SAMPLES[sample].items():
+        label = f"{sample}/{target}"
         # A cross-compiled ELF: no .exe suffix, even when built on Windows
         kernel = os.path.join(project_dir, f"build-{target}", "delegate_app")
         if not os.path.isfile(kernel):
@@ -582,6 +584,33 @@ def run_zephyr(project_dir, name, passed, failed, skipped):
         print("   FAILED")
         print_result_detail("app", r)
         failed.append(name)
+    if name in full_suite.ZEPHYR_QEMU_TARGETS:
+        run_zephyr_qemu(project_dir, name, passed, failed, skipped)
+
+
+def run_zephyr_qemu(project_dir, name, passed, failed, skipped):
+    """The same Zephyr app built for a Cortex-M board (full_suite.ZEPHYR_QEMU_TARGETS),
+    run under QEMU: passes if QEMU exits 0 (the app's semihosting exit, only when
+    every check passed) and the app printed its success text."""
+    spec = full_suite.ZEPHYR_QEMU_TARGETS[name]
+    label = f"{name}/{spec['board'].replace('/', '-')}"
+    elf = os.path.join(project_dir, spec["build"], "zephyr", "zephyr.elf")
+    if not os.path.isfile(elf):
+        skipped.append((label, "not built"))
+        return
+    print(f"[RUNNING] {label}  (Zephyr {spec['board']}, QEMU)", flush=True)
+    results = {}
+    run_process(spec["qemu"] + ["-kernel", elf], project_dir, "app", results,
+                timeout=full_suite.BARE_METAL_TIMEOUT)
+    r = results["app"]
+    if (r["returncode"] == 0 and not r["timed_out"]
+            and full_suite.ZEPHYR_SAMPLES[name] in r["output"]):
+        print("   passed")
+        passed.append(label)
+    else:
+        print("   FAILED")
+        print_result_detail("app", r)
+        failed.append(label)
 
 
 def run_databus_zephyr(project_dir, passed, failed, skipped):
@@ -773,14 +802,15 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
         if project_name in SKIP_ALWAYS:
             skipped.append((project_name, "excluded"))
             continue
+        if project_name in full_suite.QEMU_TARGET_SAMPLES:
+            run_bare_metal(project_dir, passed, failed, skipped)
+            if project_name == full_suite.BARE_METAL_SAMPLE:
+                continue
         if project_name in WINDOWS_ONLY and not IS_WINDOWS:
             skipped.append((project_name, "Windows only"))
             continue
         if project_name in LINUX_ONLY and IS_WINDOWS:
             skipped.append((project_name, "Linux only"))
-            continue
-        if project_name == full_suite.BARE_METAL_SAMPLE:
-            run_bare_metal(project_dir, passed, failed, skipped)
             continue
         if project_name == full_suite.SERIAL_SAMPLE:
             run_serial(project_dir, use_clang, passed, failed, skipped)

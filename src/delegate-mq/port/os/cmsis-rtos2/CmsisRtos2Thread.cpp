@@ -22,6 +22,11 @@ namespace dmq::os {
 using namespace dmq;
 using namespace dmq::util;
 
+// The watchdog's 32-bit form of a time or duration, in dmq::Clock units (see
+// m_lastAliveTime in CmsisRtos2Thread.h)
+static uint32_t ClockCount(dmq::TimePoint t) { return static_cast<uint32_t>(t.time_since_epoch().count()); }
+static uint32_t ClockCount(dmq::Duration d) { return static_cast<uint32_t>(d.count()); }
+
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
@@ -94,8 +99,8 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         m_startGate.OnCreate();
         // Set before the thread exists: its loop reads the timeout before its
         // first queue wait, and an idle thread waits forever with no timeout
-        m_lastAliveTime.store(Timer::GetNow());
-        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
+        m_lastAliveTime.store(ClockCount(Timer::GetNow()));
+        m_watchdogTimeout.store(ClockCount(watchdogTimeout.value_or(dmq::Duration(0))));
         m_discard.store(false);
 
         // 1. Create Exit Semaphore (Max 1, Initial 0)
@@ -146,7 +151,7 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
             osSemaphoreAcquire(m_startSem, osWaitForever);
         }
 
-        m_lastAliveTime.store(Timer::GetNow());
+        m_lastAliveTime.store(ClockCount(Timer::GetNow()));
 
         if (watchdogTimeout.has_value())
         {
@@ -246,7 +251,7 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         // The thread has finished (or, on a self-exit, is in its last handler):
         // stop watchdog checks. Not earlier, so a thread that hangs while
         // ExitThread() waits for it is still reported.
-        m_watchdogTimeout.store(dmq::Duration(0));
+        m_watchdogTimeout.store(0);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -365,13 +370,13 @@ void CmsisRtos2Thread::WatchdogCheck()
     if (m_startGate.IsHeld())
         return;     // held at its start gate by design, not hung
 
-    auto now = Timer::GetNow();
-    auto lastAlive = m_lastAliveTime.load();
-    auto watchdogTimeout = m_watchdogTimeout.load();
+    const uint32_t now = ClockCount(Timer::GetNow());
+    const uint32_t lastAlive = m_lastAliveTime.load();
+    const uint32_t watchdogTimeout = m_watchdogTimeout.load();
 
-    if (watchdogTimeout.count() > 0)
+    if (watchdogTimeout > 0)
     {
-        auto delta = now - lastAlive;
+        const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
         if (delta > watchdogTimeout)
         {
             WatchdogHandler(THREAD_NAME.c_str());
@@ -384,7 +389,7 @@ void CmsisRtos2Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 void CmsisRtos2Thread::ThreadCheck()
 {
-    m_lastAliveTime.store(Timer::GetNow());
+    m_lastAliveTime.store(ClockCount(Timer::GetNow()));
 }
 
 //----------------------------------------------------------------------------
@@ -458,7 +463,7 @@ void CmsisRtos2Thread::Run()
     if (m_startGate.Enabled())
     {
         const bool opened = m_startGate.Wait(m_exit);
-        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_lastAliveTime.store(ClockCount(Timer::GetNow()));   // before Passed(): no stale watchdog read
         m_startGate.Passed();
         // ExitThread() while held: run nothing. Cancel each queued message
         // (DISCARD) until the exit message. Consuming them also keeps
@@ -474,8 +479,8 @@ void CmsisRtos2Thread::Run()
     {
         dmq::Duration watchdogTimeout;
         {
-            m_lastAliveTime.store(Timer::GetNow());
-            watchdogTimeout = m_watchdogTimeout.load();
+            m_lastAliveTime.store(ClockCount(Timer::GetNow()));
+            watchdogTimeout = dmq::Duration(m_watchdogTimeout.load());
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 

@@ -15,7 +15,28 @@ Before this sample existed, every type in `port/os/cmsis-rtos2/` was written aga
 * `CmsisRtos2DelegateQueue`: real `osMessageQueuePut`/`osMessageQueueGet`, two queues (URGENT and NORMAL lanes) plus a counting `osSemaphore`. Zephyr's CMSIS-RTOS2 layer ignores `osMessageQueuePut`'s `msg_prio`, so priority can't rely on it.
 * `CmsisRtos2Clock`: real `osKernelGetTickCount()`-driven timekeeping, including — critically — from genuine **ISR context** (see "A real ISR-safety bug" below).
 
-**Not verified here**: `CmsisRtos2CriticalSection`. That type drops to ARM Cortex-M CMSIS-Core intrinsics (`__get_PRIMASK()`/`__disable_irq()`/`__set_PRIMASK()`, real inline assembly like `cpsid i`/`mrs`) which do not exist for `native_sim`'s x86-64 host process — there is no CMSIS-Core package on this include path for that reason. This sample's `native_sim_stubs/cmsis_compiler.h` provides **no-op** stand-ins for those three functions purely to let the rest of the port compile and run; it does **not** exercise or validate real ISR-masking behavior in any way. That still needs real ARM Cortex-M hardware or QEMU + `arm-none-eabi-gcc`/ATfE with the genuine CMSIS-Core headers (the same gap the `bare-metal` sample's Arm targets have). `CmsisRtos2CriticalSection` remains listed as unverified in `CLAUDE.md`.
+**Not verified on `native_sim`**: `CmsisRtos2CriticalSection`. That type drops to ARM Cortex-M CMSIS-Core intrinsics (`__get_PRIMASK()`/`__disable_irq()`/`__set_PRIMASK()`, real inline assembly like `cpsid i`/`mrs`) which do not exist for `native_sim`'s x86-64 host process. This sample's `native_sim_stubs/cmsis_compiler.h` provides **no-op** stand-ins for those three functions purely to let the rest of the port compile and run there. The Cortex-M build below verifies it.
+
+## On a real Cortex-M: mps2/an385 under QEMU
+
+The same sample also builds for Zephyr's `mps2/an385` board (Cortex-M3) and runs under `qemu-system-arm`, with the real CMSIS-Core headers (Zephyr's `cmsis_6` module) instead of the stub. It needs Zephyr's `cmsis` HAL module (`west update cmsis`) and the Zephyr SDK's Arm toolchain (`ZEPHYR_SDK_INSTALL_DIR`); the Docker image has both. Ubuntu's `arm-none-eabi-gcc` won't do: its newlib is built without the retargetable locking Zephyr requires for threads.
+
+```shell
+cmake -B build-mps2-an385 -G Ninja -DBOARD=mps2/an385 -DZEPHYR_TOOLCHAIN_VARIANT=zephyr .
+cmake --build build-mps2-an385
+qemu-system-arm -M mps2-an385 -cpu cortex-m3 -nographic -semihosting-config enable=on,target=native \
+    -kernel build-mps2-an385/zephyr/zephyr.elf
+```
+
+- `boards/mps2_an385.conf`: newlib, larger stacks and heap than `native_sim` needs (its threads run on host stacks), and hardware stack protection.
+- `cortex_m_qemu.cpp` (Cortex-M builds only): ends QEMU through semihosting with the result, 0 when every test passed, non-zero on a DelegateMQ fault (`DMQ_CUSTOM_FAULT_HANDLER`) or a Zephyr fatal error, so a failure ends the run at once.
+- **Test 11** (Cortex-M builds only): checks `dmq::CriticalSection` (`CmsisRtos2CriticalSection`) sets PRIMASK while held and restores it after, nested two deep, in a thread and in a CMSIS `osTimer` callback, which on Cortex-M runs in the SysTick interrupt. From that interrupt it also re-arms a one-shot `dmq::util::Timer` and starts and stops another, while a thread does the same and `TimerThreadEntry()` runs `ProcessTimers()`. With `__disable_irq()` removed from `CmsisRtos2CriticalSection`, the test fails.
+
+The first build on real Cortex-M found two problems that `native_sim` (64-bit) couldn't:
+- `CmsisRtos2Thread` kept its watchdog times in 64-bit `std::atomic`s, which on a 32-bit Cortex-M are calls to libatomic, which arm-none-eabi toolchains don't have: the port didn't link. It now uses 32-bit counts, as `FreeRTOSThread` does.
+- The tests timed themselves with `std::chrono::steady_clock`, which has no clock behind it on Zephyr's newlib (it returned garbage). They use `dmq::Clock` now.
+
+`build_all.py --full` builds and runs it on Linux (`full_suite.ZEPHYR_QEMU_TARGETS`).
 
 ## A real ISR-safety bug this sample surfaced (now fixed)
 

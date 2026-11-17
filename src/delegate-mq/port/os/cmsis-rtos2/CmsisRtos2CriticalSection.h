@@ -18,11 +18,11 @@
 /// the identical reason: global interrupt masking is the only primitive
 /// that is valid from both thread and ISR context on this architecture.
 ///
-/// @note UNVERIFIED: written against documented CMSIS-RTOS2/CMSIS-Core API
-/// behavior. No CMSIS-RTOS2 SDK (e.g. Keil RTX5) or Cortex-M hardware/QEMU
-/// target is available in this development environment to build and run it
-/// (unlike ThreadXCriticalSection, exercised for real via the threadx-linux
-/// sample). __get_PRIMASK()/__set_PRIMASK()/__disable_irq() are standard
+/// @note Verified on a real Cortex-M3 (QEMU mps2-an385) by the
+/// cmsis-rtos2-linux sample's Zephyr mps2/an385 build: PRIMASK is set while
+/// held and restored after, nested, from thread context and from the SysTick
+/// interrupt, and dmq::util::Timer's list lock works from that interrupt.
+/// __get_PRIMASK()/__set_PRIMASK()/__disable_irq() are standard
 /// CMSIS-Core intrinsics -- declared in cmsis_gcc.h (or the armclang/IAR
 /// equivalent selected by cmsis_compiler.h), NOT in cmsis_os2.h itself, so
 /// this file includes cmsis_compiler.h directly rather than assuming a

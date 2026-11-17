@@ -134,6 +134,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         qemu-user \
     && rm -rf /var/lib/apt/lists/*
 
+# Zephyr on a Cortex-M board under QEMU (full_suite.ZEPHYR_QEMU_TARGETS:
+# cmsis-rtos2-linux on mps2/an385): the cmsis HAL module, which Zephyr's Arm
+# support needs, and the Zephyr SDK's Arm toolchain (minimal SDK plus
+# arm-zephyr-eabi only). Not Ubuntu's arm-none-eabi: its newlib is built
+# without the retargetable locking Zephyr requires for threads. The native_sim
+# builds keep ZEPHYR_TOOLCHAIN_VARIANT=host; the Arm build selects "zephyr".
+ARG ZEPHYR_SDK_VERSION=0.17.0
+ARG ZEPHYR_SDK_MINIMAL_SHA256=0514d2c684dfb5f6327374bfed0b3dcf727ff1500195d26b3730f98252fed095
+ARG ZEPHYR_SDK_ARM_SHA256=c3992a788a0896ecc87f7fb3a3be3f234ec0509220bd4e9dbd99b22edd55e97f
+RUN cd /opt/zephyrproject \
+    && west config manifest.project-filter -- -nrf_hw_models,+cmsis \
+    && west update --narrow -o=--depth=1 cmsis \
+    && cd /tmp \
+    && SDK_URL="https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}" \
+    && curl -fsSLO "${SDK_URL}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz" \
+    && echo "${ZEPHYR_SDK_MINIMAL_SHA256}  zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz" | sha256sum -c - \
+    && curl -fsSLO "${SDK_URL}/toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz" \
+    && echo "${ZEPHYR_SDK_ARM_SHA256}  toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz" | sha256sum -c - \
+    && tar -xJf "zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz" -C /opt \
+    && tar -xJf toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz -C "/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}" \
+    && rm "zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz" toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz
+
+ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}
+
 # run.sh runs the container as the calling user so files it writes in the
 # checkout stay theirs; that user has no home directory in the image.
 ENV HOME=/tmp \

@@ -262,9 +262,13 @@ private:
     static const uint32_t STACK_SIZE = static_cast<uint32_t>(dmq::CMSIS_RTOS2_STACK_BYTES); // Bytes, DMQ_CMSIS_RTOS2_STACK_BYTES
     static const uint32_t START_FLAG = 0x1U; // Thread flag: CreateThread() has stored m_thread
 
-    // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
-    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
+    // Watchdog related members, as 32-bit dmq::Clock counts rather than
+    // std::atomic<dmq::TimePoint>/<dmq::Duration>: those are 64-bit, and a
+    // 64-bit atomic on a 32-bit Cortex-M (no 64-bit LDREX/STREX) is a libatomic
+    // call that arm-none-eabi toolchains don't provide. Wrap-safe: elapsed time
+    // is an unsigned 32-bit difference. Same as FreeRTOSThread.
+    std::atomic<uint32_t> m_lastAliveTime{0};
+    std::atomic<uint32_t> m_watchdogTimeout{0};
     CmsisRtos2Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)
