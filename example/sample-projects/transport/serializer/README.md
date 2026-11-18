@@ -60,7 +60,7 @@ The `Acknowledged` line appears only with acknowledgments. `delegate_app [second
 
 ## In the test suite
 
-`build_all.py` builds and runs these combinations, each in `build-<transport>-<serializer>` (and a clang build of each on Linux with `--clang`), from `full_suite.TRANSPORT_COMBOS`:
+`build_all.py` builds and runs these combinations, each in `out/<platform>/example/sample-projects/transport/serializer/<transport>-<serializer>` (and a clang build of each on Linux with `--clang`), from `full_suite.TRANSPORT_COMBOS`:
 
 `udp-builtin`, `tcp-builtin`, `pipe-builtin` (Windows), `uds-builtin` (Linux), `lwip-builtin` and `lwip-netconn-builtin` (Linux), `zeromq-builtin`, `zeromq-bitsery`, `zeromq-cereal`, `zeromq-msgpack`, `zeromq-rapidjson`, `nng-bitsery`.
 

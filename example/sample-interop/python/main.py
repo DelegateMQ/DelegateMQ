@@ -46,6 +46,11 @@ def find_dll():
             os.path.join(lib_dir, "Debug/libDmqInterop.so")
         ]
 
+    # Otherwise the copy build_all.py leaves in interop/python (it builds
+    # interop/native into out/<platform>/, not interop/native/build)
+    py_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../interop/python"))
+    paths.append(os.path.join(py_dir, "DmqInterop.dll" if sys.platform == "win32" else "libDmqInterop.so"))
+
     for p in paths:
         if os.path.exists(p):
             return p

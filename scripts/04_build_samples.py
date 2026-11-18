@@ -177,7 +177,7 @@ def build_transport(project_dir, use_clang, passed, failed, skipped):
     for name, _, _ in full_suite.transport_configs():
         for suffix in suffixes:
             label = f"{sample}/{name}" + (" (clang)" if suffix else "")
-            build_dir = os.path.join(project_dir, f"build-{name}{suffix}")
+            build_dir = full_suite.build_dir(project_dir, f"build-{name}{suffix}")
             if not os.path.isdir(build_dir):
                 skipped.append((label, "not configured — run 03_generate_samples.py first"))
                 continue
@@ -234,7 +234,7 @@ def build_nuttx(sample_dir, repo_root, passed, failed, skipped):
     with NuttX's make. -j1: building LLVM's libc++ in parallel has run out of
     memory on an 8 GB machine (see the sample's README)."""
     name = full_suite.NUTTX_SAMPLE
-    nuttx_dir = os.path.join(sample_dir, "build", "nuttx")
+    nuttx_dir = os.path.join(full_suite.build_dir(sample_dir), "nuttx")
     if not os.path.isfile(os.path.join(nuttx_dir, ".config")):
         skipped.append((name, "not configured — run 03_generate_samples.py first"))
         return
@@ -273,7 +273,7 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
     targets = []
     for role in roles:
         for suffix in suffixes:
-            path = os.path.join(project_dir, role, suffix)
+            path = full_suite.build_dir(os.path.join(project_dir, role), suffix)
             if os.path.isdir(path):
                 variant = variant_label(suffix)
                 targets.append((f"{role} ({variant})" if variant else role, path))
@@ -282,7 +282,7 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
 
     targets = []
     for suffix in suffixes:
-        path = os.path.join(project_dir, suffix)
+        path = full_suite.build_dir(project_dir, suffix)
         if os.path.isdir(path):
             targets.append((variant_label(suffix), path))
     return targets
@@ -373,13 +373,13 @@ def build_samples(use_clang=False, full=False):
         if full and project_name == "test":
             extra_suffixes = [v["suffix"] for v in full_suite.test_variants()]
             for s in extra_suffixes:
-                if not os.path.isdir(os.path.join(target_dir, s)):
+                if not os.path.isdir(full_suite.build_dir(target_dir, s)):
                     skipped.append((f"test/{s}", "not configured — run 03_generate_samples.py --full first"))
         targets = collect_build_dirs(target_dir, use_clang=use_clang, extra_suffixes=extra_suffixes)
         # Pumptron's STM32F4 firmware is a separate cross-compiled build tree
         # nested under build/ (configured only when the ARM toolchain exists).
         if project_name == "pumptron":
-            f4_dir = os.path.join(target_dir, "build", "f4")
+            f4_dir = full_suite.build_dir(target_dir, "f4")
             if os.path.isdir(f4_dir):
                 if pumptron_f4_toolchain_present(f4_dir):
                     targets.append(("f4", f4_dir))

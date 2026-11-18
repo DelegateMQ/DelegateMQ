@@ -9,8 +9,10 @@
 # makes that a no-op unless the Dockerfile changed.
 #
 # The checkout is mounted at /work, so build directories land in it as usual,
-# owned by the calling user. Note that a build directory configured here
-# records /work paths: run 03 with --clean before building it outside the
+# owned by the calling user, under out/linux-docker/ (DMQ_OUT_PLATFORM): a
+# build configured here records /work paths, so it's kept apart from a native
+# Linux run's out/linux/. A manual build in a sample's own build/ directory
+# configured here would still need 03 --clean (or a fresh configure) outside the
 # container. Third-party libraries (external/) go to DMQ_DEPS_DIR, by default
 # ~/.cache/delegatemq/external, mounted at /deps and kept between runs.
 #
@@ -44,5 +46,6 @@ exec docker run --rm --init $TTY --name "$CONTAINER" \
     --security-opt seccomp=unconfined \
     --user "$(id -u):$(id -g)" \
     -v "$REPO:/work" \
+    -e DMQ_OUT_PLATFORM=linux-docker \
     -v "$DEPS:/deps" \
     "$IMAGE" python3 build_all.py "$@"

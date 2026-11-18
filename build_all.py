@@ -8,6 +8,9 @@ Description:
         04_build_samples.py     Build every sample project
         05_run_samples.py       Run every sample and report pass/fail
 
+    Steps 03-05 build in out/<platform>/<path of the project>/<variant>
+    (see scripts/full_suite.py), outside the source tree.
+
     Stops if 01 or 02 fails, since every later step depends on them. Steps
     03-05 report per-sample results, so a failure there doesn't stop the
     remaining steps; the exit code is non-zero if any step failed.
@@ -46,6 +49,42 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+HELP_DESCRIPTION = """\
+Build and run DelegateMQ's samples, tests and tools: runs scripts/01-05 in order.
+
+steps:
+  1  01_fetch_repos.py       clone the third-party libraries (external/ or --deps-dir)
+  2  02_build_libs.py        build them
+  3  03_generate_samples.py  configure every sample, the unit tests and the tools
+  4  04_build_samples.py     build them
+  5  05_run_samples.py       run them and report pass/fail
+
+Steps 1 and 2 are needed once per machine (and after a dependency changes);
+--from 3 skips them. A failure in step 1 or 2 stops the run; steps 3-5
+report per sample and keep going. The exit status is non-zero if anything
+failed.
+"""
+
+HELP_EPILOG = """\
+output:
+  out/<platform>/<path>/<variant>   builds, e.g. out/windows/example/sample-projects/
+                                    databus/basic/client/default; <platform> is windows,
+                                    linux, or linux-docker (docker/run.sh). Delete out/
+                                    to start over.
+  full-suite-results/<platform>.json  --full results
+  full-suite-results/linux.log        the Linux half's output (--linux-host)
+
+examples:
+  python build_all.py                                  everything, steps 1-5
+  python build_all.py --from 3                         skip fetching and library builds
+  python build_all.py --from 3 --clean                 reconfigure every sample from scratch
+  python build_all.py --full                           the full test suite on this platform
+  python build_all.py --linux-host user@linux-box      Windows and Linux (Docker), one report
+  docker/run.sh --full                                 the Linux full suite, on Linux
+
+See "Full Test Suite" and "Example Ecosystem (Sandbox)" in docs/BUILD.md.
+"""
 SCRIPTS_DIR = os.path.join(REPO_ROOT, "scripts")
 RESULTS_DIR = os.path.join(REPO_ROOT, "full-suite-results")
 
@@ -107,19 +146,20 @@ def run_steps(args):
     return results
 
 def main():
-    parser = argparse.ArgumentParser(description="Run the DelegateMQ example-ecosystem scripts 01-05 in order.")
+    parser = argparse.ArgumentParser(description=HELP_DESCRIPTION, epilog=HELP_EPILOG,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--from", dest="start", type=int, default=1, choices=range(1, 6),
                         metavar="N", help="first step to run (1-5, default 1)")
     parser.add_argument("--to", dest="end", type=int, default=5, choices=range(1, 6),
                         metavar="N", help="last step to run (1-5, default 5)")
-    parser.add_argument("--clang", action="store_true", help="also configure/build/run build-clang/ variants (Linux only)")
-    parser.add_argument("--clean", action="store_true", help="remove existing sample build directories before configuring")
+    parser.add_argument("--clang", action="store_true", help="also build and run every sample with clang (Linux only; the <variant> gets -clang)")
+    parser.add_argument("--clean", action="store_true", help="delete each build directory under out/ before configuring it again")
     parser.add_argument("--deps-dir", help="third-party directory (default: DMQ_DEPS_DIR env var, else <repo>/external)")
     parser.add_argument("--full", action="store_true",
                         help="full test suite: unit-test builds too, and a missing tool or unbuilt sample "
                              "fails instead of being skipped (implies --clang on Linux)")
     parser.add_argument("--linux-host", metavar="USER@HOST",
-                        help="also run the Linux half of the full suite on this machine, in Docker, "
+                        help="also run the Linux half of the full suite on that Linux machine, in Docker, "
                              "on a copy of this working tree (implies --full)")
     parser.add_argument("--linux-dir", default="dmq-full/DelegateMQ", metavar="DIR",
                         help="checkout used on the --linux-host machine, relative to its home "

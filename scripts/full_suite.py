@@ -24,6 +24,34 @@ import shutil
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
 
+# Build directories: out/<platform>/<path of the project>/<variant>, outside
+# the source tree, as Zephyr's twister does (twister-out/<board>/<path>). A
+# manual build still goes in the project's own build/ (gitignored), as the
+# READMEs show; only these scripts use out/. <platform> keeps builds whose
+# CMake caches can't be shared apart: docker/run.sh sets DMQ_OUT_PLATFORM to
+# linux-docker, since a container build records /work paths.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT_PLATFORM = os.environ.get("DMQ_OUT_PLATFORM") or ("windows" if IS_WINDOWS else "linux")
+OUT_DIR = os.path.join(REPO_ROOT, "out", OUT_PLATFORM)
+
+
+def build_dir(project_dir, suffix="build"):
+    """The build directory of the CMake project in project_dir, for one variant.
+
+    suffix names the variant as these scripts always have: "build" (the default
+    build), "build-clang", "build-<target>", ... It becomes the last path
+    element without its "build-" prefix: out/windows/example/sample-projects/
+    databus/basic/client/default, .../transport/serializer/udp-builtin-clang.
+    """
+    rel = os.path.relpath(os.path.abspath(project_dir), REPO_ROOT)
+    if suffix == "build":
+        variant = "default"
+    elif suffix.startswith("build-"):
+        variant = suffix[len("build-"):]
+    else:
+        variant = suffix
+    return os.path.join(OUT_DIR, rel, variant)
+
 # example/sample-projects/bare-metal/qemu: one build directory per target
 # (build-<target>, configured with -DBM_TARGET=<target>), each run on QEMU.
 # The program ends QEMU through semihosting with status 0 only if every check
@@ -189,7 +217,7 @@ ZEPHYR_DATABUS_SAMPLE = "databus/zephyr"
 ZEPHYR_DATABUS_REQUIRED = {"client": "[Client] sensor/temp", "server": "Received CmdMsg"}
 
 # os/nuttx: NuttX's sim board (a host process). NuttX builds in its source
-# tree, so the scripts copy NUTTX_SRC/nuttx to os/nuttx/build/nuttx, link the
+# tree, so the scripts copy NUTTX_SRC/nuttx into the sample's build (nuttx/), link the
 # sample's apps/ beside it, and configure and build it there (see its README).
 # The simulated OS keeps running after the tests, so the run is stopped once
 # the success text appears.

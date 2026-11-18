@@ -16,6 +16,8 @@
 build
 build_win32
 build-*/
+# build_all.py's build tree: out/<platform>/<path of the project>/<variant>
+/out/
 lib
 [Dd]ebug/
 [Dd]ebugPublic/

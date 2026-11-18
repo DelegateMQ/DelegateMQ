@@ -34,6 +34,15 @@
       <Link>libDmqInterop.so</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Otherwise the copy build_all.py leaves in interop/python (it builds
+         interop/native into out/<platform>/, not interop/native/build). -->
+    <None Include="../../../../../interop/python/DmqInterop.dll" Condition="Exists('../../../../../interop/python/DmqInterop.dll') And !Exists('../../../../../interop/native/build/bin/Release/DmqInterop.dll') And !Exists('../../../../../interop/native/build/bin/Debug/DmqInterop.dll')">
+      <Link>DmqInterop.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../../../../interop/python/libDmqInterop.so" Condition="Exists('../../../../../interop/python/libDmqInterop.so') And !Exists('../../../../../interop/native/build/lib/libDmqInterop.so')">
+      <Link>libDmqInterop.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
-
 </Project>

@@ -353,8 +353,8 @@ def try_run_clang(project_name, project_dir, is_pair, client_dir, server_dir):
     if is_pair:
         client_name = get_exe_name(os.path.join(client_dir, "CMakeLists.txt"))
         server_name = get_exe_name(os.path.join(server_dir, "CMakeLists.txt"))
-        client_exe  = find_executable(os.path.join(client_dir, "build-clang"), client_name)
-        server_exe  = find_executable(os.path.join(server_dir, "build-clang"), server_name)
+        client_exe  = find_executable(full_suite.build_dir(client_dir, "build-clang"), client_name)
+        server_exe  = find_executable(full_suite.build_dir(server_dir, "build-clang"), server_name)
         if not client_exe or not server_exe:
             return False, False, {}
         did_fail, results = run_pair(
@@ -366,7 +366,7 @@ def try_run_clang(project_name, project_dir, is_pair, client_dir, server_dir):
     else:
         cmake_file = os.path.join(project_dir, "CMakeLists.txt")
         exe_name   = get_exe_name(cmake_file)
-        exe_path   = find_executable(os.path.join(project_dir, "build-clang"), exe_name)
+        exe_path   = find_executable(full_suite.build_dir(project_dir, "build-clang"), exe_name)
         if not exe_path:
             return False, False, {}
         did_fail, results = run_standalone(exe_path, project_dir)
@@ -408,7 +408,7 @@ def run_interop(repo_root, samples_dir, passed, failed, skipped):
     else:
         project = os.path.join(samples_dir, "databus", "interop")
         server_dir = os.path.join(project, "server")
-        server = find_executable(os.path.join(server_dir, "build"),
+        server = find_executable(full_suite.build_dir(server_dir),
                                  get_exe_name(os.path.join(server_dir, "CMakeLists.txt")))
         client_dir = os.path.join(project, "csharp-client")
         client = find_dotnet_exe(client_dir)
@@ -428,7 +428,7 @@ def run_interop(repo_root, samples_dir, passed, failed, skipped):
     label = "sample-interop"
     base = os.path.join(repo_root, "example", "sample-interop")
     server_dir = os.path.join(base, "cpp-server")
-    server = find_executable(os.path.join(server_dir, "build"), "InteropServer")
+    server = find_executable(full_suite.build_dir(server_dir), "InteropServer")
     csharp = find_dotnet_exe(os.path.join(base, "csharp")) if IS_WINDOWS else None
     if not server or (IS_WINDOWS and not csharp):
         skipped.append((label, "not built"))
@@ -464,7 +464,7 @@ def run_tools(repo_root, passed, failed, skipped):
     tools_dir = os.path.join(repo_root, "tools")
     exes = {}
     for name in ("dmq-spy", "dmq-monitor", "dmq-thread", "dmq-target"):
-        exes[name] = (find_executable(os.path.join(tools_dir, "build"), name)
+        exes[name] = (find_executable(full_suite.build_dir(tools_dir), name)
                       or find_executable(os.path.join(tools_dir, "bin"), name))
     if not all(exes.values()):
         skipped.append((label, "not built"))
@@ -538,7 +538,7 @@ def run_tests(repo_root, use_clang, passed, failed, skipped):
 
     for v in runs:
         label = f"test/{v['suffix']}"
-        exe_path = find_executable(os.path.join(test_dir, v["suffix"]), exe_name)
+        exe_path = find_executable(full_suite.build_dir(test_dir, v["suffix"]), exe_name)
         if not exe_path:
             skipped.append((label, "not built"))
             continue
@@ -575,7 +575,7 @@ def run_bare_metal(project_dir, passed, failed, skipped):
     for target, spec in full_suite.QEMU_TARGET_SAMPLES[sample].items():
         label = f"{sample}/{target}"
         # A cross-compiled ELF: no .exe suffix, even when built on Windows
-        kernel = os.path.join(project_dir, f"build-{target}", "delegate_app")
+        kernel = os.path.join(full_suite.build_dir(project_dir, f"build-{target}"), "delegate_app")
         if not os.path.isfile(kernel):
             # On Windows a target whose toolchain isn't installed is left to
             # the Linux run (Docker has every toolchain)
@@ -608,7 +608,7 @@ def run_transport(project_dir, use_clang, passed, failed, skipped):
     for name, _, _ in full_suite.transport_configs():
         for suffix in suffixes:
             label = f"{sample}/{name}" + (" (clang)" if suffix else "")
-            exe = find_executable(os.path.join(project_dir, f"build-{name}{suffix}"), exe_name)
+            exe = find_executable(full_suite.build_dir(project_dir, f"build-{name}{suffix}"), exe_name)
             if not exe:
                 skipped.append((label, "not built"))
                 continue
@@ -643,7 +643,7 @@ def run_serial(project_dir, use_clang, passed, failed, skipped):
     exe_name = get_exe_name(os.path.join(project_dir, "CMakeLists.txt"))
     builds = [("build", name)] + ([("build-clang", f"{name} (clang)")] if use_clang else [])
     for build_dir, label in builds:
-        exe = find_executable(os.path.join(project_dir, build_dir), exe_name)
+        exe = find_executable(full_suite.build_dir(project_dir, build_dir), exe_name)
         if not exe:
             skipped.append((label, "not built"))
             continue
@@ -702,7 +702,7 @@ def run_mqtt(project_dir, use_clang, passed, failed, skipped):
         nodes = {}
         for node in ("sub", "pub"):
             node_dir = os.path.join(project_dir, node)
-            nodes[node] = find_executable(os.path.join(node_dir, build_dir),
+            nodes[node] = find_executable(full_suite.build_dir(node_dir, build_dir),
                                           get_exe_name(os.path.join(node_dir, "CMakeLists.txt")))
         if not all(nodes.values()):
             skipped.append((label, "not built"))
@@ -742,7 +742,7 @@ def run_mqtt(project_dir, use_clang, passed, failed, skipped):
 def run_zephyr(project_dir, name, passed, failed, skipped):
     """A Zephyr native_sim app (build/zephyr/zephyr.exe): no arguments (it takes
     native_sim's own options), must exit 0 and print its success text."""
-    exe = os.path.join(project_dir, "build", "zephyr", "zephyr.exe")
+    exe = os.path.join(full_suite.build_dir(project_dir), "zephyr", "zephyr.exe")
     if not os.path.isfile(exe):
         skipped.append((name, "not built"))
         return
@@ -767,7 +767,7 @@ def run_zephyr_qemu(project_dir, name, passed, failed, skipped):
     every check passed) and the app printed its success text."""
     spec = full_suite.ZEPHYR_QEMU_TARGETS[name]
     label = f"{name}/{spec['board'].replace('/', '-')}"
-    elf = os.path.join(project_dir, spec["build"], "zephyr", "zephyr.elf")
+    elf = os.path.join(full_suite.build_dir(project_dir, spec["build"]), "zephyr", "zephyr.elf")
     if not os.path.isfile(elf):
         skipped.append((label, "not built"))
         return
@@ -793,8 +793,8 @@ def run_databus_zephyr(project_dir, passed, failed, skipped):
     name = full_suite.ZEPHYR_DATABUS_SAMPLE
     server_dir = os.path.join(project_dir, "server")
     client_dir = os.path.join(project_dir, "client")
-    server = os.path.join(server_dir, "build", "zephyr", "zephyr.exe")
-    client = find_executable(os.path.join(client_dir, "build"),
+    server = os.path.join(full_suite.build_dir(server_dir), "zephyr", "zephyr.exe")
+    client = find_executable(full_suite.build_dir(client_dir),
                              get_exe_name(os.path.join(client_dir, "CMakeLists.txt")))
     if not os.path.isfile(server) or not client:
         skipped.append((name, "not built"))
@@ -823,7 +823,7 @@ def run_nuttx(sample_dir, passed, failed, skipped):
     power off when an app returns), so read its output and stop it as soon as
     the success text appears; fail if it doesn't within NUTTX_TIMEOUT."""
     name = full_suite.NUTTX_SAMPLE
-    exe = os.path.join(sample_dir, "build", "nuttx", "nuttx")
+    exe = os.path.join(full_suite.build_dir(sample_dir), "nuttx", "nuttx")
     if not os.path.isfile(exe):
         skipped.append((name, "not built"))
         return
@@ -870,8 +870,8 @@ def run_cross_endian(project_dir, passed, failed, skipped):
     exes = {}
     for role, d in dirs.items():
         name = get_exe_name(os.path.join(d, "CMakeLists.txt"))
-        exes[role] = {"native": find_executable(os.path.join(d, "build"), name),
-                      "cross": find_executable(os.path.join(d, full_suite.CROSS_ENDIAN_BUILD), name)}
+        exes[role] = {"native": find_executable(full_suite.build_dir(d), name),
+                      "cross": find_executable(full_suite.build_dir(d, full_suite.CROSS_ENDIAN_BUILD), name)}
 
     for cross_role in ("client", "server"):
         label = f"{full_suite.CROSS_ENDIAN_SAMPLE} ({cpu['processor']} {cross_role}, x86 peer)"
@@ -1012,7 +1012,7 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
             spec        = CROSS_PAIRS[project_name]
             server_proj = os.path.join(samples_dir, spec["server_project"], spec["server_subdir"])
             server_name = get_exe_name(os.path.join(server_proj, "CMakeLists.txt"))
-            server_exe  = find_executable(os.path.join(server_proj, "build"), server_name)
+            server_exe  = find_executable(full_suite.build_dir(server_proj), server_name)
 
             if not server_exe:
                 skipped.append((project_name, f"{spec['server_project']} server not built"))
@@ -1029,7 +1029,7 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
             procs = []
             for node in MULTI_NODE[project_name]:
                 node_dir = os.path.join(project_dir, node)
-                node_exe = find_executable(os.path.join(node_dir, "build"),
+                node_exe = find_executable(full_suite.build_dir(node_dir),
                                            get_exe_name(os.path.join(node_dir, "CMakeLists.txt")))
                 if not node_exe:
                     break
@@ -1045,8 +1045,8 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
         elif is_pair:
             client_name = get_exe_name(os.path.join(client_dir, "CMakeLists.txt"))
             server_name = get_exe_name(os.path.join(server_dir, "CMakeLists.txt"))
-            client_exe  = find_executable(os.path.join(client_dir, "build"), client_name)
-            server_exe  = find_executable(os.path.join(server_dir, "build"), server_name)
+            client_exe  = find_executable(full_suite.build_dir(client_dir), client_name)
+            server_exe  = find_executable(full_suite.build_dir(server_dir), server_name)
 
             if not client_exe or not server_exe:
                 skipped.append((project_name, "not built"))
@@ -1066,7 +1066,7 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
                 continue
 
             exe_name = get_exe_name(cmake_file)
-            exe_path = find_executable(os.path.join(project_dir, "build"), exe_name)
+            exe_path = find_executable(full_suite.build_dir(project_dir), exe_name)
 
             if not exe_path:
                 skipped.append((project_name, "not built"))

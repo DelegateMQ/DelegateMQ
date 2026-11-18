@@ -14,7 +14,7 @@ The **Shapes Demo** is a graphical demonstration of the **DelegateMQ DataBus** c
 ## How to Run
 
 1. **Configure and Build**:
-   Use the `scripts/03_generate_samples.py` script, or run CMake manually in both `client` and `server` folders:
+   Run CMake in both `client` and `server` folders (`scripts/build_all.py` builds the samples into `out/` instead):
    ```bash
    cmake -B build .
    cmake --build build --config Release

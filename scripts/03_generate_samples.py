@@ -105,7 +105,7 @@ def find_arm_gcc():
 
 
 def configure_pumptron_f4(pumptron_dir):
-    """Configure Pumptron's STM32F4 firmware (Ninja, Release) into build/f4, if the
+    """Configure Pumptron's STM32F4 firmware (Ninja, Release) into its f4 build, if the
     cross toolchain and STM32Cube FW_F4 package are available. The toolchain file
     finds the compiler itself; these checks only decide whether to try."""
     label = "pumptron (STM32F4 firmware)"
@@ -120,15 +120,15 @@ def configure_pumptron_f4(pumptron_dir):
     if missing:
         print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
         # Drop a stale firmware tree from an earlier configure so
-        # 04_build_samples.py (which builds build/f4 if present) skips it too.
-        stale = os.path.join(pumptron_dir, "build", "f4")
+        # 04_build_samples.py (which builds the f4 build if present) skips it too.
+        stale = full_suite.build_dir(pumptron_dir, "f4")
         if os.path.isdir(stale):
             shutil.rmtree(stale, ignore_errors=True)
         return
 
     print(f"[CONFIGURING] {label}")
     cmd = ["cmake", "-S", os.path.join("controller", "platform", "f4"),
-           "-B", os.path.join("build", "f4"), "-G", "Ninja",
+           "-B", full_suite.build_dir(pumptron_dir, "f4"), "-G", "Ninja",
            "-DCMAKE_BUILD_TYPE=Release", f"-DSTM32_REPO={stm32_repo}"]
     try:
         subprocess.run(cmd, cwd=pumptron_dir, check=True,
@@ -144,10 +144,10 @@ def configure_test_variants(test_dir, clean):
     clang_exe = shutil.which("clang++") if not IS_WINDOWS else None
     for v in full_suite.test_variants():
         label = f"test ({v['suffix'].replace('build-', '', 1)})"
-        path = os.path.join(test_dir, v["suffix"])
+        path = full_suite.build_dir(test_dir, v["suffix"])
         if clean and os.path.exists(path):
             shutil.rmtree(path, ignore_errors=True)
-        cmd = ["cmake", "-B", v["suffix"]]
+        cmd = ["cmake", "-B", path]
         if v["clang"] and not IS_WINDOWS:
             if not clang_exe:
                 print(f"[CONFIGURING] {label}\n   FAILED: clang++ not found in PATH")
@@ -187,9 +187,9 @@ def configure_bare_metal(sample_dir, clean, full):
             if full and not IS_WINDOWS:
                 FAILED.append((label, "--full: missing " + ", ".join(missing)))
             continue
-        build_dir = f"build-{target}"
-        if clean and os.path.exists(os.path.join(sample_dir, build_dir)):
-            shutil.rmtree(os.path.join(sample_dir, build_dir), ignore_errors=True)
+        build_dir = full_suite.build_dir(sample_dir, f"build-{target}")
+        if clean and os.path.exists(build_dir):
+            shutil.rmtree(build_dir, ignore_errors=True)
         cmd = ["cmake", "-B", build_dir, f"-DBM_TARGET={target}", "."]
         if shutil.which("ninja"):
             cmd[3:3] = ["-G", "Ninja"]
@@ -213,10 +213,10 @@ def configure_transport(sample_dir, clean, clang_exe):
         variants.append(("-clang", [f"-DCMAKE_CXX_COMPILER={clang_exe}"]))
     for name, transport, serializer in full_suite.transport_configs():
         for suffix, extra in variants:
-            build_dir = f"build-{name}{suffix}"
+            build_dir = full_suite.build_dir(sample_dir, f"build-{name}{suffix}")
             label = f"{sample}/{name}" + (" (clang)" if suffix else "")
-            if clean and os.path.exists(os.path.join(sample_dir, build_dir)):
-                shutil.rmtree(os.path.join(sample_dir, build_dir), ignore_errors=True)
+            if clean and os.path.exists(build_dir):
+                shutil.rmtree(build_dir, ignore_errors=True)
             cmd = (["cmake", "-B", build_dir, f"-DSAMPLE_TRANSPORT={transport}",
                     f"-DSAMPLE_SERIALIZER={serializer}"] + extra + ["."])
             print(f"[CONFIGURING] {label}")
@@ -237,28 +237,28 @@ def run_configure(cmd, cwd, label, env=None):
 
 
 def configure_host(project_dir, label, clean):
-    """Configure an ordinary CMake project into build/."""
-    build_dir = os.path.join(project_dir, "build")
+    """Configure an ordinary CMake project into its default build."""
+    build_dir = full_suite.build_dir(project_dir)
     if clean and os.path.exists(build_dir):
         shutil.rmtree(build_dir, ignore_errors=True)
     print(f"[CONFIGURING] {label}")
-    if run_configure(["cmake", "-B", "build", "."], project_dir, label):
+    if run_configure(["cmake", "-B", build_dir, "."], project_dir, label):
         print("   Success!")
 
 
 def configure_zephyr(project_dir, label, clean, full):
-    """Configure a Zephyr app for native_sim into build/ with plain CMake
-    (-DBOARD), against ZEPHYR_BASE; Zephyr's cache goes inside build/."""
+    """Configure a Zephyr app for native_sim into its default build with plain
+    CMake (-DBOARD), against ZEPHYR_BASE; Zephyr's cache goes inside the build."""
     missing = full_suite.zephyr_missing()
     if missing:
         print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
         if full:
             FAILED.append((label, "--full: missing " + ", ".join(missing)))
         return
-    build_dir = os.path.join(project_dir, "build")
+    build_dir = full_suite.build_dir(project_dir)
     if clean and os.path.exists(build_dir):
         shutil.rmtree(build_dir, ignore_errors=True)
-    cmd = ["cmake", "-B", "build", f"-DBOARD={full_suite.ZEPHYR_BOARD}",
+    cmd = ["cmake", "-B", build_dir, f"-DBOARD={full_suite.ZEPHYR_BOARD}",
            f"-DUSER_CACHE_DIR={os.path.join(build_dir, 'zephyr-cache')}", "."]
     if shutil.which("ninja"):
         cmd[3:3] = ["-G", "Ninja"]
@@ -278,10 +278,10 @@ def configure_zephyr_qemu(project_dir, name, clean, full):
         if full:
             FAILED.append((label, "--full: missing " + ", ".join(missing)))
         return
-    build_dir = os.path.join(project_dir, spec["build"])
+    build_dir = full_suite.build_dir(project_dir, spec["build"])
     if clean and os.path.exists(build_dir):
         shutil.rmtree(build_dir, ignore_errors=True)
-    cmd = ["cmake", "-B", spec["build"], f"-DBOARD={spec['board']}",
+    cmd = ["cmake", "-B", build_dir, f"-DBOARD={spec['board']}",
            "-DZEPHYR_TOOLCHAIN_VARIANT=zephyr",
            f"-DUSER_CACHE_DIR={os.path.join(build_dir, 'zephyr-cache')}", "."]
     if shutil.which("ninja"):
@@ -304,7 +304,7 @@ def configure_nuttx(sample_dir, repo_root, clean, full):
         if full:
             FAILED.append((label, "--full: missing " + ", ".join(missing)))
         return
-    build_root = os.path.join(sample_dir, "build")
+    build_root = full_suite.build_dir(sample_dir)
     nuttx_dir = os.path.join(build_root, "nuttx")
     if clean and os.path.exists(build_root):
         shutil.rmtree(build_root, ignore_errors=True)
@@ -317,7 +317,7 @@ def configure_nuttx(sample_dir, repo_root, clean, full):
         shutil.rmtree(build_root, ignore_errors=True)   # a half-done earlier attempt
     os.makedirs(build_root)
     shutil.copytree(os.path.join(os.environ["NUTTX_SRC"], "nuttx"), nuttx_dir, symlinks=True)
-    os.symlink(os.path.join("..", "apps"), os.path.join(build_root, "dmq_apps"))
+    os.symlink(os.path.join(sample_dir, "apps"), os.path.join(build_root, "dmq_apps"))
     # The sample's apps/Makefile runs during configure too and needs DELEGATEMQ_ROOT
     env = dict(os.environ, DELEGATEMQ_ROOT=repo_root)
     for cmd in (["./tools/configure.sh", "-a", "../dmq_apps", "sim:cxxtest"],
@@ -455,7 +455,7 @@ def build_samples(use_clang=False, clean=False, full=False):
                     display_name = project_name
 
                 # 2. CLEAN: Delete existing build folder if --clean set
-                build_path = os.path.join(dirpath, "build")
+                build_path = full_suite.build_dir(dirpath)
                 if clean and os.path.exists(build_path):
                     try: shutil.rmtree(build_path)
                     except: pass
@@ -469,7 +469,7 @@ def build_samples(use_clang=False, clean=False, full=False):
                 needs_win32 = (project_name in WIN32_SIMULATOR_PROJECTS
                                or f"{parent_name}/{project_name}" in WIN32_SIMULATOR_PROJECTS)
                 
-                cmd = ["cmake", "-B", "build"]
+                cmd = ["cmake", "-B", build_path]
                 if needs_win32:
                     cmd += ["-A", "Win32"]
 
@@ -512,12 +512,12 @@ def build_samples(use_clang=False, clean=False, full=False):
                 # ThreadX's Linux/GNU simulation port requires native Linux
                 # (UNIX AND NOT APPLE) -- see src/delegate-mq/External.cmake.
                 if project_name == "cellutron" and platform.system() == "Linux":
-                    build_threadx_path = os.path.join(dirpath, "build-threadx")
+                    build_threadx_path = full_suite.build_dir(dirpath, "build-threadx")
                     if clean and os.path.exists(build_threadx_path):
                         try: shutil.rmtree(build_threadx_path)
                         except: pass
                     print(f"[CONFIGURING] {display_name} (ThreadX)")
-                    cmd_threadx = ["cmake", "-B", "build-threadx", "-DCELLUTRON_RTOS=THREADX", "."]
+                    cmd_threadx = ["cmake", "-B", build_threadx_path, "-DCELLUTRON_RTOS=THREADX", "."]
                     try:
                         subprocess.run(
                             cmd_threadx, cwd=dirpath, check=True,
@@ -541,23 +541,23 @@ def build_samples(use_clang=False, clean=False, full=False):
                         if full:
                             FAILED.append((label, "--full: missing " + ", ".join(missing)))
                     else:
-                        cross_build = os.path.join(dirpath, full_suite.CROSS_ENDIAN_BUILD)
+                        cross_build = full_suite.build_dir(dirpath, full_suite.CROSS_ENDIAN_BUILD)
                         if clean and os.path.exists(cross_build):
                             shutil.rmtree(cross_build, ignore_errors=True)
                         print(f"[CONFIGURING] {label}")
-                        cmd_cross = (["cmake", "-B", full_suite.CROSS_ENDIAN_BUILD]
+                        cmd_cross = (["cmake", "-B", cross_build]
                                      + full_suite.cross_cmake_args(full_suite.CROSS_ENDIAN_CPU) + ["."])
                         if run_configure(cmd_cross, dirpath, label):
                             print("   Success!")
 
                 # --- CLANG CONFIGURE (optional, Linux only) ---
                 if clang_exe and not needs_win32:
-                    build_clang_path = os.path.join(dirpath, "build-clang")
+                    build_clang_path = full_suite.build_dir(dirpath, "build-clang")
                     if clean and os.path.exists(build_clang_path):
                         try: shutil.rmtree(build_clang_path)
                         except: pass
                     print(f"[CONFIGURING] {display_name} (clang)")
-                    cmd_clang = ["cmake", "-B", "build-clang",
+                    cmd_clang = ["cmake", "-B", build_clang_path,
                                  f"-DCMAKE_CXX_COMPILER={clang_exe}", "."]
                     try:
                         subprocess.run(

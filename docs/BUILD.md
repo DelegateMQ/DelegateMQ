@@ -178,11 +178,14 @@ A plain `build_all.py` run skips whatever the machine lacks the tools for. `--fu
 
 Results are also written to `full-suite-results/<platform>.json` (gitignored).
 
+#### Where the Builds Go
+`build_all.py` builds outside the source tree, in `out/<platform>/<path of the project>/<variant>` (gitignored), the layout Zephyr's `twister` uses: for example `out/windows/example/sample-projects/databus/basic/client/default`, `out/linux/example/sample-projects/transport/serializer/udp-builtin-clang` or `out/linux/test/asan`. `<platform>` is `windows`, `linux`, or `linux-docker` for `docker/run.sh`. Moving or renaming a sample leaves no stale build behind it, and deleting `out/` removes every build. A sample built by hand, as its README shows, still uses its own `build/` directory. `interop/native`'s library is copied to `interop/python/` after it's built, where the Python and C# interop clients find it when there's no `interop/native/build`.
+
 ```bash
 python3 build_all.py --full
 ```
 
-`transport/serializer` is built and run once per transport/serializer combination in `full_suite.TRANSPORT_COMBOS`, each in its own `build-<transport>-<serializer>` directory. Samples that need a broker, a serial port pair or an emulator are run with them: `transport/mqtt` against a mosquitto broker started for the run, `transport/serialport` over a `socat` pseudo-terminal pair (Linux), the `bare-metal` targets on QEMU, the Zephyr samples on `native_sim` (with `ZEPHYR_BASE` set) and `os/nuttx` on NuttX's `sim` board (with `NUTTX_SRC` set). Samples that need real hardware (`boards/stm32-freertos`) are listed in `full_suite.PENDING` and reported as skipped with the reason; `bare-metal/keil` needs Keil MDK and is never built. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
+`transport/serializer` is built and run once per transport/serializer combination in `full_suite.TRANSPORT_COMBOS`, each in its own `<transport>-<serializer>` build directory. Samples that need a broker, a serial port pair or an emulator are run with them: `transport/mqtt` against a mosquitto broker started for the run, `transport/serialport` over a `socat` pseudo-terminal pair (Linux), the `bare-metal` targets on QEMU, the Zephyr samples on `native_sim` (with `ZEPHYR_BASE` set) and `os/nuttx` on NuttX's `sim` board (with `NUTTX_SRC` set). Samples that need real hardware (`boards/stm32-freertos`) are listed in `full_suite.PENDING` and reported as skipped with the reason; `bare-metal/keil` needs Keil MDK and is never built. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
 
 #### In Docker (Linux)
 `docker/Dockerfile` has every Linux tool `--full` needs, and `docker/run.sh` runs `build_all.py` in it on the current checkout. It needs Docker, with your user in the `docker` group:
@@ -192,7 +195,7 @@ docker/run.sh --full               # builds the image on first use
 docker/run.sh --full --from 3      # resume at step 03
 ```
 
-The third-party libraries go to `~/.cache/delegatemq/external` (override with `DMQ_DEPS_DIR`) and are kept between runs. Build directories land in the checkout, configured for the container's `/work` path: rerun `03_generate_samples.py --clean` before building them outside the container.
+The third-party libraries go to `~/.cache/delegatemq/external` (override with `DMQ_DEPS_DIR`) and are kept between runs. Build directories land in the checkout under `out/linux-docker/`, apart from a native Linux run's `out/linux/`, since a container build records the container's `/work` paths.
 
 #### Both Platforms from One Command
 From Windows, `--linux-host` runs the Linux half on a Linux machine at the same time as the local run, and prints one combined table:
