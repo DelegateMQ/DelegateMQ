@@ -576,7 +576,8 @@ def run_bare_metal(project_dir, passed, failed, skipped):
         label = f"{sample}/{target}"
         # A cross-compiled ELF: no .exe suffix, even when built on Windows
         kernel = os.path.join(full_suite.build_dir(project_dir, f"build-{target}"), "delegate_app")
-        if not os.path.isfile(kernel):
+        # A stale ELF from before the toolchain was removed isn't this code
+        if not os.path.isfile(kernel) or full_suite.bare_metal_missing(target, sample):
             # On Windows a target whose toolchain isn't installed is left to
             # the Linux run (Docker has every toolchain)
             skipped.append((label, full_suite.LINUX_RUN_COVERS if IS_WINDOWS else "not built"))

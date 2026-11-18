@@ -446,7 +446,10 @@ def build_samples(use_clang=False, full=False):
                 continue
 
             bare_metal = qemu_targets is not None
-            extra = [f"build-{t}" for t in qemu_targets] if bare_metal else None
+            # Only QEMU targets whose toolchain is installed: a build directory
+            # left from before a toolchain was removed would call a missing compiler
+            extra = ([f"build-{t}" for t in qemu_targets
+                      if not full_suite.bare_metal_missing(t, project_name)] if bare_metal else None)
             if project_name == full_suite.CROSS_ENDIAN_SAMPLE and not IS_WINDOWS:
                 extra = [full_suite.CROSS_ENDIAN_BUILD]   # client/server for the big-endian CPU
             if project_name in full_suite.ZEPHYR_QEMU_TARGETS and not IS_WINDOWS:
