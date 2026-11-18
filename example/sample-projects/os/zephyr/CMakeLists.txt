@@ -38,3 +38,13 @@ source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
 include("${CMAKE_SOURCE_DIR}/../../../../test/portable/PortableTests.cmake")
 target_sources(app PRIVATE main_delegate.cpp ${PORTABLE_TESTS_SOURCES} ${DMQ_LIB_SOURCES} ${DMQ_PORT_SOURCES})
 target_include_directories(app PRIVATE ${DMQ_INCLUDE_DIR} ${PORTABLE_TESTS_DIR})
+
+if(NOT CONFIG_ARCH_POSIX)
+    # A Cortex-M board under QEMU (e.g. mps2/an385, -DBOARD=mps2/an385
+    # -DZEPHYR_TOOLCHAIN_VARIANT=zephyr): os/cmsis-rtos2's cortex_m_qemu.cpp
+    # ends QEMU through semihosting with the test result, including on a
+    # fault, which DMQ_CUSTOM_FAULT_HANDLER routes there. This build is what
+    # shows ZephyrThread links and runs on a 32-bit Cortex-M.
+    target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../cmsis-rtos2/cortex_m_qemu.cpp)
+    target_compile_definitions(app PRIVATE DMQ_CUSTOM_FAULT_HANDLER)
+endif()

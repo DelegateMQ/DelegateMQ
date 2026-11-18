@@ -56,7 +56,7 @@ QEMU exits with status 0 when every test passed. `targets/arm-m3/`:
 - `main.c`: FreeRTOS hooks, and newlib's malloc lock (tasks allocate concurrently).
 - `bsp.c`: the timer interrupt (`bsp.h`), and `BspExit()`.
 - `fault.cpp`: DelegateMQ's fault handlers (`DMQ_CUSTOM_FAULT_HANDLER`), which print and exit instead of halting.
-- The newlib syscalls over semihosting and the linker script are the [bare-metal/qemu](../../bare-metal/qemu/) sample's (`targets/common/retarget.c`, `targets/arm-m4/flash.ld`).
+- The newlib syscalls over semihosting and the linker script are the [bare-metal/qemu](../../bare-metal/qemu/README.md) sample's (`targets/common/retarget.c`, `targets/arm-m4/flash.ld`).
 
 `FreeRTOSConfig.h` adds the Cortex-M settings (interrupt priorities, newlib reentrancy) under `__ARM_ARCH`. On Windows, QEMU delivers timer interrupts at the host's coarse timer granularity, so Test 11 sees fewer interrupts and takes several seconds; its checks don't assume a rate. `build_all.py` builds and runs this target on both platforms (`full_suite.QEMU_TARGET_SAMPLES`).
 

@@ -11,4 +11,4 @@ Full documentation for architecture and usage:
 
 ## Example
 A complete Python sample script is available here:
-👉 **[example/sample-interop/python/](../../example/sample-interop/python/)**
+👉 **[example/sample-interop/python/](../../example/sample-interop/python/main.py)**

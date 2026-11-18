@@ -141,5 +141,5 @@ Everything comes from ATfE's runtime, `armv7m_soft_nofp_exn_rtti_size` (selected
 
 ## Related Examples
 
-- [bare-metal/keil](../keil/): Keil MDK (ARMCLANG) version, Cortex-M4
-- [boards/stm32-freertos](../../boards/stm32-freertos/): FreeRTOS on a real STM32F4 board
+- [bare-metal/keil](../keil/README.md): Keil MDK (ARMCLANG) version, Cortex-M4
+- [boards/stm32-freertos](../../boards/stm32-freertos/README.md): FreeRTOS on a real STM32F4 board

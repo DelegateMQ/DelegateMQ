@@ -325,7 +325,7 @@ Forwarding data from one network or transport to another (Ethernet ↔ serial, L
 | Delivery confirmation | Per hop | Per hop: a reliable-mode ACK confirms only the hop it was sent on |
 | Runs on an MCU | No | Yes, e.g. a UART ↔ Ethernet gateway on the device itself |
 
-For a fixed topology with a known topic list, which is the usual embedded gateway, a DelegateMQ relay is a few lines per topic. For large or changing systems where the gateway shouldn't need to know the message types, a DDS router does far more. See [Relay Nodes](DATABUS.md#relay-nodes) in DATABUS.md and the [`databus/relay`](../example/sample-projects/databus/relay/) sample.
+For a fixed topology with a known topic list, which is the usual embedded gateway, a DelegateMQ relay is a few lines per topic. For large or changing systems where the gateway shouldn't need to know the message types, a DDS router does far more. See [Relay Nodes](DATABUS.md#relay-nodes) in DATABUS.md and the [`databus/relay`](../example/sample-projects/databus/relay/README.md) sample.
 
 **Thread overhead comparison:**
 

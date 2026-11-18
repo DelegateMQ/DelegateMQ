@@ -84,14 +84,17 @@ def rewrite(text, ref):
         return f'{attr}="{absolute_url(target, ref, image=(attr == "src"))}"'
 
     def prose(chunk):
-        # Rewrite between inline code spans only
-        out, pos = [], 0
-        for m in INLINE_CODE.finditer(chunk):
-            out.append(HTML_ATTR.sub(html, MD_LINK.sub(md, chunk[pos:m.start()])))
-            out.append(m.group(0))
-            pos = m.end()
-        out.append(HTML_ATTR.sub(html, MD_LINK.sub(md, chunk[pos:])))
-        return "".join(out)
+        # Set inline code aside while rewriting, so code that looks like a link
+        # isn't touched but a link labelled with code ([`x`](path)) still is
+        spans = []
+
+        def hide(m):
+            spans.append(m.group(0))
+            return f"\x00{len(spans) - 1}\x00"
+
+        hidden = INLINE_CODE.sub(hide, chunk)
+        hidden = HTML_ATTR.sub(html, MD_LINK.sub(md, hidden))
+        return re.sub(r"\x00(\d+)\x00", lambda m: spans[int(m.group(1))], hidden)
 
     out, pos = [], 0
     for m in FENCE.finditer(text):
@@ -104,7 +107,7 @@ def rewrite(text, ref):
 
 def relative_targets(text):
     """Link targets outside code that aren't absolute URLs (should be none after rewrite)."""
-    text = INLINE_CODE.sub("", FENCE.sub("", text))
+    text = INLINE_CODE.sub("x", FENCE.sub("", text))   # keeps [`label`](link) a link
     targets = [m.group(3) for m in MD_LINK.finditer(text)] + [m.group(2) for m in HTML_ATTR.finditer(text)]
     return [t for t in targets if not ABSOLUTE.match(t)]
 

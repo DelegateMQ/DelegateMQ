@@ -49,6 +49,19 @@ west build -b native_sim/native/64 /path/to/DelegateMQ/example/sample-projects/o
 ./build/zephyr/zephyr.exe
 ```
 
+## On a real Cortex-M: mps2/an385 under QEMU
+
+The same sample also builds for Zephyr's `mps2/an385` board (Cortex-M3) and runs under `qemu-system-arm`. This shows `ZephyrThread` links and runs on a 32-bit Cortex-M, which `native_sim` (a 64-bit host process) can't. It needs the Zephyr SDK's Arm toolchain (`ZEPHYR_SDK_INSTALL_DIR`); the Docker image has it.
+
+```shell
+cmake -B build-mps2-an385 -G Ninja -DBOARD=mps2/an385 -DZEPHYR_TOOLCHAIN_VARIANT=zephyr .
+cmake --build build-mps2-an385
+qemu-system-arm -M mps2-an385 -cpu cortex-m3 -nographic -semihosting-config enable=on,target=native \
+    -kernel build-mps2-an385/zephyr/zephyr.elf
+```
+
+On Cortex-M builds, `os/cmsis-rtos2`'s [`cortex_m_qemu.cpp`](../cmsis-rtos2/cortex_m_qemu.cpp) ends QEMU through semihosting with the result: 0 when every test passed, non-zero on a DelegateMQ fault or a Zephyr fatal error.
+
 ## Project Structure
 
 *   `main_delegate.cpp`: Contains the DelegateMQ test logic and the periodic Zephyr `k_timer` that drives `Timer::ProcessTimers()`. No separate entry-point shim is needed — Zephyr calls this file's `main()` directly on its own automatically-created main thread once the kernel is initialized, unlike ThreadX (`tx_application_define()`) or FreeRTOS (an explicit `xTaskCreate()`'d task).

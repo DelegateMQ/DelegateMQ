@@ -260,9 +260,14 @@ private:
     // manually.
     static const size_t STACK_SIZE = dmq::NUTTX_STACK_BYTES; // DMQ_NUTTX_STACK_BYTES
 
-    // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
-    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
+    // Watchdog related members, as 32-bit millisecond counts rather than
+    // std::atomic<dmq::TimePoint>/<dmq::Duration>: those are 64-bit, and a
+    // 64-bit atomic on a 32-bit Cortex-M (no 64-bit LDREX/STREX) is a libatomic
+    // call that arm-none-eabi toolchains don't provide. Milliseconds whatever
+    // dmq::Clock's unit, so the count wraps only after 49 days; elapsed time is
+    // an unsigned 32-bit difference, so wrap-safe. Same as CmsisRtos2Thread.
+    std::atomic<uint32_t> m_lastAliveTime{0};
+    std::atomic<uint32_t> m_watchdogTimeout{0};
     NuttXThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

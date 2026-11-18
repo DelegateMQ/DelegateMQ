@@ -1,6 +1,6 @@
 # transport/netx-udp — Remote Delegates over NetX Duo on ThreadX
 
-The [transport/serializer](../serializer/) app (a `Sender` calling a remote delegate every 50 ms, a `Receiver` getting it) built for ThreadX and NetX Duo. It uses `NetXUdpTransport` (`DMQ_TRANSPORT_THREADX_UDP`) on ThreadX's Linux/GNU simulation port, with no board needed. Both ends are in one process and talk to 127.0.0.1 through NetX Duo's own loopback interface, so every datagram goes through NetX's UDP/IP code.
+The [transport/serializer](../serializer/README.md) app (a `Sender` calling a remote delegate every 50 ms, a `Receiver` getting it) built for ThreadX and NetX Duo. It uses `NetXUdpTransport` (`DMQ_TRANSPORT_THREADX_UDP`) on ThreadX's Linux/GNU simulation port, with no board needed. Both ends are in one process and talk to 127.0.0.1 through NetX Duo's own loopback interface, so every datagram goes through NetX's UDP/IP code.
 
 The app's files are reused from `transport/serializer`: `sender.h`, `receiver.h`, and the built-in serializer's `data.h` and `data.cpp`. This folder adds only:
 

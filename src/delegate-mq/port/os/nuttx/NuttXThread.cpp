@@ -21,6 +21,23 @@ namespace dmq::os {
 
 using namespace dmq::util;
 
+// The watchdog's times and timeout as 32-bit millisecond counts (see
+// m_lastAliveTime in NuttXThread.h)
+static uint32_t WatchdogMs(dmq::TimePoint t)
+{
+    return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()).count());
+}
+static uint32_t WatchdogMs(dmq::Duration d)
+{
+    // A non-zero timeout under 1 ms stays non-zero: 0 means no watchdog
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+    return static_cast<uint32_t>(ms > 0 ? ms : (d.count() > 0 ? 1 : 0));
+}
+static dmq::Duration WatchdogDuration(uint32_t ms)
+{
+    return std::chrono::duration_cast<dmq::Duration>(std::chrono::milliseconds(ms));
+}
+
 //----------------------------------------------------------------------------
 // Thread Constructor
 //----------------------------------------------------------------------------
@@ -86,8 +103,8 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_startGate.OnCreate();
         // Set before the thread exists: its loop reads the timeout before its
         // first queue wait, and an idle thread waits forever with no timeout
-        m_lastAliveTime.store(Timer::GetNow());
-        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
+        m_watchdogTimeout.store(WatchdogMs(watchdogTimeout.value_or(dmq::Duration(0))));
         m_discard.store(false);
 
         // 1. Create the message queue
@@ -121,7 +138,7 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         sem_wait(&m_startSem);
 
         m_created.store(true);
-        m_lastAliveTime.store(Timer::GetNow());
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
 
         if (watchdogTimeout.has_value())
         {
@@ -191,7 +208,7 @@ void NuttXThread::ExitThread(ExitPolicy policy)
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
             // Self-exit: this thread runs no more messages, and the object may be
             // destroyed once this handler returns. Stop watchdog checks now.
-            m_watchdogTimeout.store(dmq::Duration(0));
+            m_watchdogTimeout.store(0);
             return;
         }
 
@@ -224,7 +241,7 @@ void NuttXThread::ExitThread(ExitPolicy policy)
         // The thread has finished (or, on a self-exit, is in its last handler):
         // stop watchdog checks. Not earlier, so a thread that hangs while
         // ExitThread() waits for it is still reported.
-        m_watchdogTimeout.store(dmq::Duration(0));
+        m_watchdogTimeout.store(0);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -366,13 +383,13 @@ void NuttXThread::WatchdogCheck()
     if (m_startGate.IsHeld())
         return;     // held at its start gate by design, not hung
 
-    auto now = Timer::GetNow();
-    auto lastAlive = m_lastAliveTime.load();
-    auto watchdogTimeout = m_watchdogTimeout.load();
+    const uint32_t now = WatchdogMs(Timer::GetNow());
+    const uint32_t lastAlive = m_lastAliveTime.load();
+    const uint32_t watchdogTimeout = m_watchdogTimeout.load();
 
-    if (watchdogTimeout.count() > 0)
+    if (watchdogTimeout > 0)
     {
-        auto delta = now - lastAlive;
+        const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
         if (delta > watchdogTimeout)
         {
             WatchdogHandler(THREAD_NAME.c_str());
@@ -385,7 +402,7 @@ void NuttXThread::WatchdogCheck()
 //----------------------------------------------------------------------------
 void NuttXThread::ThreadCheck()
 {
-    m_lastAliveTime.store(Timer::GetNow());
+    m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
 }
 
 //----------------------------------------------------------------------------
@@ -458,7 +475,7 @@ void NuttXThread::Run()
     if (m_startGate.Enabled())
     {
         const bool opened = m_startGate.Wait(m_exit);
-        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));   // before Passed(): no stale watchdog read
         m_startGate.Passed();
         // ExitThread() while held: run nothing. Cancel each queued message
         // (DISCARD) until the exit message. Consuming them also keeps
@@ -473,8 +490,8 @@ void NuttXThread::Run()
     {
         dmq::Duration watchdogTimeout;
         {
-            m_lastAliveTime.store(Timer::GetNow());
-            watchdogTimeout = m_watchdogTimeout.load();
+            m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
+            watchdogTimeout = WatchdogDuration(m_watchdogTimeout.load());
         }
 
         // If watchdog active, use a finite timeout so we can periodically update

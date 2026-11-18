@@ -19,7 +19,7 @@ DelegateMQ is a [PlatformIO](https://platformio.org/) library: add one line to `
 
 ## Supported Boards
 
-The example sketch, [`example/platformio/async-delegates`](async-delegates/), is built for each board below by the [PlatformIO CI workflow](../../.github/workflows/platformio.yml).
+The example sketch, [`example/platformio/async-delegates`](async-delegates/src/main.cpp), is built for each board below by the [PlatformIO CI workflow](../../.github/workflows/platformio.yml).
 
 | Board | `env` | Thread port | Async delegates | Verified |
 | :--- | :--- | :--- | :--- | :--- |

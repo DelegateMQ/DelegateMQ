@@ -198,12 +198,19 @@ ZEPHYR_SAMPLES = {
     "os/cmsis-rtos2":     "ALL TESTS PASSED",
 }
 # Zephyr samples also built for a Cortex-M board and run under QEMU, with the
-# Zephyr SDK's Arm toolchain: os/cmsis-rtos2 verifies CmsisRtos2CriticalSection
+# Zephyr SDK's Arm toolchain: os/zephyr shows ZephyrThread links and runs on a
+# 32-bit Cortex-M; os/cmsis-rtos2 verifies CmsisRtos2CriticalSection
 # there (real CMSIS-Core, a real interrupt). Configured into its own build
 # directory; the app ends QEMU through semihosting with status 0 only if every
 # check passed.
 ZEPHYR_QEMU_TARGETS = {
     "os/cmsis-rtos2": {
+        "board": "mps2/an385",
+        "build": "build-mps2-an385",
+        "qemu":  ["qemu-system-arm", "-M", "mps2-an385", "-cpu", "cortex-m3", "-nographic",
+                  "-monitor", "none", "-semihosting-config", "enable=on,target=native"],
+    },
+    "os/zephyr": {
         "board": "mps2/an385",
         "build": "build-mps2-an385",
         "qemu":  ["qemu-system-arm", "-M", "mps2-an385", "-cpu", "cortex-m3", "-nographic",

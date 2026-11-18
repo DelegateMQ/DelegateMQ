@@ -33,7 +33,7 @@ To run the `RUN_NETWORK_TESTS` mode (Client-Server demo), you need the following
 
 * **IDE:** STM32CubeIDE (Tested on v2.0.0).
 * **Firmware:** STM32Cube FW_F4 V1.28.3 (or compatible).
-* **Library:** [DelegateMQ](https://github.com/DelegateMQ/DelegateMQ) (Source code must be available locally).
+* **Library:** [DelegateMQ](../../../../README.md) (Source code must be available locally).
 * **PC Client:** The companion `ClientApp` (built via Visual Studio/CMake) running on Windows/Linux is required for Network Tests.
 
 ## ⚙️ Configuration

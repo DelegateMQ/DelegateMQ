@@ -126,20 +126,20 @@ Each platform below states how it has been verified. The OS port is selected wit
 
 | Platform | Port (`DMQ_THREAD_*`) | Verified by | Example |
 | :--- | :--- | :--- | :--- |
-| Windows (MSVC) | `STDLIB`, `WIN32` | CI: build and unit tests | [test/](test/main.cpp) |
-| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests | [os/posix](example/sample-projects/os/posix/README.md) |
-| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile; STM32F4 Discovery board; POSIX simulator | [boards/stm32-freertos](example/sample-projects/boards/stm32-freertos/README.md), [pumptron](example/pumptron/PUMPTRON.md), [cellutron](example/cellutron/CELLUTRON.md) |
-| ESP32, ESP32-C3, STM32F4 Discovery (Arduino) | `FREERTOS` | CI: PlatformIO build; run on an STM32F4 Discovery | [platformio](example/platformio/PLATFORMIO.md) |
-| ThreadX | `THREADX` | CI: Cortex-M4 compile; Linux simulator | [os/threadx](example/sample-projects/os/threadx/README.md) |
-| CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile; Zephyr `native_sim` | [os/cmsis-rtos2](example/sample-projects/os/cmsis-rtos2/README.md) |
-| Zephyr | `ZEPHYR` | `native_sim` | [os/zephyr](example/sample-projects/os/zephyr/README.md), [databus/zephyr](example/sample-projects/databus/zephyr/README.md) |
-| NuttX | `NUTTX` | NuttX `sim` | [os/nuttx](example/sample-projects/os/nuttx/README.md) |
-| Qt | `QT` | CI: Linux build and tests | [os/qt](example/sample-projects/os/qt/README.md) |
-| Bare metal: Cortex-M, RISC-V | `NONE` | QEMU | [bare-metal/qemu](example/sample-projects/bare-metal/qemu/README.md) |
+| Windows (MSVC) | `STDLIB`, `WIN32` | CI: build and unit tests. Test suite: every desktop sample, the `WIN32` port | [test/](test/main.cpp), [os/win32](example/sample-projects/os/win32/README.md) |
+| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests. Test suite: every desktop sample, the `POSIX` port, unit tests on big-endian s390x and 32-bit Arm under QEMU | [test/](test/main.cpp), [os/posix](example/sample-projects/os/posix/README.md) |
+| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile. Test suite: POSIX and Win32 simulators; Cortex-M3 under QEMU with a hardware interrupt. Board: STM32F4 Discovery | [os/freertos](example/sample-projects/os/freertos/README.md), [os/freertos-bare-metal](example/sample-projects/os/freertos-bare-metal/README.md), [boards/stm32-freertos](example/sample-projects/boards/stm32-freertos/README.md), [pumptron](example/pumptron/PUMPTRON.md), [cellutron](example/cellutron/CELLUTRON.md) |
+| ESP32, ESP32-C3, STM32F4 Discovery (Arduino) | `FREERTOS` | CI: PlatformIO build. Board: STM32F4 Discovery | [platformio](example/platformio/PLATFORMIO.md) |
+| ThreadX | `THREADX` | CI: Cortex-M4 compile. Test suite: Linux simulator, with NetX Duo networking | [os/threadx](example/sample-projects/os/threadx/README.md), [transport/netx-udp](example/sample-projects/transport/netx-udp/README.md) |
+| CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile. Test suite: Zephyr `native_sim`; Cortex-M3 under QEMU with a hardware interrupt | [os/cmsis-rtos2](example/sample-projects/os/cmsis-rtos2/README.md) |
+| Zephyr | `ZEPHYR` | Test suite: `native_sim` | [os/zephyr](example/sample-projects/os/zephyr/README.md), [databus/zephyr](example/sample-projects/databus/zephyr/README.md) |
+| NuttX | `NUTTX` | Test suite: NuttX `sim` | [os/nuttx](example/sample-projects/os/nuttx/README.md) |
+| Qt | `QT` | CI: Linux build and tests. Test suite: Linux | [os/qt](example/sample-projects/os/qt/README.md) |
+| Bare metal: Cortex-M, RISC-V | `NONE` | Test suite: Cortex-M0, M3, M4 and RISC-V (RV32) under QEMU, with hardware timer interrupts | [bare-metal/qemu](example/sample-projects/bare-metal/qemu/README.md) |
 | STM32 Nucleo, RP2040 (Arduino) | `NONE` (synchronous only) | CI: PlatformIO build | [platformio](example/platformio/PLATFORMIO.md) |
 | Desktop via PlatformIO | `STDLIB` | CI: PlatformIO build and run | [platformio](example/platformio/PLATFORMIO.md) |
 
-Simulator, QEMU and board entries are sample projects built and run by hand; they are not part of CI.
+**CI** runs on every push (GitHub Actions; see Build Status below). The **test suite** is `build_all.py --full`, run on Windows and on Linux in Docker: it builds and runs every sample listed, the simulators and QEMU targets included (see [Full Test Suite](docs/BUILD.md#full-test-suite---full)). **Board** entries were run by hand on real hardware.
 
 ## Build Status
 
@@ -167,6 +167,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 | --- | --- |
 | One invocation model | Sync, async, and remote calls use the same calling code — moving a local callback onto another thread is a one-line change, and onto another processor needs only a channel. |
 | Targeted thread dispatch | Handlers specify the thread they run on; the library queues and dispatches the call, so code always executes in the correct thread context. |
+| Safe with object lifetimes | A delegate bound to an object held by `std::shared_ptr` keeps only a `std::weak_ptr`: an async call that arrives after the object is destroyed is skipped, never run through a dangling pointer. |
 | Application owns every thread | The library creates no internal threads — scheduling, stack sizes, and watchdogs stay explicit and auditable. |
 | Portable worker threads | One `dmq::os::Thread` API on every supported OS, with delegate dispatch, thread priorities (RTOS ports), a priority message queue, queue-full and shutdown policies, start/exit/idle hooks, a start gate for synchronized startup, a watchdog, and error reporting built in. |
 | Off-target development | Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport. |
@@ -175,15 +176,16 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](https://github.com/DelegateMQ/DelegateMQ#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
 
 | Category | Supported |
 | :--- | :--- |
-| **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal (see [Platform Support](https://github.com/DelegateMQ/DelegateMQ#platform-support)) |
+| **Operating Systems** | Windows, Linux, POSIX, FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, Bare-metal (see [Platform Support](#platform-support)) |
 | **Build** | [CMake](https://cmake.org/), [PlatformIO](https://platformio.org/), or any build system (Keil, IAR, STM32CubeIDE, Makefiles, ...) |
 | **Serialization** | [MessagePack](https://msgpack.org/index.html), [RapidJSON](https://github.com/Tencent/rapidjson), [Cereal](https://github.com/USCiLab/cereal), [Bitsery](https://github.com/fraillt/bitsery), [MessageSerialize](https://github.com/endurodave/MessageSerialize) |
 | **Transport** | [ZeroMQ](https://zeromq.org/), [NNG](https://github.com/nanomsg/nng), [MQTT](https://github.com/eclipse-paho/paho.mqtt.c), [Serial Port](https://github.com/sigrokproject/libserialport), TCP, UDP, ARM LwIP, ThreadX NetX/Duo, Zephyr Networking, data pipe, Unix domain socket, memory buffer |
 | **Bridges & Tools** | [MQTT gateway](tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge) (standard MQTT with JSON payloads, for MQTT tools such as [Node-RED](https://nodered.org/), [Home Assistant](https://www.home-assistant.io/) and [Grafana](https://grafana.com/)); [PlotJuggler](https://github.com/facontidavide/PlotJuggler) live plots; [Wireshark](https://www.wireshark.org/) dissector |
+| **Logging** | [spdlog](https://github.com/gabime/spdlog) (`DMQ_LOG`) |
 
 # Example Use Cases
 
@@ -195,6 +197,17 @@ Numerous platform, serialization, transport, and tool integrations are available
 - C# or Python tools commanding and monitoring an embedded device
 - Bridging device data to MQTT as JSON, for dashboards and IoT platforms
 
+# Example Projects
+
+The [example](example/README.md) directory ranges from single-file snippets to complete multi-node applications. Highlights:
+
+| Example | Description | Docs |
+| :--- | :--- | :--- |
+| **Sample code** | Short, single-file examples of common patterns: active object, observer, producer/consumer, reactor, scatter-gather, signal/slot, remote calls and more. Built into and run by the unit-test app. | [README.md](example/sample-code/README.md) |
+| **Sample projects** | Standalone CMake projects, grouped by topic: OS ports (`os/`), bare metal (`bare-metal/`), real boards (`boards/`), transports and serializers (`transport/`), DataBus (`databus/`), a client/server system (`system-architecture/`) and build integration (`integration/`). The [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds the third-party libraries they need. | [README.md](example/sample-projects/README.md) |
+| **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
+| **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
+
 # Overview
 
 DelegateMQ builds everything on one primitive, the delegate: the same delegate that fires a local callback can also dispatch onto a worker thread or a remote processor.
@@ -203,16 +216,6 @@ The OS, transport, and serializer sit behind small pure-virtual interfaces, so u
 
 <img src="docs/LayerDiagram.svg" alt="DelegateMQ Layer Diagram"><br>
 *DelegateMQ Layer Diagram*
-
-## Key Concepts
-
-- `dmq::MakeDelegate` – Creates a delegate bound to any callable. 
-- `dmq::os::Thread` – A cross-platform thread class. Passed to `dmq::MakeDelegate` to dispatch a call onto a specific worker thread.
-- `dmq::Signal<Sig>` – Thread-safe multicast signal. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects on scope exit.
-- `dmq::MulticastDelegateSafe` – Thread-safe delegate container for broadcast invocation without RAII connection management.
-- `dmq::util::Timer` – Periodic and one-shot timer. `OnExpired` is a `dmq::Signal`; all timers are driven by the application calling `Timer::ProcessTimers()`.
-- `dmq::databus::DataBus` – Type-safe, topic-based publish/subscribe system built on delegates; works across local threads and remote network nodes alike.
-- `dmq::rpc::RemoteDispatcher` – Owns the network thread, receive loop, and ACK/retry-status routing for point-to-point remote delegate invocation.
 
 ## Synchronous Delegates
 
@@ -238,7 +241,7 @@ int main()
 
 ## Asynchronous Delegates
 
-Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely and effortlessly. The library automatically marshals all arguments—whether passed by value, pointer, or reference—ensuring thread safety without manual locking or complex queue management.
+Asynchronous delegates simplify multithreaded programming by allowing you to invoke functions across thread boundaries safely, without manual locking or queue management.
 
 ```cpp
 dmq::os::Thread thread("WorkerThread");
@@ -258,6 +261,24 @@ auto retVal = asyncWait1s.AsyncInvoke("Invoke MsgOut async wait (blocking max 1s
 if (retVal.has_value())     // Async invoke completed within 1 second?
     size = retVal.value();  // Get return value
 ```
+
+### Passing Arguments
+
+The two kinds of asynchronous call treat arguments in opposite ways:
+
+* **Async (fire-and-forget)** copies every argument into the message for the target thread, including the data behind pointers and references. The caller returns at once and can change or free its own data; nothing dangles.
+* **Async-wait (blocking)** passes arguments as they are, because the caller waits. The target works on the caller's own variables, so out-parameters and return values work.
+
+| Argument | Async | Async-wait |
+| :--- | :--- | :--- |
+| `T` | copied | passed as is |
+| `T&`, `const T&` | the object is copied; the target gets a reference to the copy | the caller's object |
+| `T*`, `T**` | the data pointed to is copied; the target gets a pointer to the copy | the caller's data |
+| `std::shared_ptr<T>` | shared, not copied: the way to pass large data without a copy | shared |
+| `void*` | rejected at compile time (the data behind it can't be copied) | allowed |
+| Out-parameters, return value | not written back; no return value | written back; returned |
+
+Each argument gets its own rule, for any number and mix of arguments. By comparison, `std::thread` and `std::async` copy a pointer argument as just the pointer, so the new thread reads the caller's data, which may already be gone, and they can't run a call on a thread you choose. 
 
 Multiple asynchronous delegates can also be stored in a `dmq::MulticastDelegateSafe` container and invoked as a group — a common pattern for completion callbacks, where each registered callback executes on its own target thread:
 
@@ -421,7 +442,7 @@ auto msg = dmq::xmake_shared<SensorMsg>();         // object and control block f
 
 DataBus creates no internal threads and is small enough for embedded targets, unlike full DDS systems. Quality of Service (QoS) options such as Last Value Cache (LVC) deliver the most recent value to new subscribers immediately.
 
-Remote topics travel over any supported transport, such as Ethernet or serial, using any supported serializer. See [Supported Integrations](https://github.com/DelegateMQ/DelegateMQ#supported-integrations).
+Remote topics travel over any supported transport, such as Ethernet or serial, using any supported serializer. See [Supported Integrations](#supported-integrations).
 
 ```cpp
 #include "DelegateMQ.h"
@@ -461,7 +482,7 @@ dmq::RemoteChannel<void(float)> tx(transport, serializer, TEMPERATURE_ID);
 tx(25.5f);  // serialized, sent, and runs OnTemperature() on the receiver
 ```
 
-`dispatcher` is a `dmq::rpc::RemoteDispatcher`. It owns the network thread and receive loop, routes each incoming message to the channel registered for its ID, and reports ACK/retry status. Any transport (ZeroMQ, TCP, UDP, serial, ...) and serializer (MessagePack, Cereal, ...) can carry the call.
+`dispatcher` is a `dmq::rpc::RemoteDispatcher`. It owns the network thread and receive loop, routes each incoming message to the channel registered for its ID, and reports ACK/retry status. Any transport (ZeroMQ, TCP, UDP, serial, ...) and serializer (MessagePack, Cereal, ...) can carry the call. Delivery can be made reliable with acknowledgments and retries (`dmq::util::ReliableTransport`, with a `TransportMonitor` and `RetryMonitor`), or left to a transport that is reliable itself (TCP, ZeroMQ).
 
 # Error Handling
 
@@ -514,37 +535,6 @@ See [Tools](tools/TOOLS.md) for setup and usage.
 <img src="docs/dmq-spy-screenshot.png" alt="DelegateMQ Spy Screenshot" style="max-width: 800px; width: 100%;">
 
 
-# Features
-
-DelegateMQ at a glance. 
-
-| Category | DelegateMQ |
-| --- | --- |
-| Purpose | Unify callable invocation across threads, processes, and networks |
-| Usages | Callbacks (synchronous and asynchronous), asynchronous API's, communication and data distribution, and more |
-| Library | Allows customizing data sharing between threads, processes, or processors |
-| Object Lifetime | Thread-safe management via smart pointers (`std::weak_ptr`) prevents async invocation on destroyed objects (no dangling pointers). |
-| Complexity | Lightweight and extensible through external library interfaces and full source code |
-| Threads | Core library creates no internal threads (only opt-in helpers `RemoteDispatcher` and `NetworkNode` own a receive thread). External configurable thread interface portable to any OS (`dmq::IThread`). |
-| Timers | Periodic and one-shot timers (`dmq::util::Timer`). Callbacks dispatch to any thread via `OnExpired` signal. No internal timer thread; driven by application calling `Timer::ProcessTimers()` from a loop, task, or ISR (ISR on bare metal only). |
-| Synchronized Thread Start | Optional start gate (`dmq::os::StartGate`) holds a group of threads, created and ready but processing nothing, until one `Open()` starts them all together. Stops threads from running while others are still being created or wired up. |
-| Watchdog | Configurable timeout to detect and handle unresponsive threads. |
-| Signal and Slots | Standard Signal-Slot pattern (`dmq::Signal<Sig>`). `Connect()` returns a `dmq::ScopedConnection` for RAII auto-disconnect. Thread-safe by default; no `shared_ptr` required. |
-| Multicast | Broadcast invoke anonymous callable targets onto multiple threads |
-| DataBus | Topic-based middleware distribution system (DDS Lite) across threads or remote nodes |
-| Interop | C#, Python, and others supported via a **Shared Native Core** architecture. See [Cross-Language Interop](docs/INTEROP.md). |
-| Message Priority | Asynchronous delegates support prioritization to ensure timely execution of critical messages |
-| Serialization | External configurable serialization data formats, such as MessagePack, RapidJSON, or custom encoding (`dmq::ISerializer`) |
-| Transport | External configurable transport, such as ZeroMQ, TCP, UDP, serial, data pipe or any custom transport (`dmq::transport::ITransport`)  |
-| Transport Reliability | Provided by the built-in reliability layer (`dmq::util::ReliableTransport`) or communication library (e.g. ZeroMQ, nng, TCP/IP stack). |
-| Message Buffering | Remote delegate message buffering provided by a communication library (e.g. ZeroMQ) or custom solution within transport |
-| Dynamic Memory | Heap or optional fixed-block allocator (`DMQ_ALLOCATOR`). Application code can use the same pool through `XALLOCATOR`, `dmq::xlist`, `dmq::xmap`, `dmq::xstring`, `dmq::xmake_shared`, and more; these fall back to `std::` equivalents when the allocator is disabled. |
-| Debug Logging | Debug logging using spdlog C++ logging library |
-| Error Handling | Hard faults use asserts (`DMQ_ASSERTS`, routed to a fault handler) or C++ exceptions, selected at build time. Recoverable errors (serialization failure, dispatch timeout) are reported to the application through `dmq::DelegateError` error handlers. |
-| Embedded Friendly | Yes. Any OS such as Windows, Linux and FreeRTOS. An OS is not required (i.e. "super loop"). |
-| Operating System | Any. Custom `dmq::IThread` implementation may be required. |
-| Language | C++17 or higher |
-
 # FAQ
 
 **Why would I use DelegateMQ?**  
@@ -570,10 +560,7 @@ Any: point-to-point, star, mesh, broadcast/multicast, or broker-based. A topolog
 Yes, through a shared native core with C# and Python wrappers. See [Cross-Language Interop](docs/INTEROP.md).
 
 **Is DelegateMQ tested?**  
-Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M, builds and runs the Qt port's test suite, and builds the PlatformIO example for each board. See [Platform Support](https://github.com/DelegateMQ/DelegateMQ#platform-support) for how each platform is verified, including simulators and real boards.
-
-**Can I maintain DelegateMQ myself?**  
-Yes. The code base is small, ships as full source under the MIT license, and any LLM coding assistant can help you navigate, modify or port it.
+Yes. Extensive unit and stress tests run in CI on Windows and Linux (GCC, Clang, MSVC), with code coverage and address, thread and undefined-behavior sanitizers. CI also cross-compiles the RTOS ports for ARM Cortex-M, builds and runs the Qt port's test suite, and builds the PlatformIO example for each board. 
 
 # Documentation
 
@@ -591,17 +578,6 @@ Yes. The code base is small, ships as full source under the MIT license, and any
 | [**Tools**](tools/TOOLS.md) | Diagnostic TUI dashboards and integrations | Spy, Monitor, Wireshark, PlotJuggler |
 | [**Comparison**](docs/COMPARISON.md) | Middleware benchmarks | Tradeoff Analysis |
 | [**Safety Notes**](docs/SAFETY.md) | Informational MISRA-style self-assessment | Not a certified/compliant standard |
-
-# Example Projects
-
-The [example](example/README.md) directory ranges from single-file snippets to complete multi-node applications. Highlights:
-
-| Example | Description | Docs |
-| :--- | :--- | :--- |
-| **Sample projects** | Standalone CMake projects, each focused on one platform, RTOS, transport or serializer. The [example workspace setup](docs/BUILD.md#example-ecosystem-sandbox) fetches and builds the third-party libraries they need. | [README.md](example/sample-projects/README.md) |
-| **Cellutron** | Simulated safety-critical cell processing instrument: GUI, controller and safety nodes as three Windows/Linux processes, the controller and safety nodes on FreeRTOS or ThreadX simulators, linked by a distributed DataBus. | [CELLUTRON.md](example/cellutron/CELLUTRON.md) |
-| **Pumptron** | Pump controller on a real STM32F4 Discovery board (FreeRTOS), monitored and commanded from a Windows/Linux console over a serial link using the DataBus. Includes a hardware watchdog and crash dumps delivered to the console. The same controller code also runs on the PC via the FreeRTOS simulator. | [PUMPTRON.md](example/pumptron/PUMPTRON.md) |
-| **PlatformIO sketch** | One Arduino sketch built for ESP32, ESP32-C3, STM32 Nucleo-F401RE, STM32F4 Discovery, Raspberry Pi Pico and the desktop: synchronous delegates and signals everywhere, async delegates where FreeRTOS or desktop threads exist. | [PLATFORMIO.md](example/platformio/PLATFORMIO.md) |
 
 # Other Projects Using DelegateMQ
 

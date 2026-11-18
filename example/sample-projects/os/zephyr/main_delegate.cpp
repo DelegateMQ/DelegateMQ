@@ -202,6 +202,10 @@ void ExecuteAllTests() {
 // --------------------------------------------------------------------------
 // MAIN ENTRY POINT
 // --------------------------------------------------------------------------
+#if !defined(CONFIG_ARCH_POSIX)
+extern "C" DMQ_NORETURN void QemuExit(int status);   // ../cmsis-rtos2/cortex_m_qemu.cpp
+#endif
+
 int main() {
     // Periodic software timer wakes g_timerThread, which runs DelegateMQ's
     // Timer::ProcessTimers().
@@ -214,5 +218,11 @@ int main() {
     // process (WorkerThread, everything) in one step, the same approach
     // os/freertos/os/threadx use. Returning from main() normally hits
     // a native_sim/posix-arch thread-table teardown edge case instead.
+#if defined(CONFIG_ARCH_POSIX)
     exit(0);
+#else
+    // Cortex-M under QEMU: end QEMU with status 0 (a failed check faults
+    // before here, and cortex_m_qemu.cpp ends it with a non-zero status)
+    QemuExit(0);
+#endif
 }

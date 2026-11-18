@@ -55,5 +55,5 @@ No additional defines are required for bare-metal synchronous-only use. Delegate
 
 ## Related Examples
 
-- [bare-metal/qemu](../qemu/) — same concept built with CMake + ARM GCC (or ATfE, or RISC-V GCC) + QEMU
-- [os/freertos-bare-metal](../../os/freertos-bare-metal/) — adds FreeRTOS thread support for async delegates
+- [bare-metal/qemu](../qemu/README.md) — same concept built with CMake + ARM GCC (or ATfE, or RISC-V GCC) + QEMU
+- [os/freertos-bare-metal](../../os/freertos-bare-metal/README.md) — adds FreeRTOS thread support for async delegates

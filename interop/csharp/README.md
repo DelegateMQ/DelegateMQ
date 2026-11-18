@@ -11,4 +11,4 @@ Full documentation for architecture and usage:
 
 ## Example
 A complete C# sample application is available here:
-👉 **[example/sample-interop/csharp/](../../example/sample-interop/csharp/)**
+👉 **[example/sample-interop/csharp/](../../example/sample-interop/csharp/Program.cs)**
