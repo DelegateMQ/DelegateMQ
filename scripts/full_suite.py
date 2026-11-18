@@ -24,13 +24,13 @@ import shutil
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
 
-# example/sample-projects/bare-metal: one build directory per target
+# example/sample-projects/bare-metal/qemu: one build directory per target
 # (build-<target>, configured with -DBM_TARGET=<target>), each run on QEMU.
 # The program ends QEMU through semihosting with status 0 only if every check
 # passed. tools: what configuring and running the target needs; "$VAR/..."
 # is a path under that environment variable (or the default given), anything
 # else an executable on the PATH.
-BARE_METAL_SAMPLE = "bare-metal"
+BARE_METAL_SAMPLE = "bare-metal/qemu"
 QEMU_SEMIHOSTING = ["-nographic", "-monitor", "none", "-serial", "none",
                     "-semihosting-config", "enable=on,target=native"]
 BARE_METAL_TARGETS = {
@@ -55,12 +55,12 @@ BARE_METAL_TARGETS = {
 BARE_METAL_TIMEOUT = 60
 BARE_METAL_SUCCESS = "ALL TESTS PASSED"
 
-# example/sample-projects/freertos-bare-metal: its default build is the
+# example/sample-projects/os/freertos-bare-metal: its default build is the
 # FreeRTOS Win32 simulator (Windows only); its targets/<name>/ run the same
 # tests on a real Cortex-M under QEMU, on both platforms, and add a test of
 # FreeRTOSCriticalSection from a hardware timer interrupt. Configured, built
-# and run like the bare-metal targets.
-FREERTOS_QEMU_SAMPLE = "freertos-bare-metal"
+# and run like the bare-metal/qemu targets.
+FREERTOS_QEMU_SAMPLE = "os/freertos-bare-metal"
 FREERTOS_QEMU_TARGETS = {
     "arm-m3": {
         "tools": ["arm-none-eabi-gcc", "qemu-system-arm"],
@@ -79,21 +79,83 @@ QEMU_TARGET_SAMPLES = {
 LINUX_RUN_COVERS = "covered by the Linux run (Docker)"
 
 
-# example/sample-projects/serialport-serializer: a sender and a receiver on two
+# example/sample-projects/transport/serialport: a sender and a receiver on two
 # serial ports connected to each other. On Linux the runner makes the pair with
 # socat (two linked pseudo-terminals, a virtual null-modem cable); Windows has
 # no such pair without a virtual COM-port driver, so the Linux run covers it.
-SERIAL_SAMPLE = "serialport-serializer"
+SERIAL_SAMPLE = "transport/serialport"
 SERIAL_PTYS = ("/tmp/ttyDMQ0", "/tmp/ttyDMQ1")
 SERIAL_SUCCESS = "Data Message:"
 
 
-# example/sample-projects/mqtt-rapidjson: pub and sub apps talking through an
+# example/sample-projects/transport/mqtt: pub and sub apps talking through an
 # MQTT broker. The runner starts mosquitto on its own port for the run (so it
 # can't collide with a broker already on 1883) and passes it to both apps.
-MQTT_SAMPLE = "mqtt-rapidjson"
+MQTT_SAMPLE = "transport/mqtt"
 MQTT_PORT = 18830
 MQTT_SUCCESS = "Data Message"
+
+
+# example/sample-projects/transport/serializer: one source set built once per
+# transport/serializer combination, in build-<transport>-<serializer>
+# (-DSAMPLE_TRANSPORT, -DSAMPLE_SERIALIZER), plus build-<...>-clang on Linux
+# with --clang. Each build is one process (sender and receiver both in it);
+# it must exit 0 (it exits 1 if no message arrived intact) and print
+# TRANSPORT_SUCCESS. These replaced the linux-/win32-*-serializer, zeromq-*
+# and nnq-bitsery samples, one combination each.
+TRANSPORT_SAMPLE = "transport/serializer"
+TRANSPORT_COMBOS = [
+    ("udp", "builtin"), ("tcp", "builtin"), ("pipe", "builtin"), ("uds", "builtin"),
+    ("lwip", "builtin"), ("lwip-netconn", "builtin"),
+    ("zeromq", "builtin"), ("zeromq", "bitsery"), ("zeromq", "cereal"),
+    ("zeromq", "msgpack"), ("zeromq", "rapidjson"), ("nng", "bitsery"),
+]
+TRANSPORT_WINDOWS_ONLY = {"pipe"}   # Windows named pipe
+TRANSPORT_LINUX_ONLY = {"uds", "lwip", "lwip-netconn"}   # Unix domain socket; lwIP's Unix port
+TRANSPORT_SUCCESS = "Data Message:"
+
+
+
+# Folders under example/sample-projects that group related samples: each sample
+# in one is named "<group>/<sample>" (e.g. "databus/relay"), and that name is
+# what the tables in these scripts use.
+SAMPLE_GROUPS = {"os", "bare-metal", "boards", "transport", "databus",
+                 "system-architecture", "integration"}
+
+
+def sample_name(path):
+    """The name the scripts use for the sample folder at path: "<group>/<sample>"
+    inside a SAMPLE_GROUPS folder, else the folder name."""
+    path = os.path.normpath(path)
+    parent = os.path.dirname(path)
+    if (os.path.basename(parent) in SAMPLE_GROUPS
+            and os.path.basename(os.path.dirname(parent)) == "sample-projects"):
+        return f"{os.path.basename(parent)}/{os.path.basename(path)}"
+    return os.path.basename(path)
+
+
+def list_samples(root):
+    """(name, path) of each folder in root, sorted, with a SAMPLE_GROUPS folder
+    replaced by the samples in it."""
+    samples = []
+    for entry in sorted(os.listdir(root)):
+        path = os.path.join(root, entry)
+        if not os.path.isdir(path):
+            continue
+        if entry in SAMPLE_GROUPS and os.path.basename(os.path.normpath(root)) == "sample-projects":
+            samples += [(f"{entry}/{child}", os.path.join(path, child))
+                        for child in sorted(os.listdir(path))
+                        if os.path.isdir(os.path.join(path, child))]
+        else:
+            samples.append((entry, path))
+    return samples
+
+
+def transport_configs():
+    """(name, transport, serializer) of the combinations this platform builds and
+    runs; the build directory is build-<name>."""
+    return [(f"{t}-{s}", t, s) for t, s in TRANSPORT_COMBOS
+            if t not in (TRANSPORT_LINUX_ONLY if IS_WINDOWS else TRANSPORT_WINDOWS_ONLY)]
 
 
 # Zephyr samples, built for native_sim (a host process) with the host gcc. A
@@ -103,35 +165,35 @@ MQTT_SUCCESS = "Data Message"
 # Value: text the run must print.
 ZEPHYR_BOARD = "native_sim/native/64"
 ZEPHYR_SAMPLES = {
-    "zephyr-linux":          "ALL TESTS PASSED",
-    "zephyr-udp-serializer": "Data Message:",
-    "cmsis-rtos2-linux":     "ALL TESTS PASSED",
+    "os/zephyr":          "ALL TESTS PASSED",
+    "transport/zephyr-udp": "Data Message:",
+    "os/cmsis-rtos2":     "ALL TESTS PASSED",
 }
 # Zephyr samples also built for a Cortex-M board and run under QEMU, with the
-# Zephyr SDK's Arm toolchain: cmsis-rtos2-linux verifies CmsisRtos2CriticalSection
+# Zephyr SDK's Arm toolchain: os/cmsis-rtos2 verifies CmsisRtos2CriticalSection
 # there (real CMSIS-Core, a real interrupt). Configured into its own build
 # directory; the app ends QEMU through semihosting with status 0 only if every
 # check passed.
 ZEPHYR_QEMU_TARGETS = {
-    "cmsis-rtos2-linux": {
+    "os/cmsis-rtos2": {
         "board": "mps2/an385",
         "build": "build-mps2-an385",
         "qemu":  ["qemu-system-arm", "-M", "mps2-an385", "-cpu", "cortex-m3", "-nographic",
                   "-monitor", "none", "-semihosting-config", "enable=on,target=native"],
     },
 }
-# databus-zephyr: Zephyr server (server/) and host client (client/), separate
+# databus/zephyr: Zephyr server (server/) and host client (client/), separate
 # processes over the host loopback. The server runs until stopped, so it gets
 # native_sim's --stop_at.
-ZEPHYR_DATABUS_SAMPLE = "databus-zephyr"
+ZEPHYR_DATABUS_SAMPLE = "databus/zephyr"
 ZEPHYR_DATABUS_REQUIRED = {"client": "[Client] sensor/temp", "server": "Received CmdMsg"}
 
-# nuttx-sim: NuttX's sim board (a host process). NuttX builds in its source
-# tree, so the scripts copy NUTTX_SRC/nuttx to nuttx-sim/build/nuttx, link the
+# os/nuttx: NuttX's sim board (a host process). NuttX builds in its source
+# tree, so the scripts copy NUTTX_SRC/nuttx to os/nuttx/build/nuttx, link the
 # sample's apps/ beside it, and configure and build it there (see its README).
 # The simulated OS keeps running after the tests, so the run is stopped once
 # the success text appears.
-NUTTX_SAMPLE = "nuttx-sim"
+NUTTX_SAMPLE = "os/nuttx"
 NUTTX_SUCCESS = "ALL TESTS PASSED"
 NUTTX_TIMEOUT = 120
 
@@ -164,7 +226,7 @@ def zephyr_qemu_missing():
 
 
 def nuttx_missing():
-    """What building nuttx-sim needs that isn't here (empty if none)."""
+    """What building os/nuttx needs that isn't here (empty if none)."""
     missing = []
     src = os.environ.get("NUTTX_SRC")
     if not src or not os.path.isfile(os.path.join(src, "nuttx", "tools", "configure.sh")):
@@ -255,12 +317,12 @@ def cross_missing(cross):
 
 
 # Cross-endian check: tests on one CPU can't catch a byte-order mismatch
-# between peers. system-architecture-no-deps (built-in serializer, Linux UDP,
+# between peers. system-architecture/no-deps (built-in serializer, Linux UDP,
 # no third-party libraries) is also built for s390x (big-endian) into
 # client/ and server/build-s390x, and run with one side native x86
 # (little-endian) and the other under qemu-s390x, both ways. Its IDs are
 # small known numbers (1..4); a byte-swapped 1 would read as 16777216.
-CROSS_ENDIAN_SAMPLE = "system-architecture-no-deps"
+CROSS_ENDIAN_SAMPLE = "system-architecture/no-deps"
 CROSS_ENDIAN_BUILD = "build-s390x"
 CROSS_ENDIAN_CPU = S390X
 CROSS_ENDIAN_REQUIRED = {"client": ["Actuator ID: 1,", "Sensor ID: 1,"],
@@ -279,13 +341,13 @@ def test_variants():
 
 # Samples --full doesn't cover yet: name -> what it needs.
 PENDING = {
-    "stm32-freertos":         "hardware: needs an STM32 board",
+    "boards/stm32-freertos":         "hardware: needs an STM32 board",
 }
 
 # Folders with nothing to build or run at that step: name -> why.
 NOT_APPLICABLE = {
-    "system-architecture-python": "Python client of system-architecture; nothing to build",
-    "keil-bare-metal":            "Keil uVision project; needs Keil MDK, not automated",
+    "system-architecture/python": "Python client of system-architecture/full; nothing to build",
+    "bare-metal/keil":            "Keil uVision project; needs Keil MDK, not automated",
 }
 
 # Skip reasons that stay skips under --full: the other platform covers them.
@@ -351,15 +413,22 @@ def strict_split(skipped):
     Kept: platform skips and PENDING samples (with the PENDING reason).
     Failures: everything else, e.g. a sample that wasn't built.
     """
+    def listed(name, table):
+        # The table entry for name: the sample itself, or a part of it
+        # ("<sample>/<node>", "<sample> (clang)"). Sample names can contain a
+        # slash themselves ("bare-metal/keil"), so match whole entries.
+        word = name.split(" ")[0]
+        return next((key for key in table if word == key or word.startswith(key + "/")), None)
+
     kept, failures = [], []
     for name, reason in skipped:
-        base = name.split(" ")[0].split("/")[0]
+        pending, not_applicable = listed(name, PENDING), listed(name, NOT_APPLICABLE)
         if reason in PLATFORM_REASONS:
             kept.append((name, reason))
-        elif base in PENDING:
-            kept.append((name, PENDING[base]))
-        elif base in NOT_APPLICABLE:
-            kept.append((name, NOT_APPLICABLE[base]))
+        elif pending:
+            kept.append((name, PENDING[pending]))
+        elif not_applicable:
+            kept.append((name, NOT_APPLICABLE[not_applicable]))
         else:
             failures.append((name, reason))
     return kept, failures

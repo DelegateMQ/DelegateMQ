@@ -1,68 +1,95 @@
 # Sample Projects
 
-## Feature & Toolchain Demos
+The samples are grouped by what they show. Each group folder has a README listing its samples, and each sample has its own README and build.
 
-The following projects demonstrate DelegateMQ delegate types (sync, async, asyncwait, multicast, signal) on specific platforms or compilers. No remote transport is involved.
+| Group | Samples of |
+| :--- | :--- |
+| [os/](./os/) | One sample per OS port (`dmq::IThread`), each running the shared portable tests |
+| [bare-metal/](./bare-metal/) | No OS (`DMQ_THREAD_NONE`): QEMU targets and a Keil project |
+| [boards/](./boards/) | Real hardware |
+| [transport/](./transport/) | Remote delegates over a transport and serializer |
+| [databus/](./databus/) | `dmq::databus::DataBus` publish/subscribe |
+| [system-architecture/](./system-architecture/) | One client/server system, built with and without external libraries, plus a Python client |
+| [integration/](./integration/) | Bringing DelegateMQ into your own build |
 
-| Project Name | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
+The test scripts (`scripts/build_all.py`) name a sample by its folder, e.g. `os/threadx` or `databus/relay`.
+
+## os/
+
+Each sample checks DelegateMQ's delegate types (sync, async, async-wait, multicast, signal), timers and thread policies on one OS port, mostly with the shared tests in [test/portable](../../test/portable/).
+
+| Sample | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
 | :--- | :--- | :--- | :--- |
-| **[clang-native](./clang-native/)** | All-features demo: sync, async, asyncwait, multicast, signal. Windows or Linux. | `std::thread` | Any C++17 compiler (Clang, GCC, MSVC) |
-| **[no-cmake-integration](./no-cmake-integration/)** | Builds DelegateMQ as a non-CMake project would: one source file (`src/DelegateMQ.cpp`) and options in `DelegateMQConfig.h`, without `DelegateMQ.cmake`. Checks sync, async, signal and timer. Windows or Linux. | `std::thread` | Any C++17 compiler |
-| **[bare-metal](./bare-metal/)** | Bare metal, no RTOS: one set of self-checking tests (delegates, signals, a timer fired by a real hardware interrupt) built for several targets, all run on QEMU: Cortex-M4 (ARM GCC, newlib), Cortex-M3 (ATfE clang, picolibc), RV32IMC (xPack RISC-V GCC). | None | ARM GCC, ATfE Clang, xPack RISC-V GCC |
-| **[keil-bare-metal](./keil-bare-metal/)** | Bare-metal example for ARM Cortex-M4. | None | Keil MDK (ARMCLANG) |
-| **[stm32-freertos](./stm32-freertos/)** | Embedded FreeRTOS example for STM32F4 Discovery. | FreeRTOS | STM32Cube / ARM GCC |
-| **[posix-linux](./posix-linux/)** | Verifies the `DMQ_THREAD_POSIX` port (`dmq::os::PosixThread`), built directly on `pthread_create`/`pthread_mutex_t`/`pthread_cond_t` instead of `std::thread`. Linux only. | POSIX pthreads | Linux GCC |
-| **[qt-linux](./qt-linux/)** | Verifies the `DMQ_THREAD_QT` port (`dmq::os::QtThread`): each thread is a `QThread` with its own event loop. Same test suite as `posix-linux`. Needs Qt 6 Core; built and run in CI and by `build_all.py` on Linux when Qt is installed (the Docker image has it). | Qt 6 | Linux GCC + Qt 6 |
-| **[threadx-linux](./threadx-linux/)** | ThreadX example using the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
-| **[freertos-linux](./freertos-linux/)** | FreeRTOS example using the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
-| **[zephyr-linux](./zephyr-linux/)** | Zephyr example using the official `native_sim` simulation port (host GCC, no cross-compiler). Needs a Zephyr workspace. Builds and runs in `build_all.py` on Linux when `ZEPHYR_BASE` points at a Zephyr tree (the Docker image has one). Linux only. | Zephyr | Linux GCC + Zephyr |
-| **[cmsis-rtos2-linux](./cmsis-rtos2-linux/)** | CMSIS-RTOS2 example built on Zephyr's own CMSIS-RTOS v2 compatibility layer (`native_sim`) — verifies `DMQ_THREAD_CMSIS_RTOS2` against a real CMSIS-RTOS2 implementation without any ARM toolchain/QEMU/hardware. Needs a Zephyr workspace. Builds and runs in `build_all.py` on Linux when `ZEPHYR_BASE` points at a Zephyr tree (the Docker image has one). Linux only. | CMSIS-RTOS2 | Linux GCC + Zephyr |
-| **[nuttx-sim](./nuttx-sim/)** | NuttX example using NuttX's own `sim` board (a native host process) — verifies `DMQ_THREAD_NUTTX` without any cross-compiler/QEMU/hardware. Needs NuttX + nuttx-apps checkouts and NuttX's own Kconfig/Make build; builds and runs in `build_all.py` on Linux when `NUTTX_SRC` points at them (the Docker image has them). Linux only. | NuttX | Linux GCC + NuttX build tools |
+| **[os/freertos](./os/freertos/)** | FreeRTOS on the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
+| **[os/freertos-bare-metal](./os/freertos-bare-metal/)** | FreeRTOS on the Windows simulator (32-bit build), and on a Cortex-M3 under QEMU (`arm-m3` target). | FreeRTOS | MSVC (Win32), ARM GCC + QEMU |
+| **[os/threadx](./os/threadx/)** | ThreadX on the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
+| **[os/zephyr](./os/zephyr/)** | Zephyr on the official `native_sim` port (host GCC, no cross-compiler). Needs a Zephyr workspace; `build_all.py` builds it on Linux when `ZEPHYR_BASE` is set (the Docker image has one). Linux only. | Zephyr | Linux GCC + Zephyr |
+| **[os/cmsis-rtos2](./os/cmsis-rtos2/)** | CMSIS-RTOS2 on Zephyr's CMSIS-RTOS v2 layer, on `native_sim` and on a Cortex-M3 under QEMU (`mps2/an385`). Needs a Zephyr workspace. Linux only. | CMSIS-RTOS2 | Linux GCC + Zephyr |
+| **[os/nuttx](./os/nuttx/)** | NuttX on its own `sim` board (a host process). Needs NuttX and nuttx-apps checkouts; `build_all.py` builds it on Linux when `NUTTX_SRC` is set (the Docker image has them). Linux only. | NuttX | Linux GCC + NuttX build tools |
+| **[os/posix](./os/posix/)** | The `DMQ_THREAD_POSIX` port (`dmq::os::PosixThread`), built on `pthread_create`/`pthread_mutex_t`/`pthread_cond_t` instead of `std::thread`. Linux only. | POSIX pthreads | Linux GCC |
+| **[os/qt](./os/qt/)** | The `DMQ_THREAD_QT` port (`dmq::os::QtThread`): each thread is a `QThread` with its own event loop. Needs Qt 6 Core; built in CI and by `build_all.py` on Linux when Qt is installed (the Docker image has it). | Qt 6 | Linux GCC + Qt 6 |
+| **[os/win32](./os/win32/)** | The `DMQ_THREAD_WIN32` port (`dmq::os::Win32Thread`), built on `CreateThread`/`CRITICAL_SECTION`/`CONDITION_VARIABLE` instead of `std::thread`. Same tests as `os/posix`. Windows only. | Win32 threads | MSVC |
 
-## Remote Delegate Examples
+## bare-metal/
 
-Remote delegates invoke a target function that runs in a separate processor or process. Transport and serialization libraries are configurable. Each sample project focuses on a transport-serialization pair, but you can freely mix and match any transport with any serializer.
+| Sample | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
+| :--- | :--- | :--- | :--- |
+| **[bare-metal/qemu](./bare-metal/qemu/)** | No RTOS: one set of self-checking tests (delegates, signals, a timer fired by a real hardware interrupt) built for several targets, all run on QEMU: Cortex-M4 and Cortex-M0 (ARM GCC, newlib), Cortex-M3 (ATfE clang, picolibc), RV32IMC (xPack RISC-V GCC). | None | ARM GCC, ATfE Clang, xPack RISC-V GCC |
+| **[bare-metal/keil](./bare-metal/keil/)** | Bare-metal example for ARM Cortex-M4. | None | Keil MDK (ARMCLANG) |
 
-### No External Dependencies
+## boards/
 
-The following remote delegate projects have no external library dependencies. They rely only on the standard system APIs (Windows API, POSIX, etc.) or headers included within the repository.
+| Sample | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
+| :--- | :--- | :--- | :--- |
+| **[boards/stm32-freertos](./boards/stm32-freertos/)** | FreeRTOS on an STM32F4 Discovery board, talking to a PC client over a UART. | FreeRTOS | STM32CubeIDE / ARM GCC |
 
-| Project Name | Description | Threading (`dmq::IThread`) | Serialization (`dmq::ISerializer`) | Transport (`dmq::IDispatcher`) |
+## transport/
+
+Remote delegates invoke a target function that runs in another processor or process. Transport and serializer are independent: any transport works with any serializer.
+
+| Sample | Description | Threading (`dmq::IThread`) | Serialization (`dmq::ISerializer`) | Transport (`dmq::IDispatcher`) |
 | :--- | :--- | :--- | :--- | :--- |
-| **[bare-metal-remote](./bare-metal-remote/)** | Simple remote delegate example on Windows and Linux. | `std::thread` | `operator<<` / `operator>>` | `std::stringstream` |
-| **[databus](./databus/)** | Distributed sensor/actuator system using `dmq::databus::DataBus` over UDP. | `std::thread` | `dmq::Serializer` class | UDP Socket |
-| **[databus-freertos](./databus-freertos/)** | FreeRTOS server (Win32 simulator, 32-bit) publishing sensor data to a Linux/Windows client over UDP, with the client sending rate-control commands back. Demonstrates mixed-platform DataBus with the FreeRTOS port. | FreeRTOS | `dmq::Serializer` class | UDP Socket |
-| **[databus-zephyr](./databus-zephyr/)** | Zephyr server (`native_sim`, offloaded sockets over the real host loopback) publishing sensor data to a Linux/Windows client over UDP, with the client sending rate-control commands back — real cross-process traffic, not both endpoints in one process. The server needs a Zephyr workspace; `build_all.py` builds and runs the pair on Linux when `ZEPHYR_BASE` is set (the Docker image has it). | Zephyr | `dmq::Serializer` class | UDP Socket |
-| **[databus-relay](./databus-relay/)** | Three nodes across two different links: sensor ↔ gateway over UDP, gateway ↔ monitor over local IPC. The gateway relays topics both ways with `AddRelayTopic` and uses two transports in one process. Windows: named pipe / Linux: Unix domain socket. | `std::thread` | `dmq::Serializer` class | UDP Socket + Win32 Pipe / Unix Domain Socket |
-| **[databus-multicast](./databus-multicast/)** | One-to-many distribution using `dmq::databus::DataBus` over UDP Multicast. | `std::thread` | `dmq::Serializer` class | UDP Multicast |
-| **[freertos-bare-metal](./freertos-bare-metal/)** | FreeRTOS Windows port example (32-bit build). | FreeRTOS | `operator<<` / `operator>>` | `std::stringstream` |
-| **[linux-tcp-serializer](./linux-tcp-serializer/)** | Simple TCP remote delegate app on Linux. | `std::thread` | `dmq::Serializer` class | Linux TCP Socket |
-| **[linux-udp-serializer](./linux-udp-serializer/)** | Simple UDP remote delegate app on Linux. | `std::thread` | `dmq::Serializer` class | Linux UDP Socket |
-| **[system-architecture-no-deps](./system-architecture-no-deps/)** | Complex remote delegate client/server apps using UDP on Windows or Linux. | `std::thread` | `operator<<` / `operator>>` | UDP Socket |
-| **[win32-pipe-serializer](./win32-pipe-serializer/)** | Windows Named Pipe remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows Pipe |
-| **[win32-tcp-serializer](./win32-tcp-serializer/)** | Windows TCP Socket remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows TCP Socket |
-| **[win32-udp-serializer](./win32-udp-serializer/)** | Windows UDP Socket remote delegate app. | `std::thread` | `dmq::Serializer` class | Windows UDP Socket |
-| **[zephyr-udp-serializer](./zephyr-udp-serializer/)** | Remote delegate over Zephyr's native UDP sockets (BSD Socket API), on the `native_sim` port, loopback-only (no host network setup). Needs a Zephyr workspace. Builds and runs in `build_all.py` on Linux when `ZEPHYR_BASE` points at a Zephyr tree (the Docker image has one). Linux only. | Zephyr | `dmq::Serializer` class | Zephyr UDP Socket |
+| **[transport/serializer](./transport/serializer/)** | Remote delegate sender/receiver app, built for the transport and serializer you choose (`-DSAMPLE_TRANSPORT`, `-DSAMPLE_SERIALIZER`): UDP or TCP sockets (with acknowledgments and retries), a Windows named pipe or a Linux Unix domain socket with no third-party library; UDP over the lwIP stack (Linux), or ZeroMQ or NNG; the built-in serializer, Bitsery, Cereal, MessagePack or RapidJSON. | `std::thread` | built-in, Bitsery, Cereal, MessagePack, RapidJSON | UDP, TCP, Windows pipe, Unix domain socket, lwIP UDP, ZeroMQ, NNG |
+| **[transport/in-process](./transport/in-process/)** | The smallest remote delegate: sender and receiver in one process, the "transport" a shared `std::stringstream`. Windows or Linux. | `std::thread` | `operator<<` / `operator>>` | `std::stringstream` |
+| **[transport/serialport](./transport/serialport/)** | Remote delegate over a serial port, using libserialport. | `std::thread` | `dmq::Serializer` class | `libserialport` |
+| **[transport/mqtt](./transport/mqtt/)** | Remote delegate over MQTT with RapidJSON (publisher and subscriber apps, and a broker). | `std::thread` | RapidJSON | MQTT |
+| **[transport/zephyr-udp](./transport/zephyr-udp/)** | Remote delegate over Zephyr's native UDP sockets (BSD Socket API) on `native_sim`, loopback only. Needs a Zephyr workspace. Linux only. | Zephyr | `dmq::Serializer` class | Zephyr UDP Socket |
+| **[transport/netx-udp](./transport/netx-udp/)** | The `transport/serializer` app over NetX Duo UDP (`NetXUdpTransport`) on ThreadX's Linux simulation port, through NetX's loopback interface. Needs ThreadX and NetX Duo (fetched by `01_fetch_repos.py`). Linux only. | ThreadX | `dmq::Serializer` class | NetX Duo UDP |
 
-### External Dependencies
+## databus/
 
-The following projects require external 3rd party library support (e.g., ZeroMQ, MQTT, RapidJSON, etc.). See [Example Ecosystem (Sandbox)](../../docs/BUILD.md#automated-workspace-sandbox-setup) for external library installation setup.
+See [databus/README.md](./databus/README.md).
 
-| Project Name | Description | Threading (`dmq::IThread`) | Serialization (`dmq::ISerializer`) | Transport (`dmq::IDispatcher`) |
+| Sample | Description | Threading (`dmq::IThread`) | Serialization (`dmq::ISerializer`) | Transport (`dmq::IDispatcher`) |
 | :--- | :--- | :--- | :--- | :--- |
-| **[databus-interop](./databus-interop/)** | Cross-language communication between C++ server and Python/C# clients using `dmq::databus::DataBus` and MessagePack. | `std::thread` | MessagePack | UDP Socket |
-| **[databus-mqtt-gateway](./databus-mqtt-gateway/)** | Simulated thermostat exposed to MQTT tools as per-topic JSON via `JsonTopics` and `MqttBridge`; accepts setpoint commands. | `std::thread` | JSON (`JsonTopics`) | MQTT (Paho) |
-| **[databus-shapes](./databus-shapes/)** | Graphical TUI Shapes Demo using `dmq::databus::DataBus`, UDP Multicast, and FTXUI. | `std::thread` | `dmq::Serializer` class | UDP Multicast |
-| **[mqtt-rapidjson](./mqtt-rapidjson/)** | Remote delegate example with MQTT and RapidJSON (Client/Server). | `std::thread` | RapidJSON | MQTT |
-| **[nnq-bitsery](./nnq-bitsery/)** | Remote delegate using NNG and Bitsery. | `std::thread` | Bitsery | NNG |
-| **[serialport-serializer](./serialport-serializer/)** | Remote delegate using libserialport. | `std::thread` | `dmq::Serializer` class | `libserialport` |
-| **[system-architecture](./system-architecture/)** | System architecture example with dependencies. | `std::thread` | Various | Various |
-| **[system-architecture-python](./system-architecture-python/)** | Python binding example (ZeroMQ). | `std::thread` | N/A | Python / ZeroMQ |
-| **[zeromq-bitsery](./zeromq-bitsery/)** | ZeroMQ transport with Bitsery serialization. | `std::thread` | Bitsery | ZeroMQ |
-| **[zeromq-cereal](./zeromq-cereal/)** | ZeroMQ transport with Cereal serialization. | `std::thread` | Cereal | ZeroMQ |
-| **[zeromq-msgpack-cpp](./zeromq-msgpack-cpp/)** | ZeroMQ transport with MessagePack. | `std::thread` | MessagePack | ZeroMQ |
-| **[zeromq-rapidjson](./zeromq-rapidjson/)** | ZeroMQ transport with RapidJSON. | `std::thread` | RapidJSON | ZeroMQ |
-| **[zeromq-serializer](./zeromq-serializer/)** | ZeroMQ transport with custom `dmq::Serializer` class. | `std::thread` | `dmq::Serializer` class | ZeroMQ |
+| **[databus/basic](./databus/basic/)** | Distributed sensor/actuator system using `dmq::databus::DataBus` over UDP. | `std::thread` | `dmq::Serializer` class | UDP Socket |
+| **[databus/multicast](./databus/multicast/)** | One-to-many distribution over UDP multicast. | `std::thread` | `dmq::Serializer` class | UDP Multicast |
+| **[databus/relay](./databus/relay/)** | Three nodes across two different links: sensor ↔ gateway over UDP, gateway ↔ monitor over local IPC. The gateway relays topics both ways with `AddRelayTopic` and uses two transports in one process. Windows: named pipe / Linux: Unix domain socket. | `std::thread` | `dmq::Serializer` class | UDP Socket + Win32 Pipe / Unix Domain Socket |
+| **[databus/freertos](./databus/freertos/)** | FreeRTOS server (Win32 simulator, 32-bit) publishing sensor data to a Linux/Windows client over UDP, with the client sending rate-control commands back. | FreeRTOS | `dmq::Serializer` class | UDP Socket |
+| **[databus/zephyr](./databus/zephyr/)** | Zephyr server (`native_sim`, offloaded sockets over the host loopback) and a Linux/Windows client over UDP, in both directions. The server needs a Zephyr workspace. | Zephyr | `dmq::Serializer` class | UDP Socket |
+| **[databus/interop](./databus/interop/)** | C++ server with Python and C# clients, using MessagePack. | `std::thread` | MessagePack | UDP Socket |
+| **[databus/mqtt-gateway](./databus/mqtt-gateway/)** | Simulated thermostat exposed to MQTT tools as per-topic JSON via `JsonTopics` and `MqttBridge`; accepts setpoint commands. | `std::thread` | JSON (`JsonTopics`) | MQTT (Paho) |
+| **[databus/shapes](./databus/shapes/)** | Terminal shapes demo over UDP multicast, using FTXUI. | `std::thread` | `dmq::Serializer` class | UDP Multicast |
+
+## system-architecture/
+
+| Sample | Description | Threading (`dmq::IThread`) | Serialization (`dmq::ISerializer`) | Transport (`dmq::IDispatcher`) |
+| :--- | :--- | :--- | :--- | :--- |
+| **[system-architecture/full](./system-architecture/full/)** | Client/server system with managers, alarms and point-to-point RPC (`RemoteDispatcher`), using external libraries. | `std::thread` | MessagePack | ZeroMQ |
+| **[system-architecture/no-deps](./system-architecture/no-deps/)** | The same system with no external library, over UDP. Windows or Linux. | `std::thread` | `operator<<` / `operator>>` | UDP Socket |
+| **[system-architecture/python](./system-architecture/python/)** | A Python client for `system-architecture/full`'s server. | `std::thread` | MessagePack | ZeroMQ |
+
+## integration/
+
+| Sample | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
+| :--- | :--- | :--- | :--- |
+| **[integration/clang-native](./integration/clang-native/)** | All-features demo: sync, async, async-wait, multicast, signal. Windows or Linux. | `std::thread` | Any C++17 compiler (Clang, GCC, MSVC) |
+| **[integration/cmake-subdirectory](./integration/cmake-subdirectory/)** | DelegateMQ added as a CMake dependency the way `docs/BUILD.md` recommends: `FetchContent` (or `add_subdirectory`) and the `DelegateMQ::DelegateMQ` target. Checks the options reach the app, nothing leaks into other targets, and the library works. Windows or Linux. | `std::thread` | Any C++17 compiler, CMake 3.16+ |
+| **[integration/no-cmake](./integration/no-cmake/)** | Builds DelegateMQ as a non-CMake project would: one source file (`src/DelegateMQ.cpp`) and options in `DelegateMQConfig.h`, without `DelegateMQ.cmake`. Checks sync, async, signal and timer. Windows or Linux. | `std::thread` | Any C++17 compiler |
+
+## External libraries
+
+Samples using a third-party library (ZeroMQ, NNG, MQTT, RapidJSON, MessagePack, FTXUI, libserialport, ...) get it from the sandbox that `scripts/01_fetch_repos.py` and `02_build_libs.py` set up. See [Example Ecosystem (Sandbox)](../../docs/BUILD.md#automated-workspace-sandbox-setup).
 
 ## Showcase Projects
 
@@ -87,4 +114,4 @@ cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
 ```
 
-This applies to: `bare-metal-remote`, `clang-native`, `databus`, `databus-multicast`, `linux-tcp-serializer`, `linux-udp-serializer`, `no-cmake-integration`, `system-architecture-no-deps`, and the ZeroMQ-based projects (if ZeroMQ is installed). Windows-only and embedded projects are not applicable.
+This applies to: `transport/in-process`, `integration/clang-native`, `databus/basic`, `databus/multicast`, `integration/no-cmake`, `system-architecture/no-deps`, and `transport/serializer` (its ZeroMQ/NNG builds if those are installed). Windows-only and embedded projects are not applicable.

@@ -239,8 +239,9 @@ inline void StartHandlerExitsGatedThread()
 }
 
 /// @param twoThreads false where the port can't have two DelegateMQ threads
-/// alive at once (the ThreadX Linux simulator; see threadx-linux's
-/// DelegateThreadsPortableTests.cpp). Every other test uses one thread at a time.
+/// alive at once (the ThreadX Linux simulator; see TestOptions() in
+/// example/sample-projects/os/threadx/main_delegate.cpp). Every other test
+/// uses one thread at a time.
 inline void Run(bool twoThreads = true)
 {
     HoldsUntilOpen(twoThreads);

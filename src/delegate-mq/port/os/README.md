@@ -25,7 +25,7 @@ The subdirectories contain the platform-specific thread wrappers:
       through `std::thread`. Mutex/ConditionVariable/Clock/ThisThread still reuse the same `std::`
       types as `stdlib` (already thin wrappers over these same primitives under glibc/libstdc++);
       only the `Thread` class itself is native, mirroring `win32`'s relationship to `stdlib` but for
-      POSIX. See `example/sample-projects/posix-linux/`.
+      POSIX. See `example/sample-projects/os/posix/`.
 * **`freertos`**: Real-Time OS implementation.
     * *Target:* Embedded ARM Cortex-M (STM32, NXP, etc.), ESP32, and others running FreeRTOS.
     * *Implementation:* Uses native FreeRTOS primitives: `xTaskCreate`, `xQueueSend/Receive`, and `vTaskDelay`.

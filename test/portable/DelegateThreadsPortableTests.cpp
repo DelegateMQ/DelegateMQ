@@ -433,7 +433,9 @@ void FullPolicy_DefaultQueueSize_StillCapsUnderFlood()
 
     DMQ_ASSERT_TRUE(droppedCount > 0);
 
-    floodThread.ExitThread();
+    // DISCARD: the backlog is about a full queue of slow messages. Draining it
+    // only adds time (15 s on Windows, where a 2 ms sleep lasts a ~15.6 ms tick).
+    floodThread.ExitThread(dmq::ExitPolicy::DISCARD);
     std::cout << "FullPolicy_DefaultQueueSize_StillCapsUnderFlood() complete! (dropped "
               << droppedCount << "/" << SEND_COUNT << ")" << std::endl;
 }

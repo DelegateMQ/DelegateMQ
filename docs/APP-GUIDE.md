@@ -25,18 +25,18 @@ Most applications are a small step from an existing sample. Copy its structure, 
 | You want | Start from |
 |---|---|
 | Async delegates and signals between threads, one process | `example/sample-code/` (`ActiveObject.cpp`, `SysDataNoLock.cpp`), `delegate_app` |
-| DataBus pub/sub between threads and processes on a PC | `example/sample-projects/databus` |
-| Two DelegateMQ apps over a specific transport and serializer | `example/sample-projects/<transport>-<serializer>` (e.g. `zeromq-msgpack-cpp`, `linux-udp-serializer`) |
-| Client/server with managers, alarms and point-to-point RPC (`RemoteDispatcher`) | `example/sample-projects/system-architecture` (or `-no-deps`) |
-| DataBus gateway relaying between two different links | `example/sample-projects/databus-relay` |
-| One publisher to many subscribers over UDP multicast | `example/sample-projects/databus-multicast` |
-| DataBus topics exposed to MQTT tools as JSON | `example/sample-projects/databus-mqtt-gateway` |
-| FreeRTOS, runnable on a PC | `example/sample-projects/freertos-linux`, `databus-freertos` |
-| Zephyr, ThreadX, NuttX, CMSIS-RTOS2, runnable on a PC | `zephyr-linux`, `threadx-linux`, `nuttx-sim`, `cmsis-rtos2-linux` |
-| Bare metal, runnable in QEMU | `bare-metal` (Cortex-M4, Cortex-M3/ATfE and RISC-V targets) |
+| DataBus pub/sub between threads and processes on a PC | `example/sample-projects/databus/basic` |
+| Two DelegateMQ apps over a specific transport and serializer | `example/sample-projects/transport/serializer`, built for the transport and serializer you choose (`-DSAMPLE_TRANSPORT=zeromq -DSAMPLE_SERIALIZER=msgpack`) |
+| Client/server with managers, alarms and point-to-point RPC (`RemoteDispatcher`) | `example/sample-projects/system-architecture/full` (or `no-deps`, without external libraries) |
+| DataBus gateway relaying between two different links | `example/sample-projects/databus/relay` |
+| One publisher to many subscribers over UDP multicast | `example/sample-projects/databus/multicast` |
+| DataBus topics exposed to MQTT tools as JSON | `example/sample-projects/databus/mqtt-gateway` |
+| FreeRTOS, runnable on a PC | `example/sample-projects/os/freertos`, `databus/freertos` |
+| Zephyr, ThreadX, NuttX, CMSIS-RTOS2, runnable on a PC | `os/zephyr`, `os/threadx`, `os/nuttx`, `os/cmsis-rtos2` |
+| Bare metal, runnable in QEMU | `bare-metal/qemu` (Cortex-M4, Cortex-M0, Cortex-M3/ATfE and RISC-V targets) |
 | MCU firmware plus a PC GUI over serial | `example/pumptron` (STM32F4 + FTXUI; also runs on a FreeRTOS simulator) |
 | Several nodes (GUI, controller, safety) on one DataBus | `example/cellutron` |
-| Python or C# peers | `example/sample-interop`, `example/sample-projects/databus-interop` |
+| Python or C# peers | `example/sample-interop`, `example/sample-projects/databus/interop` |
 
 The RTOS and bare-metal samples run on a desktop (POSIX/Win32 simulators, `native_sim`, NuttX `sim`, QEMU), so you can build, run and fix code before it reaches a board.
 
@@ -257,7 +257,7 @@ m_dispatcher.Start();
 bool acked = m_dispatcher.RemoteInvokeWait(*m_cmdChannel, cmd); // blocks until ACK or timeout
 ```
 
-- **Receive handlers run on the dispatcher's network thread.** Keep them short and pass the message on to your own thread or a `Signal`, as `system-architecture`'s `NetworkMgr` does. The lifetime rules above apply: stop the dispatcher before destroying anything its handlers reach.
+- **Receive handlers run on the dispatcher's network thread.** Keep them short and pass the message on to your own thread or a `Signal`, as `system-architecture/full`'s `NetworkMgr` does. The lifetime rules above apply: stop the dispatcher before destroying anything its handlers reach.
 - **`RemoteInvokeWait` blocks the caller** until the remote ACKs or the wait limit passes (about 9.4 s with the defaults, covering all retries). `false` means it wasn't acknowledged. Use `RemoteInvokeWaitFor(channel, timeout, args...)` for a shorter limit; then `false` can also mean "not ACKed yet". Don't call it from a thread that must stay responsive (UI, timers, a watchdogged thread with a short timeout).
 - **Message IDs, argument types and serializers must match** on both ends. Keep the IDs in one shared header.
 - **Reliability is per connection.** For UDP or serial, wrap the transport in `ReliableTransport` with a `RetryMonitor` and call `AttachRetryMonitor()` after `Attach()`. Skip it for transports that are already reliable (TCP, ZeroMQ).
@@ -270,7 +270,7 @@ Details: [extras/rpc](../src/delegate-mq/extras/rpc/README.md), [DETAILS: Remote
 ## Diagnostics and Interop
 
 - **Watch the bus:** link `SpyBridge` (`tools/bridge/spy`) and register a stringifier per topic with `DataBus::RegisterStringifier<T>(topic, func)`, then run `dmq-spy` (build with `DMQ_TOOLS=ON`). `NodeBridge` feeds `dmq-monitor` and `dmq-thread`. These are desktop tools; the bridges send UDP from the node.
-- **MQTT and JSON:** declare topics once with `JsonTopics::Expose<T>()` / `Accept<T>()` and link `MqttBridge`. Don't write per-topic bridge code. See `databus-mqtt-gateway`.
+- **MQTT and JSON:** declare topics once with `JsonTopics::Expose<T>()` / `Accept<T>()` and link `MqttBridge`. Don't write per-topic bridge code. See `databus/mqtt-gateway`.
 - **Python and C#:** peers use `interop/python` or `interop/csharp` over the `DmqInterop` C API. Messages crossing languages use MessagePack (`MSGPACK_DEFINE` on the C++ type), with the same topic names and remote IDs on both sides.
 
 Details: [TOOLS](../tools/TOOLS.md), [INTEROP](INTEROP.md).

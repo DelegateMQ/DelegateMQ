@@ -78,6 +78,9 @@ void SpyBridge::Stop() {
     if (!instance.thread) return;
 
     instance.monitorConn.Disconnect();
+    // Start() registered the thread with ThreadMonitor: remove it before it's
+    // destroyed, or the monitor's next poll reads a freed thread.
+    dmq::util::ThreadMonitor::Deregister(instance.thread.get());
     instance.thread->ExitThread();
     instance.thread.reset();
     instance.telemetrySocket.Close();

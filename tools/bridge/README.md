@@ -56,7 +56,7 @@ MqttBridge::Start(options);
 
 - **Cellutron** (`example/cellutron/`): `SpyBridge` and `NodeBridge` on every node.
 - **Pumptron** (`example/pumptron/`): `MqttBridge` in the GUI, enabled with `--mqtt`.
-- **`databus-mqtt-gateway`** (`example/sample-projects/`): a minimal `MqttBridge` example.
+- **`databus/mqtt-gateway`** (`example/sample-projects/`): a minimal `MqttBridge` example.
 
 ## Adding a New Bridge
 

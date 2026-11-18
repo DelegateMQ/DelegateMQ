@@ -7,8 +7,8 @@
 /// @brief Tests that use only DelegateMQ's portable APIs (dmq::os::Thread,
 /// dmq::Mutex, dmq::ThisThread, dmq::Clock; no std::thread, std::mutex or
 /// std::chrono clocks), so one copy runs on every thread port. The OS port
-/// samples (posix-linux, qt-linux, freertos-linux, threadx-linux, zephyr-linux,
-/// cmsis-rtos2-linux, nuttx-sim) build these files and call them after their
+/// samples (os/posix, os/qt, os/win32, os/freertos, os/threadx, os/zephyr,
+/// os/cmsis-rtos2, os/nuttx) build these files and call them after their
 /// own demo tests; each sample keeps only its startup code and OS glue.
 ///
 /// | File | Runs |
@@ -43,7 +43,7 @@ struct Options
 
     /// false: never keep two test threads alive at once. Only for a port whose
     /// kernel can't run that (ThreadX's Linux/GNU simulation port, see
-    /// threadx-linux/main_delegate.cpp); skips the tests that need it.
+    /// os/threadx/main_delegate.cpp); skips the tests that need it.
     bool concurrentThreads = true;
 };
 

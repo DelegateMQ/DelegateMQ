@@ -32,7 +32,7 @@
 //
 // _WIN32/__linux__/__APPLE__/__unix__ reflect the compiler/host doing the
 // building, not the actual target. A genuine embedded cross-compile (e.g.
-// arm-none-eabi-gcc for stm32-freertos) never defines these host-platform
+// arm-none-eabi-gcc for boards/stm32-freertos) never defines these host-platform
 // macros in the first place, so this guard is only ever live for a target
 // that is ALSO built with a host compiler -- i.e. a simulator/native sample.
 // DMQ_THREAD_HAS_NATIVE_NETWORK_STACK (above) captures exactly which
@@ -468,7 +468,7 @@ namespace dmq
     using RecursiveMutex = dmq::os::CmsisRtos2RecursiveMutex;
     // ISR-safe (__disable_irq()/__enable_irq() via CMSIS-Core, bypassing
     // osMutex entirely) -- see CmsisRtos2CriticalSection.h. Verified on a
-    // Cortex-M3 under QEMU (cmsis-rtos2-linux, Zephyr mps2/an385), from
+    // Cortex-M3 under QEMU (os/cmsis-rtos2, Zephyr mps2/an385), from
     // thread and ISR context.
     using CriticalSection = dmq::os::CmsisRtos2CriticalSection;
     // No dmq::ConditionVariable port for CMSIS-RTOS2 (no DMQ_HAS_CV, and no

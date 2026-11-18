@@ -25,8 +25,8 @@ Targets Built:
     - libserialport:    No CMake build. Windows: Debug x64 DLL, built with MSBuild
                         from its own Visual Studio project. Linux: static library
                         from its autotools build (needs autoconf, automake,
-                        libtool). Used by serialport-serializer and
-                        stm32-freertos/client. A failure here is a warning only:
+                        libtool). Used by transport/serialport and
+                        boards/stm32-freertos/client. A failure here is a warning only:
                         other samples don't need it.
 
 Usage:
@@ -148,8 +148,8 @@ def build_libserialport_windows(deps_dir):
         print("    Success!\n")
         return True
     except subprocess.CalledProcessError:
-        print("    [WARNING] libserialport failed to build; serialport-serializer "
-              "and stm32-freertos/client won't configure.\n")
+        print("    [WARNING] libserialport failed to build; transport/serialport "
+              "and boards/stm32-freertos/client won't configure.\n")
         return False
 
 # Patch for libserialport 0.1.2 (the latest release; upstream master has no
@@ -158,7 +158,7 @@ def build_libserialport_windows(deps_dir):
 # sets RTS and DTR with TIOCMBIS/TIOCMBIC, and fails if those ioctls do.
 # Pseudo-terminals have no modem lines, so they fail with ENOTTY there, and
 # libserialport can't open the socat pty pair 05_run_samples.py connects
-# serialport-serializer's sender and receiver with. The patch treats
+# transport/serialport's sender and receiver with. The patch treats
 # ENOTTY/EINVAL from them as "no modem lines". Real UARTs support these
 # ioctls, so they behave as before.
 # Entries: (file, old text, new text, number of places old text must occur).
@@ -233,10 +233,10 @@ def build_libserialport_linux(deps_dir):
     missing = [t for t in ("autoreconf", "automake", "libtoolize") if not shutil.which(t)]
     if missing:
         print(f"    [WARNING] {', '.join(missing)} not found (packages autoconf, automake, "
-              "libtool); serialport-serializer won't build.\n")
+              "libtool); transport/serialport won't build.\n")
         return False
     if not patch_libserialport(source_dir):
-        print("    [WARNING] libserialport not patched; serialport-serializer won't run on a pty pair.\n")
+        print("    [WARNING] libserialport not patched; transport/serialport won't run on a pty pair.\n")
         return False
     steps = [["sh", "autogen.sh"], ["sh", "configure"] + configure]
     if os.path.isfile(os.path.join(source_dir, "Makefile")):
@@ -252,7 +252,7 @@ def build_libserialport_linux(deps_dir):
         return True
     except subprocess.CalledProcessError as e:
         print(f"    [WARNING] libserialport failed to build ({' '.join(e.cmd)}); "
-              "serialport-serializer won't build.")
+              "transport/serialport won't build.")
         print("    " + "\n    ".join((e.stderr or "").strip().splitlines()[-10:]) + "\n")
         return False
 

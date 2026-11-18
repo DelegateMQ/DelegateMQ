@@ -17,7 +17,7 @@
 /// * A network interface: on `native_sim` the loopback interface
 ///   (`CONFIG_NET_LOOPBACK=y`, needs `CONFIG_NET_DRIVERS=y`) is enough for
 ///   same-process testing with no host-side setup -- see
-///   `example/sample-projects/zephyr-udp-serializer/prj.conf`. A real
+///   `example/sample-projects/transport/zephyr-udp/prj.conf`. A real
 ///   target instead needs its actual link-layer driver (Ethernet, Wi-Fi, etc.).
 ///
 /// This file calls the `zsock_*`-prefixed socket functions (`zsock_socket()`,

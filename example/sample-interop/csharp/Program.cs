@@ -40,8 +40,14 @@ namespace CsharpSample
         const ushort SensorDataId = 100;
         const ushort CommandId = 101;
 
-        static void Main(string[] args)
+        // Counted by the callbacks, reported at the end of a timed run
+        static int s_sensorCount;
+        static int s_ackedCount;
+
+        /// Usage: CsharpSample [seconds]. With no argument it runs until Ctrl+C.
+        static int Main(string[] args)
         {
+            int duration = args.Length > 0 ? int.Parse(args[0]) : 0;
             Console.WriteLine("Starting C# Interop Sample...");
 
             // 2. Initialize the DataBus wrapper
@@ -52,6 +58,7 @@ namespace CsharpSample
             // The wrapper handles MessagePack deserialization automatically.
             bus.RegisterCallback<SensorData>(SensorDataId, (data) =>
             {
+                Interlocked.Increment(ref s_sensorCount);
                 Console.WriteLine($"[RECV] SensorData: id={data.Id} val={data.Value}");
             });
 
@@ -61,6 +68,7 @@ namespace CsharpSample
                 switch (status)
                 {
                     case SendStatus.Acked:
+                        Interlocked.Increment(ref s_ackedCount);
                         Console.WriteLine($"[ACK]  Command seq={seq} acknowledged by server");
                         break;
                     case SendStatus.Timeout:
@@ -96,13 +104,14 @@ namespace CsharpSample
             catch (Exception ex)
             {
                 Console.WriteLine($"ERROR: {ex.Message}");
-                return;
+                return 1;
             }
 
             // 4. Main Loop: Toggle server polling rate every 5 seconds
             Console.WriteLine("Running polling rate toggle loop (Press Ctrl+C to exit)...");
             int pollingRate = 250;
-            while (true)
+            var deadline = DateTime.UtcNow.AddSeconds(duration);
+            while (duration == 0 || DateTime.UtcNow < deadline)
             {
                 var cmd = new Command { PollingRateMs = pollingRate };
 
@@ -114,8 +123,15 @@ namespace CsharpSample
                 // Toggle between 250 and 1000ms
                 pollingRate = (pollingRate == 250) ? 1000 : 250;
 
-                Thread.Sleep(5000);
+                // Wait 5 s before the next command, or less at the end of a timed run
+                int waitMs = duration == 0 ? 5000
+                    : (int)Math.Clamp((deadline - DateTime.UtcNow).TotalMilliseconds, 0, 5000);
+                Thread.Sleep(waitMs);
             }
+
+            // A timed run fails if either direction didn't work
+            Console.WriteLine($"Received {s_sensorCount} sensor messages, {s_ackedCount} commands acknowledged");
+            return (s_sensorCount > 0 && s_ackedCount > 0) ? 0 : 1;
         }
     }
 }

@@ -69,7 +69,12 @@ Ensure `NodeBridge` is started (see [Integrating NodeBridge into Your App](#inte
 
 # Join a multicast group (auto-detects local interface)
 ./dmq-thread 9998 --multicast 239.1.1.1
+
+# Listen 10 seconds, print the thread table as text, exit (no TUI)
+./dmq-thread --once 10
 ```
+
+`dmq-target` (built with the tools) enables `ThreadMonitor`, so `dmq-target` and `dmq-thread` side by side show its `SpyBridge` thread.
 
 ---
 
@@ -201,7 +206,7 @@ Headless alternatives to the TUI for SSH sessions and shell pipelines. Each prin
 | `--hz <topic>` | Per sender and topic: rate (Hz) and min / max / standard deviation of the interval between messages (ms), plus `AGE`, seconds since the last message. Computed from the **sender's** timestamps, so network jitter between the sender and Spy doesn't affect it. |
 | `--bw <topic>` | Per sender and topic: rate, bytes/s, and mean / min / max message size. |
 
-`--window <n>` sets how many recent messages per topic `--hz` and `--bw` use (default 100). A growing `AGE` means the topic has stopped publishing.
+`--window <n>` sets how many recent messages per topic `--hz` and `--bw` use (default 100). A growing `AGE` means the topic has stopped publishing. `--duration <sec>` stops any of the three modes after that many seconds (default: until Ctrl-C), for scripts and tests.
 
 **Git Bash on Windows rewrites a lone `/`.** MSYS path conversion turns the argument `/` into a Windows path (e.g. `C:/Program Files/Git/`) before `dmq-spy` sees it, so `--bw /` matches nothing and prints `no matching messages yet` forever. Use `MSYS_NO_PATHCONV=1 ./dmq-spy --bw /`, or run it from PowerShell or `cmd`. A topic filter that doesn't start with `/` (e.g. `sensor`) is unaffected.
 
@@ -328,7 +333,7 @@ Selecting a node shows the breakdown: totals since the node started (or since `r
 
 Health is what the sender can see. On a link without ACKs (`UNRELIABLE` / best-effort) lost messages go unnoticed, so OK there means "no errors reported", not "nothing lost". The counters live on the node, so restarting `dmq-monitor` loses nothing, and a missed health packet is caught up by the next one.
 
-To try it, run `dmq-target --health-demo`: it cycles its Health through OK, WARN and FAIL every 45 seconds.
+To try it, run `dmq-target --health-demo`: it cycles its Health through OK, WARN and FAIL every 45 seconds. `dmq-target [seconds]` runs for that long and exits (default: until Ctrl+C).
 
 ### Usage
 
@@ -438,7 +443,7 @@ The bridge has no tool-specific integration: it publishes plain MQTT topics with
 | [Grafana](https://grafana.com/) | Grafana doesn't read a broker natively: use its MQTT data source plugin, or Telegraf (MQTT consumer) into a database such as InfluxDB. |
 | AWS IoT Core, Azure IoT Hub | Their brokers require TLS and authentication, which the bridge doesn't support yet. |
 
-Examples: [`example/sample-projects/databus-mqtt-gateway`](../example/sample-projects/databus-mqtt-gateway/README.md) (minimal thermostat) and Pumptron's `--mqtt` ([PUMPTRON.md](../example/pumptron/PUMPTRON.md#mqtt-gateway)).
+Examples: [`example/sample-projects/databus/mqtt-gateway`](../example/sample-projects/databus/mqtt-gateway/README.md) (minimal thermostat) and Pumptron's `--mqtt` ([PUMPTRON.md](../example/pumptron/PUMPTRON.md#mqtt-gateway)).
 
 ### Bridge Source Layout
 
@@ -473,7 +478,7 @@ cmake -DDMQ_TOOLS=ON ..
 cmake --build . --config Release
 ```
 
-This produces four executables: `dmq-spy`, `dmq-monitor`, `dmq-thread`, and `dmq-target` (a test application that exercises both bridges).
+This produces four executables: `dmq-spy`, `dmq-monitor`, `dmq-thread`, and `dmq-target` (a test application that exercises both bridges). `build_all.py` runs the three tools against `dmq-target`: `dmq-spy --echo` must print its topics, `dmq-monitor --once` must list its node, and `dmq-thread --once` its `SpyBridge` thread.
 
 Every build copies them to `tools/bin/` (gitignored), so they're always at `tools/bin/dmq-spy` (`.exe` on Windows), whether you build the tools on their own (`cmake -B build` in `tools/`, as `04_build_samples.py` does) or from the repo root with `DMQ_TOOLS=ON`, and in any configuration. The last build wins: Debug and Release overwrite each other. The Cellutron and Pumptron run scripts launch the tools from there. On Windows the copy fails while that tool is running, so close it before rebuilding.
 

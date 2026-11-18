@@ -193,7 +193,10 @@ public:
         if (nx_packet_data_append(packet_ptr, headerBuf, sizeof(headerBuf), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
             goto cleanup_and_fail;
 
-        if (nx_packet_data_append(packet_ptr, (VOID*)payload.data(), payload.size(), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
+        // Only when there is a payload: an ACK has none, and NetX's checked API
+        // rejects a zero-byte append (NX_SIZE_ERROR), which would drop every ACK.
+        if (!payload.empty() &&
+            nx_packet_data_append(packet_ptr, (VOID*)payload.data(), payload.size(), m_pool, NX_NO_WAIT) != NX_SUCCESS)
             goto cleanup_and_fail;
 
         // 4. Send

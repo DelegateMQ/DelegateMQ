@@ -51,15 +51,23 @@ def find_dll():
             return p
     return None
 
+# Optional run time in seconds (python main.py [seconds]); 0 = until Ctrl+C
+DURATION = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+
+# Counted by the callbacks, reported at the end of a timed run
+counts = {"sensor": 0, "acked": 0}
+
 def on_sensor_data(payload):
     """Callback invoked when sensor data arrives from the C++ server."""
     # SensorData: [id, value] (Matches C++ MSGPACK_DEFINE order)
     data = msgpack.unpackb(payload)
+    counts["sensor"] += 1
     print(f"[RECV] SensorData: id={data[0]} val={data[1]}")
 
 def on_send_status(remote_id, seq, status):
     """Delivery outcome of a sent command, matched to send() by sequence number."""
     if status == SendStatus.ACKED:
+        counts["acked"] += 1
         print(f"[ACK]  Command seq={seq} acknowledged by server")
     elif status == SendStatus.TIMEOUT:
         print(f"[WARN] Command seq={seq} not acknowledged yet; retrying")
@@ -110,8 +118,9 @@ def main():
     # 4. Main Loop: Toggle server polling rate every 5 seconds
     print("Running polling rate toggle loop (Press Ctrl+C to exit)...")
     polling_rate = 250
+    deadline = time.time() + DURATION
     try:
-        while True:
+        while DURATION == 0 or time.time() < deadline:
             # Command: [pollingRateMs]. Send serialized command to the C++ server
             # via the DLL; the returned sequence number tags its status callbacks.
             seq = bus.send(COMMAND_ID, [polling_rate])
@@ -120,12 +129,18 @@ def main():
             # Toggle between 250 and 1000ms
             polling_rate = 1000 if polling_rate == 250 else 250
             
-            time.sleep(5)
+            # Wait 5 s before the next command, or less at the end of a timed run
+            time.sleep(5 if DURATION == 0 else max(0.0, min(5.0, deadline - time.time())))
     except KeyboardInterrupt:
         print("\nStopping...")
     finally:
         # 5. Cleanup: Shut down native threads and close ports
         bus.stop()
+
+    if DURATION > 0:
+        print(f"Received {counts['sensor']} sensor messages, {counts['acked']} commands acknowledged")
+        # A timed run fails if either direction didn't work
+        sys.exit(0 if counts["sensor"] > 0 and counts["acked"] > 0 else 1)
 
 if __name__ == "__main__":
     main()

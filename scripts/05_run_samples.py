@@ -10,7 +10,7 @@ Key Features:
     1. Platform Awareness: Skips Windows-only projects on Linux and vice versa.
     2. Client/Server Support: Launches paired apps concurrently, waits for both,
        then proceeds to the next sample. Multi-node projects (MULTI_NODE, e.g.
-       databus-relay's gateway/monitor/sensor) launch every node the same way.
+       databus/relay's gateway/monitor/sensor) launch every node the same way.
     3. Failure Detection: Catches non-zero exit codes, crashes, and assertion/
        exception text in output.
     4. Timeout Handling: Kills apps that do not exit on their own (e.g. infinite-
@@ -28,29 +28,35 @@ Zephyr and NuttX: the Zephyr native_sim apps (build/zephyr/zephyr.exe) and
 NuttX's sim (build/nuttx/nuttx) run as host processes, checked for their
 success text (see run_zephyr, run_databus_zephyr, run_nuttx).
 
-MQTT: mqtt-rapidjson's sub and pub run against a mosquitto broker this script
+MQTT: transport/mqtt's sub and pub run against a mosquitto broker this script
 starts for the run (see run_mqtt).
 
-Serial: serialport-serializer runs on Linux over a socat pty pair, a virtual
+Serial: transport/serialport runs on Linux over a socat pty pair, a virtual
 null-modem cable between its sender and receiver ports (see run_serial).
 
-QEMU targets: each built target of example/sample-projects/bare-metal and
-freertos-bare-metal (build-<target>, full_suite.QEMU_TARGET_SAMPLES) runs on
+QEMU targets: each built target of example/sample-projects/bare-metal/qemu and
+os/freertos-bare-metal (build-<target>, full_suite.QEMU_TARGET_SAMPLES) runs on
 QEMU; it passes if QEMU exits 0, which the program's semihosting exit makes
 happen only when every check passed, and prints ALL TESTS PASSED.
-freertos-bare-metal's Win32 simulator build/ also runs, on Windows.
+os/freertos-bare-metal's Win32 simulator build/ also runs, on Windows.
 
 Skip List (always excluded):
-    - stm32-freertos         Embedded STM32 target, cannot run on host
+    - boards/stm32-freertos         Embedded STM32 target, cannot run on host
 
 Windows-only (skipped on Linux):
-    - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
-    - freertos-bare-metal     FreeRTOS Windows simulator (its QEMU targets run on both)
+    - databus/freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
+    - os/freertos-bare-metal     FreeRTOS Windows simulator (its QEMU targets run on both)
     - win32-*                 Windows API transport projects
 
 Cross-language pairs (server from one project, non-C++ client):
-    - system-architecture-python  C++ server (system-architecture), Python client
-    - databus-interop             C++ DataBus server, Python client (msgpack required)
+    - system-architecture/python  C++ server (system-architecture), Python client
+    - databus/interop             C++ DataBus server, Python client (msgpack required)
+    - databus/interop (C#)        the same server with its C# client (Windows)
+    - sample-interop              example/sample-interop's C++ server with its Python
+                                  client and, on Windows, its C# client, all at once
+
+Tools (tools/apps), against dmq-target:
+    - dmq-spy --echo and dmq-monitor --once, then dmq-thread --once
 
 Usage:
     Run this script FIFTH, after building all sample projects.
@@ -84,7 +90,7 @@ APP_DURATION = 10
 APP_TIMEOUT = APP_DURATION + 15
 
 SKIP_ALWAYS = {
-    "stm32-freertos",
+    "boards/stm32-freertos",
     "test",
     "tools",
 }
@@ -93,14 +99,14 @@ SKIP_ALWAYS = {
 # Keys are the project name; values define the server project/subdir and
 # the client command (relative to the project's own directory).
 CROSS_PAIRS = {
-    "system-architecture-python": {
-        "server_project": "system-architecture",
+    "system-architecture/python": {
+        "server_project": "system-architecture/full",
         "server_subdir":  "server",
         "client_cmd":     [sys.executable, "-u", "main.py"],
         "client_cwd":     "client",
     },
-    "databus-interop": {
-        "server_project": "databus-interop",
+    "databus/interop": {
+        "server_project": "databus/interop",
         "server_subdir":  "server",
         "client_cmd":     [sys.executable, "-u", "main.py"],
         "client_cwd":     "python-client",
@@ -111,36 +117,33 @@ CROSS_PAIRS = {
 # its own CMakeLists.txt. Values list the node sub-directories in start order;
 # each node's result is reported under its sub-directory name.
 MULTI_NODE = {
-    "databus-relay": ["gateway", "monitor", "sensor"],  # Windows: gateway creates the pipe the monitor connects to
+    "databus/relay": ["gateway", "monitor", "sensor"],  # Windows: gateway creates the pipe the monitor connects to
 }
 
 WINDOWS_ONLY = {
-    "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); client/server pair only runs on Windows
-    "freertos-bare-metal",
-    "win32-pipe-serializer",
-    "win32-tcp-serializer",
-    "win32-udp-serializer",
+    "databus/freertos",        # server uses FreeRTOS Win32 simulator (32-bit); client/server pair only runs on Windows
+    "os/freertos-bare-metal",
+    "os/win32",                # DMQ_THREAD_WIN32 port
 }
 
 LINUX_ONLY = {
-    "linux-tcp-serializer",
-    "linux-udp-serializer",
-    "threadx-linux",           # ThreadX Linux/GNU simulation port
-    "freertos-linux",          # FreeRTOS POSIX simulator port
-    "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
-    "qt-linux",                # DMQ_THREAD_QT port; Qt 6 Core
-    "zephyr-linux",            # Zephyr native_sim
-    "zephyr-udp-serializer",
-    "cmsis-rtos2-linux",
-    "databus-zephyr",
-    "nuttx-sim",               # NuttX sim
+    "os/threadx",           # ThreadX Linux/GNU simulation port
+    "os/freertos",          # FreeRTOS POSIX simulator port
+    "os/posix",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
+    "os/qt",                # DMQ_THREAD_QT port; Qt 6 Core
+    "os/zephyr",            # Zephyr native_sim
+    "transport/zephyr-udp",
+    "transport/netx-udp",      # ThreadX Linux/GNU simulation port + NetX Duo
+    "os/cmsis-rtos2",
+    "databus/zephyr",
+    "os/nuttx",               # NuttX sim
 }
 
 # Projects that cannot exit on their own (e.g. FreeRTOS scheduler never returns).
 # If this string appears anywhere in the output, the project is marked passed
 # regardless of exit code or timeout.
 SUCCESS_OVERRIDES = {
-    "freertos-bare-metal": "ALL TESTS PASSED",
+    "os/freertos-bare-metal": "ALL TESTS PASSED",
 }
 
 # Projects where we require specific strings in the output to confirm that
@@ -148,18 +151,21 @@ SUCCESS_OVERRIDES = {
 # Keys are project names; values are dicts mapping role ("client"/"server"/"app")
 # to a required substring.  Only roles listed here are checked.
 REQUIRED_OUTPUT = {
-    "databus":                     {"client": "Client received DataMsg"},
-    "databus-freertos":            {"client": "[Client] sensor/temp"},
-    "databus-multicast":           {"client": "Received Multicast Data"},
+    "databus/basic":               {"client": "Client received DataMsg"},
+    "databus/freertos":            {"client": "[Client] sensor/temp"},
+    "databus/multicast":           {"client": "Received Multicast Data"},
     # Both directions must cross both hops (UDP and pipe/Unix socket) through the gateway relay.
-    "databus-relay":               {"monitor": "[monitor] sensor/temp received",
+    "databus/relay":               {"monitor": "[monitor] sensor/temp received",
                                     "sensor":  "[sensor] setpoint received"},
-    "system-architecture":         {"client": "Actuators:"},
-    "system-architecture-no-deps": {"client": "Actuators:"},
-    "no-cmake-integration":        {"app": "ALL TESTS PASSED"},
-    "qt-linux":                    {"app": "ALL TESTS PASSED"},
-    "system-architecture-python":  {"client": "[RECV] Data:"},
-    "databus-interop":             {"client": "[RECV] DataMsg"},
+    "system-architecture/full":    {"client": "Actuators:"},
+    "system-architecture/no-deps": {"client": "Actuators:"},
+    "integration/no-cmake":        {"app": "ALL TESTS PASSED"},
+    "integration/cmake-subdirectory": {"app": "ALL TESTS PASSED"},
+    "os/qt":                       {"app": "ALL TESTS PASSED"},
+    "os/win32":                    {"app": "ALL TESTS PASSED"},
+    "transport/netx-udp":          {"app": "Data Message:"},
+    "system-architecture/python":  {"client": "[RECV] Data:"},
+    "databus/interop":             {"client": "[RECV] DataMsg"},
 }
 
 IS_WINDOWS = platform.system() == "Windows"
@@ -367,6 +373,143 @@ def try_run_clang(project_name, project_dir, is_pair, client_dir, server_dir):
         return True, did_fail, results
 
 
+def find_dotnet_exe(project_dir):
+    """The built C# app of the .csproj in project_dir (bin/<config>/<framework>/),
+    or None. Windows only: the C# interop clients load the native DLL."""
+    import re
+    csproj = next((f for f in os.listdir(project_dir) if f.endswith(".csproj")), None)
+    if not csproj:
+        return None
+    text = open(os.path.join(project_dir, csproj), encoding="utf-8", errors="replace").read()
+    framework = re.search(r"<TargetFramework>([^<]+)</TargetFramework>", text)
+    name = re.search(r"<AssemblyName>([^<]+)</AssemblyName>", text)
+    exe_name = (name.group(1) if name else os.path.splitext(csproj)[0]) + ".exe"
+    if not framework:
+        return None
+    path = os.path.join(project_dir, "bin", "Release", framework.group(1), exe_name)
+    return path if os.path.isfile(path) else None
+
+
+def run_interop(repo_root, samples_dir, passed, failed, skipped):
+    """The interop runs beyond databus/interop's C++ server + Python client
+    (CROSS_PAIRS), so both wrappers of the native DmqInterop library run:
+
+    - databus/interop (C#): its C++ server with the C# client (Windows). The
+      client must receive the server's DataMsg.
+    - sample-interop: example/sample-interop's C++ server with its Python
+      client and, on Windows, its C# client, all at once. Every process must
+      exit 0; a client exits 1 unless it received sensor data and had a
+      command acknowledged.
+    """
+    # databus/interop with the C# client
+    label = "databus/interop (C#)"
+    if not IS_WINDOWS:
+        skipped.append((label, "Windows only"))
+    else:
+        project = os.path.join(samples_dir, "databus", "interop")
+        server_dir = os.path.join(project, "server")
+        server = find_executable(os.path.join(server_dir, "build"),
+                                 get_exe_name(os.path.join(server_dir, "CMakeLists.txt")))
+        client_dir = os.path.join(project, "csharp-client")
+        client = find_dotnet_exe(client_dir)
+        if not server or not client:
+            skipped.append((label, "not built"))
+        else:
+            print(f"[RUNNING] {label}  (cross-language client/server)", flush=True)
+            did_fail, results = run_pair([server, str(APP_DURATION)], [client, str(APP_DURATION)],
+                                         server_dir, client_dir)
+            client_out = results.get("client", {}).get("output", "")
+            if not did_fail and "[RECV] DataMsg" not in client_out:
+                print("   FAILED  (client output missing: '[RECV] DataMsg')")
+                results["client"]["failed"] = did_fail = True
+            report_group(label, did_fail, results, passed, failed)
+
+    # example/sample-interop: C++ server, Python client, C# client (Windows)
+    label = "sample-interop"
+    base = os.path.join(repo_root, "example", "sample-interop")
+    server_dir = os.path.join(base, "cpp-server")
+    server = find_executable(os.path.join(server_dir, "build"), "InteropServer")
+    csharp = find_dotnet_exe(os.path.join(base, "csharp")) if IS_WINDOWS else None
+    if not server or (IS_WINDOWS and not csharp):
+        skipped.append((label, "not built"))
+        return
+    procs = [
+        # The server outlives the clients, so they all finish on their own
+        ("server", [server, str(APP_DURATION + 4)], server_dir),
+        ("python", [sys.executable, "-u", "main.py", str(APP_DURATION)], os.path.join(base, "python")),
+    ]
+    if csharp:
+        procs.append(("csharp", [csharp, str(APP_DURATION)], os.path.dirname(csharp)))
+    print(f"[RUNNING] {label}  ({'/'.join(p[0] for p in procs)})", flush=True)
+    did_fail, results = run_group(procs)
+    if any(r.get("timed_out") for r in results.values()):
+        did_fail = True   # every app ends on its own here; a timeout is a hang
+    report_group(label, did_fail, results, passed, failed)
+
+
+def run_tools(repo_root, passed, failed, skipped):
+    """The diagnostic tools (tools/apps) against dmq-target, the test app that
+    sends DataBus traffic through SpyBridge (to port 9999) and heartbeats and
+    ThreadMonitor statistics through NodeBridge (to port 9998), all unicast to
+    127.0.0.1. One unicast listener per port, so it runs twice:
+
+    1. dmq-spy --echo and dmq-monitor --once: the spy must print dmq-target's
+       sensor topics, the monitor must list its node (TargetApp).
+    2. dmq-thread --once: must list dmq-target's SpyBridge thread, which tests
+       ThreadMonitor end to end (thread stats -> DataBus -> NodeBridge -> UDP).
+
+    The listeners start first, so they hear dmq-target from its first message.
+    """
+    label = "tools"
+    tools_dir = os.path.join(repo_root, "tools")
+    exes = {}
+    for name in ("dmq-spy", "dmq-monitor", "dmq-thread", "dmq-target"):
+        exes[name] = (find_executable(os.path.join(tools_dir, "build"), name)
+                      or find_executable(os.path.join(tools_dir, "bin"), name))
+    if not all(exes.values()):
+        skipped.append((label, "not built"))
+        return
+
+    listen = 8   # seconds each listener runs; dmq-target outlives them
+    checks = [
+        ([("spy", [exes["dmq-spy"], "--echo", "sensor/", "--duration", str(listen)], tools_dir),
+          ("monitor", [exes["dmq-monitor"], "--once", str(listen)], tools_dir),
+          ("target", [exes["dmq-target"], str(listen + 2)], tools_dir)],
+         {"spy": "sensor/temp", "monitor": "TargetApp"}),
+        ([("thread", [exes["dmq-thread"], "--once", str(listen)], tools_dir),
+          ("target", [exes["dmq-target"], str(listen + 2)], tools_dir)],
+         {"thread": "SpyBridge"}),
+    ]
+    print(f"[RUNNING] {label}  (dmq-spy, dmq-monitor, dmq-thread against dmq-target)", flush=True)
+    all_results, did_fail = {}, False
+    for procs, required in checks:
+        group_fail, results = run_group(procs)
+        for role, text in required.items():
+            r = results.get(role, {})
+            if text not in r.get("output", ""):
+                print(f"   FAILED  ({role} output missing: {text!r})")
+                r["failed"] = group_fail = True
+        if any(r.get("timed_out") for r in results.values()):
+            group_fail = True   # every tool here ends on its own; a timeout is a hang
+        did_fail = did_fail or group_fail
+        for role, r in results.items():
+            all_results[role if role not in all_results else role + " (2)"] = r
+    report_group(label, did_fail, all_results, passed, failed)
+
+
+def report_group(label, did_fail, results, passed, failed):
+    """Print and record the result of a group run."""
+    if did_fail:
+        print("   FAILED")
+        for role, r in results.items():
+            if r.get("failed") or r.get("timed_out"):
+                print_result_detail(role, r)
+        failed.append(label)
+    else:
+        print("   passed")
+        passed.append(label)
+
+
 def print_result_detail(label, r):
     rc   = r.get("returncode", "?")
     tout = " [timeout]" if r.get("timed_out") else ""
@@ -428,7 +571,7 @@ def run_tests(repo_root, use_clang, passed, failed, skipped):
 
 def run_bare_metal(project_dir, passed, failed, skipped):
     """Run each built QEMU target of the sample (full_suite.QEMU_TARGET_SAMPLES)."""
-    sample = os.path.basename(project_dir)
+    sample = full_suite.sample_name(project_dir)
     for target, spec in full_suite.QEMU_TARGET_SAMPLES[sample].items():
         label = f"{sample}/{target}"
         # A cross-compiled ELF: no .exe suffix, even when built on Windows
@@ -455,9 +598,39 @@ def run_bare_metal(project_dir, passed, failed, skipped):
             failed.append(label)
 
 
+def run_transport(project_dir, use_clang, passed, failed, skipped):
+    """transport/serializer: run each built combination (full_suite.transport_configs()),
+    and its clang build with use_clang. Passes if the app exits 0 (it exits 1
+    if no message arrived intact) and printed the received data."""
+    sample = full_suite.sample_name(project_dir)
+    exe_name = get_exe_name(os.path.join(project_dir, "CMakeLists.txt"))
+    suffixes = [""] + (["-clang"] if use_clang and not IS_WINDOWS else [])
+    for name, _, _ in full_suite.transport_configs():
+        for suffix in suffixes:
+            label = f"{sample}/{name}" + (" (clang)" if suffix else "")
+            exe = find_executable(os.path.join(project_dir, f"build-{name}{suffix}"), exe_name)
+            if not exe:
+                skipped.append((label, "not built"))
+                continue
+            print(f"[RUNNING] {label}", flush=True)
+            did_fail, results = run_standalone(exe, project_dir)
+            r = results["app"]
+            did_fail = did_fail or r["timed_out"]   # it ends on its own after APP_DURATION
+            if not did_fail and full_suite.TRANSPORT_SUCCESS not in r["output"]:
+                print(f"   FAILED  (output missing: {full_suite.TRANSPORT_SUCCESS!r})")
+                did_fail = True
+            if did_fail:
+                print("   FAILED")
+                print_result_detail("app", r)
+                failed.append(label)
+            else:
+                print("   passed")
+                passed.append(label)
+
+
 def run_serial(project_dir, use_clang, passed, failed, skipped):
     """
-    serialport-serializer on a virtual null-modem cable: socat links two
+    transport/serialport on a virtual null-modem cable: socat links two
     pseudo-terminals (full_suite.SERIAL_PTYS), the sender opens one and the
     receiver the other. Passes if the app exits 0 (it does only when the
     receiver got messages) and printed one. Linux only; on Windows the Linux
@@ -512,7 +685,7 @@ def run_serial(project_dir, use_clang, passed, failed, skipped):
 
 def run_mqtt(project_dir, use_clang, passed, failed, skipped):
     """
-    mqtt-rapidjson: start a mosquitto broker on full_suite.MQTT_PORT, run sub
+    transport/mqtt: start a mosquitto broker on full_suite.MQTT_PORT, run sub
     then pub against it for APP_DURATION seconds, stop the broker. Passes if
     both exit cleanly and sub received data (it exits 1 if it got nothing).
     Runs wherever mosquitto is installed; on Windows without it the Linux run
@@ -614,7 +787,7 @@ def run_zephyr_qemu(project_dir, name, passed, failed, skipped):
 
 
 def run_databus_zephyr(project_dir, passed, failed, skipped):
-    """databus-zephyr: the Zephyr server (native_sim, stopped with its --stop_at
+    """databus/zephyr: the Zephyr server (native_sim, stopped with its --stop_at
     option once the client is done) and the host client exchange DataBus
     messages over the host loopback, in both directions."""
     name = full_suite.ZEPHYR_DATABUS_SAMPLE
@@ -646,7 +819,7 @@ def run_databus_zephyr(project_dir, passed, failed, skipped):
 
 
 def run_nuttx(sample_dir, passed, failed, skipped):
-    """nuttx-sim: the NuttX sim keeps running after its tests (an OS doesn't
+    """os/nuttx: the NuttX sim keeps running after its tests (an OS doesn't
     power off when an app returns), so read its output and stop it as soon as
     the success text appears; fail if it doesn't within NUTTX_TIMEOUT."""
     name = full_suite.NUTTX_SAMPLE
@@ -793,10 +966,7 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
     if clang_missing:
         failed.append("clang builds (clang++ not found)")
 
-    for project_name in sorted(os.listdir(samples_dir)):
-        project_dir = os.path.join(samples_dir, project_name)
-        if not os.path.isdir(project_dir):
-            continue
+    for project_name, project_dir in full_suite.list_samples(samples_dir):
 
         # --- Skip checks ---
         if project_name in SKIP_ALWAYS:
@@ -826,6 +996,9 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
             continue
         if project_name == full_suite.NUTTX_SAMPLE:
             run_nuttx(project_dir, passed, failed, skipped)
+            continue
+        if project_name == full_suite.TRANSPORT_SAMPLE:
+            run_transport(project_dir, use_clang, passed, failed, skipped)
             continue
 
         # --- Determine topology ---
@@ -970,6 +1143,12 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
                     tout_note = " (killed after timeout)" if any(r.get("timed_out") for r in clang_results.values()) else ""
                     print(f"   passed{tout_note}")
                     passed.append(clang_label)
+
+    # --- Interop: the C# wrapper, and example/sample-interop ---
+    run_interop(repo_root, samples_dir, passed, failed, skipped)
+
+    # --- The diagnostic tools, against dmq-target ---
+    run_tools(repo_root, passed, failed, skipped)
 
     # --- Unit tests and strict skips (--full) ---
     if full:

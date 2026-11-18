@@ -36,7 +36,7 @@ namespace dmq::os {
             // thread's own scheduler-lock-nesting count before it even checks
             // for ISR context, corrupting scheduler state (verified: this is
             // exactly what caused a one-shot dmq::util::Timer to refire forever
-            // instead of once, in example/sample-projects/cmsis-rtos2-linux).
+            // instead of once, in example/sample-projects/os/cmsis-rtos2).
             // dmq::CriticalSection is the primitive this library already uses
             // everywhere else for "must work from both thread and ISR context"
             // (see CLAUDE.md's "ISR-Safe Locking" section) -- used here for the

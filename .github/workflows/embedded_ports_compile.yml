@@ -38,7 +38,7 @@ jobs:
         release: '14.2.Rel1'
 
     # FreeRTOS-Kernel source and a working FreeRTOSConfig.h are already
-    # vendored under the stm32-freertos sample project -- reuse them
+    # vendored under the boards/stm32-freertos sample project -- reuse them
     # instead of fetching a second copy.
     - name: Compile port/os/freertos/FreeRTOSThread.cpp
       run: |
@@ -48,9 +48,9 @@ jobs:
           -std=gnu++17 -DDMQ_THREAD_FREERTOS -DDMQ_MAX_TIMER_EXPIRED=8 \
           -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
           -I src/delegate-mq \
-          -I example/sample-projects/stm32-freertos/server/Inc \
-          -I example/sample-projects/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/include \
-          -I example/sample-projects/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/portable \
+          -I example/sample-projects/boards/stm32-freertos/server/Inc \
+          -I example/sample-projects/boards/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/include \
+          -I example/sample-projects/boards/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/portable \
           -o /tmp/freertos_thread.o
 
   threadx:

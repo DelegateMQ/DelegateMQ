@@ -1,6 +1,6 @@
 # The portable tests (see PortableTests.h) for an OS port sample:
 #
-#   include("${CMAKE_SOURCE_DIR}/../../../test/portable/PortableTests.cmake")
+#   include("${CMAKE_SOURCE_DIR}/../../../../test/portable/PortableTests.cmake")
 #   # then add ${PORTABLE_TESTS_SOURCES} to the app's sources and
 #   # ${PORTABLE_TESTS_DIR} to its include directories
 #

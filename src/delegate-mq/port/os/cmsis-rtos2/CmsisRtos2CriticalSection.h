@@ -19,7 +19,7 @@
 /// that is valid from both thread and ISR context on this architecture.
 ///
 /// @note Verified on a real Cortex-M3 (QEMU mps2-an385) by the
-/// cmsis-rtos2-linux sample's Zephyr mps2/an385 build: PRIMASK is set while
+/// os/cmsis-rtos2 sample's Zephyr mps2/an385 build: PRIMASK is set while
 /// held and restored after, nested, from thread context and from the SysTick
 /// interrupt, and dmq::util::Timer's list lock works from that interrupt.
 /// __get_PRIMASK()/__set_PRIMASK()/__disable_irq() are standard

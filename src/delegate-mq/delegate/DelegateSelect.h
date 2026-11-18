@@ -62,7 +62,7 @@
 // native build bundles its own network stack headers that collide with real
 // host BSD/Winsock headers (e.g. Zephyr's <zephyr/net/socket.h> redefining
 // sockaddr_in et al.). FreeRTOS is deliberately NOT included here: its
-// Win32/POSIX simulator ports (databus-freertos, freertos-linux) have no
+// Win32/POSIX simulator ports (databus/freertos, os/freertos) have no
 // native network stack of their own to collide with, and use real host
 // sockets on purpose.
 #if defined(DMQ_THREAD_THREADX) || defined(DMQ_THREAD_ZEPHYR) || defined(DMQ_THREAD_CMSIS_RTOS2)
@@ -153,7 +153,7 @@
 //
 // _WIN32/__linux__/__APPLE__/__unix__ reflect the compiler/host doing the
 // building, not the actual target: an RTOS simulator sample (e.g.
-// zephyr-linux/threadx-linux/freertos-linux) compiles with a host GCC on a
+// os/zephyr/os/threadx/os/freertos) compiles with a host GCC on a
 // Unix box despite targeting DMQ_THREAD_ZEPHYR/THREADX/FREERTOS, so this
 // used to auto-enable DataBus for those too even without CMake in the
 // picture. DataBus's NetworkConnect.h reaches for the host's own BSD

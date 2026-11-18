@@ -27,10 +27,10 @@ Key Features:
        controller) from example/pumptron only, and -- when Ninja,
        arm-none-eabi-gcc and the STM32Cube FW_F4 package are available --
        the STM32F4 firmware cross-build into example/pumptron/build/f4.
-    9. QEMU targets: configures example/sample-projects/bare-metal and
-       freertos-bare-metal once per target (build-<target>, see
+    9. QEMU targets: configures example/sample-projects/bare-metal/qemu and
+       os/freertos-bare-metal once per target (build-<target>, see
        full_suite.QEMU_TARGET_SAMPLES) whose cross toolchain and QEMU are
-       installed. freertos-bare-metal's Win32 simulator build is extra.
+       installed. os/freertos-bare-metal's Win32 simulator build is extra.
     10. Full suite (--full): also configures the extra unit-test builds in
        test/ listed in full_suite.TEST_VARIANTS (sanitizers, the
        DMQ_ALLOCATOR/DMQ_ASSERTS build, stress tests). On Linux a missing
@@ -178,7 +178,7 @@ def configure_bare_metal(sample_dir, clean, full):
     (full_suite.QEMU_TARGET_SAMPLES) whose toolchain and QEMU are installed.
     Under --full a missing one is an error on Linux; on Windows the Linux run
     (Docker, every toolchain) covers it."""
-    sample = os.path.basename(sample_dir)
+    sample = full_suite.sample_name(sample_dir)
     for target in full_suite.QEMU_TARGET_SAMPLES[sample]:
         label = f"{sample}/{target}"
         missing = full_suite.bare_metal_missing(target, sample)
@@ -201,6 +201,27 @@ def configure_bare_metal(sample_dir, clean, full):
         except subprocess.CalledProcessError as e:
             print("   FAILED")
             report_failure(label, e.stderr)
+
+
+def configure_transport(sample_dir, clean, clang_exe):
+    """transport/serializer: configure build-<transport>-<serializer> for each
+    combination this platform runs (full_suite.transport_configs()), and the
+    -clang variant of each when clang_exe is given."""
+    sample = full_suite.sample_name(sample_dir)
+    variants = [("", [])]
+    if clang_exe:
+        variants.append(("-clang", [f"-DCMAKE_CXX_COMPILER={clang_exe}"]))
+    for name, transport, serializer in full_suite.transport_configs():
+        for suffix, extra in variants:
+            build_dir = f"build-{name}{suffix}"
+            label = f"{sample}/{name}" + (" (clang)" if suffix else "")
+            if clean and os.path.exists(os.path.join(sample_dir, build_dir)):
+                shutil.rmtree(os.path.join(sample_dir, build_dir), ignore_errors=True)
+            cmd = (["cmake", "-B", build_dir, f"-DSAMPLE_TRANSPORT={transport}",
+                    f"-DSAMPLE_SERIALIZER={serializer}"] + extra + ["."])
+            print(f"[CONFIGURING] {label}")
+            if run_configure(cmd, sample_dir, label):
+                print("   Success!")
 
 
 def run_configure(cmd, cwd, label, env=None):
@@ -271,7 +292,7 @@ def configure_zephyr_qemu(project_dir, name, clean, full):
 
 
 def configure_nuttx(sample_dir, repo_root, clean, full):
-    """Set up nuttx-sim's NuttX build: copy NUTTX_SRC/nuttx to build/nuttx, link
+    """Set up os/nuttx's NuttX build: copy NUTTX_SRC/nuttx to build/nuttx, link
     the sample's apps/ beside it as dmq_apps (NuttX wants -a relative to nuttx/),
     then configure sim:cxxtest with the sample's entry point and libc++, as its
     README describes. An already configured tree is kept, so builds are
@@ -351,22 +372,28 @@ def build_samples(use_clang=False, clean=False, full=False):
             if "install" in dirnames: dirnames.remove("install")
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
-            skip_dirs = ["unit-tests", "stm32-freertos"]
-            for sd in skip_dirs:
-                if sd in dirnames: dirnames.remove(sd)
+            skip_dirs = ["unit-tests", "boards/stm32-freertos"]
+            dirnames[:] = [d for d in dirnames if d not in skip_dirs
+                           and full_suite.sample_name(os.path.join(dirpath, d)) not in skip_dirs]
 
             # Samples with QEMU targets have one build directory per target
-            # (build-<target>). bare-metal has nothing else; freertos-bare-metal
+            # (build-<target>). bare-metal has nothing else; os/freertos-bare-metal
             # also has its Win32 simulator build/, configured below on Windows.
-            if os.path.basename(dirpath) in full_suite.QEMU_TARGET_SAMPLES:
+            if full_suite.sample_name(dirpath) in full_suite.QEMU_TARGET_SAMPLES:
                 configure_bare_metal(dirpath, clean, full)
                 dirnames.clear()
-                if os.path.basename(dirpath) == full_suite.BARE_METAL_SAMPLE:
+                if full_suite.sample_name(dirpath) == full_suite.BARE_METAL_SAMPLE:
                     continue
+
+            # transport/serializer: one build directory per combination
+            if full_suite.sample_name(dirpath) == full_suite.TRANSPORT_SAMPLE:
+                configure_transport(dirpath, clean, clang_exe)
+                dirnames.clear()
+                continue
 
             # Zephyr (native_sim) and NuttX (sim) samples: Linux only, each
             # configured its own way (see full_suite.py).
-            name = os.path.basename(dirpath)
+            name = full_suite.sample_name(dirpath)
             if (name in full_suite.ZEPHYR_SAMPLES or name == full_suite.ZEPHYR_DATABUS_SAMPLE
                     or name == full_suite.NUTTX_SAMPLE):
                 dirnames.clear()
@@ -391,8 +418,8 @@ def build_samples(use_clang=False, clean=False, full=False):
                 dirnames.clear()
 
             if "CMakeLists.txt" in files:
-                project_name = os.path.basename(dirpath)
-                parent_name  = os.path.basename(os.path.dirname(dirpath))
+                project_name = full_suite.sample_name(dirpath)
+                parent_name  = full_suite.sample_name(os.path.dirname(dirpath))
 
                 # --- SKIP COMMON/SHARED FOLDERS ---
                 if project_name in ["common", "include", "src"]:
@@ -400,28 +427,28 @@ def build_samples(use_clang=False, clean=False, full=False):
                     continue
 
                 # --- SKIP WINDOWS-ONLY PROJECTS ON LINUX ---
-                # databus-freertos and freertos-bare-metal require the FreeRTOS Win32 simulator (cmake -A Win32),
+                # databus/freertos and os/freertos-bare-metal require the FreeRTOS Win32 simulator (cmake -A Win32),
                 # which is only available on Windows.  Attempting to configure it on Linux
                 # produces a noisy cmake error with no useful output.
-                WINDOWS_ONLY_PROJECTS = {"databus-freertos", "freertos-bare-metal", "stm32-freertos"}
+                WINDOWS_ONLY_PROJECTS = {"databus/freertos", "os/freertos-bare-metal", "os/win32", "boards/stm32-freertos"}
                 if not IS_WINDOWS and (project_name in WINDOWS_ONLY_PROJECTS or
                                        parent_name in WINDOWS_ONLY_PROJECTS):
                     continue
 
                 # --- SKIP LINUX-ONLY PROJECTS ON WINDOWS ---
-                # freertos-linux and threadx-linux are native Linux/GNU simulator
-                # ports, and posix-linux uses the DMQ_THREAD_POSIX port; their own
+                # os/freertos and os/threadx are native Linux/GNU simulator
+                # ports, and os/posix uses the DMQ_THREAD_POSIX port; their own
                 # CMakeLists.txt refuses to configure on Windows (FATAL_ERROR). Skip
                 # them here instead of letting that surface as a noisy FAILED entry
                 # on every Windows run.
-                LINUX_ONLY_PROJECTS = {"freertos-linux", "threadx-linux", "posix-linux", "qt-linux"}
+                LINUX_ONLY_PROJECTS = {"os/freertos", "os/threadx", "os/posix", "os/qt", "transport/netx-udp"}
                 if IS_WINDOWS and (project_name in LINUX_ONLY_PROJECTS or
                                    parent_name in LINUX_ONLY_PROJECTS):
                     continue
 
                 # Build a display label that includes the parent for client/server sub-dirs
-                # and for the nodes of multi-node projects (e.g. databus-relay/gateway)
-                MULTI_NODE_PROJECTS = {"databus-relay"}
+                # and for the nodes of multi-node projects (e.g. databus/relay/gateway)
+                MULTI_NODE_PROJECTS = {"databus/relay", "transport/mqtt"}
                 if project_name in ("client", "server") or parent_name in MULTI_NODE_PROJECTS:
                     display_name = f"{parent_name}/{project_name}"
                 else:
@@ -434,16 +461,13 @@ def build_samples(use_clang=False, clean=False, full=False):
                     except: pass
 
                 # 3. CONFIGURE
-                # Win32 is required for the FreeRTOS Windows simulator port.
-                # Match standalone projects (e.g. "freertos-bare-metal") by project_name,
-                # and client/server sub-projects by parent_name + role.  The client side of
-                # a mixed-platform project (e.g. databus-freertos/client) must NOT use Win32.
-                # Exclude "*-linux" projects (e.g. "freertos-linux"): they use the FreeRTOS
-                # POSIX simulator port, which is native x86_64 Linux, not Win32.
-                needs_win32 = (
-                    ("freertos" in project_name.lower() and not project_name.lower().endswith("-linux")) or
-                    ("freertos" in parent_name.lower() and project_name == "server")
-                )
+                # Win32 (32-bit) is required for the FreeRTOS Windows simulator port:
+                # os/freertos-bare-metal's default build and databus/freertos's server
+                # (its client is an ordinary host app). os/freertos uses the FreeRTOS
+                # POSIX simulator, a native Linux build.
+                WIN32_SIMULATOR_PROJECTS = {"os/freertos-bare-metal", "databus/freertos/server"}
+                needs_win32 = (project_name in WIN32_SIMULATOR_PROJECTS
+                               or f"{parent_name}/{project_name}" in WIN32_SIMULATOR_PROJECTS)
                 
                 cmd = ["cmake", "-B", "build"]
                 if needs_win32:
@@ -469,7 +493,7 @@ def build_samples(use_clang=False, clean=False, full=False):
                     print(f"   FAILED: {project_name}")
 
                     # --- SPECIAL HANDLING FOR SERIALPORT ---
-                    if "serialport-serializer" in project_name:
+                    if "transport/serialport" in project_name:
                         print(f"   >> NOTICE: This project needs libserialport.")
                         print(f"   >> 02_build_libs.py builds it (MSBuild on Windows, autotools on Linux); check that step's output.")
                         print(f"   >> Otherwise see: {os.path.join(dirpath, 'README.md')}\n")

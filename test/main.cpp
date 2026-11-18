@@ -257,7 +257,7 @@ void RunSimpleExamples()
     public:
         int Send(dmq::xostringstream& os, const dmq::transport::DmqHeader& header) override {
             // @TODO: Send serialized data to the remote endpoint.
-            // See example\sample-projects\system-architecture-no-deps
+            // See example\sample-projects\system-architecture/no-deps
             // for a complete working remote delegate client/server example.
             cout << "Transport Send DelegateRemoteId=" << header.GetId() << endl;
             return 0;

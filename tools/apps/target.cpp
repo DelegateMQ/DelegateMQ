@@ -2,7 +2,8 @@
 // @see https://github.com/DelegateMQ/DelegateMQ
 // Test application to generate sample DataBus traffic for the Spy tool.
 //
-// Usage: dmq-target [--health-demo]
+// Usage: dmq-target [seconds] [--health-demo]
+//   seconds        Run this long, then exit (default: until Ctrl+C)
 //   --health-demo  Also cycle dmq-monitor's Health column through OK, WARN and
 //                  FAIL: a TransportMonitor whose messages are never ACKed
 //                  produces real ACK timeouts, and a simulated RetryMonitor
@@ -11,15 +12,23 @@
 #include "extras/databus/DataBus.h"
 #include "../bridge/spy/SpyBridge.h"
 #include "../bridge/node/NodeBridge.h"
+#include "extras/util/ThreadMonitor.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
 #include <random>
 #include <cstring>
 #include <atomic>
+#include <cctype>
+#include <cstdlib>
 
 int main(int argc, char* argv[]) {
-    const bool healthDemo = (argc > 1 && std::strcmp(argv[1], "--health-demo") == 0);
+    bool healthDemo = false;
+    int duration = 0;   // seconds; 0 = until Ctrl+C
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--health-demo") == 0) healthDemo = true;
+        else if (std::isdigit(static_cast<unsigned char>(argv[i][0]))) duration = std::atoi(argv[i]);
+    }
 
     std::cout << "Starting Target Application (Source)..." << std::endl;
 
@@ -38,6 +47,11 @@ int main(int argc, char* argv[]) {
 
     // 2. Start the Node Bridge (opt-in: sends heartbeats to dmq-monitor)
     NodeBridge::Start("TargetApp", "127.0.0.1", 9998);
+
+    // 2b. Thread statistics for dmq-thread: ThreadMonitor publishes the stats of
+    // registered threads (SpyBridge registers its own) every 2 s, and NodeBridge
+    // sends them to port 9998 with its heartbeats.
+    dmq::util::ThreadMonitor::Enable();
 
     // 3. Register stringifiers for topics we want to monitor
     dmq::databus::DataBus::RegisterStringifier<int>("sensor/temp", dmq::MakeDelegate([](int v) -> dmq::xstring {
@@ -71,7 +85,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Health demo: OK for 15 s, then ACK timeouts (WARN), then a delivery failure (FAIL), repeating." << std::endl;
 
     uint16_t seq = 0;
-    for (int second = 0; ; ++second) {
+    for (int second = 0; duration == 0 || second < duration; ++second) {
         dmq::databus::DataBus::Publish("sensor/temp", temp_dist(generator));
         dmq::databus::DataBus::Publish("sensor/humidity", hum_dist(generator));
         dmq::databus::DataBus::Publish<dmq::xstring>("system/status", "Running OK");
@@ -91,6 +105,7 @@ int main(int argc, char* argv[]) {
         transportMonitor.Process();
     }
 
+    dmq::util::ThreadMonitor::Disable();
     SpyBridge::Stop();
     NodeBridge::Stop();
     running = false;

@@ -22,6 +22,8 @@ Dependencies Pinned:
     - MsgPack:       cpp-8.0.0    (Required for C++ headers)
     - FreeRTOS:      V11.1.0      (FreeRTOS-Kernel release)
     - ThreadX:       6.5.1.202602a (Latest stable, Linux/GNU port)
+    - lwIP:          2.2.1        (STABLE-2_2_1_RELEASE, with contrib/ports/unix)
+    - NetX Duo:      6.5.1.202602 (Matches the ThreadX release)
 
 Target Directory:
     <repo>/external (gitignored) by default. Override with --deps-dir or the
@@ -82,7 +84,15 @@ repos = {
     "FreeRTOS": ("https://github.com/FreeRTOS/FreeRTOS-Kernel.git", "V11.1.0", False),
 
     # ThreadX: Latest stable release with Linux/GNU simulation port coverage
-    "threadx": ("https://github.com/eclipse-threadx/threadx.git", "v6.5.1.202602a_rel", False)
+    "threadx": ("https://github.com/eclipse-threadx/threadx.git", "v6.5.1.202602a_rel", False),
+
+    # lwIP: transport/serializer's lwip build (ArmLwipUdpTransport on the host,
+    # through lwIP's loopback interface and its contrib/ports/unix sys_arch)
+    "lwip": ("https://github.com/lwip-tcpip/lwip.git", "STABLE-2_2_1_RELEASE", False),
+
+    # NetX Duo: transport/netx-udp (NetXUdpTransport on the ThreadX Linux
+    # simulator). Same release family as ThreadX above.
+    "netxduo": ("https://github.com/eclipse-threadx/netxduo.git", "v6.5.1.202602_rel", False)
 }
 
 def fix_zeromq_conflict(deps_dir):

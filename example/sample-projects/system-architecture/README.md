@@ -1,12 +1,11 @@
-The System Architecture example demonstrates a complex client-server DelegateMQ application. This example implements the acquisition of sensor and actuator data across two applications. It showcases communication and collaboration between subsystems, threads, and processes or processors. Delegate communication, callbacks, asynchronous APIs, and error handing are also highlighted. Notice how easily DelegateMQ transfers event data between threads and processes with minimal application code. The application layer is completely isolated from message passing details.
+# System architecture samples
 
-Follow the steps below to execute the projects.
+One client/server system (managers, alarms, sensors and actuators, point-to-point RPC with `RemoteDispatcher`), in three builds.
 
-1. Setup ZeroMQ and MessagePack external library dependencies (see [Example Ecosystem (Sandbox)](../../../docs/BUILD.md#example-ecosystem-sandbox) in `BUILD.md`). Alternatively, see the [`system-architecture-no-deps`](../system-architecture-no-deps/README.md) project with no external dependencies.
-2. Execute CMake command in `client` and `server` directories.  
-   `cmake -B build .`
-3. Build client and server applications within the `build` directory.
-4. Start `delegate_server_app` first.
-5. Start `delegate_client_app` second.
-6. Client and server communicate and output debug data to the console.
+| Sample | Shows | External libraries |
+| :--- | :--- | :--- |
+| [no-deps](./no-deps/) | The system over UDP with no third-party library. Start here. | none |
+| [full](./full/) | The system over ZeroMQ with MessagePack. | ZeroMQ, msgpack-c |
+| [python](./python/) | A Python client for `full`'s server, speaking the same wire format. | pyzmq, msgpack (Python) |
 
+`build_all.py` builds and runs all three (`python` against `full`'s server); the test scripts name them `system-architecture/<sample>`.

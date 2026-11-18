@@ -117,16 +117,16 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 1. **Include path:** add `src/delegate-mq`.
 2. **Options:** copy `src/delegate-mq/delegate/DelegateMQConfig_Template.h` into your project as `DelegateMQConfig.h`, on the include path, and select ports and options there (`#define DMQ_THREAD_FREERTOS`, `#define DMQ_ALLOCATOR`, ...). It's found automatically, so no `-D` flags are needed. Anything left undefined is auto-selected: stdlib threads, the built-in serializer and UDP on Windows/Linux, nothing on bare metal.
 3. **Sources:** add **one** of these, not both:
-   - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal/Makefile`.
-   - **Every `.cpp` in `src/delegate-mq`.** Best for IDEs that compile a whole folder (STM32CubeIDE, PlatformIO). Files for ports you didn't select compile to nothing, so there's nothing to exclude. Example: the STM32CubeIDE project in `example/sample-projects/stm32-freertos/server`.
+   - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal/qemu/Makefile`.
+   - **Every `.cpp` in `src/delegate-mq`.** Best for IDEs that compile a whole folder (STM32CubeIDE, PlatformIO). Files for ports you didn't select compile to nothing, so there's nothing to exclude. Example: the STM32CubeIDE project in `example/sample-projects/boards/stm32-freertos/server`.
 
-   `example/sample-projects/no-cmake-integration` builds the single-file way on Windows and Linux, and `build_all.py` builds and runs it.
+   `example/sample-projects/integration/no-cmake` builds the single-file way on Windows and Linux, and `build_all.py` builds and runs it.
 4. **Third-party and RTOS code:** add the include paths and libraries your ports need, e.g. FreeRTOS's `include/` and `portable/<port>` plus your `FreeRTOSConfig.h`. The RTOS kernel itself is part of your application.
 
 Requirements:
 - **The same options everywhere.** Keep them in `DelegateMQConfig.h` (or identical `-D` flags for the whole project), not in per-file settings.
 - **C++17 with RTTI.** Exceptions are optional; `DMQ_ASSERTS` routes errors to `FaultHandler()`.
-- **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal` (`targets/*/bsp.cpp`).
+- **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal/qemu` (`targets/*/bsp.cpp`).
 - **Your own fault handler (optional):** define `DMQ_CUSTOM_FAULT_HANDLER`, and the library's `port/fault/Fault.cpp` compiles to nothing. Your application then defines `dmq::util::FaultHandler()`, the C `FaultHandler()` and `WatchdogHandler()`, and `InstallCrashHandlers()` if you call it. See `example/pumptron/controller/platform/f4/Fault.cpp`.
 
 ---
@@ -173,8 +173,8 @@ A plain `build_all.py` run skips whatever the machine lacks the tools for. `--fu
 
 - every sample, as usual, plus the clang builds on Linux (`--full` implies `--clang` there)
 - the unit-test app in `test/`, in every build listed in `scripts/full_suite.py`: the default build, clang, AddressSanitizer, ThreadSanitizer and UndefinedBehaviorSanitizer (Linux), big-endian s390x and 32-bit Arm (armhf) builds run under QEMU user mode (Linux), the `DMQ_ALLOCATOR`/`DMQ_ASSERTS` embedded configuration, and the stress tests
-- a cross-endian check (Linux): `system-architecture-no-deps` with one side native x86 (little-endian) and the other built for s390x (big-endian) under QEMU user mode, both ways round, checking each side decodes the other's IDs
-- real Cortex-M and RISC-V CPUs under QEMU, each with a real timer interrupt: the `bare-metal` targets (Cortex-M0, M3, M4, RV32), FreeRTOS on a Cortex-M3 (`freertos-bare-metal`'s `arm-m3` target) and CMSIS-RTOS2 on Zephyr's `mps2/an385` board (`cmsis-rtos2-linux`, Linux). The RTOS ones check `dmq::CriticalSection` from the interrupt
+- a cross-endian check (Linux): `system-architecture/no-deps` with one side native x86 (little-endian) and the other built for s390x (big-endian) under QEMU user mode, both ways round, checking each side decodes the other's IDs
+- real Cortex-M and RISC-V CPUs under QEMU, each with a real timer interrupt: the `bare-metal/qemu` targets (Cortex-M0, M3, M4, RV32), FreeRTOS on a Cortex-M3 (`os/freertos-bare-metal`'s `arm-m3` target) and CMSIS-RTOS2 on Zephyr's `mps2/an385` board (`os/cmsis-rtos2`, Linux). The RTOS ones check `dmq::CriticalSection` from the interrupt
 
 Results are also written to `full-suite-results/<platform>.json` (gitignored).
 
@@ -182,7 +182,7 @@ Results are also written to `full-suite-results/<platform>.json` (gitignored).
 python3 build_all.py --full
 ```
 
-Samples that need a broker, a serial port pair or an emulator are run with them: `mqtt-rapidjson` against a mosquitto broker started for the run, `serialport-serializer` over a `socat` pseudo-terminal pair (Linux), the `bare-metal` targets on QEMU, the Zephyr samples on `native_sim` (with `ZEPHYR_BASE` set) and `nuttx-sim` on NuttX's `sim` board (with `NUTTX_SRC` set). Samples that need real hardware (`stm32-freertos`) are listed in `full_suite.PENDING` and reported as skipped with the reason; `keil-bare-metal` needs Keil MDK and is never built. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
+`transport/serializer` is built and run once per transport/serializer combination in `full_suite.TRANSPORT_COMBOS`, each in its own `build-<transport>-<serializer>` directory. Samples that need a broker, a serial port pair or an emulator are run with them: `transport/mqtt` against a mosquitto broker started for the run, `transport/serialport` over a `socat` pseudo-terminal pair (Linux), the `bare-metal` targets on QEMU, the Zephyr samples on `native_sim` (with `ZEPHYR_BASE` set) and `os/nuttx` on NuttX's `sim` board (with `NUTTX_SRC` set). Samples that need real hardware (`boards/stm32-freertos`) are listed in `full_suite.PENDING` and reported as skipped with the reason; `bare-metal/keil` needs Keil MDK and is never built. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
 
 #### In Docker (Linux)
 `docker/Dockerfile` has every Linux tool `--full` needs, and `docker/run.sh` runs `build_all.py` in it on the current checkout. It needs Docker, with your user in the `docker` group:
@@ -209,7 +209,7 @@ The Linux machine needs git, Docker (with your user in the `docker` group) and k
 ### Manual Sample Build
 If you want to build a specific sample without scripts, navigate to its directory (its third-party dependencies must already be built, e.g. by `02_build_libs.py`):
 ```bash
-cd example/sample-projects/zeromq-msgpack-cpp
+cd example/sample-projects/system-architecture/no-deps/server
 cmake -B build
 cmake --build build
 ```

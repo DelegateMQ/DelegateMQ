@@ -23,10 +23,10 @@
 ///
 /// xPortIsInsideInterrupt() is provided by every real ARM Cortex-M FreeRTOS
 /// port this project supports (ARM_CM3, CM4F, CM7, CM23, CM33, CM55 --
-/// e.g. the stm32-freertos sample), detected via reading the ARM Cortex-M
+/// e.g. the boards/stm32-freertos sample), detected via reading the ARM Cortex-M
 /// core register whose value is meaningless outside a real Cortex-M CPU.
-/// The desktop simulator ports (POSIX, Win32 -- used by freertos-linux,
-/// freertos-bare-metal, databus-freertos) do not provide it: they run as
+/// The desktop simulator ports (POSIX, Win32 -- used by os/freertos,
+/// os/freertos-bare-metal, databus/freertos) do not provide it: they run as
 /// an ordinary host-OS thread with no real hardware interrupt to detect,
 /// so "always task context" is the correct (and only meaningful) answer
 /// there. dmq::os::detail::IsInsideFreeRTOSInterrupt() below selects

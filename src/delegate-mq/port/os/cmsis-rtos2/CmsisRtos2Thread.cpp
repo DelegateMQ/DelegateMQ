@@ -128,7 +128,7 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         // Zephyr's CMSIS-RTOS2 compatibility layer (subsys/portability/cmsis_rtos_v2/)
         // never implements osKernelGetState() -- calling it is a link error -- but on
         // Zephyr the kernel is already scheduling before main() runs (there is no
-        // separate osKernelStart() call on this backend; see cmsis-rtos2-linux's
+        // separate osKernelStart() call on this backend; see os/cmsis-rtos2's
         // main_delegate.cpp), so it would always report osKernelRunning anyway.
         // __ZEPHYR__ is defined by Zephyr's own build system on every compile.
 #if defined(__ZEPHYR__)

@@ -54,7 +54,7 @@ def _full_suite_errors():
     if platform.system() == "Linux" and not shutil.which("clang++"):
         errors.append("--full: clang++ not found on PATH (clang builds and sanitizers need it). "
                       "Install clang, or run docker/run.sh, which has every tool.")
-    # Python clients of the cross-language samples (system-architecture-python, databus-interop)
+    # Python clients of the cross-language samples (system-architecture/python, databus/interop)
     for module, package in (("msgpack", "msgpack"), ("zmq", "pyzmq")):
         try:
             __import__(module)

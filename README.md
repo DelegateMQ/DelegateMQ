@@ -109,15 +109,15 @@ Each platform below states how it has been verified. The OS port is selected wit
 | Platform | Port (`DMQ_THREAD_*`) | Verified by | Example |
 | :--- | :--- | :--- | :--- |
 | Windows (MSVC) | `STDLIB`, `WIN32` | CI: build and unit tests | [test/](https://github.com/DelegateMQ/DelegateMQ/tree/master/test/) |
-| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests | [posix-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/posix-linux/) |
-| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile; STM32F4 Discovery board; POSIX simulator | [stm32-freertos](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/stm32-freertos/), [pumptron](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/pumptron/), [cellutron](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/cellutron/) |
+| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests | [os/posix](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/os/posix/) |
+| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile; STM32F4 Discovery board; POSIX simulator | [boards/stm32-freertos](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/boards/stm32-freertos/), [pumptron](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/pumptron/), [cellutron](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/cellutron/) |
 | ESP32, ESP32-C3, STM32F4 Discovery (Arduino) | `FREERTOS` | CI: PlatformIO build; run on an STM32F4 Discovery | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
-| ThreadX | `THREADX` | CI: Cortex-M4 compile; Linux simulator | [threadx-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/threadx-linux/) |
-| CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile; Zephyr `native_sim` | [cmsis-rtos2-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/cmsis-rtos2-linux/) |
-| Zephyr | `ZEPHYR` | `native_sim` | [zephyr-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/zephyr-linux/), [databus-zephyr](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/databus-zephyr/) |
-| NuttX | `NUTTX` | NuttX `sim` | [nuttx-sim](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/nuttx-sim/) |
-| Qt | `QT` | CI: Linux build and tests | [qt-linux](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/qt-linux/) |
-| Bare metal: Cortex-M, RISC-V | `NONE` | QEMU | [bare-metal](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/bare-metal/) |
+| ThreadX | `THREADX` | CI: Cortex-M4 compile; Linux simulator | [os/threadx](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/os/threadx/) |
+| CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile; Zephyr `native_sim` | [os/cmsis-rtos2](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/os/cmsis-rtos2/) |
+| Zephyr | `ZEPHYR` | `native_sim` | [os/zephyr](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/os/zephyr/), [databus/zephyr](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/databus/zephyr/) |
+| NuttX | `NUTTX` | NuttX `sim` | [os/nuttx](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/os/nuttx/) |
+| Qt | `QT` | CI: Linux build and tests | [os/qt](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/os/qt/) |
+| Bare metal: Cortex-M, RISC-V | `NONE` | QEMU | [bare-metal/qemu](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/sample-projects/bare-metal/qemu/) |
 | STM32 Nucleo, RP2040 (Arduino) | `NONE` (synchronous only) | CI: PlatformIO build | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
 | Desktop via PlatformIO | `STDLIB` | CI: PlatformIO build and run | [platformio](https://github.com/DelegateMQ/DelegateMQ/tree/master/example/platformio/async-delegates/) |
 

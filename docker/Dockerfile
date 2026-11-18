@@ -58,14 +58,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && tar -xzf "xpack-riscv-none-elf-gcc-${XPACK_RISCV_VERSION}-linux-x64.tar.gz" -C /opt/xpack-riscv-none-elf-gcc --strip-components=1 \
     && rm "xpack-riscv-none-elf-gcc-${XPACK_RISCV_VERSION}-linux-x64.tar.gz"
 
-# Where the bare-metal sample's CMake finds the downloaded toolchains
+# Where the bare-metal/qemu sample's CMake finds the downloaded toolchains
 ENV ATFE_PATH=/opt/atfe \
     RISCV_TOOLCHAIN_PATH=/opt/xpack-riscv-none-elf-gcc
 
 # Samples needing a library or service: autotools to build libserialport
 # (02_build_libs.py) and socat for the virtual serial port pair
-# (serialport-serializer), Qt 6 Core (qt-linux), the mosquitto MQTT broker
-# 05_run_samples.py starts for mqtt-rapidjson
+# (transport/serialport), Qt 6 Core (os/qt), the mosquitto MQTT broker
+# 05_run_samples.py starts for transport/mqtt
 RUN apt-get update && apt-get install -y --no-install-recommends \
         autoconf \
         automake \
@@ -75,8 +75,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mosquitto \
     && rm -rf /var/lib/apt/lists/*
 
-# Zephyr for the native_sim samples (zephyr-linux, zephyr-udp-serializer,
-# databus-zephyr, cmsis-rtos2-linux), at the version they were verified with.
+# Zephyr for the native_sim samples (os/zephyr, transport/zephyr-udp,
+# databus/zephyr, os/cmsis-rtos2), at the version they were verified with.
 # native_sim compiles with the host gcc (ZEPHYR_TOOLCHAIN_VARIANT=host), so no
 # Zephyr SDK. Zephyr is a shallow clone, and west fetches only the modules
 # native_sim needs (the filters each sample's README gives), also shallow.
@@ -105,7 +105,7 @@ ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr \
     ZEPHYR_TOOLCHAIN_VARIANT=host \
     PATH=/opt/zephyr-venv/bin:$PATH
 
-# NuttX for the nuttx-sim sample (NuttX's own sim board, a host process), at
+# NuttX for the os/nuttx sample (NuttX's own sim board, a host process), at
 # the release it was verified with, plus its host build tools. The sample's
 # runner copies /opt/nuttx-src into its build directory, since NuttX builds
 # in its source tree.
@@ -135,7 +135,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Zephyr on a Cortex-M board under QEMU (full_suite.ZEPHYR_QEMU_TARGETS:
-# cmsis-rtos2-linux on mps2/an385): the cmsis HAL module, which Zephyr's Arm
+# os/cmsis-rtos2 on mps2/an385): the cmsis HAL module, which Zephyr's Arm
 # support needs, and the Zephyr SDK's Arm toolchain (minimal SDK plus
 # arm-zephyr-eabi only). Not Ubuntu's arm-none-eabi: its newlib is built
 # without the retargetable locking Zephyr requires for threads. The native_sim
