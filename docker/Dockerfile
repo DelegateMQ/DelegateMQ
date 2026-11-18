@@ -28,11 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-zmq \
     && rm -rf /var/lib/apt/lists/*
 
-# Bare-metal samples: QEMU (Arm mps2 boards, RISC-V virt), Arm GNU toolchain
-# with newlib and libstdc++ (Ubuntu packages), Arm Toolchain for Embedded
+# Bare-metal samples: QEMU (Arm mps2 boards, RISC-V virt), the Arm GNU
+# Toolchain (GCC with newlib, newlib-nano and libstdc++; Arm's current release,
+# not Ubuntu's older gcc-arm-none-eabi package), Arm Toolchain for Embedded
 # (ATfE, clang/picolibc/libc++) and the xPack RISC-V Embedded GCC (Ubuntu's
 # RISC-V package has no C/C++ libraries). Downloads are pinned and checked
 # against the checksums their releases publish.
+ARG ARM_GNU_VERSION=15.2.rel1
+ARG ARM_GNU_SHA256=597893282ac8c6ab1a4073977f2362990184599643b4c5ee34870a8215783a16
 ARG ATFE_VERSION=22.1.0
 ARG ATFE_SHA256=e2e9e637bba097ba6e4bae6982883fe705ffd7e8c3a7dc876964835ef1c7a724
 ARG XPACK_RISCV_VERSION=15.2.0-1
@@ -40,13 +43,15 @@ ARG XPACK_RISCV_SHA256=aaaa8060c914851a3e5ee1ba82cc3d6f80972f90638a05c6e823a3755
 RUN apt-get update && apt-get install -y --no-install-recommends \
         qemu-system-arm \
         qemu-system-misc \
-        gcc-arm-none-eabi \
-        libnewlib-arm-none-eabi \
-        libstdc++-arm-none-eabi-newlib \
         curl \
         xz-utils \
     && rm -rf /var/lib/apt/lists/* \
     && cd /tmp \
+    && curl -fsSLO "https://developer.arm.com/-/media/Files/downloads/gnu/${ARM_GNU_VERSION}/binrel/arm-gnu-toolchain-${ARM_GNU_VERSION}-x86_64-arm-none-eabi.tar.xz" \
+    && echo "${ARM_GNU_SHA256}  arm-gnu-toolchain-${ARM_GNU_VERSION}-x86_64-arm-none-eabi.tar.xz" | sha256sum -c - \
+    && mkdir /opt/arm-gnu-toolchain \
+    && tar -xJf "arm-gnu-toolchain-${ARM_GNU_VERSION}-x86_64-arm-none-eabi.tar.xz" -C /opt/arm-gnu-toolchain --strip-components=1 \
+    && rm "arm-gnu-toolchain-${ARM_GNU_VERSION}-x86_64-arm-none-eabi.tar.xz" \
     && curl -fsSLO "https://github.com/arm/arm-toolchain/releases/download/release-${ATFE_VERSION}-ATfE/ATfE-${ATFE_VERSION}-Linux-x86_64.tar.xz" \
     && echo "${ATFE_SHA256}  ATfE-${ATFE_VERSION}-Linux-x86_64.tar.xz" | sha256sum -c - \
     && mkdir /opt/atfe \
@@ -58,9 +63,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && tar -xzf "xpack-riscv-none-elf-gcc-${XPACK_RISCV_VERSION}-linux-x64.tar.gz" -C /opt/xpack-riscv-none-elf-gcc --strip-components=1 \
     && rm "xpack-riscv-none-elf-gcc-${XPACK_RISCV_VERSION}-linux-x64.tar.gz"
 
-# Where the bare-metal/qemu sample's CMake finds the downloaded toolchains
+# Where the bare-metal/qemu sample's CMake finds the downloaded toolchains;
+# arm-none-eabi-gcc is found on PATH
 ENV ATFE_PATH=/opt/atfe \
-    RISCV_TOOLCHAIN_PATH=/opt/xpack-riscv-none-elf-gcc
+    RISCV_TOOLCHAIN_PATH=/opt/xpack-riscv-none-elf-gcc \
+    PATH=/opt/arm-gnu-toolchain/bin:$PATH
 
 # Samples needing a library or service: autotools to build libserialport
 # (02_build_libs.py) and socat for the virtual serial port pair

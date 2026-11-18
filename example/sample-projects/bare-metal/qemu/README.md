@@ -44,7 +44,7 @@ bare-metal/
 - CMake 3.16+ and Ninja
 - QEMU: `qemu-system-arm` (Arm targets), `qemu-system-riscv32` (on Debian/Ubuntu in `qemu-system-misc`)
 - The toolchain of each target you build:
-  - `arm-m4`, `arm-m0`: [Arm GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads), `arm-none-eabi-gcc` on the PATH (Debian/Ubuntu: `gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib`)
+  - `arm-m4`, `arm-m0`: [Arm GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads), `arm-none-eabi-gcc` on the PATH (Debian/Ubuntu: `gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib`). The test suite uses Arm's 15.2.rel1 on Windows and in the Docker image; Ubuntu 24.04's packages are GCC 13.2
   - `arm-m3-atfe`: [Arm Toolchain for Embedded](https://github.com/arm/arm-toolchain/releases) (`ATfE-<version>-<host>`), unpacked anywhere; pass `-DATFE_PATH=<path>` or set `ATFE_PATH`
   - `riscv32`: [xPack RISC-V Embedded GCC](https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases), unpacked anywhere; pass `-DRISCV_TOOLCHAIN_PATH=<path>` or set `RISCV_TOOLCHAIN_PATH` (default `/opt/xpack-riscv-none-elf-gcc`)
 

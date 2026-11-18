@@ -18,6 +18,8 @@ build_win32
 build-*/
 # build_all.py's build tree: out/<platform>/<path of the project>/<variant>
 /out/
+# PlatformIO release tarballs (scripts/package_readme.py)
+/DelegateMQ-*.tar.gz
 lib
 [Dd]ebug/
 [Dd]ebugPublic/
