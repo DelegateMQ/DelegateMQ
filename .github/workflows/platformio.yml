@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [esp32dev, esp32-c3, nucleo_f401re, disco_f407vg, pico, native]
+        env: [esp32dev, esp32-c3, esp32-s3, nucleo_f401re, disco_f407vg, pico, native]
 
     defaults:
       run:

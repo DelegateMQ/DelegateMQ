@@ -10,6 +10,11 @@
     "publish subscribe",
     "rtos",
     "freertos",
+    "zephyr",
+    "esp32",
+    "stm32",
+    "signals",
+    "events",
     "embedded",
     "cpp17"
   ],

@@ -25,6 +25,7 @@ The example sketch, [`example/platformio/async-delegates`](async-delegates/src/m
 | :--- | :--- | :--- | :--- | :--- |
 | ESP32 DevKit | `esp32dev` | FreeRTOS (Arduino-ESP32) | Yes | CI build |
 | ESP32-C3 DevKitM-1 | `esp32-c3` | FreeRTOS (Arduino-ESP32) | Yes | CI build |
+| ESP32-S3 DevKitC-1 | `esp32-s3` | FreeRTOS (Arduino-ESP32) | Yes | CI build |
 | STM32F4 Discovery | `disco_f407vg` | FreeRTOS (STM32duino FreeRTOS) | Yes | CI build; run on the board |
 | STM32 Nucleo-F401RE | `nucleo_f401re` | None (bare metal) | No | CI build |
 | Raspberry Pi Pico (RP2040) | `pico` | None (bare metal) | No | CI build |
