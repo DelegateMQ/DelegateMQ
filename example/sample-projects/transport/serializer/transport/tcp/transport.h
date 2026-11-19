@@ -30,12 +30,12 @@ using SampleTransport = dmq::transport::LinuxTcpTransport;
 inline int CreateSenderTransport(SampleTransport& transport)
 {
     // Connects to the receiver's server socket
-    return transport.Create(SampleTransport::Type::CLIENT, "127.0.0.1", 8080);
+    return transport.Create(SampleTransport::Type::CLIENT, "127.0.0.1", 28080);
 }
 
 inline int CreateReceiverTransport(SampleTransport& transport)
 {
-    return transport.Create(SampleTransport::Type::SERVER, "127.0.0.1", 8080);
+    return transport.Create(SampleTransport::Type::SERVER, "127.0.0.1", 28080);
 }
 
 #endif

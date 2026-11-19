@@ -214,6 +214,15 @@ if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_RAPIDJSON")
     if(MSVC)
         dmq_compile_definitions(_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
     endif()
+
+    # RapidJSON v1.1.0 assigns a const member in GenericStringRef::operator=
+    # (document.h), which GCC 14+ rejects even uninstantiated (-Wtemplate-body)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+        list(APPEND DMQ_COMPILE_OPTIONS "-Wno-template-body")
+        if(NOT DMQ_NO_GLOBAL_DEFINITIONS)
+            add_compile_options("-Wno-template-body")
+        endif()
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------
