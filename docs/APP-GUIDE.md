@@ -71,7 +71,7 @@ int v = w();                                        // blocks for the return val
 - **Exit:** `ExitThread()` runs everything queued by default (`ExitPolicy::DRAIN`). `ExitPolicy::DISCARD` drops the queue and cancels blocked senders instead.
 - **Synchronized start:** to hold several threads until the whole system is wired, give each a `dmq::os::StartGate` with `SetStartGate(&gate)` before `CreateThread()`, then `gate.Open()`. Not available on bare metal.
 - **Handlers must return.** A handler that loops forever (`while (true) { ...; Sleep(); }`) blocks `ExitThread()`, and a `Thread`'s destructor calls `ExitThread()`, so the program hangs at exit. Loop on a stop flag that shutdown clears, or use a `Timer`.
-- **Watchdog:** if a thread has a watchdog timeout, something must call `dmq::os::Thread::WatchdogCheckAll()` periodically, from a task, never from an ISR.
+- **Watchdog:** if a thread has a watchdog timeout, something must call `dmq::os::Thread::WatchdogCheckAll()` periodically, from a task, never from an ISR. On hardware, feed the MCU's watchdog right after it returns, in the same task and nowhere else; see [Hardware Watchdog](PORTING.md#hardware-watchdog).
 - **Don't delete a `Thread` from one of its own handlers.**
 
 ## Connections Must Be Stored
@@ -298,6 +298,7 @@ Library *behaviour* does still apply: store connections, follow the shutdown ord
 - [ ] Objects bound with `shared_ptr` dispatch to a thread that outlives them.
 - [ ] No handler loops forever without a stop flag.
 - [ ] Something calls `Timer::ProcessTimers()` (and `Thread::WatchdogCheckAll()` if watchdogs are on), from a task, not an RTOS ISR.
+- [ ] A hardware watchdog, if used, is fed only right after `WatchdogCheckAll()` returns, never from an ISR or timer.
 - [ ] Timers are connected with `MakeTimerDelegate`.
 - [ ] Shutdown stops the emitters (network, timer loop, producers) before destroying subscribers.
 - [ ] Objects created and destroyed at runtime are bound with `shared_ptr`.

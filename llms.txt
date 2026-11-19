@@ -369,7 +369,21 @@ The watchdog only catches a runaway thread if the `WatchdogCheckAll()` caller ru
 
 Do **not** call `WatchdogCheckAll()` from a hardware ISR: it takes the thread list's `dmq::RecursiveMutex`, an OS mutex that cannot be acquired from interrupt context on any RTOS port.
 
-For maximum reliability, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) and kick it from the same loop, right after `WatchdogCheckAll()` returns — that way a stuck or starved watchdog task also triggers a hardware reset.
+### Hardware watchdog
+
+Feed the hardware watchdog (STM32 IWDG, ESP-IDF task watchdog, nRF WDT) right after `WatchdogCheckAll()` returns, in the same task, and nowhere else:
+
+```cpp
+void WatchdogTask(void*) {
+    for (;;) {
+        dmq::os::Thread::WatchdogCheckAll();   // a hung thread: WatchdogHandler() never returns
+        HAL_IWDG_Refresh(&hiwdg);              // reached only when every watched thread is alive
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+`WatchdogHandler()` is `[[noreturn]]` (the default prints the thread name and loops), so after a hang the feed is never reached and the hardware watchdog resets the MCU; a custom handler must not return either. This also catches the checker task stalling, a dead scheduler, or interrupts left off. Rules: never feed from an ISR, SysTick or the idle hook (they outlive dead tasks); hardware timeout > check period + jitter (≈3× is comfortable), worst-case reset ≈ thread timeout + check period + hardware timeout; freeze the IWDG under the debugger (`__HAL_DBGMCU_FREEZE_IWDG()`); the IWDG runs in Stop mode, so it bounds low-power sleep. ESP-IDF: `esp_task_wdt_add(nullptr)` in the task, `esp_task_wdt_reset()` as the feed, and `CONFIG_ESP_TASK_WDT_PANIC=y` (otherwise a timeout only prints). Bare metal has no `WatchdogCheckAll()`: feed at the end of each main-loop pass. Details, reset-cause flags and feed calls per platform: "Hardware Watchdog" in `docs/PORTING.md`.
 
 ## Platform and OS Support
 

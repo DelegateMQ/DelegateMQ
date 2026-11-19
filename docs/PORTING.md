@@ -403,8 +403,63 @@ xTaskCreate(WatchdogTask, "Watchdog", 512, nullptr, configMAX_PRIORITIES - 1, nu
 #### Watchdog Limitations
 
 1. **Long handlers trip it.** A handler running longer than the timeout fires the watchdog (the thread really is unresponsive). For legitimately long work, call `ThreadCheck()` inside the handler or raise the timeout.
-2. **The checker must stay alive.** If the `WatchdogCheckAll()` task stalls, nothing is checked. Run it at highest priority, and kick a hardware watchdog (e.g. STM32 IWDG) right after it returns to catch a frozen system.
+2. **The checker must stay alive.** If the `WatchdogCheckAll()` task stalls, nothing is checked. Run it at highest priority, and feed a hardware watchdog right after it returns (see [Hardware Watchdog](#hardware-watchdog)).
 3. **Priority** — see the table above.
+
+#### Hardware Watchdog
+
+The software watchdog knows whether every watched thread is alive; a hardware watchdog (STM32 IWDG, the ESP-IDF task watchdog, nRF WDT) resets the MCU when it isn't fed in time. Feed the hardware watchdog right after `WatchdogCheckAll()` returns, and nowhere else:
+
+```cpp
+// FreeRTOS + STM32 HAL: the highest-priority task
+void WatchdogTask(void*)
+{
+    for (;;)
+    {
+        dmq::os::Thread::WatchdogCheckAll();   // a hung thread: WatchdogHandler() never returns
+        HAL_IWDG_Refresh(&hiwdg);              // reached only when every watched thread is alive
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+No helper is needed: `WatchdogHandler()` is `[[noreturn]]`. When a thread hangs, the default handler prints `WATCHDOG EXPIRED: <thread>` and loops forever, the feed is never reached again, and the hardware watchdog resets the MCU. A custom handler (`DMQ_CUSTOM_FAULT_HANDLER`) must not return either: record what it needs (the thread name, in RAM that survives a reset or in flash), then loop or reset. Leaving the reset to the hardware watchdog gives one reset path and a reset-cause flag that says "watchdog".
+
+The pair also catches what the software watchdog alone can't: the checker task itself stalling or starved, a dead scheduler, interrupts left disabled, a fault handler that spins.
+
+**Rules:**
+
+1. **Feed in one place only: after `WatchdogCheckAll()`.** Never from an ISR, SysTick, a timer callback or the idle hook: those keep running when every task is dead, and the hardware watchdog would then never fire.
+2. **Timing.** With a check period P (100 ms above), a hardware timeout H and a thread watchdog timeout T: H must exceed P plus its worst-case jitter (H ≥ 3P is a comfortable margin). T doesn't constrain H. A hung thread resets the MCU within about T + P + H.
+3. **Start it late, or keep startup short.** An IWDG can't be stopped once started. Start it once the watchdog task runs, or make sure everything before the first feed (flash erase, network bring-up) fits in H.
+4. **Freeze it in the debugger.** A breakpoint stops the feed task but not the IWDG, so the board resets under the debugger. On STM32: `__HAL_DBGMCU_FREEZE_IWDG()` at startup.
+5. **Low power.** The IWDG keeps counting in Stop mode and can't be turned off, so the CPU can't sleep longer than H without waking to feed it. The watchdog task wakes every P, and each watched thread loops every T / `DMQ_WATCHDOG_HEARTBEAT_DIVISOR` (4) even when idle; both bound how long tickless idle can sleep (see "Event-driven processing" in [llms.txt](../llms.txt)). For a battery device, choose long periods: an STM32 IWDG reaches about 32 s (LSI, prescaler 256).
+6. **Read the reset cause at boot**, to log or report that a watchdog reset happened: STM32 `__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)`, then `__HAL_RCC_CLEAR_RESET_FLAGS()`; ESP-IDF `esp_reset_reason()` (`ESP_RST_TASK_WDT`, `ESP_RST_INT_WDT`, `ESP_RST_WDT`).
+
+**The feed call per platform** (the application's, not DelegateMQ's: the library has no vendor HAL calls):
+
+| Platform | Feed after `WatchdogCheckAll()` |
+|---|---|
+| STM32 HAL / LL | `HAL_IWDG_Refresh(&hiwdg)` / `LL_IWDG_ReloadCounter(IWDG)` |
+| ESP-IDF | `esp_task_wdt_reset()`, after `esp_task_wdt_add(nullptr)` in the watchdog task. Set `CONFIG_ESP_TASK_WDT_PANIC=y`: without it, a task watchdog timeout only prints a warning. |
+| nRF5 | `NRF_WDT->RR[0] = WDT_RR_RR_Reload;` |
+| Zephyr | `wdt_feed(wdt_dev, channel_id)` |
+
+```cpp
+// ESP-IDF: the watchdog task feeds the task watchdog (TWDT)
+void WatchdogTask(void*)
+{
+    esp_task_wdt_add(nullptr);
+    for (;;)
+    {
+        dmq::os::Thread::WatchdogCheckAll();
+        esp_task_wdt_reset();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+**Bare metal** (`DMQ_THREAD_NONE`) has no `Thread` and no `WatchdogCheckAll()`. Feed once per pass of the main loop, at its end, after the loop's own work; never from SysTick.
 
 ### Performance Monitoring
 
