@@ -13,6 +13,8 @@
 ///   timer's interrupt (ESP_TIMER_ISR, 2 kHz) starts and
 ///   stops dmq::util::Timer objects while tasks on both cores do the same, and
 ///   xPortInIsrContext() must see every entry as an interrupt.
+/// - dmq::util::IsrDelegate: the same interrupt calls a function on a worker
+///   thread, through a drain task it wakes; every call once and in order.
 ///
 /// Prints ALL TESTS PASSED when every check passed. A failed check faults
 /// (DMQ_ASSERT_TRUE -> FaultHandler -> abort()), and the panic handler halts
@@ -24,6 +26,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
+#include "freertos/semphr.h"
 #include "esp_timer.h"
 #include "esp_chip_info.h"
 
@@ -219,6 +222,112 @@ static void IsrTimerTest()
 }
 
 // --------------------------------------------------------------------------
+// IsrDelegate: the timer interrupt calls a function on a worker thread
+// --------------------------------------------------------------------------
+// The target is async, to a worker thread. A drain task runs
+// IsrDelegates::ProcessAll(), woken by the post handler, which gives its
+// semaphore from the interrupt.
+static IsrDelegate<void(uint32_t, bool)>* s_isrPost = nullptr;
+static volatile uint32_t s_isrPostSeq = 0;
+static Thread* s_isrPostThread = nullptr;
+static uint32_t s_isrPostLast = 0;          // written only on the worker thread
+static volatile uint32_t s_isrPostReceived = 0;
+static uint32_t s_isrPostGaps = 0;          // sequence numbers skipped (dropped posts)
+static uint32_t s_isrPostBad = 0;           // out of order, not from an ISR, or wrong thread
+static std::atomic<uint32_t> s_queueDropped{0};   // dropped by the worker's full queue
+static SemaphoreHandle_t s_drainSem = nullptr;
+static volatile bool s_drainRun = false;
+
+static void PostFromIsr(void*)
+{
+    s_isrPostSeq = s_isrPostSeq + 1;
+    s_isrPost->Post(s_isrPostSeq, xPortInIsrContext() != 0);
+}
+
+// IsrDelegates post handler: called by Post() in the interrupt
+static void WakeDrainTask()
+{
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR(s_drainSem, &woken);
+    portYIELD_FROM_ISR(woken);
+}
+
+static void DrainTask(void*)
+{
+    while (s_drainRun) {
+        xSemaphoreTake(s_drainSem, pdMS_TO_TICKS(10));
+        IsrDelegates::ProcessAll();
+    }
+    vTaskDelete(nullptr);
+}
+
+static void OnIsrPost(uint32_t seq, bool fromIsr)
+{
+    if (seq <= s_isrPostLast || !fromIsr || !s_isrPostThread->IsCurrentThread())
+        s_isrPostBad++;
+    else
+        s_isrPostGaps += seq - s_isrPostLast - 1;
+    s_isrPostLast = seq;
+    s_isrPostReceived = s_isrPostReceived + 1;
+}
+
+static void IsrDelegateTest()
+{
+    printf("\n[Test 7] IsrDelegate posted from a hardware timer interrupt to a worker thread:\n");
+    // FullPolicy::DROP: a burst forwarded faster than the worker runs it is
+    // dropped and counted, rather than faulting (FAULT, the default) or
+    // blocking the drain task (TIMEOUT)
+    Thread worker("IsrPostWorker", 0, FullPolicy::DROP);
+    worker.SetDroppedHandler(MakeDelegate(std::function<void(size_t)>([](size_t) { s_queueDropped++; })));
+    DMQ_ASSERT_TRUE(worker.CreateThread());
+    IsrDelegate<void(uint32_t, bool)> isrPost(MakeDelegate(&OnIsrPost, worker));
+    s_isrPost = &isrPost;
+    s_isrPostThread = &worker;
+
+    s_drainSem = xSemaphoreCreateBinary();
+    s_drainRun = true;
+    xTaskCreate(DrainTask, "IsrDrain", 4096, nullptr, TEST_TASK_PRIORITY + 1, nullptr);
+    IsrDelegates::SetPostHandler(&WakeDrainTask);
+
+    esp_timer_create_args_t args = {};
+    args.callback = PostFromIsr;
+    args.dispatch_method = ESP_TIMER_ISR;
+    args.name = "dmq-isr-post";
+    esp_timer_handle_t isrTimer = nullptr;
+    ESP_ERROR_CHECK(esp_timer_create(&args, &isrTimer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(isrTimer, 1000000 / ISR_HZ));
+    vTaskDelay(pdMS_TO_TICKS(500));
+    ESP_ERROR_CHECK(esp_timer_stop(isrTimer));
+    vTaskDelay(pdMS_TO_TICKS(50));      // the last posts reach the worker
+
+    // One more from task context: it also closes a gap left by final drops
+    s_isrPostSeq = s_isrPostSeq + 1;
+    DMQ_ASSERT_TRUE(isrPost.Post(s_isrPostSeq, true));
+    vTaskDelay(pdMS_TO_TICKS(30));
+    ESP_ERROR_CHECK(esp_timer_delete(isrTimer));
+
+    const uint32_t posted = s_isrPostSeq;
+    const size_t ringDropped = isrPost.GetDroppedCount();
+    const size_t dropped = ringDropped + s_queueDropped;
+    printf("  -> %lu posted, %lu called on the worker, %lu dropped (%lu ring full, %lu worker queue full)\n",
+           static_cast<unsigned long>(posted), static_cast<unsigned long>(s_isrPostReceived),
+           static_cast<unsigned long>(dropped), static_cast<unsigned long>(ringDropped),
+           static_cast<unsigned long>(s_queueDropped.load()));
+    DMQ_ASSERT_TRUE(posted >= 100);
+    DMQ_ASSERT_TRUE(s_isrPostBad == 0);                      // in order, from the ISR, on the worker
+    DMQ_ASSERT_TRUE(s_isrPostReceived + dropped == posted);  // nothing lost or doubled
+    DMQ_ASSERT_TRUE(s_isrPostGaps == dropped);
+
+    IsrDelegates::SetPostHandler(nullptr);
+    s_drainRun = false;
+    vTaskDelay(pdMS_TO_TICKS(30));      // the drain task exits
+    vSemaphoreDelete(s_drainSem);
+    s_drainSem = nullptr;
+    worker.ExitThread();
+    printf("  -> passed\n");
+}
+
+// --------------------------------------------------------------------------
 // Test task
 // --------------------------------------------------------------------------
 static void RunTests()
@@ -238,6 +347,7 @@ static void RunTests()
     PortableTests::TimerDelegateTests(TestOptions());
 
     IsrTimerTest();
+    IsrDelegateTest();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

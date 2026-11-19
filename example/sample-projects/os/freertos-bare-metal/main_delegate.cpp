@@ -13,6 +13,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "semphr.h"
 #include "timers.h"
 #include "bsp.h"
 
@@ -70,6 +71,51 @@ static volatile uint32_t s_isrNotInInterrupt = 0; // ISR entries that FreeRTOS d
 static std::atomic<int> s_isrOneShotFired{0};
 
 static void OnIsrOneShot() { s_isrOneShotFired++; }
+
+// Test 12: an IsrDelegate posted from the timer ISR. Its target is async, to a
+// worker thread. A drain task runs IsrDelegates::ProcessAll(), woken by the
+// post handler, which gives its semaphore from the ISR. Each post carries a
+// sequence number and whether FreeRTOS saw an interrupt.
+static IsrDelegate<void(uint32_t, bool)>* s_isrPost = nullptr;
+static volatile uint32_t s_isrPostSeq = 0;
+static Thread* s_isrPostThread = nullptr;
+static uint32_t s_isrPostLast = 0;          // written only on the worker thread
+static volatile uint32_t s_isrPostReceived = 0;
+static uint32_t s_isrPostGaps = 0;          // sequence numbers skipped (dropped posts)
+static uint32_t s_isrPostBad = 0;           // out of order, not from an ISR, or wrong thread
+static SemaphoreHandle_t s_drainSem = nullptr;
+static volatile bool s_drainPaused = false;
+static volatile bool s_drainRun = false;
+
+static void PostFromIsr() {
+    s_isrPostSeq = s_isrPostSeq + 1;
+    s_isrPost->Post(s_isrPostSeq, xPortIsInsideInterrupt() != pdFALSE);
+}
+
+// IsrDelegates post handler: called by Post() in the ISR
+static void WakeDrainTask() {
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR(s_drainSem, &woken);
+    portYIELD_FROM_ISR(woken);
+}
+
+static void DrainTask(void*) {
+    while (s_drainRun) {
+        xSemaphoreTake(s_drainSem, pdMS_TO_TICKS(10));
+        if (!s_drainPaused)
+            IsrDelegates::ProcessAll();
+    }
+    vTaskDelete(nullptr);
+}
+
+static void OnIsrPost(uint32_t seq, bool fromIsr) {
+    if (seq <= s_isrPostLast || !fromIsr || !s_isrPostThread->IsCurrentThread())
+        s_isrPostBad++;
+    else
+        s_isrPostGaps += seq - s_isrPostLast - 1;
+    s_isrPostLast = seq;
+    s_isrPostReceived = s_isrPostReceived + 1;
+}
 
 static void TimerIsr() {
     s_isrCount = s_isrCount + 1;
@@ -335,6 +381,71 @@ void ExecuteAllTests() {
         const int rearms = static_cast<int>(isrCount / ISR_REARM_EVERY);
         DMQ_ASSERT_TRUE(fired >= rearms / 2 && fired <= rearms + 1);
         printf("  -> ISR-context critical sections ran without a configASSERT\n");
+    }
+
+    // --- TEST 12: IsrDelegate: a hardware ISR calls a function on a thread ---
+    printf("\n[Test 12] IsrDelegate posted from a hardware timer ISR to a worker thread:\n");
+    {
+        Thread worker("IsrPostWorker");
+        DMQ_ASSERT_TRUE(worker.CreateThread());
+        IsrDelegate<void(uint32_t, bool)> isrPost(MakeDelegate(&OnIsrPost, worker));
+        s_isrPost = &isrPost;
+        s_isrPostThread = &worker;
+
+        s_drainSem = xSemaphoreCreateBinary();
+        s_drainRun = true;
+        xTaskCreate(DrainTask, "IsrDrain", 1024, nullptr, 3, nullptr);
+        IsrDelegates::SetPostHandler(&WakeDrainTask);
+
+        BspStartTimerIsr(ISR_HZ, &PostFromIsr);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        BspStopTimerIsr();
+        vTaskDelay(pdMS_TO_TICKS(50));      // the last posts reach the worker
+
+        const uint32_t posted = s_isrPostSeq;
+        const size_t dropped = isrPost.GetDroppedCount();
+        printf("  -> %lu posted from the ISR, %lu called on the worker, %lu dropped (ring full)\n",
+               static_cast<unsigned long>(posted), static_cast<unsigned long>(s_isrPostReceived),
+               static_cast<unsigned long>(dropped));
+        DMQ_ASSERT_TRUE(posted >= 100);
+        DMQ_ASSERT_TRUE(s_isrPostBad == 0);                      // in order, from the ISR, on the worker
+        DMQ_ASSERT_TRUE(s_isrPostReceived + dropped == posted);  // nothing lost or doubled
+
+        // Drain paused: the ring fills, and the posts it can't hold are
+        // dropped and counted, never blocking the ISR
+        s_drainPaused = true;
+        vTaskDelay(pdMS_TO_TICKS(20));
+        BspStartTimerIsr(ISR_HZ, &PostFromIsr);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        BspStopTimerIsr();
+        s_drainPaused = false;
+        vTaskDelay(pdMS_TO_TICKS(50));
+        const uint32_t posted2 = s_isrPostSeq;
+        const size_t dropped2 = isrPost.GetDroppedCount();
+        printf("  -> drain paused: %lu posted, %lu called, %lu dropped\n",
+               static_cast<unsigned long>(posted2), static_cast<unsigned long>(s_isrPostReceived),
+               static_cast<unsigned long>(dropped2));
+        DMQ_ASSERT_TRUE(dropped2 > dropped);
+        DMQ_ASSERT_TRUE(s_isrPostBad == 0);
+        DMQ_ASSERT_TRUE(s_isrPostReceived + dropped2 == posted2);
+
+        // The same IsrDelegate from task context. It also closes the gap left
+        // by the last drops: the ring keeps the oldest posts, drops the newest
+        const uint32_t before = s_isrPostReceived;
+        s_isrPostSeq = s_isrPostSeq + 1;
+        DMQ_ASSERT_TRUE(isrPost.Post(s_isrPostSeq, true));
+        vTaskDelay(pdMS_TO_TICKS(30));
+        DMQ_ASSERT_TRUE(s_isrPostReceived == before + 1);
+        DMQ_ASSERT_TRUE(s_isrPostBad == 0);
+        DMQ_ASSERT_TRUE(s_isrPostGaps == isrPost.GetDroppedCount());   // each gap a counted drop
+
+        IsrDelegates::SetPostHandler(nullptr);
+        s_drainRun = false;
+        vTaskDelay(pdMS_TO_TICKS(30));      // the drain task exits
+        vSemaphoreDelete(s_drainSem);
+        s_drainSem = nullptr;
+        worker.ExitThread();
+        printf("  -> every post ran once, in order, on the worker thread\n");
     }
 #endif
 

@@ -39,6 +39,10 @@
 /// Max timers processed in one tick without heap allocation.
 #define DMQ_MAX_TIMER_EXPIRED           16
 
+/// dmq::util::IsrDelegate: default number of posts it holds until
+/// IsrDelegates::ProcessAll() takes them; a post to a full one is dropped.
+#define DMQ_ISR_DELEGATE_QUEUE_SIZE     8
+
 /// Signal Small-Buffer Optimization count.
 /// Signals with <= this many subscribers are invoked without heap allocation.
 #define DMQ_SIGNAL_SBO_COUNT            8

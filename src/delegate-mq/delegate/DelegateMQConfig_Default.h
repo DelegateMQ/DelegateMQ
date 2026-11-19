@@ -21,6 +21,11 @@
     #define DMQ_MAX_TIMER_EXPIRED           16
 #endif
 
+// dmq::util::IsrDelegate: posts it holds until IsrDelegates::ProcessAll()
+#ifndef DMQ_ISR_DELEGATE_QUEUE_SIZE
+    #define DMQ_ISR_DELEGATE_QUEUE_SIZE     8
+#endif
+
 #ifndef DMQ_SIGNAL_SBO_COUNT
     #define DMQ_SIGNAL_SBO_COUNT            8
 #endif

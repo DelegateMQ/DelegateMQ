@@ -168,6 +168,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 | One invocation model | Sync, async, and remote calls use the same calling code — moving a local callback onto another thread is a one-line change, and onto another processor needs only a channel. |
 | Targeted thread dispatch | Handlers specify the thread they run on; the library queues and dispatches the call, so code always executes in the correct thread context. |
 | Safe with object lifetimes | A delegate bound to an object held by `std::shared_ptr` keeps only a `std::weak_ptr`: an async call that arrives after the object is destroyed is skipped, never run through a dangling pointer. |
+| Interrupt to thread | An ISR posts a call that runs later on any thread, with no heap, mutex or blocking in the ISR, on every RTOS and bare metal. |
 | Application owns every thread | The library creates no internal threads — scheduling, stack sizes, and watchdogs stay explicit and auditable. |
 | Portable worker threads | One `dmq::os::Thread` API on every supported OS, with delegate dispatch, thread priorities (RTOS ports), a priority message queue, queue-full and shutdown policies, start/exit/idle hooks, a start gate for synchronized startup, a watchdog, and error reporting built in. |
 | Off-target development | Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport. |
@@ -191,6 +192,7 @@ Numerous platform, serialization, transport, and tool integrations are available
 
 - Async callback between a subsystem and the UI
 - Blocking call into a worker thread with a timeout, returning its result
+- Handing interrupt data (button, DMA, CAN frame) to a worker thread
 - Thread-safe wrapper around a non-thread-safe library (database, HTTP client, file system)
 - Data distribution between threads and CPUs over Ethernet, serial, or both
 - Embedded development on a PC, with the same code running on the target
@@ -415,6 +417,20 @@ while (running) {
 }
 
 heartbeat.Stop();
+```
+
+## Interrupts
+
+An ISR can't call an async delegate: that allocates a message and takes the thread's mutex. `dmq::util::IsrDelegate` splits the call. `Post()` in the ISR only copies the arguments into a fixed ring slot, and `IsrDelegates::ProcessAll()` calls the target later, from a task or the main loop. With an async target, the call then runs on its thread.
+
+```cpp
+// Once, in task context: OnButton() runs on controllerThread
+dmq::util::IsrDelegate<void(uint32_t)> onButton(
+    dmq::MakeDelegate(&controller, &Controller::OnButton, controllerThread));
+
+void EXTI0_IRQHandler() { onButton.Post(GPIOA->IDR); }   // ISR: copy only, no heap or mutex
+
+dmq::util::IsrDelegates::ProcessAll();                     // task or main loop
 ```
 
 ## Fixed-Block Allocator (Optional)

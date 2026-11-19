@@ -16,6 +16,7 @@ What the other FreeRTOS samples ([freertos](../freertos/README.md), [freertos-ba
 4. The portable thread tests ([test/portable](../../../../test/portable/PortableTests.h)): cross-thread dispatch, `FullPolicy`, `StartGate`
 5. The portable timer tests: `PacedDispatch`, `TimerDelegate`, `Timer::ProcessTimers()`
 6. `dmq::util::Timer` started and stopped **from a hardware interrupt** (an `esp_timer` at 2 kHz with `ESP_TIMER_ISR` dispatch, so the callback runs in the timer interrupt), while a task on each core and the test task do the same. Every entry must be seen as an interrupt (`xPortInIsrContext()`), and the one-shot started from the interrupt must fire.
+7. `dmq::util::IsrDelegate` posted from the same kind of interrupt, its target async to a worker thread, through a drain task the post handler wakes. The worker uses `FullPolicy::DROP`: every post must be called once and in order, or counted as dropped (ring or worker queue full).
 
 `Timer::ProcessTimers()` runs every 10 ms in the FreeRTOS timer service task. The program prints `ALL TESTS PASSED`. A failed check faults (`DMQ_ASSERT_TRUE` → `FaultHandler` → `abort()`) and the panic handler halts (`CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT`).
 

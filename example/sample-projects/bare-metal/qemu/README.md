@@ -18,6 +18,7 @@ DelegateMQ on bare metal: **no RTOS and no threads** (`DMQ_THREAD_NONE`), on sev
 4. Removing a delegate from a multicast delegate (uses `Delegate::Equal()`, which needs RTTI)
 5. `Signal` with a `ScopedConnection`: connected inside a block, disconnected when the block ends
 6. One-shot `dmq::util::Timer`, fired by the **real timer interrupt**: its handler increments `g_ticks` (read by `dmq::os::BareMetalClock`) and calls `Timer::ProcessTimers()` from interrupt context. That exercises `dmq::os::BareMetalCriticalSection` for real, PRIMASK on Arm and `mstatus.MIE` on RISC-V (see CLAUDE.md's "ISR-Safe Locking").
+7. `dmq::util::IsrDelegate`: a periodic `Timer`, whose `OnExpired` runs in the timer interrupt, posts a sequence number; the main loop runs `IsrDelegates::ProcessAll()`, which calls the target outside the interrupt. Every post must be called once, in order, or counted as dropped.
 
 Each test checks its own results. The program prints `ALL TESTS PASSED` and exits with status 0, or prints a `FAIL:` line per failed check and exits with status 1. Output and exit go through semihosting, so under QEMU the program's exit status becomes QEMU's own, which is what `scripts/05_run_samples.py` checks.
 

@@ -262,6 +262,9 @@
 // available even under DMQ_THREAD_NONE.
 #include "extras/util/Timer.h"
 
+// IsrDelegate needs only dmq::CriticalSection too: every port, bare metal included
+#include "extras/util/IsrDelegate.h"
+
 // TimerDelegate/AsyncInvoke/TransportMonitor/ThreadMonitor/RetryMonitor/
 // ReliableTransport/RemoteDispatcher all take or operate on a dmq::IThread&
 // (RetryMonitor/ReliableTransport indirectly, via TransportMonitor), which

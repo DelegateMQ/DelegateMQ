@@ -277,6 +277,11 @@ namespace dmq
     /// Override via DMQ_MAX_TIMER_EXPIRED in delegatemqconfig.h.
     inline constexpr size_t MAX_TIMER_EXPIRED = DMQ_MAX_TIMER_EXPIRED;
 
+    /// @brief Default number of posts a dmq::util::IsrDelegate holds until
+    /// IsrDelegates::ProcessAll() takes them. Override via DMQ_ISR_DELEGATE_QUEUE_SIZE
+    /// in DelegateMQConfig.h.
+    inline constexpr size_t ISR_DELEGATE_QUEUE_SIZE = DMQ_ISR_DELEGATE_QUEUE_SIZE;
+
     /// @brief Signal Small-Buffer Optimization (SBO) count.
     /// Signals with <= this many subscribers are invoked heap-free.
     /// Override via DMQ_SIGNAL_SBO_COUNT in delegatemqconfig.h.

@@ -203,6 +203,59 @@ int main() {
         Check(g_calls.timer == 1, "one-shot timer fired exactly once");
     }
 
+    // --- TEST 7: IsrDelegate: the timer interrupt posts, the main loop calls ---
+    // A periodic Timer's OnExpired runs in the timer interrupt here
+    // (Timer::ProcessTimers() is called from it). Its slot posts a sequence
+    // number to an IsrDelegate; the main loop runs IsrDelegates::ProcessAll(),
+    // which calls OnIsrPost() outside the interrupt.
+    printf("\n[Test 7] IsrDelegate (posted from the timer interrupt, called from the main loop):\n");
+    {
+        static volatile uint32_t posted = 0;        // written in the interrupt
+        static uint32_t received = 0, last = 0, gaps = 0, outOfOrder = 0;
+        received = last = gaps = outOfOrder = 0;
+        auto onIsrPost = [](uint32_t seq) {
+            if (seq <= last)
+                outOfOrder++;
+            else
+                gaps += seq - last - 1;
+            last = seq;
+            received++;
+        };
+        IsrDelegate<void(uint32_t)> isrPost(MakeDelegate(std::function<void(uint32_t)>(onIsrPost)));
+        static IsrDelegate<void(uint32_t)>* s_isrPost = nullptr;
+        s_isrPost = &isrPost;
+
+        Timer postTimer;
+        ScopedConnection conn = postTimer.OnExpired.Connect(MakeDelegate(std::function<void()>([]() {
+            posted = posted + 1;
+            s_isrPost->Post(posted);                // interrupt context
+        })));
+        postTimer.Start(std::chrono::milliseconds(1));
+
+        auto waitStart = BareMetalClock::now();
+        for (unsigned long spins = 0; spins < 500000000UL; spins++) {
+            IsrDelegates::ProcessAll();
+            if (BareMetalClock::now() - waitStart >= std::chrono::milliseconds(300))
+                break;
+        }
+        postTimer.Stop();
+        IsrDelegates::ProcessAll();
+
+        // One more from the main loop: also closes a gap left by final drops
+        posted = posted + 1;
+        Check(isrPost.Post(posted), "IsrDelegate::Post() from the main loop");
+        IsrDelegates::ProcessAll();
+
+        const uint32_t dropped = static_cast<uint32_t>(isrPost.GetDroppedCount());
+        printf("  -> %lu posted, %lu called from the main loop, %lu dropped (ring full)\n",
+               static_cast<unsigned long>(posted), static_cast<unsigned long>(received),
+               static_cast<unsigned long>(dropped));
+        Check(posted >= 20, "the timer interrupt posted");
+        Check(received + dropped == posted, "every post called once or counted as dropped");
+        Check(outOfOrder == 0, "posts called in order");
+        Check(gaps == dropped, "each gap in the sequence is a counted drop");
+    }
+
     printf("\n=========================================\n");
     if (g_failures == 0)
         printf("           ALL TESTS PASSED              \n");

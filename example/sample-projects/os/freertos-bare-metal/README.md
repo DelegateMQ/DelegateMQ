@@ -42,6 +42,8 @@ python scripts/04_build_samples.py
 
 The same tests (`main_delegate.cpp`) also build for a real Cortex-M3 and run on QEMU's `mps2-an385` board, with the FreeRTOS `GCC/ARM_CM3` port instead of the Win32 simulator. That build adds **Test 11**: a hardware timer interrupt (the CMSDK APB timer, IRQ 8, at a priority allowed to use the FromISR API) calls `dmq::util::Timer::Start()`/`Stop()`, which take `Timer::GetLock()`, a `dmq::CriticalSection`, while a task does the same and the FreeRTOS timer task runs `ProcessTimers()`. On FreeRTOS that is `FreeRTOSCriticalSection`, which must detect the interrupt and use `taskENTER_CRITICAL_FROM_ISR()`: with detection forced off, the Cortex-M port's own `configASSERT` (no task-level critical section inside an interrupt) ends the run.
 
+It also adds **Test 12**: the same interrupt posts to a `dmq::util::IsrDelegate` whose target is async, to a worker thread. A drain task runs `IsrDelegates::ProcessAll()`, woken by the post handler, which gives its semaphore with `xSemaphoreGiveFromISR()`. Every post must reach the worker once and in order; with the drain task paused, the posts the ring can't hold must be dropped and counted, never blocking the interrupt.
+
 Needs `arm-none-eabi-gcc` and `qemu-system-arm`; runs on Windows and Linux:
 
 ```shell
