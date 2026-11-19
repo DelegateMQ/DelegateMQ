@@ -57,6 +57,27 @@ namespace dmq::util {
 ///   `ProcessTimers()` is delayed for that duration. Fix: keep synchronous timer callbacks fast;
 ///   dispatch any slow work asynchronously to a worker thread instead.
 ///
+/// **Event-Driven Processing (Low Power, Precise Timing):**
+/// Instead of calling `ProcessTimers()` on a fixed period, a driver task can sleep until
+/// the next deadline: call `ProcessTimers()`, then wait for `GetNextExpiry()` or a wake-up
+/// from the handler set with `SetScheduleChangedHandler()`, whichever comes first. The CPU
+/// then wakes only when a timer is due (tickless RTOS idle, or `WFI` on bare metal), and
+/// timers fire on time without a fast polling period.
+/// @code
+///   static TaskHandle_t s_timerTask;
+///   static void WakeTimerTask() { xTaskNotifyGive(s_timerTask); }   // FromISR variant if Start() runs in ISRs
+///
+///   static void TimerTask(void*) {
+///       for (;;) {
+///           Timer::ProcessTimers();
+///           const dmq::Duration next = Timer::GetNextExpiry();
+///           ulTaskNotifyTake(pdTRUE, next == dmq::Duration::max() ? portMAX_DELAY
+///                                                                 : pdMS_TO_TICKS(next.count()));
+///       }
+///   }
+///   // At startup: Timer::SetScheduleChangedHandler(&WakeTimerTask);
+/// @endcode
+///
 /// @see SafeTimer.cpp for examples on how to handle callbacks safely with object lifetimes.
 class Timer
 {
@@ -90,6 +111,21 @@ public:
     /// Called on a periodic basic to service all timer instances. 
     /// @TODO: Call periodically for timer expiration handling.
     static void ProcessTimers();
+
+    /// Time until the earliest running timer expires, for a driver that sleeps until
+    /// then instead of calling ProcessTimers() on a fixed period (see the class notes).
+    /// Takes only GetLock() (a dmq::CriticalSection), so an idle hook or ISR can call it.
+    /// @return Duration(0) if a timer is already due, Duration::max() if none is running.
+    static dmq::Duration GetNextExpiry();
+
+    /// Set a handler that Start() calls after it schedules a timer, so a driver
+    /// sleeping on GetNextExpiry() can wake and recompute its deadline (the new
+    /// timer may be due sooner). nullptr removes it.
+    /// @note The handler runs in the context that called Start(): a task, or an
+    /// ISR if the application starts timers from one. It must not block, and must be
+    /// ISR-safe in that case (e.g. xTaskNotifyGiveFromISR() / vTaskNotifyGiveFromISR()).
+    /// It is a plain function pointer, not a delegate, so calling it never locks or allocates.
+    static void SetScheduleChangedHandler(void (*handler)()) noexcept;
 
 private:
     // Prevent inadvertent copying of this object
@@ -144,6 +180,7 @@ private:
     bool m_once = false;
     Timer* m_next = nullptr;
     static std::atomic<bool> m_timerStopped;
+    static std::atomic<void (*)()> m_scheduleChanged;
 };
 
 } // namespace dmq::util

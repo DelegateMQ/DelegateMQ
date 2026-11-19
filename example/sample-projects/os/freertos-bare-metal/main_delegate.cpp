@@ -4,6 +4,7 @@
 
 #include "DelegateMQ.h" 
 #include "../../../../test/portable/StartGatePortableTest.h"
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <functional>
@@ -48,6 +49,50 @@ static void TimerCallback(TimerHandle_t xTimerHandle) {
     // takes OS mutexes on an RTOS port
     Timer::ProcessTimers();
 }
+
+// --------------------------------------------------------------------------
+// EVENT-DRIVEN TIMER DRIVER (Test 13)
+// --------------------------------------------------------------------------
+// In place of the 10 ms software timer: a task that runs ProcessTimers() only
+// when a timer is due. It waits for Timer::GetNextExpiry(), or for a
+// notification from the schedule-changed handler when Start() adds a timer
+// that may be due sooner. A Start() between GetNextExpiry() and the wait isn't
+// missed: the notification stays pending, so the wait returns at once. With
+// configUSE_TICKLESS_IDLE, the kernel can then sleep the CPU between deadlines.
+static TaskHandle_t s_driverTask = nullptr;
+static volatile bool s_driverRun = false;
+static volatile uint32_t s_driverWakes = 0;
+
+// Timer::SetScheduleChangedHandler(): called by Start(). Test 13 starts timers
+// from tasks only; an app that starts them from an ISR would also need
+// vTaskNotifyGiveFromISR() there.
+static void WakeTimerDriver() { xTaskNotifyGive(s_driverTask); }
+
+// A GetNextExpiry() result as a FreeRTOS wait, rounded up so the task never
+// wakes before the deadline; capped at an hour (pdMS_TO_TICKS() overflows)
+static TickType_t ToWaitTicks(dmq::Duration d) {
+    if (d == dmq::Duration::max())
+        return portMAX_DELAY;
+    const uint64_t ms = std::min<uint64_t>(static_cast<uint64_t>(d.count()), 3600000u);
+    return static_cast<TickType_t>((ms * configTICK_RATE_HZ + 999) / 1000);
+}
+
+static void TimerDriverTask(void*) {
+    while (s_driverRun) {
+        Timer::ProcessTimers();
+        ulTaskNotifyTake(pdTRUE, ToWaitTicks(Timer::GetNextExpiry()));
+        s_driverWakes = s_driverWakes + 1;
+    }
+    vTaskDelete(nullptr);
+}
+
+// Test 13's timer callbacks: run in the driver task, record the tick they ran at
+static volatile uint32_t s_firedA = 0;
+static volatile uint32_t s_firedB = 0;
+static volatile TickType_t s_tickA = 0;
+static volatile TickType_t s_tickB = 0;
+static void OnDriverTimerA() { s_tickA = xTaskGetTickCount(); s_firedA = s_firedA + 1; }
+static void OnDriverTimerB() { s_tickB = xTaskGetTickCount(); s_firedB = s_firedB + 1; }
 
 #if defined(BSP_TARGET)
 // --------------------------------------------------------------------------
@@ -448,6 +493,94 @@ void ExecuteAllTests() {
         printf("  -> every post ran once, in order, on the worker thread\n");
     }
 #endif
+
+    // --- TEST 13: Event-driven timers: ProcessTimers() only when one is due ---
+    printf("\n[Test 13] Event-driven timers (GetNextExpiry, no polling period):\n");
+    {
+        using namespace std::chrono;
+
+        // Stop the 10 ms driver: from here only TimerDriverTask runs ProcessTimers()
+        xTimerStop(xSystemTimer, portMAX_DELAY);
+        vTaskDelay(pdMS_TO_TICKS(20));
+
+        Timer a;
+        Timer b;
+        ScopedConnection connA = a.OnExpired.Connect(MakeDelegate(&OnDriverTimerA));
+        ScopedConnection connB = b.OnExpired.Connect(MakeDelegate(&OnDriverTimerB));
+
+        // GetNextExpiry(), with nothing processing timers. No other timer runs
+        // now, so the values are exact.
+        DMQ_ASSERT_TRUE(Timer::GetNextExpiry() == dmq::Duration::max());
+        a.Start(milliseconds(500), true);
+        dmq::Duration next = Timer::GetNextExpiry();
+        DMQ_ASSERT_TRUE(next > milliseconds(490) && next <= milliseconds(500));
+        b.Start(milliseconds(100), true);
+        next = Timer::GetNextExpiry();
+        DMQ_ASSERT_TRUE(next > milliseconds(90) && next <= milliseconds(100));   // the earliest
+        b.Stop();
+        next = Timer::GetNextExpiry();
+        DMQ_ASSERT_TRUE(next > milliseconds(400) && next <= milliseconds(500));  // back to a
+        vTaskDelay(pdMS_TO_TICKS(550));
+        DMQ_ASSERT_TRUE(Timer::GetNextExpiry() == dmq::Duration(0));             // overdue
+        a.Stop();
+        DMQ_ASSERT_TRUE(Timer::GetNextExpiry() == dmq::Duration::max());
+        DMQ_ASSERT_TRUE(s_firedA == 0 && s_firedB == 0);
+        printf("  -> GetNextExpiry(): none, earliest of two, overdue: as expected\n");
+
+        // The driver, with no timer running: it waits without waking
+        s_driverWakes = 0;
+        s_driverRun = true;
+        xTaskCreate(TimerDriverTask, "TimerDriver", 2048, nullptr, configMAX_PRIORITIES - 2, &s_driverTask);
+        Timer::SetScheduleChangedHandler(&WakeTimerDriver);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        DMQ_ASSERT_TRUE(s_driverWakes == 0);
+
+        // A one-shot: Start() wakes the driver, which then waits until it's due
+        TickType_t start = xTaskGetTickCount();
+        a.Start(milliseconds(50), true);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        DMQ_ASSERT_TRUE(s_firedA == 1);
+        TickType_t late = s_tickA - start - pdMS_TO_TICKS(50);
+        printf("  -> 50 ms one-shot fired %lu ms late; %lu driver wake-ups in 300 ms (a 10 ms poll: 30)\n",
+               static_cast<unsigned long>(late), static_cast<unsigned long>(s_driverWakes));
+        DMQ_ASSERT_TRUE(late <= 3);
+        DMQ_ASSERT_TRUE(s_driverWakes <= 3);         // Start(), then the deadline
+
+        // A sooner timer started while the driver waits for a later one: the
+        // handler wakes it, so it doesn't sleep through the new deadline
+        a.Start(milliseconds(1000), true);
+        vTaskDelay(pdMS_TO_TICKS(20));
+        start = xTaskGetTickCount();
+        b.Start(milliseconds(30), true);
+        vTaskDelay(pdMS_TO_TICKS(60));
+        DMQ_ASSERT_TRUE(s_firedB == 1);
+        late = s_tickB - start - pdMS_TO_TICKS(30);
+        printf("  -> 30 ms one-shot, started during a 1000 ms wait, fired %lu ms late\n",
+               static_cast<unsigned long>(late));
+        DMQ_ASSERT_TRUE(late <= 3);
+        a.Stop();
+
+        // A periodic timer: wake-ups follow its expiries, not a polling period
+        const uint32_t wakes0 = s_driverWakes;
+        const uint32_t fired0 = s_firedA;
+        a.Start(milliseconds(100));
+        vTaskDelay(pdMS_TO_TICKS(1050));
+        a.Stop();
+        const uint32_t fired = s_firedA - fired0;
+        const uint32_t wakes = s_driverWakes - wakes0;
+        printf("  -> 100 ms periodic for 1050 ms: %lu expiries, %lu driver wake-ups (a 10 ms poll: 105)\n",
+               static_cast<unsigned long>(fired), static_cast<unsigned long>(wakes));
+        DMQ_ASSERT_TRUE(fired >= 9 && fired <= 11);
+        DMQ_ASSERT_TRUE(wakes <= fired + 2);
+
+        // Back to the 10 ms software timer
+        Timer::SetScheduleChangedHandler(nullptr);
+        s_driverRun = false;
+        xTaskNotifyGive(s_driverTask);
+        vTaskDelay(pdMS_TO_TICKS(20));      // the driver task exits
+        s_driverTask = nullptr;
+        xTimerStart(xSystemTimer, portMAX_DELAY);
+    }
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

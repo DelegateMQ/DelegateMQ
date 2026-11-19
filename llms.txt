@@ -141,6 +141,8 @@ The samples bind async delegates with a raw `this` (`MakeDelegate(this, &X::F, m
 - `void Stop()` — stop the timer; removal from the list is deferred to the next `ProcessTimers()` call
 - `bool Enabled()` — returns whether the timer is currently active
 - `static dmq::TimePoint GetNow()` — current time from `dmq::Clock` (the port's monotonic clock)
+- `static dmq::Duration GetNextExpiry()` — time until the earliest running timer expires: `Duration(0)` if one is due, `Duration::max()` if none runs. Takes only `GetLock()`, so an idle hook or ISR may call it
+- `static void SetScheduleChangedHandler(void (*handler)())` — a plain function `Start()` calls after scheduling a timer (outside the lock, in the caller's context: make it ISR-safe if timers start from ISRs), so a driver sleeping on `GetNextExpiry()` wakes and recomputes; `nullptr` removes it
 
 ### ProcessTimers()
 
@@ -183,6 +185,27 @@ void TimerTask(void*) {
     }
 }
 ```
+
+### Event-driven processing (low power, precise timing)
+
+A fixed polling period wakes the CPU every period and fires a timer up to one period late. Instead, a driver can run `ProcessTimers()` only when a timer is due: it waits for `GetNextExpiry()`, or for a wake-up from the schedule-changed handler (a `Start()` may add a sooner deadline). Timers then fire on time, and between deadlines the CPU can sleep (FreeRTOS `configUSE_TICKLESS_IDLE`, other RTOSes' tickless modes, `WFI` on bare metal).
+
+```cpp
+static TaskHandle_t s_timerTask;
+static void WakeTimerTask() { xTaskNotifyGive(s_timerTask); }   // FromISR variant if Start() runs in ISRs
+
+void TimerTask(void*) {
+    for (;;) {
+        dmq::util::Timer::ProcessTimers();
+        const dmq::Duration next = dmq::util::Timer::GetNextExpiry();
+        ulTaskNotifyTake(pdTRUE, next == dmq::Duration::max() ? portMAX_DELAY
+                                                              : pdMS_TO_TICKS(next.count()));
+    }
+}
+// At startup: dmq::util::Timer::SetScheduleChangedHandler(&WakeTimerTask);
+```
+
+A `Start()` between `GetNextExpiry()` and the wait isn't missed: the notification stays pending. `Stop()` doesn't call the handler (a later deadline only means one early, harmless wake). Sleep is still bounded by the shortest periodic timer, and by other polled work (`Thread::WatchdogCheckAll()`, `IsrDelegates::ProcessAll()` unless woken by its post handler). On bare metal, `dmq::Clock` usually counts a 1 ms SysTick, which wakes the CPU every millisecond anyway: deep sleep needs the application to stop SysTick, sleep on a low-power timer, and add the slept time to the tick count afterwards (as FreeRTOS's `vTaskStepTick()` does). `os/freertos-bare-metal`'s Test 13 runs this driver (Win32 simulator and Cortex-M3 on QEMU).
 
 ### Configuration constants
 

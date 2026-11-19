@@ -719,6 +719,51 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
 }
 
 // =============================================================================
+// Timer::GetNextExpiry() / SetScheduleChangedHandler()
+// =============================================================================
+// The test app keeps other timers running (main.cpp's 1 s timer) and a thread
+// calling ProcessTimers() every 5 ms, so these check bounds, not exact values.
+// The FreeRTOS sample (os/freertos-bare-metal, Test 13) checks exact values
+// and an event-driven driver with no other timers running.
+
+static std::atomic<int> s_scheduleChanged{0};
+static void OnScheduleChanged() { s_scheduleChanged++; }
+
+static void Timer_GetNextExpiry_BoundedByEarliestTimer()
+{
+    Timer later;
+    Timer sooner;
+    later.Start(std::chrono::minutes(10));
+    DMQ_ASSERT_TRUE(Timer::GetNextExpiry() <= dmq::Duration(std::chrono::minutes(10)));
+    sooner.Start(std::chrono::milliseconds(300), true);
+    const dmq::Duration next = Timer::GetNextExpiry();
+    DMQ_ASSERT_TRUE(next >= dmq::Duration(0));
+    DMQ_ASSERT_TRUE(next <= dmq::Duration(std::chrono::milliseconds(300)));
+    sooner.Stop();
+    later.Stop();
+    std::cout << "Timer_GetNextExpiry_BoundedByEarliestTimer() complete!" << std::endl;
+}
+
+static void Timer_ScheduleChangedHandler_CalledByStart()
+{
+    Timer t;
+    Timer::SetScheduleChangedHandler(&OnScheduleChanged);
+    const int before = s_scheduleChanged.load();
+    t.Start(std::chrono::minutes(1));
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 1);
+    t.Start(std::chrono::minutes(2));                   // a restart reschedules too
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 2);
+    t.Stop();                                           // a stop only delays the next deadline
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 2);
+
+    Timer::SetScheduleChangedHandler(nullptr);
+    t.Start(std::chrono::minutes(1));
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 2);
+    t.Stop();
+    std::cout << "Timer_ScheduleChangedHandler_CalledByStart() complete!" << std::endl;
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -758,6 +803,8 @@ void TimerDelegateTests()
     Timer_DestroyedDuringProcessTimers();
     Timer_CallbackWaitsForOtherThreadToDestroyTimer();
     Timer_FallenBehind_DoesNotFireBackToBack();
+    Timer_GetNextExpiry_BoundedByEarliestTimer();
+    Timer_ScheduleChangedHandler_CalledByStart();
 
     std::cout << "TimerDelegateTests() complete!" << std::endl;
 }

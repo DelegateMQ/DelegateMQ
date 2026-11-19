@@ -10,6 +10,7 @@ This sample project demonstrates how to integrate **DelegateMQ** into a **FreeRT
 4.  **Thread-Safe Signals**: Using `MulticastDelegateSafe` to handle connections and emissions across multiple tasks.
 5.  **RAII Connections**: Using `ScopedConnection` to automatically manage the lifetime of signal-slot connections.
 6.  **RTOS Timers**: Integrating DelegateMQ's timer system with the FreeRTOS tick/timer daemon.
+7.  **Event-Driven Timers** (Test 13): a task runs `Timer::ProcessTimers()` only when a timer is due, waiting for `Timer::GetNextExpiry()` or a notification from `Timer::SetScheduleChangedHandler()`, instead of every 10 ms. Checks `GetNextExpiry()` (no timer, the earliest of two, overdue), that one-shots fire on time (also one started while the driver waits for a later deadline), and that a 100 ms periodic timer wakes the driver about 11 times in a second, where a 10 ms poll wakes it 105 times. With `configUSE_TICKLESS_IDLE`, that's what lets the kernel sleep the CPU between deadlines.
 
 ## Prerequisites
 
