@@ -32,6 +32,9 @@ function(dmq_add_mqtt_bridge target)
         set(PAHO_WITH_SSL FALSE CACHE BOOL "MqttBridge: no TLS" FORCE)
         # Paho 1.3.x declares cmake_minimum_required(2.8.12), which CMake 4 rejects.
         set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+        # Paho 1.3.x does `typedef unsigned int bool;` (MQTTPacket.h), an error
+        # under C23, GCC 15's default C standard.
+        set(CMAKE_C_STANDARD 11)
         add_subdirectory("${DMQ_PAHO_ROOT}" "${CMAKE_BINARY_DIR}/paho-mqtt" EXCLUDE_FROM_ALL)
     endif()
 

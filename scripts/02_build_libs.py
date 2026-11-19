@@ -72,7 +72,10 @@ libs = [
         # ADDED: -DPAHO_ENABLE_TESTING=FALSE -- Paho's test suite is POSIX-only
         # (test4.c, test6.c, etc. include <sys/time.h>, which doesn't exist on
         # MSVC/Windows) and isn't needed to produce the libs DelegateMQ links.
+        # ADDED: -DCMAKE_C_STANDARD=11 -- Paho 1.3.x does `typedef unsigned int
+        # bool;` (MQTTPacket.h), an error under C23, GCC 15's default.
         "flags": [
+            "-DCMAKE_C_STANDARD=11",
             "-DPAHO_BUILD_SHARED=TRUE",
             "-DPAHO_BUILD_STATIC=TRUE",
             "-DPAHO_BUILD_SAMPLES=FALSE",
