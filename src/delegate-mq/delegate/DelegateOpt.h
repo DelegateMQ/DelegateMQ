@@ -59,6 +59,7 @@
 #endif
 
 #include <chrono>
+#include "DelegateCast.h"       // dynamic_cast, or its replacement under DMQ_NO_RTTI
 #if defined(DMQ_HAS_THREADING)
     #include <mutex>
     #if !defined(__cpp_lib_scoped_lock)
@@ -67,10 +68,8 @@
     #endif
 #endif
 
-// RTTI Detection Check
-#if !defined(__cpp_rtti) && !defined(__GXX_RTTI) && !defined(_CPPRTTI)
-    #error "RTTI compiler option is disabled but required by the DelegateMQ library."
-#endif
+// Without RTTI, DMQ_NO_RTTI (DelegateSelect.h) replaces the library's
+// dynamic_cast; see DelegateCast.h
 
 // Some OS port headers below (e.g. ThreadXMutex.h, ThreadXConditionVariable.h) use
 // DMQ_ASSERT_TRUE in constructors. Include Fault.h here, ahead of those port headers,

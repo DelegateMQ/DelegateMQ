@@ -12,7 +12,6 @@
 #include <array>
 #include <string>
 #include <memory>
-#include <typeindex>
 
 namespace dmq::databus {
 
@@ -332,7 +331,7 @@ private:
             // Type safety: catch remoteId reused with a different T
             auto itType = m_channelTypes.find(remoteId);
             if (itType != m_channelTypes.end()) {
-                if (itType->second != std::type_index(typeid(T))) {
+                if (itType->second != dmq::TypeKeyOf<T>()) {
                     outTypeMismatch = true;
                     return nullptr;
                 }
@@ -355,7 +354,7 @@ private:
             channel = std::static_pointer_cast<dmq::RemoteChannel<void(T)>>(channelVoid);
 
             m_channels[remoteId] = { channelVoid, raw->GetEndpoint() };
-            m_channelTypes.emplace(remoteId, std::type_index(typeid(T)));
+            m_channelTypes.emplace(remoteId, dmq::TypeKeyOf<T>());
         }
 
         return channel;
@@ -369,7 +368,7 @@ private:
     dmq::Mutex m_receiveMutex;
     dmq::xmap<dmq::xstring, dmq::DelegateRemoteId> m_topicToRemoteId;
     dmq::xmap<dmq::DelegateRemoteId, ChannelInvoker> m_channels;
-    dmq::xmap<dmq::DelegateRemoteId, std::type_index> m_channelTypes;
+    dmq::xmap<dmq::DelegateRemoteId, dmq::TypeKey> m_channelTypes;
     dmq::xmap<dmq::xstring, uint16_t> m_reportedErrors;
     dmq::Signal<void(const dmq::xstring&, dmq::DelegateError)> m_errorSignal;
 

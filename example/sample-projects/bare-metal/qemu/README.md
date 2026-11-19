@@ -15,7 +15,7 @@ DelegateMQ on bare metal: **no RTOS and no threads** (`DMQ_THREAD_NONE`), on sev
 1. Unicast delegate to a free function
 2. Unicast delegate to a lambda with a capture
 3. Multicast delegate: free function, member function and lambda
-4. Removing a delegate from a multicast delegate (uses `Delegate::Equal()`, which needs RTTI)
+4. Removing a delegate from a multicast delegate (uses `Delegate::Equal()`: `dynamic_cast`, or without RTTI, as on `arm-m0`, DelegateMQ's type IDs)
 5. `Signal` with a `ScopedConnection`: connected inside a block, disconnected when the block ends
 6. One-shot `dmq::util::Timer`, fired by the **real timer interrupt**: its handler increments `g_ticks` (read by `dmq::os::BareMetalClock`) and calls `Timer::ProcessTimers()` from interrupt context. That exercises `dmq::os::BareMetalCriticalSection` for real, PRIMASK on Arm and `mstatus.MIE` on RISC-V (see CLAUDE.md's "ISR-Safe Locking").
 7. `dmq::util::IsrDelegate`: a periodic `Timer`, whose `OnExpired` runs in the timer interrupt, posts a sequence number; the main loop runs `IsrDelegates::ProcessAll()`, which calls the target outside the interrupt. Every post must be called once, in order, or counted as dropped.
@@ -123,6 +123,7 @@ The smallest Arm core, to catch what the larger ones forgive:
 - **Unaligned access faults.** Every fault is a HardFault on Armv6-M; `startup.c`'s `HardFault_Handler` prints `HARD FAULT` and ends QEMU with status 1 instead of hanging.
 - **16 KB RAM.** `nrf51.ld` (256 KB flash, 16 KB RAM) reserves 4 KB of stack and fails the link if `.data` + `.bss` + stack don't fit.
 - **Timer:** the nRF51 has no SysTick, so `bsp.cpp` runs TIMER0 at 1 MHz (16 MHz, prescaler 4) with a compare every 1000 counts, cleared by hardware (`SHORTS`), interrupt IRQ 8 (`TIMER0_IRQHandler`), as a real nRF51 would.
+- **No RTTI.** Built with `-fno-rtti`, as many small-MCU projects are: DelegateMQ defines `DMQ_NO_RTTI` and uses no `dynamic_cast` or `typeid` (see `docs/SAFETY.md`).
 - `startup.c`: vector table (core exceptions and the nRF51's 32 interrupts), copies `.data`, zeroes `.bss`, runs C++ static constructors, calls `main()`. No FPU to enable.
 
 ### arm-m33

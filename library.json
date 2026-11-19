@@ -65,8 +65,7 @@
       "-std=gnu++11",
       "-std=gnu++14",
       "-std=c++11",
-      "-std=c++14",
-      "-fno-rtti"
+      "-std=c++14"
     ]
   },
   "examples": [
@@ -75,7 +74,6 @@
       "base": "example/platformio/async-delegates",
       "files": [
         "platformio.ini",
-        "cxx_flags.py",
         "freertos_path.py",
         "include/DelegateMQConfig.h",
         "src/main.cpp"

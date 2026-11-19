@@ -179,4 +179,13 @@
     #endif
 #endif
 
+// No RTTI: DMQ_NO_RTTI replaces the library's dynamic_cast (see DelegateCast.h).
+// Set automatically when the compiler has RTTI off (none of __cpp_rtti,
+// GCC/Clang's __GXX_RTTI or MSVC's _CPPRTTI defined).
+#if !defined(DMQ_NO_RTTI)
+    #if !defined(__cpp_rtti) && !defined(__GXX_RTTI) && !defined(_CPPRTTI)
+        #define DMQ_NO_RTTI
+    #endif
+#endif
+
 #endif // _DELEGATE_SELECT_H

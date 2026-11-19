@@ -1,4 +1,4 @@
-name: Embedded Config (Allocator + Asserts)
+name: Embedded Config (Allocator + Asserts, No RTTI)
 
 on:
   push:
@@ -40,6 +40,43 @@ jobs:
 
     - name: Configure CMake (DMQ_ALLOCATOR + DMQ_ASSERTS)
       run: cmake -S . -B build -DDMQ_ALLOCATOR=ON -DDMQ_ASSERTS=ON
+
+    - name: Build
+      run: cmake --build build --config Release --target delegate_app
+
+    - name: Run delegate_app to execute tests
+      run: .\build\delegate_app\Release\delegate_app.exe
+
+  # Without RTTI (-fno-rtti, /GR-): DelegateMQ defines DMQ_NO_RTTI and replaces
+  # its dynamic_cast/typeid (delegate/DelegateCast.h). GCC here, the compiler
+  # most embedded builds use, with the rest of the embedded configuration.
+  ubuntu-gcc-no-rtti:
+    name: Ubuntu (GCC, no RTTI)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Configure CMake (no RTTI + DMQ_ALLOCATOR + DMQ_ASSERTS)
+      run: cmake -S . -B build -DNO_RTTI=ON -DDMQ_ALLOCATOR=ON -DDMQ_ASSERTS=ON
+
+    - name: Build
+      run: cmake --build build --target delegate_app
+
+    - name: Run delegate_app to execute tests
+      run: ./build/delegate_app/delegate_app
+
+  windows-msvc-no-rtti:
+    name: Windows (MSVC, no RTTI)
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Configure CMake (no RTTI)
+      run: cmake -S . -B build -DNO_RTTI=ON
 
     - name: Build
       run: cmake --build build --config Release --target delegate_app

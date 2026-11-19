@@ -2,7 +2,7 @@
 CONFIG_IDF_TARGET="esp32"
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 
-# DelegateMQ needs RTTI (Delegate::Equal() uses dynamic_cast). No C++
+# RTTI on here; DelegateMQ also builds without it (DMQ_NO_RTTI). No C++
 # exceptions: DelegateMQ then faults through DMQ_ASSERT instead of throwing.
 CONFIG_COMPILER_CXX_RTTI=y
 

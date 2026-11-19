@@ -35,8 +35,11 @@ public:
         // Empty a reused stream: transports send the whole buffer, so bytes left
         // over from a longer previous message would follow the JSON and fail
         // the receiver's parse.
+#if !defined(DMQ_NO_RTTI)
+        // Without RTTI the caller clears it (DelegateRemote does)
         if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os))
             ss->str("");
+#endif
         ::rapidjson::StringBuffer sb;
         ::rapidjson::PrettyWriter<::rapidjson::StringBuffer> writer(sb);
         (args.Write(writer, os), ...);  // C++17 fold expression to write each argument

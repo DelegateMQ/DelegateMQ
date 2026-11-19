@@ -373,6 +373,9 @@ TEST_VARIANTS = [
     {"suffix": "build-embedded", "clang": True, "linux": False,
      "cmake": ["-DDMQ_ALLOCATOR=ON", "-DDMQ_ASSERTS=ON"],
      "env": {}, "success": "Success!"},
+    # Without RTTI (-fno-rtti, /GR-): DelegateMQ's DMQ_NO_RTTI
+    {"suffix": "build-no-rtti", "clang": False, "linux": False,
+     "cmake": ["-DNO_RTTI=ON"], "env": {}, "success": "Success!"},
     {"suffix": "build-stress", "clang": False, "linux": False,
      "cmake": ["-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_CXX_FLAGS=-DSTRESS_TESTS"],
      "env": {}, "success": None},

@@ -41,6 +41,14 @@ static void DelegateFreeTests()
 
     Delegate<void(int)>* baseDel = new Del(FreeFuncInt1);
     (*baseDel)(TEST_INT);
+
+    // DelegateCast answers as dynamic_cast does, RTTI on or off: to the class,
+    // its base classes, and nothing else
+    const DelegateBase& base = *baseDel;
+    DMQ_ASSERT_TRUE(dmq::DelegateCast<Del>(base) == baseDel);
+    DMQ_ASSERT_TRUE(dmq::DelegateCast<Delegate<void(int)>>(base) == baseDel);
+    DMQ_ASSERT_TRUE(dmq::DelegateCast<DelegateBase>(base) == &base);
+    DMQ_ASSERT_TRUE(dmq::DelegateCast<DelegateFunction<void(int)>>(base) == nullptr);
     delete baseDel;
 
     auto delegate2 = delegate1;
@@ -673,8 +681,14 @@ static void DelegateFunctionTests()
     DMQ_ASSERT_TRUE(!del1.Empty());
     DMQ_ASSERT_TRUE(!del2.Empty());
     DMQ_ASSERT_TRUE(!del3.Empty());
-    DMQ_ASSERT_TRUE(del1 == del2);
-    DMQ_ASSERT_TRUE(del2 == del3);
+    DMQ_ASSERT_TRUE(del1 == del2);       // a copy
+#if defined(DMQ_NO_RTTI)
+    // No RTTI: LambdaNoCapture is a std::function, whose callable type is
+    // erased, so del3 (a separate bind of it) equals only its own copies
+    DMQ_ASSERT_TRUE(!(del2 == del3));
+#else
+    DMQ_ASSERT_TRUE(del2 == del3);       // same callable type
+#endif
 
     DelegateFunction<std::uint16_t(void)> d;
     DMQ_ASSERT_TRUE(!d);

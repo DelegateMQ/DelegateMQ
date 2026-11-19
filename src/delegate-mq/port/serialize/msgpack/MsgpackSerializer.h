@@ -47,9 +47,12 @@ public:
         // sending "tail garbage" if the new packet is smaller than the previous one.
         // (Note: Even with garbage tail, msgpack works because it stops reading
         // after the valid object, but clearing saves network bandwidth).
+#if !defined(DMQ_NO_RTTI)
+        // Without RTTI the caller clears it (DelegateRemote does)
         if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os)) {
             ss->str("");
         }
+#endif
 
         ::msgpack::sbuffer buffer;
         make_serialized(buffer, args...);

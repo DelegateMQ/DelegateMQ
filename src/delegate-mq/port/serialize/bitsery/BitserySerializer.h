@@ -47,9 +47,12 @@ public:
 
         // Clear stringstreams explicitly to avoid appending new data to old data.
         // DelegateMQ often reuses the stream object.
+#if !defined(DMQ_NO_RTTI)
+        // Without RTTI the caller clears it (DelegateRemote does)
         if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os)) {
             ss->str("");
         }
+#endif
 
         // Construct the adapter properly passing the stream
         ::bitsery::Serializer<OutputAdapter> writer{ OutputAdapter{os} };

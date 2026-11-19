@@ -439,6 +439,27 @@ static void TimerDelegate_Equal_DifferentThread()
     std::cout << "TimerDelegate_Equal_DifferentThread() complete!" << std::endl;
 }
 
+static void OtherFreeFuncForEqualityTests() {}
+
+static void TimerDelegate_Equal_RawCallables()
+{
+    // Free functions compare by address, lambdas by type (RTTI on or off)
+    auto f1 = MakeTimerDelegate(&FreeFuncForEqualityTests, s_thread);
+    auto f2 = MakeTimerDelegate(&FreeFuncForEqualityTests, s_thread);
+    auto f3 = MakeTimerDelegate(&OtherFreeFuncForEqualityTests, s_thread);
+    DMQ_ASSERT_TRUE(f1.Equal(f2));
+    DMQ_ASSERT_TRUE(!f1.Equal(f3));
+
+    auto lambda = []() {};
+    auto l1 = MakeTimerDelegate(lambda, s_thread);
+    auto l2 = MakeTimerDelegate(lambda, s_thread);
+    auto l3 = MakeTimerDelegate([]() {}, s_thread);
+    DMQ_ASSERT_TRUE(l1.Equal(l2));
+    DMQ_ASSERT_TRUE(!l1.Equal(l3));
+    DMQ_ASSERT_TRUE(!l1.Equal(f1));
+    std::cout << "TimerDelegate_Equal_RawCallables() complete!" << std::endl;
+}
+
 static void TimerDelegate_Equal_DifferentDelegateType()
 {
     // rhs isn't a TimerDelegate at all -- exercises dynamic_cast failing
@@ -725,6 +746,7 @@ void TimerDelegateTests()
     TimerDelegate_Move_TransfersQueuedTick();
 
     TimerDelegate_Equal_SameUnderlyingAndThread();
+    TimerDelegate_Equal_RawCallables();
     TimerDelegate_Equal_DifferentTargetObject();
     TimerDelegate_Equal_DifferentThread();
     TimerDelegate_Equal_DifferentDelegateType();

@@ -48,7 +48,13 @@
 #include "delegate/DelegateOpt.h"   // DMQ_ASSERT_TRUE, dmq::SERIALIZE_* limits
 #include <limits>
 #include <type_traits>
-#include <typeinfo>
+#if defined(DMQ_NO_RTTI)
+    // No typeid: the parse handler gets the type's dmq::TypeId (DelegateCast.h)
+    #define MSG_SERIALIZE_TYPE_ID(expr) dmq::TypeIdOf<decltype(expr)>()
+#else
+    #include <typeinfo>
+    #define MSG_SERIALIZE_TYPE_ID(expr) typeid(expr)
+#endif
 #include <istream>
 #include <ostream>
 #include <memory>
@@ -295,7 +301,7 @@ public:
                     return is;
                 }
 
-                parseStatus(typeid(*t_), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(*t_), size);
 
                 // Save the stop parsing position to prevent parsing overrun
                 if (!push_stop_parse_pos(targetStopPos)) {
@@ -345,7 +351,7 @@ public:
             if (check_stream(is) && check_slength(is, size))
             {
                 s.resize(size);
-                parseStatus(typeid(s), s.size());
+                parseStatus(MSG_SERIALIZE_TYPE_ID(s), s.size());
                 read_internal(is, &s[0], size, true);
             }
         }
@@ -370,7 +376,7 @@ public:
             if (check_stream(is) && check_slength(is, size))
             {
                 s.resize(size);
-                parseStatus(typeid(s), s.size());
+                parseStatus(MSG_SERIALIZE_TYPE_ID(s), s.size());
                 for (uint16_t ii = 0; ii < size; ii++)
                 {
                     wchar_t c = 0;
@@ -418,7 +424,7 @@ public:
                 is.setstate(std::ios::failbit);
                 return is;
             }
-            parseStatus(typeid(str), size);
+            parseStatus(MSG_SERIALIZE_TYPE_ID(str), size);
             read_internal(is, str, size, true);
 
             // Truncated stream: is.read() stopped early, so str[gcount()..size-1]
@@ -469,7 +475,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 // One allocation of the final size instead of regrowing per element.
                 container.reserve(size);
                 for (uint16_t i = 0; i < size; ++i)
@@ -711,7 +717,7 @@ public:
                 }
 
                 if (readPrependedType)
-                    parseStatus(typeid(t_), sizeof(t_));
+                    parseStatus(MSG_SERIALIZE_TYPE_ID(t_), sizeof(t_));
                 read_internal(is, reinterpret_cast<char*>(&t_), sizeof(t_));
                 return is;
             }
@@ -743,7 +749,7 @@ public:
                 }
 
                 if (readPrependedType)
-                    parseStatus(typeid(t_), sizeof(t_));
+                    parseStatus(MSG_SERIALIZE_TYPE_ID(t_), sizeof(t_));
                 read_internal(is, reinterpret_cast<char*>(&t_), sizeof(t_));
                 return is;
             }
@@ -910,7 +916,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 // One allocation of the final size instead of regrowing per element.
                 container.reserve(size);
                 for (uint16_t i = 0; i < size; ++i)
@@ -986,7 +992,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 // One allocation of the final size instead of regrowing per element.
                 container.reserve(size);
                 for (uint16_t i = 0; i < size; ++i)
@@ -1060,7 +1066,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     K key;
@@ -1137,7 +1143,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     K key;
@@ -1210,7 +1216,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     T t;
@@ -1282,7 +1288,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     bool notNULL = false;
@@ -1353,7 +1359,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     T t;
@@ -1426,7 +1432,7 @@ public:
             read(is, size, false);
             if (check_stream(is) && check_container_size(is, size))
             {
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 for (uint16_t i = 0; i < size; ++i)
                 {
                     bool notNULL = false;
@@ -1500,7 +1506,7 @@ public:
                     is.setstate(std::ios::failbit);
                     return is;
                 }
-                parseStatus(typeid(container), size);
+                parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
                 for (auto& item : container)
                     read_element(is, item);
             }
@@ -1571,7 +1577,11 @@ public:
     ParsingError getLastError() const { return lastError; }
     void clearLastError() { lastError = ParsingError::NONE; }
 
+#if defined(DMQ_NO_RTTI)
+    typedef void (*ParseHandler)(dmq::TypeId typeId, size_t size);
+#else
     typedef void (*ParseHandler)(const std::type_info& typeId, size_t size);
+#endif
     void setParseHandler(ParseHandler parse_handler_)
     {
         parse_handler = parse_handler_;
@@ -1749,7 +1759,11 @@ private:
     }
 
     ParseHandler parse_handler = nullptr;
+#if defined(DMQ_NO_RTTI)
+    void parseStatus(dmq::TypeId typeId, size_t size = 0) const
+#else
     void parseStatus(const std::type_info& typeId, size_t size = 0) const
+#endif
     {
         if (parse_handler)
             parse_handler(typeId, size);

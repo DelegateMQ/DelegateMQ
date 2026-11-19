@@ -32,8 +32,11 @@ public:
     // Write arguments to a stream
     virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
         os.seekp(0);
+#if !defined(DMQ_NO_RTTI)
+        // Without RTTI the caller clears it (DelegateRemote does)
         if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os))
             ss->str("");
+#endif
         ::cereal::BinaryOutputArchive archive(os);
         (archive(args), ...); // C++17 fold expression to serialize each argument
         return os;

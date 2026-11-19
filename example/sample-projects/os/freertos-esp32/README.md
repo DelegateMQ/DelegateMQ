@@ -53,7 +53,7 @@ QEMU keeps running after the tests (`Ctrl+A X` quits). On a real ESP32 board, `i
 
 - `main/main.cpp`: the tests and the ESP-IDF entry point (`app_main`)
 - `main/CMakeLists.txt`: the app component: `main.cpp`, DelegateMQ through `src/DelegateMQ.cpp` (the one file that compiles what the `DMQ_*` options select), the portable tests, and the options (`DMQ_THREAD_FREERTOS`)
-- `sdkconfig.defaults`: RTTI on (DelegateMQ needs it; C++ exceptions stay off, so DelegateMQ faults instead of throwing), the timer service task's priority and stack, ISR dispatch for `esp_timer`, halt on panic
+- `sdkconfig.defaults`: RTTI on (optional: DelegateMQ also builds without it; C++ exceptions stay off, so DelegateMQ faults instead of throwing), the timer service task's priority and stack, ISR dispatch for `esp_timer`, halt on panic
 - `CMakeLists.txt`: the ESP-IDF project
 
 ## Notes

@@ -66,6 +66,12 @@ public:
 	/// No-op for messages nobody waits on.
 	virtual void Cancel() {}
 
+#if defined(DMQ_NO_RTTI)
+	/// The message class's TypeId, for MsgCast() without RTTI (DelegateCast.h).
+	/// Each message class overrides it with DMQ_MSG_TYPE().
+	virtual dmq::TypeId GetMsgType() const noexcept { return dmq::TypeIdOf<DelegateMsg>(); }
+#endif
+
 private:
 	/// The IThreadInvoker instance used to invoke the target function 
     /// on the destination thread of control

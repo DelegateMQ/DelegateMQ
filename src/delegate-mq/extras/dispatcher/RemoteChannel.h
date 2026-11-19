@@ -157,6 +157,7 @@ public:
     template <typename F, typename = std::enable_if_t<dmq::trait::is_callable<F>::value>>
     void Bind(F&& func, DelegateRemoteId id) {
         m_delegate.Bind(std::forward<F>(func), id);
+        DMQ_SET_CALLABLE_TYPE(m_delegate, F, RetType(Args...));
         ReconnectDelegate();
     }
 
@@ -379,6 +380,7 @@ template <typename F, typename Sig, typename = std::enable_if_t<dmq::trait::is_c
 auto MakeDelegate(F&& func, DelegateRemoteId id, RemoteChannel<Sig>& channel)
 {
     DelegateFunctionRemote<Sig> d(std::forward<F>(func), id);
+    DMQ_SET_CALLABLE_TYPE(d, F, Sig);
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());

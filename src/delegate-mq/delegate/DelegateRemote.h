@@ -368,6 +368,7 @@ public:
     typedef RetType(*FreeFunc)(Args...);
     using ClassType = DelegateFreeRemote<RetType(Args...)>;
     using BaseType = DelegateFree<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
@@ -473,7 +474,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -532,6 +533,9 @@ public:
             // Remote delegates may share one stream (e.g. every delegate made from
             // one RemoteChannel); the send mutex keeps their sends from interleaving.
             detail::RemoteSendLock sendLock(m_state.GetSendMutex());
+            // Start from an empty stream: a shorter message then carries no
+            // tail of the previous one (no RTTI needed for the serializer to check)
+            m_state.GetStream()->str("");
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -758,6 +762,7 @@ public:
     typedef RetType(TClass::* ConstMemberFunc)(Args...) const;
     using ClassType = DelegateMemberRemote<TClass, RetType(Args...)>;
     using BaseType = DelegateMember<TClass, RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
@@ -924,7 +929,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -983,6 +988,9 @@ public:
             // Remote delegates may share one stream (e.g. every delegate made from
             // one RemoteChannel); the send mutex keeps their sends from interleaving.
             detail::RemoteSendLock sendLock(m_state.GetSendMutex());
+            // Start from an empty stream: a shorter message then carries no
+            // tail of the previous one (no RTTI needed for the serializer to check)
+            m_state.GetStream()->str("");
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -1210,6 +1218,7 @@ public:
     using FunctionType = std::function<RetType(Args...)>;
     using ClassType = DelegateFunctionRemote<RetType(Args...)>;
     using BaseType = DelegateFunction<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
@@ -1315,7 +1324,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -1374,6 +1383,9 @@ public:
             // Remote delegates may share one stream (e.g. every delegate made from
             // one RemoteChannel); the send mutex keeps their sends from interleaving.
             detail::RemoteSendLock sendLock(m_state.GetSendMutex());
+            // Start from an empty stream: a shorter message then carries no
+            // tail of the previous one (no RTTI needed for the serializer to check)
+            m_state.GetStream()->str("");
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -1678,7 +1690,9 @@ auto MakeDelegate(std::function<RetType(Args...)> func, DelegateRemoteId id) {
 template <typename F, typename = std::enable_if_t<trait::is_callable<F>::value>>
 auto MakeDelegate(F&& func, DelegateRemoteId id) {
     using Sig = typename trait::function_traits<decltype(&std::remove_reference_t<F>::operator())>::function_type;
-    return DelegateFunctionRemote<Sig>(std::forward<F>(func), id);
+    DelegateFunctionRemote<Sig> delegate(std::forward<F>(func), id);
+    DMQ_SET_CALLABLE_TYPE(delegate, F, Sig);
+    return delegate;
 }
 
 }

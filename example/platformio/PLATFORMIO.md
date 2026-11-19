@@ -6,7 +6,7 @@ DelegateMQ is a [PlatformIO](https://platformio.org/) library: add one line to `
 - [Quick Start](#quick-start)
 - [Project Setup](#project-setup)
   - [platformio.ini](#platformioini)
-  - [C++17 and RTTI](#c17-and-rtti)
+  - [C++17](#c17)
   - [Configuration Header](#configuration-header)
 - [Thread Ports](#thread-ports)
   - [ESP32 (FreeRTOS)](#esp32-freertos)
@@ -90,20 +90,18 @@ platform  = espressif32
 board     = esp32dev
 framework = arduino
 lib_deps  = endurodave/DelegateMQ@^2.4.0
-; DelegateMQ needs C++17 and RTTI; Arduino cores default to C++11 and -fno-rtti
-build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14 -fno-rtti
+; DelegateMQ needs C++17; Arduino cores default to C++11 or C++14
+build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
-extra_scripts = pre:cxx_flags.py   ; adds -frtti to C++ files only
 ```
 
 PlatformIO compiles every `.cpp` under the library's `src/delegate-mq`. Each file compiles to nothing unless the selected options need it, so there's no file list to maintain (see [Without CMake](../../docs/BUILD.md#without-cmake)).
 
-### C++17 and RTTI
+### C++17
 
-DelegateMQ needs C++17 and RTTI. Most Arduino cores compile C++ as `gnu++11` or `gnu++14` with `-fno-rtti`, so:
+DelegateMQ needs C++17. Most Arduino cores compile C++ as `gnu++11` or `gnu++14`, so remove the core's standard with `build_unflags` and add `-std=gnu++17` to `build_flags`.
 
-- **C++17:** remove the core's standard with `build_unflags` and add `-std=gnu++17` to `build_flags`.
-- **RTTI:** remove `-fno-rtti` with `build_unflags`, then add `-frtti` with [`cxx_flags.py`](async-delegates/cxx_flags.py) (copy it into your project folder). Putting `-frtti` in `build_flags` also works, but `build_flags` reaches C files too, and GCC warns on every one that `-frtti` is for C++ only. The script adds it to C++ compiles only.
+RTTI is optional. Most cores compile with `-fno-rtti`, and DelegateMQ then builds without it (`DMQ_NO_RTTI`, automatic). If your project turns RTTI on, turn it on for every C++ file, DelegateMQ's included: the library builds with the project's flags, and mixing the two is undefined. Without RTTI, a delegate made from a `std::function` object equals only its own copies; see [RTTI Is Optional](../../docs/SAFETY.md#rtti-is-optional-dmq_no_rtti).
 
 ### Configuration Header
 
@@ -143,9 +141,8 @@ board     = disco_f407vg
 framework = arduino
 lib_deps  = endurodave/DelegateMQ@^2.4.0
             stm32duino/STM32duino FreeRTOS@^10.3.2
-build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14 -fno-rtti
+build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
-extra_scripts = pre:cxx_flags.py
 ```
 
 ```cpp
@@ -208,7 +205,7 @@ To start your own project from it, copy the folder and change `lib_deps = symlin
 | Error | Cause and fix |
 | :--- | :--- |
 | `functional: No such file or directory` (or `chrono`, `cstdio`) | 8-bit AVR board (Uno, Mega). Not supported: no C++ standard library. |
-| `'dynamic_cast' not permitted with '-fno-rtti'`, `typeid` errors | RTTI off. Add `-fno-rtti` to `build_unflags` and `-frtti` (or `cxx_flags.py`). |
+| Crashes or wrong results in delegate calls, with RTTI on for some files only | Mixed RTTI settings: DelegateMQ's classes differ with and without it. Use one setting for every C++ file. |
 | `if constexpr`, `std::optional`, structured-binding errors | Not C++17. Add the core's `-std=gnu++11`/`gnu++14` (some cores use `-std=c++11`/`c++14`) to `build_unflags` and `-std=gnu++17` to `build_flags`. |
 | Link errors for `FreeRTOSThread` or other port symbols | `DelegateMQConfig.h` is in `src/`, so the library was built with different options. Move it to `include/`. |
 | `FreeRTOS.h: No such file or directory` | `DMQ_THREAD_FREERTOS` on a core without FreeRTOS. Add an RTOS library (STM32duino FreeRTOS) or use `DMQ_THREAD_NONE`. |

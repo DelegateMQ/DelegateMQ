@@ -82,6 +82,8 @@ template <class...Args>
 class DelegateAsyncWaitMsg : public DelegateMsg
 {
 public:
+    DMQ_MSG_TYPE(DelegateAsyncWaitMsg)
+
     /// Constructor
     /// @param[in] invoker - the invoker instance
     /// @param[in] priority - the delegate message priority
@@ -312,6 +314,7 @@ public:
     typedef RetType(*FreeFunc)(Args...);
     using ClassType = DelegateFreeAsyncWait<RetType(Args...)>;
     using BaseType = DelegateFree<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
@@ -414,7 +417,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -520,7 +523,7 @@ public:
         static_assert(!(is_unique_ptr<RetType>::value), "std::unique_ptr return value not allowed");
 
         // Typecast the base pointer to back correct derived to instance
-        auto delegateMsg = std::dynamic_pointer_cast<DelegateAsyncWaitMsg<Args...>>(msg);
+        auto delegateMsg = dmq::MsgCast<DelegateAsyncWaitMsg<Args...>>(msg);
         if (delegateMsg == nullptr)
             return false;
 
@@ -668,6 +671,7 @@ public:
     typedef RetType(TClass::* ConstMemberFunc)(Args...) const;
     using ClassType = DelegateMemberAsyncWait<TClass, RetType(Args...)>;
     using BaseType = DelegateMember<TClass, RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
@@ -850,7 +854,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -956,7 +960,7 @@ public:
         static_assert(!(is_unique_ptr<RetType>::value), "std::unique_ptr return value not allowed");
 
         // Typecast the base pointer to back correct derived to instance
-        auto delegateMsg = std::dynamic_pointer_cast<DelegateAsyncWaitMsg<Args...>>(msg);
+        auto delegateMsg = dmq::MsgCast<DelegateAsyncWaitMsg<Args...>>(msg);
         if (delegateMsg == nullptr)
             return false;
 
@@ -1104,6 +1108,7 @@ public:
     using ConstMemberFunc = RetType(TClass::*)(Args...) const;
     using ClassType = DelegateMemberAsyncWaitSp<TClass, RetType(Args...)>;
     using BaseType = DelegateMemberSp<TClass, RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
@@ -1203,7 +1208,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -1309,7 +1314,7 @@ public:
         static_assert(!(is_unique_ptr<RetType>::value), "std::unique_ptr return value not allowed");
 
         // Typecast the base pointer to back correct derived to instance
-        auto delegateMsg = std::dynamic_pointer_cast<DelegateAsyncWaitMsg<Args...>>(msg);
+        auto delegateMsg = dmq::MsgCast<DelegateAsyncWaitMsg<Args...>>(msg);
         if (delegateMsg == nullptr)
             return false;
 
@@ -1456,6 +1461,7 @@ public:
     using FunctionType = std::function<RetType(Args...)>;
     using ClassType = DelegateFunctionAsyncWait<RetType(Args...)>;
     using BaseType = DelegateFunction<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_non_const_shared_ptr_reference<Args>...>),
         "Non-const std::shared_ptr reference/pointer arguments are not allowed");
@@ -1558,7 +1564,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -1664,7 +1670,7 @@ public:
         static_assert(!(is_unique_ptr<RetType>::value), "std::unique_ptr return value not allowed");
 
         // Typecast the base pointer to back correct derived to instance
-        auto delegateMsg = std::dynamic_pointer_cast<DelegateAsyncWaitMsg<Args...>>(msg);
+        auto delegateMsg = dmq::MsgCast<DelegateAsyncWaitMsg<Args...>>(msg);
         if (delegateMsg == nullptr)
             return false;
 
@@ -1899,7 +1905,9 @@ auto MakeDelegate(std::function<RetType(Args...)> func, IThread& thread, Duratio
 template <typename F, typename = std::enable_if_t<trait::is_callable<F>::value>>
 auto MakeDelegate(F&& func, IThread& thread, Duration timeout) {
     using Sig = typename trait::function_traits<decltype(&std::remove_reference_t<F>::operator())>::function_type;
-    return DelegateFunctionAsyncWait<Sig>(std::forward<F>(func), thread, timeout);
+    DelegateFunctionAsyncWait<Sig> delegate(std::forward<F>(func), thread, timeout);
+    DMQ_SET_CALLABLE_TYPE(delegate, F, Sig);
+    return delegate;
 }
 
 }

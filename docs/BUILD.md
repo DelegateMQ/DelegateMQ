@@ -125,14 +125,14 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 
 Requirements:
 - **The same options everywhere.** Keep them in `DelegateMQConfig.h` (or identical `-D` flags for the whole project), not in per-file settings.
-- **C++17 with RTTI.** Exceptions are optional; `DMQ_ASSERTS` routes errors to `FaultHandler()`.
+- **C++17.** Exceptions are optional (`DMQ_ASSERTS` routes errors to `FaultHandler()`), and so is RTTI: built with `-fno-rtti` or `/GR-`, DelegateMQ defines `DMQ_NO_RTTI` and uses no `dynamic_cast` or `typeid` (see [RTTI Is Optional](SAFETY.md#rtti-is-optional-dmq_no_rtti) for the one difference). Build the whole program the same way.
 - **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal/qemu` (`targets/*/bsp.cpp`).
 - **Your own fault handler (optional):** define `DMQ_CUSTOM_FAULT_HANDLER`, and the library's `port/fault/Fault.cpp` compiles to nothing. Your application then defines `dmq::util::FaultHandler()`, the C `FaultHandler()` and `WatchdogHandler()`, and `InstallCrashHandlers()` if you call it. See `example/pumptron/controller/platform/f4/Fault.cpp`.
 
 ---
 
 ### PlatformIO
-DelegateMQ is a PlatformIO library: `lib_deps = endurodave/DelegateMQ@^2.4.0`, with C++17 and RTTI enabled and `DelegateMQConfig.h` in the project's `include/` folder. PlatformIO compiles every `.cpp` in `src/delegate-mq`, so it follows the [Without CMake](#without-cmake) rules.
+DelegateMQ is a PlatformIO library: `lib_deps = endurodave/DelegateMQ@^2.4.0`, with C++17 enabled and `DelegateMQConfig.h` in the project's `include/` folder. PlatformIO compiles every `.cpp` in `src/delegate-mq`, so it follows the [Without CMake](#without-cmake) rules.
 
 See [PLATFORMIO.md](../example/platformio/PLATFORMIO.md) for supported boards, project setup, thread ports (ESP32, STM32 with FreeRTOS, bare metal), the example sketch and troubleshooting.
 

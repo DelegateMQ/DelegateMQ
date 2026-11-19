@@ -148,7 +148,16 @@ public:
         : m_thread(&thr)
         , m_stuckTimeout(stuckTimeout)
     {
-        m_fn = dmq::DelegateFunction<void()>(std::forward<F>(func));
+        using Fn = std::decay_t<F>;
+        if constexpr (!std::is_class_v<Fn> && std::is_convertible_v<Fn, void (*)()>) {
+            // A free function: compares by address, like MakeDelegate(&Func)
+            m_fn = dmq::DelegateFree<void()>(func);
+        } else {
+            // A lambda or functor: compares by type (DMQ_NO_RTTI: recorded here)
+            dmq::DelegateFunction<void()> fn(std::forward<F>(func));
+            DMQ_SET_CALLABLE_TYPE(fn, F, void());
+            m_fn = std::move(fn);
+        }
         m_gate.OnStuck = std::move(onStuck);
     }
 
@@ -220,6 +229,8 @@ public:
         }, m_stuckTimeout);
     }
 
+    DMQ_DELEGATE_CAST_TO(TimerDelegate, dmq::Delegate<void()>)
+
     virtual TimerDelegate* Clone() const override
     {
         return new(std::nothrow) TimerDelegate(*this);
@@ -227,7 +238,7 @@ public:
 
     virtual bool Equal(const dmq::DelegateBase& rhs) const override
     {
-        auto derived = dynamic_cast<const TimerDelegate*>(&rhs);
+        auto derived = dmq::DelegateCast<TimerDelegate>(rhs);
         if (!derived) return false;
         if (Empty() && derived->Empty()) return true;
         if (Empty() || derived->Empty()) return false;
