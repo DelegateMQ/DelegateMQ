@@ -14,8 +14,14 @@ extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
     BspExit(2);
 }
 
+extern "C" {
+    void (*BspWatchdogExpected)(const char* threadName) = nullptr;
+}
+
 extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
 {
+    if (BspWatchdogExpected)
+        BspWatchdogExpected(threadName);    // a test expects this expiry; it ends the run
     printf("\nWATCHDOG EXPIRED: %s\n", threadName);
     BspExit(2);
 }

@@ -365,10 +365,10 @@ void CmsisRtos2Thread::Process(void* argument)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void CmsisRtos2Thread::WatchdogCheck()
+bool CmsisRtos2Thread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
     const uint32_t now = ClockCount(Timer::GetNow());
     const uint32_t lastAlive = m_lastAliveTime.load();
@@ -379,9 +379,11 @@ void CmsisRtos2Thread::WatchdogCheck()
         const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
         if (delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = dmq::Duration(delta);
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -398,12 +400,17 @@ void CmsisRtos2Thread::ThreadCheck()
 void CmsisRtos2Thread::WatchdogCheckAll()
 {
     const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     CmsisRtos2Thread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------

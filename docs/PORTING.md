@@ -461,6 +461,41 @@ void WatchdogTask(void*)
 
 **Bare metal** (`DMQ_THREAD_NONE`) has no `Thread` and no `WatchdogCheckAll()`. Feed once per pass of the main loop, at its end, after the loop's own work; never from SysTick.
 
+#### Capturing the Failure (Watchdog and Fault Hooks)
+
+DelegateMQ captures nothing itself, but it calls two application hooks on the way down, so the application can record what it needs (a core dump, a log in RAM that survives the reset, the hung thread's program counter):
+
+```cpp
+dmq::os::SetWatchdogHook(&OnHungThread);        // WatchdogCheckAll(): once per hung thread
+dmq::util::SetFaultHook(&OnFault);              // the default FaultHandler(): DMQ_ASSERT faults
+```
+
+**The watchdog hook** gets a `dmq::os::WatchdogInfo` for each hung thread: the `Thread` itself, its name, and how long it has been stalled (`stalledFor`). `WatchdogCheckAll()` reports every hung thread to the hook first, then calls `WatchdogHandler()` once, so a deadlock between two threads shows both. The hook runs in the task that calls `WatchdogCheckAll()`, not in the hung thread, so capturing the current context would only show the checker. Use the hung thread's OS handle, `info.thread.GetThreadId()` (`TaskHandle_t` on FreeRTOS, `TX_THREAD*` on ThreadX), to read its saved context instead. On a FreeRTOS Cortex-M3 or M0 port the program counter the task will resume at is in its stack frame:
+
+```cpp
+static void OnHungThread(const dmq::os::WatchdogInfo& info)
+{
+    // FreeRTOS ARM_CM3 port: the TCB starts with pxTopOfStack, where the context
+    // switch saved r4-r11 below the exception frame (r0-r3, r12, lr, pc, xPSR).
+    // (ARM_CM4F/CM7 ports also save EXC_RETURN, and the FPU registers when used.)
+    const uint32_t* sp = *reinterpret_cast<uint32_t* const*>(info.thread.GetThreadId());
+    g_noinit.hungPc = sp[8 + 6];     // addr2line -f -e firmware.elf <pc> gives the function
+    g_noinit.hungLr = sp[8 + 5];     // its caller
+    strncpy(g_noinit.hungName, info.threadName, sizeof(g_noinit.hungName) - 1);
+}
+```
+
+`os/freertos-bare-metal`'s Test 14 runs this on a Cortex-M3: one thread blocked forever on a semaphore and one spinning, both reported, and the saved PCs resolve to `xQueueSemaphoreTake` and the spinning function. On ESP-IDF, a hook can start a core dump of every task instead (`esp_core_dump`, configured in menuconfig).
+
+**The fault hook** gets the file and line of the failed `DMQ_ASSERT`. The default `FaultHandler()` calls it after printing and before halting. A watchdog expiry calls only the watchdog hook, not both (on desktop the default `WatchdogHandler()` ends through `DMQ_ASSERT()` for its stack traces, with the fault hook cleared first). A custom `FaultHandler()` (`DMQ_CUSTOM_FAULT_HANDLER`) owns the whole path; it can call `dmq::util::RunFaultHook(file, line)` to keep the hook.
+
+**What a hook may do.** The system is failing, so:
+- **Record, don't recover.** The fault that follows is the recovery (a reset). A hook can't cancel it.
+- **No allocation, locks, delegates, signals or DataBus.** Write to buffers set aside in advance: a `.noinit` RAM section (kept across a reset), backup registers, or raw flash writes.
+- **No creating, destroying or waiting on threads.** The watchdog hook runs while `WatchdogCheckAll()` holds the watchdog list lock, and the threads it would wait on may be the hung ones.
+- **Be quick.** A hardware watchdog keeps counting: the hook must finish before it fires, which limits how much a flash write can store.
+- A fault inside the fault hook doesn't call it again.
+
 ### Performance Monitoring
 
 Under `DMQ_DATABUS_TOOLS`, each port reports queue and latency stats. A port needs:

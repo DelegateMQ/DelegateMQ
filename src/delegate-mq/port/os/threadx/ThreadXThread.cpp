@@ -457,10 +457,10 @@ void ThreadXThread::Process(ULONG /*instance*/)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void ThreadXThread::WatchdogCheck()
+bool ThreadXThread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
     const uint32_t now = WatchdogMs(Timer::GetNow());
     const uint32_t lastAlive = m_lastAliveTime.load();
@@ -471,9 +471,11 @@ void ThreadXThread::WatchdogCheck()
         const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
         if (delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = std::chrono::duration_cast<dmq::Duration>(std::chrono::milliseconds(delta));
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -490,12 +492,17 @@ void ThreadXThread::ThreadCheck()
 void ThreadXThread::WatchdogCheckAll()
 {
     const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     ThreadXThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------

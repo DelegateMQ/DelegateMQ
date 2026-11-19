@@ -541,21 +541,26 @@ void Win32Thread::Sleep(dmq::Duration timeout) {
 void Win32Thread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     Win32Thread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void Win32Thread::WatchdogCheck()
+bool Win32Thread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -566,9 +571,11 @@ void Win32Thread::WatchdogCheck()
         auto delta = now - lastAlive;
         if (delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = std::chrono::duration_cast<dmq::Duration>(delta);
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------

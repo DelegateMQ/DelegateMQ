@@ -6,6 +6,7 @@
 #include "../../../../test/portable/StartGatePortableTest.h"
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -28,6 +29,7 @@ using namespace std;
 // --------------------------------------------------------------------------
 #define mainTIMER_FREQUENCY_MS pdMS_TO_TICKS(10UL)
 static TimerHandle_t xSystemTimer = nullptr;
+static void PrintAllTestsPassed();
 
 // --------------------------------------------------------------------------
 // START GATE TEST HELPERS (Test 9)
@@ -160,6 +162,70 @@ static void OnIsrPost(uint32_t seq, bool fromIsr) {
         s_isrPostGaps += seq - s_isrPostLast - 1;
     s_isrPostLast = seq;
     s_isrPostReceived = s_isrPostReceived + 1;
+}
+
+// Test 14: the watchdog hook (dmq::os::SetWatchdogHook()). Two threads hang:
+// one blocked forever on a semaphore (as in a deadlock), one spinning in
+// SpinForever(). A checker task calls Thread::WatchdogCheckAll(). The hook
+// records each hung thread and the program counter FreeRTOS saved for it, which
+// shows where it's stuck. Then WatchdogHandler() (targets/arm-m3/fault.cpp)
+// calls OnWatchdogExpected(), which checks the records and ends the run.
+struct HungRecord { const char* name; uint32_t stalledMs; uint32_t pc; };
+static HungRecord s_hung[4];
+static volatile uint32_t s_hungCount = 0;
+static volatile bool s_spin = true;
+static SemaphoreHandle_t s_neverGiven = nullptr;
+
+__attribute__((noinline)) static void SpinForever() { while (s_spin) { } }
+static void BlockForever() { xSemaphoreTake(s_neverGiven, portMAX_DELAY); }
+
+// The PC a suspended task resumes at. FreeRTOS ARM_CM3 port: the TCB starts with
+// pxTopOfStack, where PendSV saved r4-r11 below the exception frame (r0-r3, r12,
+// lr, pc, xPSR), so the PC is word 8 + 6.
+static uint32_t SavedPc(TaskHandle_t task) {
+    const uint32_t* sp = *reinterpret_cast<uint32_t* const*>(task);
+    return sp[8 + 6];
+}
+
+// The watchdog hook: runs in the checker task, under the watchdog list lock.
+// Records only (no printf: it may allocate); OnWatchdogExpected() prints.
+static void RecordHungThread(const WatchdogInfo& info) {
+    if (s_hungCount < 4) {
+        s_hung[s_hungCount] = { info.threadName,
+            static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(info.stalledFor).count()),
+            SavedPc(info.thread.GetThreadId()) };
+        s_hungCount = s_hungCount + 1;
+    }
+}
+
+static void WatchdogTask(void*) {
+    for (;;) {
+        Thread::WatchdogCheckAll();     // a hung thread: never returns
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+// WatchdogHandler(), after the hook: check what it recorded and end the run
+static void OnWatchdogExpected(const char* threadName) {
+    printf("  -> WatchdogHandler(\"%s\") after the hook saw %lu hung threads:\n",
+           threadName, static_cast<unsigned long>(s_hungCount));
+    const uint32_t spin = reinterpret_cast<uint32_t>(&SpinForever) & ~1u;     // without the Thumb bit
+    bool spinAtPc = false;
+    bool blocked = false;
+    for (uint32_t i = 0; i < s_hungCount; i++) {
+        printf("     %s: stalled %lu ms, saved PC 0x%08lx\n", s_hung[i].name,
+               static_cast<unsigned long>(s_hung[i].stalledMs), static_cast<unsigned long>(s_hung[i].pc));
+        DMQ_ASSERT_TRUE(s_hung[i].stalledMs > 200);
+        if (strcmp(s_hung[i].name, "HungSpin") == 0)
+            spinAtPc = s_hung[i].pc >= spin && s_hung[i].pc < spin + 64;
+        if (strcmp(s_hung[i].name, "HungBlocked") == 0)
+            blocked = true;
+    }
+    DMQ_ASSERT_TRUE(s_hungCount == 2 && blocked && spinAtPc);
+    DMQ_ASSERT_TRUE(strcmp(threadName, s_hung[0].name) == 0);    // the first one reported
+    printf("  -> both hung threads reported, then one fault; HungSpin's saved PC is in SpinForever()\n");
+    PrintAllTestsPassed();
+    BspExit(0);
 }
 
 static void TimerIsr() {
@@ -582,13 +648,42 @@ void ExecuteAllTests() {
         xTimerStart(xSystemTimer, portMAX_DELAY);
     }
 
-    printf("\n=========================================\n");
-    printf("           ALL TESTS PASSED              \n");
-    printf("=========================================\n");
+#if defined(BSP_TARGET)
+    // --- TEST 14: Watchdog hook (last: a watchdog expiry ends the run) ---
+    printf("\n[Test 14] Watchdog hook: two hung threads reported, then one fault:\n");
+    {
+        static Thread blocked("HungBlocked");
+        static Thread spinning("HungSpin");
+        s_neverGiven = xSemaphoreCreateBinary();
+        spinning.SetThreadPriority(1);      // below this task (2), which keeps running
+        DMQ_ASSERT_TRUE(blocked.CreateThread(std::chrono::milliseconds(200)));
+        DMQ_ASSERT_TRUE(spinning.CreateThread(std::chrono::milliseconds(200)));
+        SetWatchdogHook(&RecordHungThread);
+        BspWatchdogExpected = &OnWatchdogExpected;
+        MakeDelegate(&BlockForever, blocked)();
+        MakeDelegate(&SpinForever, spinning)();
+
+        // Both stall for more than 200 ms before the first check, so one
+        // WatchdogCheckAll() pass finds both
+        vTaskDelay(pdMS_TO_TICKS(300));
+        xTaskCreate(WatchdogTask, "Watchdog", 1024, nullptr, configMAX_PRIORITIES - 1, nullptr);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        printf("  [Error] the watchdog didn't expire\n");
+        BspExit(3);
+    }
+#endif
+
+    PrintAllTestsPassed();
 
     // FUNCTION RETURN:
     // This closing brace '}' forces ~Timer(), ~Thread(), etc. to execute.
     // This safely unregisters the Timer before the task is deleted.
+}
+
+static void PrintAllTestsPassed() {
+    printf("\n=========================================\n");
+    printf("           ALL TESTS PASSED              \n");
+    printf("=========================================\n");
 }
 
 // --------------------------------------------------------------------------

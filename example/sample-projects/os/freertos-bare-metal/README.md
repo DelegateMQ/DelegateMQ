@@ -45,6 +45,8 @@ The same tests (`main_delegate.cpp`) also build for a real Cortex-M3 and run on 
 
 It also adds **Test 12**: the same interrupt posts to a `dmq::util::IsrDelegate` whose target is async, to a worker thread. A drain task runs `IsrDelegates::ProcessAll()`, woken by the post handler, which gives its semaphore with `xSemaphoreGiveFromISR()`. Every post must reach the worker once and in order; with the drain task paused, the posts the ring can't hold must be dropped and counted, never blocking the interrupt.
 
+**Test 14**, last because it ends the run: the watchdog hook (`dmq::os::SetWatchdogHook()`). Two watched threads hang, one blocked forever on a semaphore and one spinning in `SpinForever()`, and a checker task calls `Thread::WatchdogCheckAll()`. The hook must see both (one pass reports every hung thread), recording each one's stall time and the program counter FreeRTOS saved for it; then `WatchdogHandler()` (`targets/arm-m3/fault.cpp`) runs once, checks the records and ends the run. The spinning thread's saved PC must be inside `SpinForever()`; the blocked one's resolves to `xQueueSemaphoreTake` (`arm-none-eabi-addr2line -f -e delegate_app <pc>`).
+
 Needs `arm-none-eabi-gcc` and `qemu-system-arm`; runs on Windows and Linux:
 
 ```shell

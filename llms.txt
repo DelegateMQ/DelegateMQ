@@ -339,7 +339,7 @@ void vWatchdogTask(void*) {
     }
 }
 ```
-3. **Fault:** `WatchdogHandler` is an `extern "C"` stub the application provides. The default triggers a `FAULT` (assert/halt); a custom implementation can log the thread name and initiate system recovery.
+3. **Fault:** `WatchdogCheckAll()` first calls the watchdog hook (`dmq::os::SetWatchdogHook()`), if set, for every hung thread, then calls `WatchdogHandler(name)` once, which never returns. The default handler prints the name and halts (desktop: `FAULT`); a custom one (`DMQ_CUSTOM_FAULT_HANDLER`) must not return either.
 
 ### Long-running handlers
 
@@ -360,8 +360,14 @@ void MyClass::LongHandler() {
 |---|---|
 | `CreateThread(std::optional<dmq::Duration>)` | Pass a timeout to enable the watchdog and register the thread |
 | `static WatchdogCheckAll()` | Check every registered thread; call periodically from the application |
+| `dmq::os::SetWatchdogHook(fn)` | `void fn(const dmq::os::WatchdogInfo&)` (`thread`, `threadName`, `stalledFor`): called per hung thread before the fault, to capture it |
+| `dmq::util::SetFaultHook(fn)` | `void fn(const char* file, unsigned short line)`: called by the default `FaultHandler()` before it halts |
 | `ThreadCheck()` | Manually reset the alive timestamp inside a long handler |
 | `ExitThread()` | Stops watchdog checks once the thread has finished (a thread that hangs while `ExitThread()` waits is still reported); it stays registered until destroyed |
+
+### Capturing the failure (hooks)
+
+DelegateMQ captures nothing itself, but calls the application's hooks on the way down: `dmq::os::SetWatchdogHook()` for each hung thread (all of them, then one fault) and `dmq::util::SetFaultHook()` for `DMQ_ASSERT` faults. The watchdog hook runs in the checker task, not the hung thread: read the hung thread's saved context through `info.thread.GetThreadId()` (the OS handle), e.g. its saved PC on FreeRTOS Cortex-M (`os/freertos-bare-metal` Test 14). Hooks record only (`.noinit` RAM, flash, core dump): no allocation, locks, delegates or DataBus, no thread creation or waits (the watchdog list lock is held), and finish before a hardware watchdog fires. Details: "Capturing the Failure" in `docs/PORTING.md`.
 
 ### Priority requirement
 

@@ -31,6 +31,11 @@ void BspStopTimerIsr(void);
 /// semihosting this ends QEMU with the same status.
 void BspExit(int status) __attribute__((noreturn));
 
+/// Set by a test that expects a watchdog expiry (Test 14): the target's
+/// WatchdogHandler() calls it instead of failing the run. It checks the
+/// result and ends the run itself.
+extern void (*BspWatchdogExpected)(const char* threadName);
+
 #ifdef __cplusplus
 }
 #endif

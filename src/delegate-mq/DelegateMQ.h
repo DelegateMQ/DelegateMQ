@@ -163,6 +163,10 @@
     #define DMQ_THREAD_NONE
 #endif
 
+#if !defined(DMQ_THREAD_NONE)
+    #include "port/os/common/WatchdogHook.h"   // dmq::os::SetWatchdogHook()
+#endif
+
 #if defined(DMQ_SERIALIZE_MSGPACK)
     #include "port/serialize/msgpack/MsgpackSerializer.h"
 #elif defined(DMQ_SERIALIZE_CEREAL)

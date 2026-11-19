@@ -274,7 +274,8 @@ private:
     QtThread& operator=(const QtThread&) = delete;
 
     /// Check watchdog is expired. Called by WatchdogCheckAll().
-    void WatchdogCheck();
+    /// @return true if expired, with the time since the thread was last alive in stalledFor.
+    bool WatchdogExpired(dmq::Duration& stalledFor);
 
     /// Get registry head using the "Immortal" Pattern
     static QtThread*& GetWatchdogHead();

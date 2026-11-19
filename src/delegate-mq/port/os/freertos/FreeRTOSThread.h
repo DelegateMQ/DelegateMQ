@@ -240,7 +240,8 @@ private:
     void Run();
 
     /// Check watchdog is expired for this instance. 
-    void WatchdogCheck();
+    /// @return true if expired, with the time since the thread was last alive in stalledFor.
+    bool WatchdogExpired(dmq::Duration& stalledFor);
 
     /// Get registry head using the "Immortal" Pattern
     static FreeRTOSThread*& GetWatchdogHead()
