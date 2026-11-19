@@ -15,7 +15,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-set(BM_TARGET "arm-m4" CACHE STRING "Target: a folder in targets/ (arm-m4, arm-m3-atfe, riscv32)")
+set(BM_TARGET "arm-m4" CACHE STRING "Target: a folder in targets/ (arm-m4, arm-m0, arm-m33, arm-m3-atfe, riscv32)")
 set(BM_TARGET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/targets/${BM_TARGET}")
 if(NOT EXISTS "${BM_TARGET_DIR}/toolchain.cmake")
     message(FATAL_ERROR "Unknown BM_TARGET '${BM_TARGET}': no targets/${BM_TARGET}/toolchain.cmake")

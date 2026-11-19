@@ -1,0 +1,261 @@
+/// @file main.cpp
+/// @see https://github.com/DelegateMQ/DelegateMQ
+/// David Lafreniere, 2026.
+///
+/// @brief DelegateMQ on an ESP32 (dual-core Xtensa LX6) under ESP-IDF's FreeRTOS,
+/// run under Espressif's QEMU.
+///
+/// What the other FreeRTOS samples can't show:
+/// - SMP: ESP-IDF's FreeRTOS runs tasks on both cores at once, and
+///   dmq::os::FreeRTOSCriticalSection takes its ESP_PLATFORM branch (a
+///   portMUX_TYPE spinlock, which also excludes the other core).
+/// - A hardware interrupt on Xtensa: an esp_timer callback dispatched from the
+///   timer's interrupt (ESP_TIMER_ISR, 2 kHz) starts and
+///   stops dmq::util::Timer objects while tasks on both cores do the same, and
+///   xPortInIsrContext() must see every entry as an interrupt.
+///
+/// Prints ALL TESTS PASSED when every check passed. A failed check faults
+/// (DMQ_ASSERT_TRUE -> FaultHandler -> abort()), and the panic handler halts
+/// (CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT), so the output ends there.
+
+#include "DelegateMQ.h"
+#include "PortableTests.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/timers.h"
+#include "esp_timer.h"
+#include "esp_chip_info.h"
+
+#include <atomic>
+#include <cstdio>
+
+using namespace dmq;
+using namespace dmq::os;
+using namespace dmq::util;
+
+// The test task runs at TEST_TASK_PRIORITY; the portable tests' consumer
+// threads run below it (FreeRTOS: higher number = higher priority), so posting
+// never preempts the poster (see PortableTests::Options).
+static constexpr UBaseType_t TEST_TASK_PRIORITY = 5;
+
+static PortableTests::Options TestOptions()
+{
+    PortableTests::Options options;
+    options.lowerPriority = [](Thread& t) { t.SetThreadPriority(1); };
+    return options;
+}
+
+// Timer::ProcessTimers() every 10 ms, from the FreeRTOS timer service task
+static void TimerCallback(TimerHandle_t) { Timer::ProcessTimers(); }
+
+// --------------------------------------------------------------------------
+// Basic delegates, synchronous and across threads
+// --------------------------------------------------------------------------
+static int Add(int a, int b) { return a + b; }
+
+class Counter
+{
+public:
+    void Increment(int n) { m_count += n; }
+    int Get() const { return m_count; }
+private:
+    std::atomic<int> m_count{0};
+};
+
+static void DelegateTests()
+{
+    printf("\n[Test 1] Unicast and multicast delegates:\n");
+    {
+        auto add = MakeDelegate(&Add);
+        DMQ_ASSERT_TRUE(add(2, 3) == 5);
+
+        Counter counter;
+        MulticastDelegate<void(int)> multicast;
+        multicast += MakeDelegate(&counter, &Counter::Increment);
+        multicast += MakeDelegate(&counter, &Counter::Increment);
+        multicast(10);
+        DMQ_ASSERT_TRUE(counter.Get() == 20);
+        multicast -= MakeDelegate(&counter, &Counter::Increment);
+        multicast(1);
+        DMQ_ASSERT_TRUE(counter.Get() == 21);
+        printf("  -> passed\n");
+    }
+
+    printf("\n[Test 2] Async and async-wait delegates on a worker thread:\n");
+    {
+        Thread worker("Worker");
+        DMQ_ASSERT_TRUE(worker.CreateThread());
+
+        Counter counter;
+        auto async = MakeDelegate(&counter, &Counter::Increment, worker);
+        for (int i = 0; i < 100; i++)
+            async(1);
+
+        // Async-wait: runs on the worker and returns its result; the worker
+        // runs the 100 messages above first (one FIFO queue)
+        auto asyncWait = MakeDelegate(&Add, worker, WAIT_INFINITE);
+        DMQ_ASSERT_TRUE(asyncWait(40, 2) == 42);
+        DMQ_ASSERT_TRUE(counter.Get() == 100);
+
+        worker.ExitThread();
+        printf("  -> passed\n");
+    }
+
+    printf("\n[Test 3] Signal with a ScopedConnection:\n");
+    {
+        Counter counter;
+        Signal<void(int)> signal;
+        {
+            ScopedConnection conn = signal.Connect(MakeDelegate(&counter, &Counter::Increment));
+            signal(5);
+        }
+        signal(5);      // disconnected: no call
+        DMQ_ASSERT_TRUE(counter.Get() == 5);
+        printf("  -> passed\n");
+    }
+}
+
+// --------------------------------------------------------------------------
+// Timer API from a hardware interrupt (esp_timer, ISR dispatch, 2 kHz)
+// --------------------------------------------------------------------------
+static constexpr uint32_t ISR_HZ = 2000;
+static constexpr uint32_t ISR_REARM_EVERY = 34;     // re-arm the one-shot every 17 ms
+static Timer* s_isrOneShot = nullptr;               // started from the ISR, fires in the timer task
+static Timer* s_isrChurn = nullptr;                 // started and stopped from the ISR
+static volatile uint32_t s_isrCount = 0;
+static volatile uint32_t s_isrNotInInterrupt = 0;   // entries xPortInIsrContext() didn't see as an interrupt
+static std::atomic<int> s_isrOneShotFired{0};
+
+static void OnIsrOneShot() { s_isrOneShotFired++; }
+
+static void OnTimerIsr(void*)
+{
+    s_isrCount = s_isrCount + 1;
+    if (!xPortInIsrContext())
+        s_isrNotInInterrupt = s_isrNotInInterrupt + 1;
+    if (s_isrCount % ISR_REARM_EVERY == 0)
+        s_isrOneShot->Start(std::chrono::milliseconds(5), true);
+    if (s_isrCount % 2)
+        s_isrChurn->Start(std::chrono::milliseconds(1000));
+    else
+        s_isrChurn->Stop();
+}
+
+// Contends with the ISR and the test task from wherever the scheduler puts it
+static std::atomic<bool> s_churnRun{false};
+static std::atomic<unsigned> s_churnOps{0};
+static void ChurnTask(void*)
+{
+    while (s_churnRun) {
+        Timer local;
+        local.Start(std::chrono::milliseconds(50));
+        local.Stop();
+        s_churnOps++;
+        if (s_churnOps % 64 == 0)
+            vTaskDelay(1);
+    }
+    vTaskDelete(nullptr);
+}
+
+static void IsrTimerTest()
+{
+    printf("\n[Test 6] Timer Start/Stop from a hardware timer interrupt, with a task on each core:\n");
+    Timer oneShot;
+    Timer churn;
+    ScopedConnection conn = oneShot.OnExpired.Connect(MakeDelegate(&OnIsrOneShot));
+    s_isrOneShot = &oneShot;
+    s_isrChurn = &churn;
+
+    // ESP_TIMER_ISR: the callback runs in the esp_timer interrupt itself, not
+    // in its dispatch task (CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD)
+    esp_timer_create_args_t args = {};
+    args.callback = OnTimerIsr;
+    args.dispatch_method = ESP_TIMER_ISR;
+    args.name = "dmq-isr";
+    esp_timer_handle_t isrTimer = nullptr;
+    ESP_ERROR_CHECK(esp_timer_create(&args, &isrTimer));
+
+    // A churn task pinned to each core, so the timer lock is contended across cores
+    s_churnRun = true;
+    xTaskCreatePinnedToCore(ChurnTask, "Churn0", 4096, nullptr, TEST_TASK_PRIORITY - 1, nullptr, 0);
+    xTaskCreatePinnedToCore(ChurnTask, "Churn1", 4096, nullptr, TEST_TASK_PRIORITY - 1, nullptr, 1);
+
+    ESP_ERROR_CHECK(esp_timer_start_periodic(isrTimer, 1000000 / ISR_HZ));
+
+    const TickType_t end = xTaskGetTickCount() + pdMS_TO_TICKS(1000);
+    unsigned taskOps = 0;
+    while (xTaskGetTickCount() < end) {
+        Timer local;
+        local.Start(std::chrono::milliseconds(50));
+        churn.Stop();
+        local.Stop();
+        taskOps++;
+        if (taskOps % 64 == 0)
+            vTaskDelay(1);
+    }
+
+    ESP_ERROR_CHECK(esp_timer_stop(isrTimer));
+    ESP_ERROR_CHECK(esp_timer_delete(isrTimer));
+    s_churnRun = false;
+    vTaskDelay(pdMS_TO_TICKS(100));     // churn tasks exit; a last one-shot fires
+    oneShot.Stop();
+    churn.Stop();
+
+    const uint32_t isrCount = s_isrCount;
+    const int fired = s_isrOneShotFired;
+    printf("  -> %lu interrupts, %u test-task and %u churn-task loops, one-shot fired %d times\n",
+           static_cast<unsigned long>(isrCount), taskOps, s_churnOps.load(), fired);
+    // The checks don't assume a rate: QEMU delivers timer interrupts at the
+    // host's pace
+    DMQ_ASSERT_TRUE(isrCount >= 100);
+    DMQ_ASSERT_TRUE(s_isrNotInInterrupt == 0);
+    DMQ_ASSERT_TRUE(taskOps > 0 && s_churnOps > 0);
+    // Each re-arm (5 ms one-shot) normally fires before the next one, but a
+    // re-arm that lands before ProcessTimers() saw the expiry restarts it
+    const int rearms = static_cast<int>(isrCount / ISR_REARM_EVERY);
+    DMQ_ASSERT_TRUE(fired >= rearms / 2 && fired <= rearms + 1);
+    printf("  -> passed\n");
+}
+
+// --------------------------------------------------------------------------
+// Test task
+// --------------------------------------------------------------------------
+static void RunTests()
+{
+    esp_chip_info_t chip;
+    esp_chip_info(&chip);
+    printf("\n=========================================\n");
+    printf("   ESP32 (%d cores) DELEGATE TESTS       \n", chip.cores);
+    printf("=========================================\n");
+
+    DelegateTests();
+
+    printf("\n[Test 4] Cross-thread dispatch & FullPolicy tests:\n");
+    PortableTests::DelegateThreadsTests(TestOptions());
+
+    printf("\n[Test 5] PacedDispatch & TimerDelegate tests:\n");
+    PortableTests::TimerDelegateTests(TestOptions());
+
+    IsrTimerTest();
+
+    printf("\n=========================================\n");
+    printf("           ALL TESTS PASSED              \n");
+    printf("=========================================\n");
+}
+
+static void TestTask(void*)
+{
+    RunTests();     // in a function, so its objects are destroyed before the task idles
+    for (;;)
+        vTaskDelay(portMAX_DELAY);
+}
+
+extern "C" void app_main(void)
+{
+    TimerHandle_t systemTimer = xTimerCreate("SysTimer", pdMS_TO_TICKS(10), pdTRUE, nullptr, TimerCallback);
+    xTimerStart(systemTimer, 0);
+
+    // Not pinned: ESP-IDF's scheduler runs it on either core
+    xTaskCreate(TestTask, "TestTask", 16384, nullptr, TEST_TASK_PRIORITY, nullptr);
+}

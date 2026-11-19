@@ -267,6 +267,26 @@ def configure_zephyr(project_dir, label, clean, full):
         print("   Success!")
 
 
+def configure_esp32(project_dir, clean, full):
+    """os/freertos-esp32: an ESP-IDF project, configured with CMake in ESP-IDF's
+    environment. Its sdkconfig goes in the build directory, not the source."""
+    label = full_suite.ESP32_SAMPLE
+    missing = full_suite.esp32_missing()
+    if missing:
+        print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
+        if full:
+            FAILED.append((label, "--full: missing " + ", ".join(missing)))
+        return
+    build_dir = full_suite.build_dir(project_dir)
+    if clean and os.path.exists(build_dir):
+        shutil.rmtree(build_dir, ignore_errors=True)
+    cmd = ["cmake", "-G", "Ninja", "-B", build_dir,
+           f"-DSDKCONFIG={os.path.join(build_dir, 'sdkconfig')}", "."]
+    print(f"[CONFIGURING] {label} (ESP-IDF, esp32)")
+    if run_configure(cmd, project_dir, label, env=full_suite.esp_idf_env()):
+        print("   Success!")
+
+
 def configure_zephyr_qemu(project_dir, name, clean, full):
     """Configure a Zephyr app for its Cortex-M board (full_suite.ZEPHYR_QEMU_TARGETS)
     into its own build directory, with the Zephyr SDK's Arm toolchain."""
@@ -395,9 +415,12 @@ def build_samples(use_clang=False, clean=False, full=False):
             # configured its own way (see full_suite.py).
             name = full_suite.sample_name(dirpath)
             if (name in full_suite.ZEPHYR_SAMPLES or name == full_suite.ZEPHYR_DATABUS_SAMPLE
-                    or name == full_suite.NUTTX_SAMPLE):
+                    or name == full_suite.NUTTX_SAMPLE or name == full_suite.ESP32_SAMPLE):
                 dirnames.clear()
                 if IS_WINDOWS:
+                    continue
+                if name == full_suite.ESP32_SAMPLE:
+                    configure_esp32(dirpath, clean, full)
                     continue
                 if name == full_suite.NUTTX_SAMPLE:
                     configure_nuttx(dirpath, repo_root, clean, full)

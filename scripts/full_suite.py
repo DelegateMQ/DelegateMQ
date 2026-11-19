@@ -20,6 +20,7 @@ Description:
 import os
 import platform
 import shutil
+import subprocess
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
@@ -69,6 +70,10 @@ BARE_METAL_TARGETS = {
     "arm-m0": {
         "tools": ["arm-none-eabi-gcc", "qemu-system-arm"],
         "qemu":  ["qemu-system-arm", "-M", "microbit"],
+    },
+    "arm-m33": {
+        "tools": ["arm-none-eabi-gcc", "qemu-system-arm"],
+        "qemu":  ["qemu-system-arm", "-M", "mps2-an505", "-cpu", "cortex-m33"],
     },
     "arm-m3-atfe": {
         "tools": [("ATFE_PATH", "C:/ATfE-22.1.0-Windows-x86_64", "bin/clang"), "qemu-system-arm"],
@@ -228,6 +233,52 @@ ZEPHYR_DATABUS_REQUIRED = {"client": "[Client] sensor/temp", "server": "Received
 # sample's apps/ beside it, and configure and build it there (see its README).
 # The simulated OS keeps running after the tests, so the run is stopped once
 # the success text appears.
+# example/sample-projects/os/freertos-esp32: an ESP-IDF app for the ESP32
+# (dual-core Xtensa), run under Espressif's QEMU (qemu-system-xtensa, installed
+# by ESP-IDF's idf_tools.py). Needs ESP-IDF (IDF_PATH, with its tools installed
+# for esp32 and qemu-xtensa); the Docker image has it. QEMU doesn't exit when
+# the app is done, so the runner stops it at the success text or a fault.
+ESP32_SAMPLE = "os/freertos-esp32"
+ESP32_SUCCESS = "ALL TESTS PASSED"
+ESP32_FAULT = ("FaultHandler", "Guru Meditation", "abort() was called")
+ESP32_TIMEOUT = 300
+ESP32_QEMU = ["qemu-system-xtensa", "-nographic", "-machine", "esp32", "-m", "4M",
+              "-nic", "none", "-global", "driver=timer.esp32.timg,property=wdt_disable,value=true"]
+
+
+def esp_idf_env(cache={}):
+    """The environment ESP-IDF's export.sh sets up (its toolchain, Python
+    environment and qemu-system-xtensa on the PATH), or None when there's no
+    ESP-IDF (IDF_PATH). Run without other Python virtual environments on the
+    PATH (the Docker image's Zephyr one): ESP-IDF picks its own."""
+    if "env" in cache:
+        return cache["env"]
+    cache["env"] = None
+    idf = os.environ.get("IDF_PATH")
+    if IS_WINDOWS or not idf or not os.path.isfile(os.path.join(idf, "export.sh")):
+        return None
+    path = os.pathsep.join(p for p in os.environ.get("PATH", "").split(os.pathsep)
+                           if not os.path.isfile(os.path.join(p, "activate")))
+    base = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    base["PATH"] = path
+    r = subprocess.run(["bash", "-c", '. "$IDF_PATH/export.sh" >/dev/null 2>&1 && env -0'],
+                       env=base, capture_output=True)
+    if r.returncode == 0:
+        cache["env"] = dict(item.split("=", 1) for item in
+                            r.stdout.decode("utf-8", "replace").split("\0") if "=" in item)
+    return cache["env"]
+
+
+def esp32_missing():
+    """What the ESP32 sample needs that isn't here (empty if none)."""
+    env = esp_idf_env()
+    if env is None:
+        return ["ESP-IDF (set IDF_PATH and run its install.sh esp32)"]
+    if not shutil.which("qemu-system-xtensa", path=env.get("PATH")):
+        return ["qemu-system-xtensa (python $IDF_PATH/tools/idf_tools.py install qemu-xtensa)"]
+    return []
+
+
 NUTTX_SAMPLE = "os/nuttx"
 NUTTX_SUCCESS = "ALL TESTS PASSED"
 NUTTX_TIMEOUT = 120
@@ -296,6 +347,7 @@ def bare_metal_missing(target, sample=BARE_METAL_SAMPLE):
 # included, go to the host kernel).
 S390X = {"processor": "s390x", "triple": "s390x-linux-gnu", "qemu": "qemu-s390x"}  # 64-bit big-endian
 ARMHF = {"processor": "arm", "triple": "arm-linux-gnueabihf", "qemu": "qemu-arm"}  # 32-bit Arm
+AARCH64 = {"processor": "aarch64", "triple": "aarch64-linux-gnu", "qemu": "qemu-aarch64"}  # 64-bit Arm
 
 
 def cross_cmake_args(cross):
@@ -333,19 +385,23 @@ TEST_VARIANTS = [
     {"suffix": "build-ubsan", "clang": True, "linux": True,
      "cmake": ["-DCMAKE_BUILD_TYPE=RelWithDebInfo", "-DSANITIZE=undefined"],
      "env": {"UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"}, "success": "Success!"},
-    # Other CPUs (see S390X/ARMHF above): big-endian 64-bit (s390x) and 32-bit
-    # Arm (armhf), for byte-order, pointer-size and alignment assumptions. Each
+    # Other CPUs (see S390X/ARMHF/AARCH64 above): big-endian 64-bit (s390x),
+    # 32-bit Arm (armhf) and 64-bit Arm (aarch64: Raspberry Pi, i.MX8 and
+    # similar Linux boards, and Arm's weaker memory ordering than x86-64), for
+    # byte-order, pointer-size, alignment and ordering assumptions. Each
     # run takes about as long as a native one: the tests are paced by their
     # own sleeps.
     {"suffix": "build-s390x", "clang": False, "linux": True,
      "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!", "cross": S390X},
     {"suffix": "build-armhf", "clang": False, "linux": True,
      "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!", "cross": ARMHF},
+    {"suffix": "build-aarch64", "clang": False, "linux": True,
+     "cmake": ["-DCMAKE_BUILD_TYPE=Release"], "env": {}, "success": "Success!", "cross": AARCH64},
 ]
 
 
 def cross_missing(cross):
-    """Cross compiler and QEMU a S390X/ARMHF-style target needs that aren't installed."""
+    """Cross compiler and QEMU a S390X/ARMHF/AARCH64-style target needs that aren't installed."""
     if not cross:
         return []
     return [t for t in (f"{cross['triple']}-g++", cross["qemu"]) if not shutil.which(t)]

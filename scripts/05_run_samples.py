@@ -137,6 +137,7 @@ LINUX_ONLY = {
     "os/cmsis-rtos2",
     "databus/zephyr",
     "os/nuttx",               # NuttX sim
+    "os/freertos-esp32",      # ESP-IDF, Espressif's QEMU
 }
 
 # Projects that cannot exit on their own (e.g. FreeRTOS scheduler never returns).
@@ -858,6 +859,48 @@ def run_nuttx(sample_dir, passed, failed, skipped):
         failed.append(name)
 
 
+def run_esp32(sample_dir, passed, failed, skipped):
+    """os/freertos-esp32 under Espressif's QEMU, which keeps running after the
+    app is done: read its output and stop it at the success text or a fault;
+    fail if neither comes within ESP32_TIMEOUT."""
+    name = full_suite.ESP32_SAMPLE
+    flash = os.path.join(full_suite.build_dir(sample_dir), "flash.bin")
+    env = full_suite.esp_idf_env()
+    if env is None or not os.path.isfile(flash):
+        skipped.append((name, "not built"))
+        return
+    print(f"[RUNNING] {name}  (ESP32, QEMU)", flush=True)
+    cmd = full_suite.ESP32_QEMU + ["-drive", f"file={flash},if=mtd,format=raw"]
+    output = []
+    proc = subprocess.Popen(cmd, cwd=sample_dir, env=env, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            encoding="utf-8", errors="replace")
+    _register(proc)
+    timer = threading.Timer(full_suite.ESP32_TIMEOUT, proc.kill)
+    timer.start()
+    try:
+        for line in proc.stdout:
+            output.append(line)
+            if full_suite.ESP32_SUCCESS in line or any(f in line for f in full_suite.ESP32_FAULT):
+                break
+    finally:
+        timer.cancel()
+        proc.kill()
+        proc.wait()
+        _unregister(proc)
+    text = "".join(output)
+    r = {"failed": False, "returncode": proc.returncode, "timed_out": False, "output": text}
+    if (full_suite.ESP32_SUCCESS in text and not has_failure_text(text)
+            and not any(f in text for f in full_suite.ESP32_FAULT)):
+        print("   passed")
+        passed.append(name)
+    else:
+        r["failed"] = True
+        print("   FAILED")
+        print_result_detail("app", r)
+        failed.append(name)
+
+
 def run_cross_endian(project_dir, passed, failed, skipped):
     """
     full_suite.CROSS_ENDIAN_SAMPLE with peers of different byte order: one side
@@ -997,6 +1040,9 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
             continue
         if project_name == full_suite.NUTTX_SAMPLE:
             run_nuttx(project_dir, passed, failed, skipped)
+            continue
+        if project_name == full_suite.ESP32_SAMPLE:
+            run_esp32(project_dir, passed, failed, skipped)
             continue
         if project_name == full_suite.TRANSPORT_SAMPLE:
             run_transport(project_dir, use_clang, passed, failed, skipped)

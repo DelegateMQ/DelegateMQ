@@ -138,6 +138,7 @@ ENV NUTTX_SRC=/opt/nuttx-src
 RUN apt-get update && apt-get install -y --no-install-recommends \
         g++-s390x-linux-gnu \
         g++-arm-linux-gnueabihf \
+        g++-aarch64-linux-gnu \
         qemu-user \
     && rm -rf /var/lib/apt/lists/*
 
@@ -164,6 +165,32 @@ RUN cd /opt/zephyrproject \
     && rm "zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-x86_64_minimal.tar.xz" toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz
 
 ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}
+
+# ESP-IDF and Espressif's QEMU (qemu-system-xtensa) for os/freertos-esp32: the
+# ESP32's toolchain, ESP-IDF's own Python environment and QEMU, installed by
+# ESP-IDF's install.sh and idf_tools.py (pinned, checksum-verified downloads).
+# Installed with the Zephyr virtual environment off the PATH: ESP-IDF refuses
+# to create its own inside another one. The scripts get ESP-IDF's environment
+# from its export.sh (full_suite.esp_idf_env()). The QEMU build needs the
+# libraries listed. safe.directory: the checkout is root's, the runs aren't.
+ARG ESP_IDF_VERSION=v5.4.1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libusb-1.0-0 \
+        libgcrypt20 \
+        libglib2.0-0t64 \
+        libpixman-1-0 \
+        libsdl2-2.0-0 \
+        libslirp0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 --branch ${ESP_IDF_VERSION} --recursive --shallow-submodules \
+        https://github.com/espressif/esp-idf.git /opt/esp-idf \
+    && export IDF_TOOLS_PATH=/opt/espressif PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    && /opt/esp-idf/install.sh esp32 \
+    && python3 /opt/esp-idf/tools/idf_tools.py install qemu-xtensa \
+    && rm -rf /opt/espressif/dist \
+    && git config --system --add safe.directory '*'
+ENV IDF_PATH=/opt/esp-idf \
+    IDF_TOOLS_PATH=/opt/espressif
 
 # run.sh runs the container as the calling user so files it writes in the
 # checkout stay theirs; that user has no home directory in the image.

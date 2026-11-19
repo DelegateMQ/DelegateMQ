@@ -21,6 +21,7 @@ Each sample checks DelegateMQ's delegate types (sync, async, async-wait, multica
 | Sample | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
 | :--- | :--- | :--- | :--- |
 | **[os/freertos](./os/freertos/README.md)** | FreeRTOS on the official POSIX/Linux simulation port (each task is a real pthread). Linux only. | FreeRTOS | Linux GCC |
+| **[os/freertos-esp32](./os/freertos-esp32/README.md)** | FreeRTOS on an ESP32 (dual-core Xtensa) under ESP-IDF, run under Espressif's QEMU: SMP, and a hardware timer interrupt. Needs ESP-IDF; `build_all.py` builds it on Linux when `IDF_PATH` is set (the Docker image has it). | FreeRTOS (ESP-IDF) | ESP-IDF + QEMU |
 | **[os/freertos-bare-metal](./os/freertos-bare-metal/README.md)** | FreeRTOS on the Windows simulator (32-bit build), and on a Cortex-M3 under QEMU (`arm-m3` target). | FreeRTOS | MSVC (Win32), ARM GCC + QEMU |
 | **[os/threadx](./os/threadx/README.md)** | ThreadX on the official Linux/GNU simulation port. Linux only. | ThreadX | Linux GCC |
 | **[os/zephyr](./os/zephyr/README.md)** | Zephyr on the official `native_sim` port (host GCC, no cross-compiler) and on a Cortex-M3 under QEMU (`mps2/an385`). Needs a Zephyr workspace; `build_all.py` builds it on Linux when `ZEPHYR_BASE` is set (the Docker image has one). Linux only. | Zephyr | Linux GCC + Zephyr |

@@ -83,6 +83,7 @@ LINUX_ONLY = {
     "os/posix",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
     "os/qt",                # DMQ_THREAD_QT port; Qt 6 Core (qt6-base-dev)
     "os/zephyr",            # Zephyr native_sim (host process), configured with -DBOARD
+    "os/freertos-esp32",    # ESP-IDF and Espressif's QEMU (Docker image)
     "transport/zephyr-udp",
     "transport/netx-udp",      # ThreadX Linux/GNU simulation port + NetX Duo
     "os/cmsis-rtos2",
@@ -250,6 +251,33 @@ def build_nuttx(sample_dir, repo_root, passed, failed, skipped):
         for line in result.stdout.strip().splitlines()[-15:]:
             print(f"   {line}")
         failed.append(name)
+
+
+def build_esp32(sample_dir, passed, failed, skipped):
+    """os/freertos-esp32: build in ESP-IDF's environment, then merge the
+    bootloader, partition table and app into the 4 MB flash image QEMU boots
+    (flash.bin)."""
+    name = full_suite.ESP32_SAMPLE
+    build_dir = full_suite.build_dir(sample_dir)
+    env = full_suite.esp_idf_env()
+    if env is None or not os.path.isfile(os.path.join(build_dir, "CMakeCache.txt")):
+        skipped.append((name, "not configured — run 03_generate_samples.py first"))
+        return
+    print(f"[BUILDING] {name}  (ESP-IDF)")
+    steps = [["cmake", "--build", build_dir, "--parallel", str(BUILD_JOBS)],
+             ["python", "-m", "esptool", "--chip", "esp32", "merge_bin", "--fill-flash-size", "4MB",
+              "-o", "flash.bin", "@flash_args"]]
+    for cmd in steps:
+        result = subprocess.run(cmd, cwd=build_dir, env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if result.returncode != 0:
+            print("   FAILED")
+            for line in result.stdout.strip().splitlines()[-15:]:
+                print(f"   {line}")
+            failed.append(name)
+            return
+    print("   ok")
+    passed.append(name)
 
 
 def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
@@ -435,6 +463,10 @@ def build_samples(use_clang=False, full=False):
             if (project_name == full_suite.SERIAL_SAMPLE and not IS_WINDOWS
                     and not full_suite.serialport_lib_built(repo_root)):
                 skipped.append((project_name, "libserialport not built (02_build_libs.py)"))
+                continue
+
+            if project_name == full_suite.ESP32_SAMPLE:
+                build_esp32(project_dir, passed, failed, skipped)
                 continue
 
             if project_name == full_suite.NUTTX_SAMPLE:

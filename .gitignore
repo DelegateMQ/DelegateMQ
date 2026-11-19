@@ -16,6 +16,10 @@
 build
 build_win32
 build-*/
+# ESP-IDF's generated config when building os/freertos-esp32 by hand (sdkconfig.defaults is source)
+sdkconfig
+sdkconfig.old
+dependencies.lock
 # build_all.py's build tree: out/<platform>/<path of the project>/<variant>
 /out/
 # PlatformIO release tarballs (scripts/package_readme.py)

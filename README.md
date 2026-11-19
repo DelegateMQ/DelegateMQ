@@ -127,15 +127,15 @@ Each platform below states how it has been verified. The OS port is selected wit
 | Platform | Port (`DMQ_THREAD_*`) | Verified by | Example |
 | :--- | :--- | :--- | :--- |
 | Windows (MSVC) | `STDLIB`, `WIN32` | CI: build and unit tests. Test suite: every desktop sample, the `WIN32` port | [test/](test/main.cpp), [os/win32](example/sample-projects/os/win32/README.md) |
-| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests. Test suite: every desktop sample, the `POSIX` port, unit tests on big-endian s390x and 32-bit Arm under QEMU | [test/](test/main.cpp), [os/posix](example/sample-projects/os/posix/README.md) |
-| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile. Test suite: POSIX and Win32 simulators; Cortex-M3 under QEMU with a hardware interrupt. Board: STM32F4 Discovery | [os/freertos](example/sample-projects/os/freertos/README.md), [os/freertos-bare-metal](example/sample-projects/os/freertos-bare-metal/README.md), [boards/stm32-freertos](example/sample-projects/boards/stm32-freertos/README.md), [pumptron](example/pumptron/PUMPTRON.md), [cellutron](example/cellutron/CELLUTRON.md) |
+| Linux (GCC, Clang) | `STDLIB`, `POSIX` | CI: build, unit tests, sanitizers, stress tests. Test suite: every desktop sample, the `POSIX` port, unit tests on big-endian s390x, 32-bit Arm and 64-bit Arm (AArch64) under QEMU | [test/](test/main.cpp), [os/posix](example/sample-projects/os/posix/README.md) |
+| FreeRTOS | `FREERTOS` | CI: Cortex-M4 compile. Test suite: POSIX and Win32 simulators; Cortex-M3 under QEMU with a hardware interrupt; ESP32 (dual-core Xtensa, ESP-IDF) under QEMU with a hardware interrupt. Board: STM32F4 Discovery | [os/freertos](example/sample-projects/os/freertos/README.md), [os/freertos-bare-metal](example/sample-projects/os/freertos-bare-metal/README.md), [os/freertos-esp32](example/sample-projects/os/freertos-esp32/README.md), [boards/stm32-freertos](example/sample-projects/boards/stm32-freertos/README.md), [pumptron](example/pumptron/PUMPTRON.md), [cellutron](example/cellutron/CELLUTRON.md) |
 | ESP32, ESP32-C3, STM32F4 Discovery (Arduino) | `FREERTOS` | CI: PlatformIO build. Board: STM32F4 Discovery | [platformio](example/platformio/PLATFORMIO.md) |
 | ThreadX | `THREADX` | CI: Cortex-M4 compile. Test suite: Linux simulator, with NetX Duo networking | [os/threadx](example/sample-projects/os/threadx/README.md), [transport/netx-udp](example/sample-projects/transport/netx-udp/README.md) |
 | CMSIS-RTOS2 | `CMSIS_RTOS2` | CI: Cortex-M4 compile. Test suite: Zephyr `native_sim`; Cortex-M3 under QEMU with a hardware interrupt | [os/cmsis-rtos2](example/sample-projects/os/cmsis-rtos2/README.md) |
-| Zephyr | `ZEPHYR` | Test suite: `native_sim` | [os/zephyr](example/sample-projects/os/zephyr/README.md), [databus/zephyr](example/sample-projects/databus/zephyr/README.md) |
+| Zephyr | `ZEPHYR` | Test suite: `native_sim`; Cortex-M3 under QEMU | [os/zephyr](example/sample-projects/os/zephyr/README.md), [databus/zephyr](example/sample-projects/databus/zephyr/README.md) |
 | NuttX | `NUTTX` | Test suite: NuttX `sim` | [os/nuttx](example/sample-projects/os/nuttx/README.md) |
 | Qt | `QT` | CI: Linux build and tests. Test suite: Linux | [os/qt](example/sample-projects/os/qt/README.md) |
-| Bare metal: Cortex-M, RISC-V | `NONE` | Test suite: Cortex-M0, M3, M4 and RISC-V (RV32) under QEMU, with hardware timer interrupts | [bare-metal/qemu](example/sample-projects/bare-metal/qemu/README.md) |
+| Bare metal: Cortex-M, RISC-V | `NONE` | Test suite: Cortex-M0, M3, M4, M33 and RISC-V (RV32) under QEMU, with hardware timer interrupts | [bare-metal/qemu](example/sample-projects/bare-metal/qemu/README.md) |
 | STM32 Nucleo, RP2040 (Arduino) | `NONE` (synchronous only) | CI: PlatformIO build | [platformio](example/platformio/PLATFORMIO.md) |
 | Desktop via PlatformIO | `STDLIB` | CI: PlatformIO build and run | [platformio](example/platformio/PLATFORMIO.md) |
 

@@ -6,6 +6,7 @@ DelegateMQ on bare metal: **no RTOS and no threads** (`DMQ_THREAD_NONE`), on sev
 |---|---|---|---|---|---|
 | `arm-m4` (default) | Cortex-M4 with FPU (Armv7E-M) | Arm GNU Toolchain (`arm-none-eabi-gcc`) | newlib-nano / libstdc++ | SysTick | `mps2-an386` |
 | `arm-m0` | Cortex-M0 (Armv6-M), nRF51822, 16 KB RAM | Arm GNU Toolchain (`arm-none-eabi-gcc`) | newlib-nano / libstdc++ | nRF51 TIMER0 | `microbit` |
+| `arm-m33` | Cortex-M33 with FPU (Armv8-M Mainline) | Arm GNU Toolchain (`arm-none-eabi-gcc`) | newlib-nano / libstdc++ | SysTick | `mps2-an505` |
 | `arm-m3-atfe` | Cortex-M3 (Armv7-M), soft float | Arm Toolchain for Embedded (ATfE: clang, lld) | picolibc / libc++ | SysTick | `mps2-an385` |
 | `riscv32` | RV32IMC | xPack RISC-V Embedded GCC | newlib / libstdc++ | CLINT `mtime`/`mtimecmp` | `virt` |
 
@@ -30,9 +31,10 @@ bare-metal/
 ├── Makefile            arm-m4 without CMake (see below)
 ├── config/             DelegateMQ options for the Makefile build
 └── targets/
-    ├── common/         cortex_m_systick.h (Arm SysTick targets), retarget.c (newlib syscalls: arm-m4, arm-m0)
+    ├── common/         cortex_m_systick.h (Arm SysTick targets), retarget.c (newlib syscalls: arm-m4, arm-m0, arm-m33)
     ├── arm-m4/         toolchain.cmake, target.cmake, bsp.cpp, startup.c, flash.ld
     ├── arm-m0/         toolchain.cmake, target.cmake, bsp.cpp, startup.c, nrf51.ld
+    ├── arm-m33/        toolchain.cmake, target.cmake, bsp.cpp, an505.ld (startup.c from arm-m4)
     ├── arm-m3-atfe/    toolchain.cmake, target.cmake, bsp.cpp (startup and syscalls come from ATfE)
     └── riscv32/        toolchain.cmake, target.cmake, bsp.cpp, startup.S, trap_entry.S, virt.ld
 ```
@@ -44,7 +46,7 @@ bare-metal/
 - CMake 3.16+ and Ninja
 - QEMU: `qemu-system-arm` (Arm targets), `qemu-system-riscv32` (on Debian/Ubuntu in `qemu-system-misc`)
 - The toolchain of each target you build:
-  - `arm-m4`, `arm-m0`: [Arm GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads), `arm-none-eabi-gcc` on the PATH (Debian/Ubuntu: `gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib`). The test suite uses Arm's 15.2.rel1 on Windows and in the Docker image; Ubuntu 24.04's packages are GCC 13.2
+  - `arm-m4`, `arm-m0`, `arm-m33`: [Arm GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads), `arm-none-eabi-gcc` on the PATH (Debian/Ubuntu: `gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib`). The test suite uses Arm's 15.2.rel1 on Windows and in the Docker image; Ubuntu 24.04's packages are GCC 13.2
   - `arm-m3-atfe`: [Arm Toolchain for Embedded](https://github.com/arm/arm-toolchain/releases) (`ATfE-<version>-<host>`), unpacked anywhere; pass `-DATFE_PATH=<path>` or set `ATFE_PATH`
   - `riscv32`: [xPack RISC-V Embedded GCC](https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases), unpacked anywhere; pass `-DRISCV_TOOLCHAIN_PATH=<path>` or set `RISCV_TOOLCHAIN_PATH` (default `/opt/xpack-riscv-none-elf-gcc`)
 
@@ -60,6 +62,10 @@ qemu-system-arm -M mps2-an386 -cpu cortex-m4 -kernel build-arm-m4/delegate_app -
 cmake -B build-arm-m0 -G Ninja -DBM_TARGET=arm-m0
 cmake --build build-arm-m0
 qemu-system-arm -M microbit -kernel build-arm-m0/delegate_app -nographic -semihosting-config enable=on,target=native
+
+cmake -B build-arm-m33 -G Ninja -DBM_TARGET=arm-m33
+cmake --build build-arm-m33
+qemu-system-arm -M mps2-an505 -cpu cortex-m33 -kernel build-arm-m33/delegate_app -nographic -semihosting-config enable=on,target=native
 
 cmake -B build-arm-m3-atfe -G Ninja -DBM_TARGET=arm-m3-atfe -DATFE_PATH=/path/to/ATfE-22.1.0-Linux-x86_64
 cmake --build build-arm-m3-atfe
@@ -117,6 +123,12 @@ The smallest Arm core, to catch what the larger ones forgive:
 - **16 KB RAM.** `nrf51.ld` (256 KB flash, 16 KB RAM) reserves 4 KB of stack and fails the link if `.data` + `.bss` + stack don't fit.
 - **Timer:** the nRF51 has no SysTick, so `bsp.cpp` runs TIMER0 at 1 MHz (16 MHz, prescaler 4) with a compare every 1000 counts, cleared by hardware (`SHORTS`), interrupt IRQ 8 (`TIMER0_IRQHandler`), as a real nRF51 would.
 - `startup.c`: vector table (core exceptions and the nRF51's 32 interrupts), copies `.data`, zeroes `.bss`, runs C++ static constructors, calls `main()`. No FPU to enable.
+
+### arm-m33
+Armv8-M Mainline, the core of most current MCUs (STM32U5/L5/H5, nRF5340/nRF54, RP2350, LPC55):
+- **Runs Secure.** An Armv8-M core with the Security Extension (TrustZone) starts Secure; the test stays there and sets up no SAU, so code, data and SysTick are all the Secure ones.
+- `an505.ld`: code at `0x10000000` (ZBT SSRAM1's Secure alias, where QEMU starts the core), 4 MB RAM at `0x38000000` (SSRAM2/3's Secure alias).
+- `../arm-m4/startup.c`: the core exception layout, FPU enable (`CPACR`) and SysTick are the same as on the Cortex-M4. SysTick runs off the 20 MHz core clock.
 
 ### arm-m3-atfe
 Everything comes from ATfE's runtime, `armv7m_soft_nofp_exn_rtti_size` (selected by `--target=thumbv7m-unknown-none-eabi -mfpu=none -mno-unaligned-access`; it has the exceptions and RTTI DelegateMQ needs):
