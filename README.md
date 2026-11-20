@@ -122,7 +122,7 @@ pio run -e esp32dev -t upload -t monitor
 
 # Platform Support
 
-Each platform below states how it has been verified. The OS port is selected with a `DMQ_THREAD_*` define; see [BUILD.md](docs/BUILD.md).
+Each platform below states how it has been verified. The OS port is selected with a `DMQ_THREAD_*` define; see [BUILD.md](docs/BUILD.md). C++17 is required; RTTI, exceptions and the heap are not (`-fno-rtti`, `-fno-exceptions`, and an optional fixed-block allocator).
 
 | Platform | Port (`DMQ_THREAD_*`) | Verified by | Example |
 | :--- | :--- | :--- | :--- |
@@ -170,7 +170,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 | Safe with object lifetimes | A delegate bound to an object held by `std::shared_ptr` keeps only a `std::weak_ptr`: an async call that arrives after the object is destroyed is skipped, never run through a dangling pointer. |
 | Interrupt to thread | An ISR posts a call that runs later on any thread, with no heap, mutex or blocking in the ISR, on every RTOS and bare metal. |
 | Application owns every thread | The library creates no internal threads — scheduling, stack sizes, and watchdogs stay explicit and auditable. |
-| Portable worker threads | One `dmq::os::Thread` API on every supported OS, with delegate dispatch, thread priorities (RTOS ports), a priority message queue, queue-full and shutdown policies, start/exit/idle hooks, a start gate for synchronized startup, a watchdog, and error reporting built in. |
+| Portable worker threads | One `dmq::os::Thread` API on every supported OS, with delegate dispatch, thread priorities (RTOS ports), a priority message queue, queue-full and shutdown policies, start/exit/idle hooks, a start gate for synchronized startup, a watchdog with failure-capture hooks, and error reporting built in. |
 | Off-target development | Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport. |
 | Location transparency | DataBus subscribers receive data identically whether the publisher is in the same thread, another process, or a remote processor. |
 | Less application code | No hand-coded message queues, mutexes or transport plumbing: the library delivers type-safe data to its destination, across threads and processors. |
@@ -347,6 +347,8 @@ worker.ExitThread();                            // runs queued messages first (E
 
 To start a group of threads together, give each the same optional `dmq::os::StartGate` with `SetStartGate()`: each is created and ready but processes nothing until `gate.Open()`, so no thread runs while others are still being created or wired up. See [Start Gate](docs/PORTING.md#start-gate-synchronized-start).
 
+On hardware, feed the MCU's watchdog right after `Thread::WatchdogCheckAll()` returns, so a hung thread also resets the board, and set a watchdog hook to record which thread hung and where: see [Hardware Watchdog](docs/PORTING.md#hardware-watchdog).
+
 ## Signal / Slot
 
 `dmq::Signal<Sig>` is a thread-safe multicast signal. Emit it like a function call; each connected slot receives the call independently. DelegateMQ signals support both synchronous and asynchronous dispatch, meaning slots can be executed in the caller's context or automatically queued onto a target worker thread chosen at connect time. `Connect()` returns a `dmq::ScopedConnection` that auto-disconnects when it goes out of scope — no manual unsubscribe needed.
@@ -418,6 +420,8 @@ while (running) {
 
 heartbeat.Stop();
 ```
+
+For low power or precise timing, a task can instead sleep until the next timer is due (`Timer::GetNextExpiry()`, woken early by `Timer::SetScheduleChangedHandler()` when a sooner one starts), so the CPU wakes only when a timer fires. See "Event-driven processing" in [llms.txt](llms.txt).
 
 ## Interrupts
 
@@ -509,7 +513,7 @@ DelegateMQ separates **hard faults** (programming or capacity errors that must s
 | Build | Behavior |
 | --- | --- |
 | Default (desktop) | C++ exceptions: `std::bad_alloc`, `std::invalid_argument`, `std::runtime_error` |
-| `DMQ_ASSERTS` (embedded default; automatic when exceptions are disabled) | `dmq::util::FaultHandler()` is called. Customize `port/fault/Fault.cpp` to log, capture a crash dump, or reset the system. |
+| `DMQ_ASSERTS` (embedded default; automatic when exceptions are disabled) | `dmq::util::FaultHandler()` is called; the default prints and halts. To capture the failure first (a log, a core dump), set `dmq::util::SetFaultHook()`; for a watchdog timeout, `dmq::os::SetWatchdogHook()` gets the hung thread. To replace the handlers, define `DMQ_CUSTOM_FAULT_HANDLER`. See [Capturing the Failure](docs/PORTING.md#capturing-the-failure-watchdog-and-fault-hooks). |
 
 **Recoverable errors** — serialization failures, dispatch failures and transport receive errors are reported as a `dmq::DelegateError` code through a handler or signal. On builds with exceptions enabled, a remote error with no handler registered throws `std::runtime_error` (or is stored in `GetError()` when `DMQ_ASSERTS` is defined or exceptions are disabled), so always register one:
 

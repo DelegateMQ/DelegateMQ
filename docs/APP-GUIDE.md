@@ -10,6 +10,8 @@ Rules and patterns for writing an application **with** DelegateMQ. It's short on
 - [Threads](#threads)
 - [Connections Must Be Stored](#connections-must-be-stored)
 - [Timers](#timers)
+- [Interrupts](#interrupts)
+- [Failure Capture](#failure-capture)
 - [Shutdown and Object Lifetime](#shutdown-and-object-lifetime)
 - [DataBus](#databus)
 - [Remote DataBus](#remote-databus)
@@ -47,6 +49,7 @@ The RTOS and bare-metal samples run on a desktop (POSIX/Win32 simulators, `nativ
 - Include `"DelegateMQ.h"`.
 - Pick one OS port (`DMQ_THREAD_*`), and a serializer and transport only if you go remote. Third-party ports need `DMQ_DEPS_DIR`.
 - Use the same options in every file. Keep them in `DelegateMQConfig.h` or project-wide `-D` flags.
+- RTTI is optional (`-fno-rtti` defines `DMQ_NO_RTTI`), but every file that includes DelegateMQ must use the same setting: the two builds lay out classes differently. Without RTTI, a delegate made from a `std::function` object equals only its own copies; keep it to remove it.
 - On RTOS and bare metal, set `DMQ_ALLOCATOR` and `DMQ_ASSERTS`, and build with `-Os`/`-O2` or `DMQ_FORCE_OPTIMIZE_DEBUG` (unoptimized templates use a lot of stack and flash).
 
 Details: [BUILD](BUILD.md).
@@ -100,6 +103,34 @@ m_timer.Start(std::chrono::milliseconds(100));
 - **Low power or precise timing:** instead of a fixed period, the loop can wait for `Timer::GetNextExpiry()`, woken early by `Timer::SetScheduleChangedHandler()` when a `Start()` adds a sooner deadline. Timers then fire on time and the CPU can sleep in between (tickless idle, `WFI`). See "Event-driven processing" in [llms.txt](../llms.txt).
 
 Details: the Timer and MakeTimerDelegate sections of [llms.txt](../llms.txt).
+
+## Interrupts
+
+An ISR must not call an async delegate, a `Signal` or the DataBus: they allocate and take mutexes. Post through `dmq::util::IsrDelegate` instead. `Post()` in the ISR only copies the arguments into a fixed ring; `IsrDelegates::ProcessAll()`, from a task or the main loop, makes the call, which can be async to any thread:
+
+```cpp
+dmq::util::IsrDelegate<void(uint32_t)> onButton(dmq::MakeDelegate(&ButtonHandler, m_thread));
+
+extern "C" void EXTI0_IRQHandler() { onButton.Post(ReadPins()); }   // ISR: copy only
+dmq::util::IsrDelegates::ProcessAll();                              // task or main loop
+```
+
+- Give the target thread `FullPolicy::DROP`: a full queue must not fault from a burst of interrupts.
+- A full ring drops the post and counts it (`GetDroppedCount()`); size it for the worst burst between `ProcessAll()` calls.
+- To call `ProcessAll()` as soon as something is posted, set a post handler (`IsrDelegates::SetPostHandler()`) that wakes the task, e.g. with `xSemaphoreGiveFromISR()`.
+
+Details: the IsrDelegate section of [llms.txt](../llms.txt).
+
+## Failure Capture
+
+The default fault and watchdog handlers print and halt. To record a failure first (a log in RAM that survives the reset, a core dump, which thread hung and where), set hooks at startup:
+
+```cpp
+dmq::util::SetFaultHook(&OnFault);          // a failed DMQ_ASSERT: file and line
+dmq::os::SetWatchdogHook(&OnHungThread);    // each hung thread, before the watchdog fault
+```
+
+Hooks only record: no allocation, locks, delegates, signals or DataBus, and no waiting on threads. A hardware watchdog keeps counting while they run. The watchdog hook runs in the checker task, so it reads the hung thread's saved context through `info.thread.GetThreadId()`. Details and a FreeRTOS example: [Capturing the Failure](PORTING.md#capturing-the-failure-watchdog-and-fault-hooks).
 
 ## Shutdown and Object Lifetime
 
@@ -288,7 +319,7 @@ These [CLAUDE.md](../CLAUDE.md) rules exist because the library must build on ev
 | `dmq::Mutex` and `dmq::os::Thread` instead of `std::mutex` and `std::thread` | On desktop, `std::` types are fine. On RTOS targets, the `dmq::` types are the portable option |
 | Tunables as `DMQ_*` macros, self-guarding `.cpp` files, `DelegateOpt.h` | Not applicable |
 
-Library *behaviour* does still apply: store connections, follow the shutdown order, keep `ProcessTimers()` out of ISRs on RTOS ports, and never use `dmq::CriticalSection` as a general lock.
+Library *behaviour* does still apply: store connections, follow the shutdown order, keep `ProcessTimers()` out of ISRs on RTOS ports, reach threads from ISRs only through `IsrDelegate`, and never use `dmq::CriticalSection` as a general lock.
 
 ## Checklist
 
@@ -299,6 +330,10 @@ Library *behaviour* does still apply: store connections, follow the shutdown ord
 - [ ] No handler loops forever without a stop flag.
 - [ ] Something calls `Timer::ProcessTimers()` (and `Thread::WatchdogCheckAll()` if watchdogs are on), from a task, not an RTOS ISR.
 - [ ] A hardware watchdog, if used, is fed only right after `WatchdogCheckAll()` returns, never from an ISR or timer.
+- [ ] Fault and watchdog hooks, if set, only record (no allocation, locks, delegates or waits) and finish before the hardware watchdog fires.
+- [ ] ISRs reach threads only through `IsrDelegate::Post()`, never an async delegate, `Signal` or DataBus call.
+- [ ] Every file that includes DelegateMQ uses the same RTTI setting (and the same `DMQ_*` options).
+- [ ] A timer loop that sleeps on `Timer::GetNextExpiry()` sets `Timer::SetScheduleChangedHandler()`, so a sooner timer started meanwhile wakes it.
 - [ ] Timers are connected with `MakeTimerDelegate`.
 - [ ] Shutdown stops the emitters (network, timer loop, producers) before destroying subscribers.
 - [ ] Objects created and destroyed at runtime are bound with `shared_ptr`.

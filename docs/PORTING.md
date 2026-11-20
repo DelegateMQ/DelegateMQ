@@ -38,9 +38,9 @@ The OS ports (`src/delegate-mq/port/os`), transports (`port/transport`) and seri
    - *Optional:* `dmq::util::TransportMonitor`, `RetryMonitor` and `ReliableTransport` add ACKs and retries over an unreliable transport.
    - See [Sample Projects](../example/sample-projects/README.md).
 4. **Provide a clock** — `DelegateOpt.h` selects `dmq::Clock` per port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`).
-5. **Call `dmq::util::Timer::ProcessTimers()` periodically** (main loop or a high-priority task), and `Thread::WatchdogCheckAll()` if you use [watchdogs](#watchdog-integration). On an RTOS call it from a task, not an ISR (it takes OS mutexes); only bare metal (`DMQ_THREAD_NONE`) may call it from a timer ISR. For low power, a task can instead wait for `Timer::GetNextExpiry()` and call it only when a timer is due (see "Event-driven processing" in [llms.txt](../llms.txt)).
+5. **Call `dmq::util::Timer::ProcessTimers()` periodically** (main loop or a high-priority task), and `Thread::WatchdogCheckAll()` if you use [watchdogs](#watchdog-integration), feeding the MCU's [hardware watchdog](#hardware-watchdog) right after it. On an RTOS call it from a task, not an ISR (it takes OS mutexes); only bare metal (`DMQ_THREAD_NONE`) may call it from a timer ISR. For low power, a task can instead wait for `Timer::GetNextExpiry()` and call it only when a timer is due (see "Event-driven processing" in [llms.txt](../llms.txt)).
 6. **Set build options** in `CMakeLists.txt`, e.g. `DMQ_ASSERTS`, `DMQ_ALLOCATOR` (fixed-block allocator instead of `new`/`delete`), `DMQ_FORCE_OPTIMIZE_DEBUG` (smaller debug templates). To tune constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`, ...), copy `DelegateMQConfig_Template.h` into your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`; defaults are in `delegate/DelegateMQConfig_Default.h`.
-7. **Route faults** — edit `port/fault/Fault.cpp` to call your logger or crash handler.
+7. **Route faults** — to record a failure (a log, a core dump, the hung thread's PC) before the default handler halts, set `dmq::util::SetFaultHook()` and `dmq::os::SetWatchdogHook()` ([Capturing the Failure](#capturing-the-failure-watchdog-and-fault-hooks)). To replace the handlers entirely, define `DMQ_CUSTOM_FAULT_HANDLER` and provide `FaultHandler()` and `WatchdogHandler()`; don't edit `port/fault/Fault.cpp`.
 
 ---
 
@@ -342,7 +342,7 @@ On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same
 - `CreateThread()`: call `OnCreate()` before creating the thread, `OnCreateFailed()` if creation fails.
 - Worker entry, after signalling `CreateThread()` and before the loop: if `Enabled()`, call `Wait(m_exit)`, refresh the watchdog heartbeat, then `Passed()`. `Wait()` returns `true` if opened (even with an exit pending, so `DRAIN` still runs), `false` if exiting while held; then return without running messages.
 - `ExitThread()`: call `Wake()` after setting the exit flag.
-- `WatchdogCheck()`: skip while `IsHeld()`.
+- `WatchdogExpired()`: return `false` while `IsHeld()`.
 
 References: `StdlibThread.cpp`; `FreeRTOSThread.cpp` for a port whose exit send can block on a full queue. Portable tests: `test/portable/` (`StartGatePortableTest.h`, and `PortableTests.h`, which every OS port sample runs).
 
@@ -362,14 +362,17 @@ The worker refreshes `m_lastAliveTime` at the top of each loop. With a watchdog 
 Application watchdog task (highest priority)
    │
    └─ Thread::WatchdogCheckAll() every ~100 ms
-        └─ WatchdogCheck() per registered thread — reads m_lastAliveTime atomically
-             └─ gap > timeout → WatchdogHandler() (fault/recovery)
+        └─ WatchdogExpired() per registered thread — reads m_lastAliveTime atomically
+             └─ gap > timeout → watchdog hook, if set (every expired thread)
+        └─ any expired → WatchdogHandler() once (never returns)
 
 worker loop
    top-of-loop: m_lastAliveTime = now           ← refreshed every iteration
    queue wait (finite when a watchdog is set)    ← loops even when idle
    process message (or wake on timeout, loop back)
 ```
+
+**Porting:** a thread port keeps a private `bool WatchdogExpired(dmq::Duration& stalledFor)` (false while held at its start gate), and its `WatchdogCheckAll()` feeds each expired thread to a `dmq::os::detail::WatchdogReport` (`port/os/common/WatchdogHook.h`), then calls its `Finish()`. That's what calls the watchdog hook for every expired thread and `WatchdogHandler()` once. Reference: `StdlibThread.cpp`; 32-bit clock counts: `FreeRTOSThread.cpp`.
 
 #### Priority Requirement — Critical on Single-Core RTOS
 
