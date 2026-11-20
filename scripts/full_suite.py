@@ -153,7 +153,7 @@ TRANSPORT_SUCCESS = "Data Message:"
 # in one is named "<group>/<sample>" (e.g. "databus/relay"), and that name is
 # what the tables in these scripts use.
 SAMPLE_GROUPS = {"os", "bare-metal", "boards", "transport", "databus",
-                 "system-architecture", "integration"}
+                 "system-architecture", "integration", "patterns"}
 
 
 def sample_name(path):

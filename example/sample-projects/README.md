@@ -11,6 +11,7 @@ The samples are grouped by what they show. Each group folder has a README listin
 | [databus/](./databus/README.md) | `dmq::databus::DataBus` publish/subscribe |
 | [system-architecture/](./system-architecture/README.md) | One client/server system, built with and without external libraries, plus a Python client |
 | [integration/](./integration/README.md) | Bringing DelegateMQ into your own build |
+| [patterns/](./patterns/README.md) | Application designs, such as an active-object state machine and a library on its own thread |
 
 The test scripts (`scripts/build_all.py`) name a sample by its folder, e.g. `os/threadx` or `databus/relay`.
 
@@ -87,6 +88,13 @@ See [databus/README.md](./databus/README.md).
 | **[integration/clang-native](./integration/clang-native/README.md)** | All-features demo: sync, async, async-wait, multicast, signal. Windows or Linux. | `std::thread` | Any C++17 compiler (Clang, GCC, MSVC) |
 | **[integration/cmake-subdirectory](./integration/cmake-subdirectory/README.md)** | DelegateMQ added as a CMake dependency the way `docs/BUILD.md` recommends: `FetchContent` (or `add_subdirectory`) and the `DelegateMQ::DelegateMQ` target. Checks the options reach the app, nothing leaks into other targets, and the library works. Windows or Linux. | `std::thread` | Any C++17 compiler, CMake 3.16+ |
 | **[integration/no-cmake](./integration/no-cmake/README.md)** | Builds DelegateMQ as a non-CMake project would: one source file (`src/DelegateMQ.cpp`) and options in `DelegateMQConfig.h`, without `DelegateMQ.cmake`. Checks sync, async, signal and timer. Windows or Linux. | `std::thread` | Any C++17 compiler |
+
+## patterns/
+
+| Sample | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
+| :--- | :--- | :--- | :--- |
+| **[patterns/state-machine](./patterns/state-machine/README.md)** | An automatic door controller as an active-object state machine ([active-fsm](https://github.com/DelegateMQ/active-fsm), fetched into `external/`): events from any thread, timer-driven transitions, a transition signal observed on another thread, and four threads sending events at once. Windows or Linux. | `std::thread` | Any C++17 compiler |
+| **[patterns/async-sqlite](./patterns/async-sqlite/README.md)** | A sensor data logger with SQLite on its own thread ([Async-SQLite](https://github.com/DelegateMQ/Async-SQLite), fetched into `external/`): concurrent writers with no lock or `SQLITE_BUSY` retries, a transaction sent to the SQLite thread as one function, a future query, a call with a timeout, and a signal delivered to a display thread. Windows or Linux. | `std::thread` | Any C++17 compiler |
 
 ## External libraries
 

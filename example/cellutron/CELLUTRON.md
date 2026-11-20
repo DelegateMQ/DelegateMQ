@@ -185,6 +185,8 @@ Cellutron uses a "DDS-Lite" approach where data is exchanged via named **Topics*
 
 The Controller CPU orchestration is driven by nested state machines. The high-level process manages the overall sequence, while sub-processes handle atomic hardware actions.
 
+The state machines are built on [active-fsm](https://github.com/DelegateMQ/active-fsm) (v1.1.0), which `scripts/01_fetch_repos.py` clones into `external/active-fsm`; the Controller compiles its `state-machine/` folder. `Centrifuge` and `CellProcess` override `SetThread()` to connect their timers and signals to the same thread the state machine runs on.
+
 ### CellProcess State Machine
 The `CellProcess` state machine (Active Object) manages the high-level instrument sequence. It coordinates with the `PumpProcess` and the `Centrifuge` actuator to move fluid and process cells.
 

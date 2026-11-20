@@ -162,6 +162,8 @@ REQUIRED_OUTPUT = {
     "system-architecture/no-deps": {"client": "Actuators:"},
     "integration/no-cmake":        {"app": "ALL TESTS PASSED"},
     "integration/cmake-subdirectory": {"app": "ALL TESTS PASSED"},
+    "patterns/state-machine":      {"app": "ALL TESTS PASSED"},
+    "patterns/async-sqlite":       {"app": "ALL TESTS PASSED"},
     "os/qt":                       {"app": "ALL TESTS PASSED"},
     "os/win32":                    {"app": "ALL TESTS PASSED"},
     "transport/netx-udp":          {"app": "Data Message:"},

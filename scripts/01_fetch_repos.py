@@ -92,7 +92,17 @@ repos = {
 
     # NetX Duo: transport/netx-udp (NetXUdpTransport on the ThreadX Linux
     # simulator). Same release family as ThreadX above.
-    "netxduo": ("https://github.com/eclipse-threadx/netxduo.git", "v6.5.1.202602_rel", False)
+    "netxduo": ("https://github.com/eclipse-threadx/netxduo.git", "v6.5.1.202602_rel", False),
+
+    # active-fsm: the DelegateMQ active-object state machine framework, used by
+    # patterns/state-machine and Cellutron. Only its state-machine/ folder is
+    # compiled, against this repository's DelegateMQ.
+    "active-fsm": ("https://github.com/DelegateMQ/active-fsm.git", "v1.1.0", False),
+
+    # Async-SQLite: SQLite behind its own DelegateMQ thread, used by
+    # patterns/async-sqlite. Only its SQLite/ folder (the SQLite amalgamation
+    # and async_sqlite3.cpp) is compiled, against this repository's DelegateMQ.
+    "Async-SQLite": ("https://github.com/DelegateMQ/Async-SQLite.git", "v1.1.0", False)
 }
 
 def fix_zeromq_conflict(deps_dir):
