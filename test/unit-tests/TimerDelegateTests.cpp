@@ -403,7 +403,10 @@ static void TimerDelegate_Move_TransfersQueuedTick()
 // TimerDelegate::Equal() / Empty() / nullptr comparisons
 // =============================================================================
 
-static void FreeFuncForEqualityTests() {}
+// Distinct bodies: an optimizing linker folds identical functions into one
+// address (MSVC Release /OPT:ICF), and then they really are equal
+static volatile int s_equalityFuncCalls = 0;
+static void FreeFuncForEqualityTests() { s_equalityFuncCalls = s_equalityFuncCalls + 1; }
 
 static void TimerDelegate_Equal_SameUnderlyingAndThread()
 {
@@ -439,7 +442,7 @@ static void TimerDelegate_Equal_DifferentThread()
     std::cout << "TimerDelegate_Equal_DifferentThread() complete!" << std::endl;
 }
 
-static void OtherFreeFuncForEqualityTests() {}
+static void OtherFreeFuncForEqualityTests() { s_equalityFuncCalls = s_equalityFuncCalls + 2; }
 
 static void TimerDelegate_Equal_RawCallables()
 {

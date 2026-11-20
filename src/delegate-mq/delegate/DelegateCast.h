@@ -36,7 +36,10 @@ using TypeId = const void*;
 
 namespace detail {
     template <class T>
-    struct TypeIdTag { static constexpr char id = 0; };   // C++17: inline, one per program
+    // One per type and program (an inline variable). Not const: a linker that
+    // folds identical read-only data (MSVC /OPT:ICF) could otherwise give two
+    // types the same address; writable data is never folded.
+    struct TypeIdTag { static inline char id = 0; };
 }
 
 /// @brief The TypeId of T. Like typeid(T), ignores references and top-level
