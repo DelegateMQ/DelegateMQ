@@ -366,7 +366,7 @@ Key points:
 - **Header-only core**: the delegates and DataBus are templates in headers; the OS port, allocator, fault handler and a few utilities are a small set of `.cpp` files built with your application. Compiled code size scales with the templates instantiated — topics and serializers you don't use contribute zero code.
 - **Predictable allocation**: Per-topic overhead is a `dmq::Signal<>` and a small `xmap` entry. No hidden history queues or discovery tables consume memory in the background.
 - **Fixed-block allocator**: Building with `DMQ_ALLOCATOR=ON` replaces `new`/`delete` with a fixed-block pool, eliminating heap fragmentation. No DDS implementation offers this.
-- **Bare-metal proof**: The `bare-metal/qemu` sample runs on Cortex-M4, Cortex-M3 and RISC-V with no OS and no transport (delegates allocate from a minimal `_sbrk` heap; `DMQ_ALLOCATOR` can replace it with fixed-block pools) — demonstrating the lower bound of the footprint.
+- **Bare-metal proof**: The `bare-metal/qemu` sample runs on Cortex-M0, Cortex-M3, Cortex-M4, Cortex-M33 and RISC-V (RV32) with no OS and no transport, driven by real hardware timer interrupts (delegates allocate from a minimal `_sbrk` heap; `DMQ_ALLOCATOR` can replace it with fixed-block pools). The Cortex-M0 target builds with `-fno-rtti` — demonstrating the lower bound of the footprint.
 
 Micro XRCE-DDS is the embedded-targeted DDS variant and achieves a much smaller footprint (~100 KB flash, ~20 KB RAM) but at the cost of requiring a full DDS broker/agent process on the other end of the connection and losing most standard QoS policies.
 
@@ -374,10 +374,12 @@ Micro XRCE-DDS is the embedded-targeted DDS variant and achieves a much smaller 
 
 | | DDS (OpenDDS) | DDS (FastDDS) | DDS (CycloneDDS) | DelegateMQ |
 |---|---|---|---|---|
-| Approx. source lines (core) | ~500K | ~200K | ~150K | ~15K (delegates and extras, excluding ports) |
+| Approx. source lines (core) | ~500K | ~200K | ~150K | ~16K (delegates and extras, excluding ports) |
 | Readable by one developer | No | No | No | Yes |
 | No external build dependencies | No | No | No | Yes (built-in serializer and UDP need no third-party code) |
 | Qualifiable (DO-178C / IEC 61508) | High cost | High cost | High cost | Low cost |
+
+DelegateMQ also builds with `-fno-rtti` and `-fno-exceptions` (faults then go through `DMQ_ASSERT` to a fault handler), and `DMQ_ALLOCATOR` replaces the heap with fixed-block pools — the language subset many certified and MISRA-style codebases require.
 
 For safety-critical or certified software, qualification cost scales directly with lines of code — every line is subject to review, traceability, and test coverage requirements. DelegateMQ's core fits comfortably in a single review pass. Full DDS stacks are effectively unqualifiable at practical cost.
 
@@ -520,6 +522,8 @@ if (xQueueReceive(sensorQueue, &recv, portMAX_DELAY))
 
 Every new message type requires repeating this scaffolding. There is no automatic argument copying for pointer/reference arguments, no object lifetime safety, and no return values from async calls.
 
+OS queues do have one real strength: an interrupt can post to them (`xQueueSendFromISR`). DelegateMQ's async delegates can't be called from an ISR (they allocate and lock), so it provides `dmq::util::IsrDelegate` for that: `Post()` in the ISR copies the arguments into a fixed ring slot with no heap or mutex, and a task or the main loop later makes the typed call, on any thread. It works on every port, bare metal included.
+
 **DelegateMQ on FreeRTOS** — same async dispatch, full type safety, no scaffolding per call:
 
 ```cpp
@@ -535,6 +539,7 @@ dmq::MakeDelegate(this, &SensorTask::HandleSensor, workerThread)(5, 10);
 | Object lifetime safety | No | Yes (`weak_ptr`) |
 | Return value from async call | No | Yes (`dmq::DelegateAsyncWait`) |
 | Multicast / pub-sub | No | Yes |
+| ISR-safe post | Yes (`FromISR` APIs) | Yes (`dmq::util::IsrDelegate`) |
 
 ---
 
@@ -573,6 +578,8 @@ Asio requires you to capture all arguments into the lambda manually. There is no
 | Remote dispatch | No | No | No | Yes |
 | Embedded / RTOS support | No | Yes | No | Yes |
 | Object lifetime safety | No | No | No | Yes (`weak_ptr`) |
+| ISR-safe post | No | Yes (`FromISR` APIs) | No | Yes (`IsrDelegate`) |
+| Per-thread watchdog with failure-capture hooks | No | No | No | Yes |
 
 ---
 
