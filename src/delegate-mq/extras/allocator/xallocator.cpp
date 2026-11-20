@@ -19,7 +19,8 @@
 
 namespace dmq {
 
-// @TODO: Comment out to disable alignment check if desired after porting
+// @TODO: Uncomment while porting to check that each block's address is
+// suitably aligned for the target (off by default)
 //#define CHECK_ALIGNMENT
 
 // Logic:

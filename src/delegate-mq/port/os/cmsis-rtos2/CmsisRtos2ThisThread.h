@@ -18,18 +18,23 @@
 
 #include "cmsis_os2.h"
 #include "CmsisRtos2Mutex.h"
+#include "CmsisRtos2CriticalSection.h"
 #include "CmsisRtos2Ticks.h"
 #include "port/os/common/CurrentThreadStorage.h"
 #include <chrono>
 
 namespace dmq::os {
 
-    /// @brief Key for RegistryCurrentThread: the calling thread's id.
-    /// @TODO: Return 0 inside an ISR if your target can detect it (e.g.
-    /// __get_IPSR() != 0 on ARM Cortex-M). CMSIS-RTOS2 has no portable ISR check,
-    /// so dmq::ThisThread::GetCurrent() from an ISR returns the interrupted
-    /// thread's IThread instead of nullptr. See docs/PORTING.md, "Current Thread".
+    /// @brief Key for RegistryCurrentThread: the calling thread's id, or 0 inside
+    /// an ISR (detected on Arm Cortex-M through IPSR; see
+    /// detail::IsInsideCmsisRtos2Interrupt() in CmsisRtos2CriticalSection.h).
+    /// @TODO: On a non-Cortex-M CMSIS-RTOS2 target (e.g. Cortex-A), extend
+    /// detail::IsInsideCmsisRtos2Interrupt() for it; until then,
+    /// dmq::ThisThread::GetCurrent() from an ISR returns the interrupted thread's
+    /// IThread instead of nullptr. See docs/PORTING.md, "Current Thread".
     inline uintptr_t CmsisRtos2CurrentThreadKey() {
+        if (detail::IsInsideCmsisRtos2Interrupt())
+            return 0;
         return reinterpret_cast<uintptr_t>(osThreadGetId());
     }
 

@@ -25,8 +25,9 @@
 namespace dmq::os {
 
     /// @brief Key for RegistryCurrentThread: the calling task's handle, or 0
-    /// inside an ISR (detected on ARM Cortex-M; see FreeRTOSCriticalSection.h).
-    /// @TODO: On a non-ARM FreeRTOS port (RISC-V, Xtensa, ...), extend
+    /// inside an ISR (detected on ARM Cortex-M and on ESP-IDF, ESP32 Xtensa and
+    /// RISC-V; see FreeRTOSCriticalSection.h).
+    /// @TODO: On another non-ARM FreeRTOS port (a non-ESP-IDF RISC-V, ...), extend
     /// detail::IsInsideFreeRTOSInterrupt() for that architecture; until then,
     /// dmq::ThisThread::GetCurrent() from an ISR returns the interrupted task's
     /// IThread instead of nullptr. See docs/PORTING.md, "Current Thread".

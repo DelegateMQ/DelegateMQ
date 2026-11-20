@@ -101,7 +101,11 @@ int main() {
     // Unbuffered output: each printf goes straight to semihosting
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    // 1 ms timer interrupt: drives BareMetalClock and Timer::ProcessTimers()
+    // 1 ms timer interrupt: drives BareMetalClock and Timer::ProcessTimers().
+    // With ProcessTimers() in an interrupt, follow Timer.h's "Bare Metal:
+    // ProcessTimers() in an ISR" rules: the tests below connect each OnExpired
+    // before Start() and disconnect it after Stop(), because a signal's
+    // subscriber list has no lock on bare metal.
     BspStartTick();
 
     printf("\n=========================================\n");

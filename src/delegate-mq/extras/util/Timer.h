@@ -28,12 +28,27 @@ namespace dmq::util {
 /// On an RTOS port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX) that is the highest-priority
 /// task, never an ISR: `ProcessTimers()` takes OS mutexes to copy each expired timer's
 /// subscribers. Only bare metal (`DMQ_THREAD_NONE`, no OS mutexes) can call it from a hardware
-/// timer ISR. Connect `OnExpired` to one of:
+/// timer ISR, and then only under the rules below. Connect `OnExpired` to one of:
 ///   - A plain (synchronous) delegate for inline, fast callbacks (no blocking, no allocation).
 ///   - An async delegate (`MakeDelegate(..., thread)`) to dispatch work to a worker thread.
 ///     The target thread MUST use `FullPolicy::FAULT` or `FullPolicy::DROP` — never `TIMEOUT`.
 ///     (`FAULT` crashes immediately if the queue is full, making overflow visible during testing;
 ///      `DROP` silently skips the dispatch, which is acceptable for periodic heartbeats.)
+///
+/// **Bare Metal: ProcessTimers() in an ISR:**
+/// The timer list is guarded by `dmq::CriticalSection`, which masks interrupts, so `Start()`,
+/// `Stop()` and `~Timer()` are safe from the main loop. Each signal's subscriber list is not:
+/// its `RecursiveMutex` is a no-op on bare metal (`NullMutex`). When an ISR calls
+/// `ProcessTimers()`:
+///   1. Connect and disconnect a timer's `OnExpired` only while that timer is stopped (connect
+///      before `Start()`, `Stop()` before disconnecting), or with interrupts masked. Otherwise
+///      the ISR can copy a subscriber list the main loop is halfway through changing.
+///   2. Keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers. Copying more
+///      allocates, inside the ISR.
+///   3. Synchronous callbacks run in interrupt context: keep them short and ISR-safe. To hand work
+///      to the main loop, post it through an `IsrDelegate`.
+/// If these don't fit, call `ProcessTimers()` from the main loop instead, with the timer ISR only
+/// advancing the clock and setting a flag.
 ///
 /// **ProcessTimers() Blocking Invariant:**
 /// `ProcessTimers()` MUST NEVER block. Violating this starves the timer subsystem and defeats
@@ -108,8 +123,11 @@ public:
     /// @return The time now. 
     static dmq::TimePoint GetNow();
 
-    /// Called on a periodic basic to service all timer instances. 
-    /// @TODO: Call periodically for timer expiration handling.
+    /// Services all timer instances: fires OnExpired for each expired timer.
+    /// @TODO: Call it periodically (a main loop or a high-priority task), or only
+    /// when a timer is due: see "Event-Driven Processing" in the class notes.
+    /// Task or main-loop context. From an ISR on bare metal only, under the rules in
+    /// the class notes ("Bare Metal: ProcessTimers() in an ISR").
     static void ProcessTimers();
 
     /// Time until the earliest running timer expires, for a driver that sleeps until

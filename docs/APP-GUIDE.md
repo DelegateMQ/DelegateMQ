@@ -99,7 +99,7 @@ m_timer.Start(std::chrono::milliseconds(100));
 ```
 
 - Connect timers with `MakeTimerDelegate`, not `MakeDelegate`. It allows at most one tick in flight, so a slow handler can't flood the queue.
-- Call `ProcessTimers()` from a dedicated loop or task on desktop and RTOS ports. Only on bare metal may it run in a hardware ISR. It must never block, so never connect a `DelegateAsyncWait` to `OnExpired`.
+- Call `ProcessTimers()` from a dedicated loop or task on desktop and RTOS ports. Only on bare metal may it run in a hardware ISR, and then: connect or disconnect a timer's `OnExpired` only while that timer is stopped (the subscriber list has no lock on bare metal), keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers (more allocate inside the ISR), and keep synchronous callbacks ISR-safe. If that doesn't fit, call it from the main loop instead. See "Bare Metal: ProcessTimers() in an ISR" in `Timer.h`. It must never block, so never connect a `DelegateAsyncWait` to `OnExpired`.
 - **Low power or precise timing:** instead of a fixed period, the loop can wait for `Timer::GetNextExpiry()`, woken early by `Timer::SetScheduleChangedHandler()` when a `Start()` adds a sooner deadline. Timers then fire on time and the CPU can sleep in between (tickless idle, `WFI`). See "Event-driven processing" in [llms.txt](../llms.txt).
 
 Details: the Timer and MakeTimerDelegate sections of [llms.txt](../llms.txt).

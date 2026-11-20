@@ -54,6 +54,20 @@
 
 namespace dmq::os {
 
+    namespace detail {
+        /// True inside an interrupt handler. On Arm M-profile (Cortex-M) that is
+        /// IPSR != 0, read with the CMSIS-Core intrinsic. CMSIS-RTOS2 has no
+        /// portable check of its own, so on any other target (Cortex-A, or a host
+        /// build such as Zephyr's native_sim) this returns false: thread context.
+        inline bool IsInsideCmsisRtos2Interrupt() {
+#if defined(__ARM_ARCH_PROFILE) && (__ARM_ARCH_PROFILE == 'M')
+            return __get_IPSR() != 0U;
+#else
+            return false;
+#endif
+        }
+    } // namespace detail
+
     // =========================================================================
     // CmsisRtos2CriticalSection
     // See the file-level comment above before using this type anywhere new.

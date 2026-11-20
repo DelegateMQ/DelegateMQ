@@ -154,9 +154,11 @@ Must be called periodically, from a main loop or a high-priority task. The timer
 
 | Port | Call `ProcessTimers()` from a hardware ISR? |
 |---|---|
-| Bare metal / no RTOS (`DMQ_THREAD_NONE`), ARM or RISC-V | Yes (e.g. `SysTick_Handler`) |
+| Bare metal / no RTOS (`DMQ_THREAD_NONE`), ARM or RISC-V | Yes (e.g. `SysTick_Handler`), with the rules below |
 | Every RTOS port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX) | No — call it from a task (OS mutexes can't be taken in an ISR) |
 | Desktop (stdlib/Win32/POSIX/Qt) | No — call it from a thread |
+
+On bare metal, a signal's subscriber list has no lock (`RecursiveMutex` is a no-op `NullMutex`). With `ProcessTimers()` in an ISR: connect and disconnect a timer's `OnExpired` only while that timer is stopped (connect before `Start()`, `Stop()` before disconnecting), or with interrupts masked; keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers, since copying more allocates inside the ISR; and keep synchronous callbacks ISR-safe (post work to the main loop through an `IsrDelegate`). If these don't fit, call `ProcessTimers()` from the main loop, with the ISR only advancing the clock and setting a flag. See "Bare Metal: ProcessTimers() in an ISR" in `Timer.h`.
 
 Implementation per port and how each was verified: see the ISR-Safe Locking section of [CLAUDE.md](CLAUDE.md).
 

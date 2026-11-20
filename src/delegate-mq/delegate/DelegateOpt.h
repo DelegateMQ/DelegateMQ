@@ -534,11 +534,14 @@ namespace dmq
     #endif
 #endif
 
-// @TODO: Select the desired software fault handling (see Port.cmake).
+// @TODO: Select the desired software fault handling: DMQ_ASSERTS (faults through
+// FaultHandler()) or exceptions (see Port.cmake). Don't edit these macros: to
+// record a fault before the default handler halts, set dmq::util::SetFaultHook();
+// to replace the handler, define DMQ_CUSTOM_FAULT_HANDLER and provide
+// FaultHandler(). See "Capturing the Failure" in docs/PORTING.md.
 #ifdef DMQ_ASSERTS
     #include "extras/util/Fault.h"
-    // Use assert error handling. Change assert to a different error 
-    // handler as required by the target application.
+    // Use assert error handling (FaultHandler())
     #define BAD_ALLOC() DMQ_ASSERT()
 #else
     #include "extras/util/Fault.h"
@@ -548,10 +551,12 @@ namespace dmq
 #endif
 
 // @TODO: Select the desired heap allocation (see Port.cmake).
-// If DMQ_ASSERTS defined above, consider defining DMQ_ALLOCATOR to prevent 
-// std::list usage within delegate library from throwing a std::bad_alloc 
-// exception. The std_allocator calls assert if out of memory. 
-// See master CMakeLists.txt for info on enabling the fixed-block allocator.
+// If DMQ_ASSERTS defined above, consider defining DMQ_ALLOCATOR to prevent
+// std::list usage within delegate library from throwing a std::bad_alloc
+// exception. The std_allocator calls assert if out of memory.
+// DMQ_ALLOCATOR selects the fixed-block allocator (docs/BUILD.md). For no heap
+// use after startup, also define DMQ_XALLOCATOR_STATIC_POOLS and size the
+// pools (DMQ_XALLOC_POOL_<size>): see "No Heap After Startup" in docs/SAFETY.md.
 #ifdef DMQ_ALLOCATOR
     // Use stl_allocator fixed-block allocator for dynamic storage allocation
     #include "extras/allocator/xstring.h"

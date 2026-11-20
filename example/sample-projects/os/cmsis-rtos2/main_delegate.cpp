@@ -92,9 +92,22 @@ static Timer* s_isrChurn = nullptr;
 static volatile uint32_t s_isrCount = 0;
 static volatile uint32_t s_isrNotInIsr = 0;           // callbacks not in an interrupt (IPSR == 0)
 static volatile uint32_t s_isrLockBad = 0;            // CheckCriticalSection() failures in the ISR
+static volatile uint32_t s_isrKeyNotZero = 0;         // current-thread key not 0 in the ISR
+static volatile uint32_t s_isrInCmsisThread = 0;      // interrupts that landed on a CMSIS-RTOS2 thread
 static std::atomic<int> s_isrOneShotFired{0};
 
 static void OnIsrOneShot() { s_isrOneShotFired++; }
+
+// Run on a dmq::os::Thread (a CMSIS-RTOS2 thread). Zephyr's main thread isn't
+// one: osThreadGetId() returns NULL there, so it can't show the key.
+static bool CurrentThreadKeySet() { return dmq::os::CmsisRtos2CurrentThreadKey() != 0; }
+
+// Keeps a CMSIS-RTOS2 thread running so the timer interrupt lands on it
+static void Spin(uint32_t ms) {
+    const uint32_t end = osKernelGetTickCount() + ms;
+    while (osKernelGetTickCount() < end) {
+    }
+}
 
 // True if dmq::CriticalSection masks interrupts (PRIMASK = 1) while held,
 // nested two deep, and puts back the caller's PRIMASK when released
@@ -118,6 +131,13 @@ static void IsrTimerCallback(void* /*argument*/) {
         s_isrNotInIsr = s_isrNotInIsr + 1;
     if (!CheckCriticalSection())
         s_isrLockBad = s_isrLockBad + 1;
+    // In an interrupt the current-thread key is 0, so ThisThread::GetCurrent()
+    // returns nullptr. osThreadGetId() here is the interrupted thread: non-NULL
+    // when that is a CMSIS-RTOS2 thread, which the key must not report.
+    if (osThreadGetId() != nullptr)
+        s_isrInCmsisThread = s_isrInCmsisThread + 1;
+    if (dmq::os::CmsisRtos2CurrentThreadKey() != 0)
+        s_isrKeyNotZero = s_isrKeyNotZero + 1;
     if (s_isrCount % ISR_REARM_EVERY == 0)
         s_isrOneShot->Start(std::chrono::milliseconds(5), true);
     if (s_isrCount % 2)
@@ -269,6 +289,12 @@ void ExecuteAllTests() {
         DMQ_ASSERT_TRUE(CheckCriticalSection());      // thread context
         printf("  -> thread context: PRIMASK set while held, restored after\n");
 
+        // A CMSIS-RTOS2 thread has a current-thread key
+        Thread busy("IsrBusy");
+        busy.CreateThread();
+        DMQ_ASSERT_TRUE(MakeDelegate(&CurrentThreadKeySet, busy, WAIT_INFINITE)());
+        printf("  -> thread context: current-thread key set\n");
+
         Timer oneShot;
         Timer churn;
         ScopedConnection conn = oneShot.OnExpired.Connect(MakeDelegate(&OnIsrOneShot));
@@ -277,12 +303,18 @@ void ExecuteAllTests() {
         s_isrCount = 0;
         s_isrNotInIsr = 0;
         s_isrLockBad = 0;
+        s_isrKeyNotZero = 0;
+        s_isrInCmsisThread = 0;
         s_isrOneShotFired = 0;
 
         // Every tick (1 ms), in the SysTick interrupt
         osTimerId_t isrTimer = osTimerNew(IsrTimerCallback, osTimerPeriodic, nullptr, nullptr);
         DMQ_ASSERT_TRUE(isrTimer != nullptr);
         DMQ_ASSERT_TRUE(osTimerStart(isrTimer, 1) == osOK);
+
+        // Keep a CMSIS-RTOS2 thread running for part of the window, so some
+        // interrupts land on it rather than on Zephyr's main thread
+        MakeDelegate(&Spin, busy)(200);
 
         // Meanwhile the same locks from thread context, contending with the ISR
         const uint32_t end = osKernelGetTickCount() + 500;
@@ -300,6 +332,7 @@ void ExecuteAllTests() {
                 osDelay(1);
         }
 
+        busy.ExitThread();
         osTimerStop(isrTimer);
         osTimerDelete(isrTimer);
         osDelay(50);    // let a last one-shot expire and fire
@@ -308,11 +341,16 @@ void ExecuteAllTests() {
 
         const uint32_t isrCount = s_isrCount;
         const int fired = s_isrOneShotFired;
-        printf("  -> %lu interrupts, %u thread-side loops, one-shot fired %d times\n",
-               static_cast<unsigned long>(isrCount), threadOps, fired);
+        printf("  -> %lu interrupts (%lu on a CMSIS-RTOS2 thread), %u thread-side loops, one-shot fired %d times\n",
+               static_cast<unsigned long>(isrCount), static_cast<unsigned long>(s_isrInCmsisThread),
+               threadOps, fired);
         DMQ_ASSERT_TRUE(isrCount >= 100);              // ~500 expected in 500 ms
         DMQ_ASSERT_TRUE(s_isrNotInIsr == 0);           // every callback ran in an interrupt
         DMQ_ASSERT_TRUE(s_isrLockBad == 0);
+        // Some interrupts landed on a CMSIS-RTOS2 thread, where osThreadGetId()
+        // is non-NULL; the current-thread key was still 0 in every one
+        DMQ_ASSERT_TRUE(s_isrInCmsisThread > 0);
+        DMQ_ASSERT_TRUE(s_isrKeyNotZero == 0);
         DMQ_ASSERT_TRUE(threadLockBad == 0);
         // Each re-arm (5 ms one-shot) normally fires before the next one, but a
         // re-arm that lands before ProcessTimers() saw the expiry restarts it

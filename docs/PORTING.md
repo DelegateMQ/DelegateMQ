@@ -31,16 +31,27 @@ The OS ports (`src/delegate-mq/port/os`), transports (`port/transport`) and seri
 
 ## Porting Checklist
 
-1. **Search for `@TODO`** — marks the port-specific decisions in the source.
+1. **Search for `@TODO`** — marks the port-specific decisions in the source:
+
+   | Where | Decision |
+   | :--- | :--- |
+   | `delegate/DelegateOpt.h` | Clock aliases; fault handling (`DMQ_ASSERTS` or exceptions); heap allocation (`DMQ_ALLOCATOR`, static pools); logging; template optimization |
+   | `delegate/IThread.h`, `ISerializer.h`, `IDispatcher.h`, `port/transport/common/ITransport.h`, `ITransportMonitor.h` | Interfaces to implement for your own thread, serializer, dispatcher or transport |
+   | `extras/util/Timer.h` | Where and when `ProcessTimers()` runs (step 6) |
+   | `extras/allocator/xallocator.cpp` | `CHECK_ALIGNMENT`: turn on while porting to check block alignment |
+   | `port/os/threadx/ThreadXThisThread.h`, `cmsis-rtos2/CmsisRtos2ThisThread.h`, `freertos/FreeRTOSThisThread.h` | Interrupt detection for `ThisThread::GetCurrent()` on cores the port doesn't detect yet ([Current Thread](#current-thread)) |
+
 2. **Implement `dmq::IThread`** — needed for **asynchronous** delegates.
-3. **Implement `dmq::transport::ITransport`** — needed for **remote** delegates or a DataBus across processes/processors. `dmq::RemoteChannel` and DataBus `Participant` send through it; `dmq::Dispatcher` already implements `dmq::IDispatcher` on top of it.
+3. **A new OS or RTOS port** (only if none of `port/os/` fits): besides the thread, a port provides `Mutex`, `RecursiveMutex`, a semaphore, a clock, the message queue its thread uses, a current-thread key ([Current Thread](#current-thread)) and `CriticalSection`. Copy the closest existing port under `port/os/<os>/` and add its `DMQ_THREAD_<OS>` selection to `DelegateOpt.h` and `Port.cmake`.
+   - `CriticalSection` must use the OS's interrupt-masking primitive, never its mutex: `Timer::Start()`/`Stop()` take it from interrupts, where an RTOS mutex can't be taken. `port/os/threadx/ThreadXCriticalSection.h` is the reference.
+4. **Implement `dmq::transport::ITransport`** — needed for **remote** delegates or a DataBus across processes/processors. `dmq::RemoteChannel` and DataBus `Participant` send through it; `dmq::Dispatcher` already implements `dmq::IDispatcher` on top of it.
    - Implement `dmq::ISerializer` only for a new serialization format, and `dmq::IDispatcher` only to bypass `ITransport`.
    - *Optional:* `dmq::util::TransportMonitor`, `RetryMonitor` and `ReliableTransport` add ACKs and retries over an unreliable transport.
    - See [Sample Projects](../example/sample-projects/README.md).
-4. **Provide a clock** — `DelegateOpt.h` selects `dmq::Clock` per port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`).
-5. **Call `dmq::util::Timer::ProcessTimers()` periodically** (main loop or a high-priority task), and `Thread::WatchdogCheckAll()` if you use [watchdogs](#watchdog-integration), feeding the MCU's [hardware watchdog](#hardware-watchdog) right after it. On an RTOS call it from a task, not an ISR (it takes OS mutexes); only bare metal (`DMQ_THREAD_NONE`) may call it from a timer ISR. For low power, a task can instead wait for `Timer::GetNextExpiry()` and call it only when a timer is due (see "Event-driven processing" in [llms.txt](../llms.txt)).
-6. **Set build options** in `CMakeLists.txt`, e.g. `DMQ_ASSERTS`, `DMQ_ALLOCATOR` (fixed-block allocator instead of `new`/`delete`), `DMQ_FORCE_OPTIMIZE_DEBUG` (smaller debug templates). To tune constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`, ...), copy `DelegateMQConfig_Template.h` into your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`; defaults are in `delegate/DelegateMQConfig_Default.h`.
-7. **Route faults** — to record a failure (a log, a core dump, the hung thread's PC) before the default handler halts, set `dmq::util::SetFaultHook()` and `dmq::os::SetWatchdogHook()` ([Capturing the Failure](#capturing-the-failure-watchdog-and-fault-hooks)). To replace the handlers entirely, define `DMQ_CUSTOM_FAULT_HANDLER` and provide `FaultHandler()` and `WatchdogHandler()`; don't edit `port/fault/Fault.cpp`.
+5. **Provide a clock** — `DelegateOpt.h` selects `dmq::Clock` per port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`).
+6. **Call `dmq::util::Timer::ProcessTimers()` periodically** (main loop or a high-priority task), and `Thread::WatchdogCheckAll()` if you use [watchdogs](#watchdog-integration), feeding the MCU's [hardware watchdog](#hardware-watchdog) right after it. On an RTOS call it from a task, not an ISR (it takes OS mutexes). Only bare metal (`DMQ_THREAD_NONE`) may call it from a timer ISR, and then: connect or disconnect a timer's `OnExpired` only while that timer is stopped (a signal's subscriber list has no lock on bare metal), keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers (more allocate inside the ISR), and keep synchronous callbacks ISR-safe; otherwise call it from the main loop (see "Bare Metal: ProcessTimers() in an ISR" in `Timer.h`). For low power, a task can instead wait for `Timer::GetNextExpiry()` and call it only when a timer is due (see "Event-driven processing" in [llms.txt](../llms.txt)).
+7. **Set build options** in `CMakeLists.txt`, e.g. `DMQ_ASSERTS`, `DMQ_ALLOCATOR` (fixed-block allocator instead of `new`/`delete`), `DMQ_FORCE_OPTIMIZE_DEBUG` (smaller debug templates). To tune constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`, ...), copy `DelegateMQConfig_Template.h` into your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`; defaults are in `delegate/DelegateMQConfig_Default.h`.
+8. **Route faults** — to record a failure (a log, a core dump, the hung thread's PC) before the default handler halts, set `dmq::util::SetFaultHook()` and `dmq::os::SetWatchdogHook()` ([Capturing the Failure](#capturing-the-failure-watchdog-and-fault-hooks)). To replace the handlers entirely, define `DMQ_CUSTOM_FAULT_HANDLER` and provide `FaultHandler()` and `WatchdogHandler()`; don't edit `port/fault/Fault.cpp`.
 
 ---
 
@@ -48,7 +59,8 @@ The OS ports (`src/delegate-mq/port/os`), transports (`port/transport`) and seri
 
 1. **Stack usage in debug builds.** At `-O0`, templates produce deep call stacks. Increase task stacks (e.g. 8 KB), build with `-O2`, or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON`.
 2. **Non-blocking transport receive.** Blocking UART calls (e.g. `HAL_UART_Receive`) starve other tasks. Use an interrupt-driven ring buffer and have the receive task wait on a semaphore. The `boards/stm32-freertos` example shows this, plus static stacks and FreeRTOS configuration.
-3. **Transport buffer sizes.** Each transport defines its own `BUFFER_SIZE` in its header (NetX UDP uses a bare literal). Some are sized to the Ethernet MTU and can't grow without fragmentation; others can be lowered to save RAM or raised for larger messages. Check the header for the current value.
+3. **From an interrupt to a thread.** An async delegate can't be invoked from an ISR: it allocates its message and takes the thread's mutex. Post through a `dmq::util::IsrDelegate` instead: `Post()` copies the arguments into a fixed ring under `CriticalSection`, and `IsrDelegates::ProcessAll()`, called from a task or the main loop, calls the target there (see `extras/util/IsrDelegate.h`).
+4. **Transport buffer sizes.** Each transport defines its own `BUFFER_SIZE` in its header (NetX UDP uses a bare literal). Some are sized to the Ethernet MTU and can't grow without fragmentation; others can be lowered to save RAM or raised for larger messages. Check the header for the current value.
 
 ---
 
@@ -563,10 +575,10 @@ Each port's `ThisThread` (`port/os/<os>/<Os>ThisThread.h`) derives its storage f
 | Port | Storage | ISR behavior |
 |---|---|---|
 | stdlib, Win32, Qt, POSIX | `ThreadLocalCurrentThread` (C++ `thread_local`) | N/A |
-| FreeRTOS | `RegistryCurrentThread`, keyed by task handle | `nullptr` on ARM Cortex-M; see TODOs below |
+| FreeRTOS | `RegistryCurrentThread`, keyed by task handle | `nullptr` on ARM Cortex-M and ESP-IDF; other cores see TODOs below |
 | ThreadX | `RegistryCurrentThread`, keyed by `tx_thread_identify()` | See TODOs below |
 | Zephyr | `RegistryCurrentThread`, keyed by `k_current_get()` | `nullptr` (`k_is_in_isr()`) |
-| CMSIS-RTOS2 | `RegistryCurrentThread`, keyed by `osThreadGetId()` | See TODOs below |
+| CMSIS-RTOS2 | `RegistryCurrentThread`, keyed by `osThreadGetId()` | `nullptr` on ARM Cortex-M (IPSR); other cores see TODOs below |
 | NuttX | `RegistryCurrentThread`, keyed by `pthread_self()` | `nullptr` (`up_interrupt_context()`) |
 | Bare metal | `NoCurrentThread` (always `nullptr`) | N/A |
 
@@ -577,5 +589,5 @@ A new RTOS port supplies a key function (nonzero and unique per thread, 0 in an 
 **Porting TODOs** (tagged `@TODO`):
 
 - **ThreadX** (`ThreadXThisThread.h`): in an ISR `tx_thread_identify()` returns the interrupted thread, so `GetCurrent()` returns its `IThread`. Return 0 from `ThreadXCurrentThreadKey()` in an ISR if you can detect it (e.g. IPSR on Cortex-M).
-- **CMSIS-RTOS2** (`CmsisRtos2ThisThread.h`): same issue. Return 0 from `CmsisRtos2CurrentThreadKey()` in an ISR (e.g. `__get_IPSR() != 0`).
-- **FreeRTOS on non-ARM** (`FreeRTOSThisThread.h`): ISR detection uses `xPortIsInsideInterrupt()` (Cortex-M only). Extend `detail::IsInsideFreeRTOSInterrupt()` in `FreeRTOSCriticalSection.h` for RISC-V, Xtensa, etc.
+- **CMSIS-RTOS2 on a core other than Cortex-M** (`CmsisRtos2ThisThread.h`): on Cortex-M the key is 0 in an ISR (`__get_IPSR() != 0`, through CMSIS-Core). On another core (e.g. Cortex-A), extend `detail::IsInsideCmsisRtos2Interrupt()` in `CmsisRtos2CriticalSection.h`.
+- **FreeRTOS on another non-ARM core** (`FreeRTOSThisThread.h`): ISR detection uses `xPortIsInsideInterrupt()` on Cortex-M and `xPortInIsrContext()` on ESP-IDF (ESP32 Xtensa and RISC-V). For another core (e.g. a non-ESP-IDF RISC-V port), extend `detail::IsInsideFreeRTOSInterrupt()` in `FreeRTOSCriticalSection.h`.
