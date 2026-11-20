@@ -14,7 +14,8 @@ namespace board {
 ///   the deviation of |acceleration| from a slowly tracking baseline, so the
 ///   board at rest reads ~0 g in any orientation and a shake or tap reads high.
 /// - Local stop: blue USER button (PA0). Held for TEST_FAULT_HOLD_MS, it
-///   forces a crash (UsageFault) to exercise the core dump.
+///   forces a crash (UsageFault) to exercise the core dump, or with
+///   -DPUMPTRON_TEST_HANG=ON hangs the Pump thread (thread watchdog).
 /// - Indicators: LD3 orange / LD4 green / LD5 red / LD6 blue.
 ///
 /// All methods run on the pump controller thread, so the polled SPI/ADC HAL

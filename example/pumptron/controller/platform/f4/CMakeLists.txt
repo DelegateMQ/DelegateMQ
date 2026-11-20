@@ -58,6 +58,13 @@ set(CMAKE_C_STANDARD 11)
 
 add_compile_definitions(STM32F407xx USE_HAL_DRIVER USE_STM32F4_DISCO)
 
+# The button test (hold the blue button 5 s) crashes with a UsageFault; ON
+# makes it hang the Pump thread instead, to test the thread watchdog's dump.
+option(PUMPTRON_TEST_HANG "Button test hangs the Pump thread instead of crashing" OFF)
+if(PUMPTRON_TEST_HANG)
+    add_compile_definitions(PUMPTRON_TEST_HANG)
+endif()
+
 # --- DelegateMQ ---
 set(DMQ_THREAD     "DMQ_THREAD_FREERTOS")
 set(DMQ_SERIALIZE  "DMQ_SERIALIZE_SERIALIZE")

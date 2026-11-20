@@ -16,7 +16,9 @@
  * has not been reported yet.
  *
  * The call stack holds return addresses of whatever was running at the time
- * of the fault (a task or an ISR), innermost first. Decode with:
+ * of the fault (a task or an ISR), innermost first. For a thread watchdog
+ * timeout it is the unresponsive thread's own, from the context FreeRTOS saved
+ * when it was switched out (CoreDump_StoreHungTask()). Decode with:
  *   arm-none-eabi-addr2line -f -C -e pumptron_f4.elf <addr> ...
  * against the image whose GNU build ID matches the dump
  * (`arm-none-eabi-readelf -n pumptron_f4.elf`).
@@ -50,6 +52,15 @@ void CoreDump_EnableFaultHandlers(void);
 /// @param aux     Source-specific code (e.g. pumptron::RtosFault), or 0.
 __attribute__((noreturn))
 void CoreDump_StoreAndReset(uint32_t source, const char* where, uint32_t line, uint32_t aux);
+
+/// Thread watchdog hook (dmq::os::SetWatchdogHook(), see main.cpp): store a
+/// WATCHDOG record from the unresponsive task's own saved context -- its
+/// registers and a scan of its own stack -- if no record is stored yet. Does
+/// not reset: WatchdogHandler() follows, finds the record and resets.
+/// @param threadName  The unresponsive DelegateMQ thread.
+/// @param task        Its FreeRTOS TaskHandle_t.
+/// @param stalledMs   How long it had not responded.
+void CoreDump_StoreHungTask(const char* threadName, void* task, uint32_t stalledMs);
 
 /// Hardware exception entry. Called only from the naked exception handlers
 /// in stm32f4xx_it.c with the stacked exception frame and EXC_RETURN.

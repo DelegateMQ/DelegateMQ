@@ -7,7 +7,9 @@
  * stores a core dump (CoreDump.h) and resets immediately:
  *
  *   - DMQ_ASSERT / BAD_ALLOC   : source file and line
- *   - thread watchdog expired  : name of the thread that stopped responding
+ *   - thread watchdog expired  : name of the thread that stopped responding,
+ *                                and its own registers and call stack, stored
+ *                                first by the watchdog hook (main.cpp)
  *
  * After the reboot the red LED blinks during startup to show that a crash was
  * detected, and the dump is sent to the GUI.
@@ -37,8 +39,10 @@ extern "C" DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
 
 extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
 {
-    // The dump's call stack is the watchdog checker's (the Startup task), not
-    // the stuck thread's; `where` names the stuck thread.
+    // The watchdog hook (OnHungThread() in main.cpp) has already stored the
+    // stuck thread's own context; the first record wins, so this only resets.
+    // Without the hook, the record would hold the checker's (Startup task's)
+    // call stack instead.
     CoreDump_StoreAndReset(CORE_DUMP_SRC_WATCHDOG, threadName, 0, 0);
 }
 

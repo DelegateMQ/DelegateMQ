@@ -245,8 +245,12 @@ uint32_t NextCrashSeq()
     return ++c.count;
 }
 
+/// @param frame     Exception frame (R0-R3, R12, LR, PC, xPSR), or nullptr to
+///                  capture the current stack.
+/// @param context   Name of the context the frame belongs to, or nullptr for
+///                  what was running at the time.
 void Store(uint32_t source, const char* where, uint32_t line, uint32_t aux,
-           const uint32_t* frame, uint32_t excReturn)
+           const uint32_t* frame, uint32_t excReturn, const char* context = nullptr)
 {
     // First fault wins: never overwrite a record that has not been reported.
     if (IsValid(s_record))
@@ -266,13 +270,18 @@ void Store(uint32_t source, const char* where, uint32_t line, uint32_t aux,
         // Hardware exception: the CPU stacked R0-R3, R12, LR, PC, xPSR.
         for (uint32_t i = 0; i < CoreDumpMsg::REG_COUNT; ++i)
             r.regs[i] = frame[i];
-        r.faultRegs[CoreDumpMsg::CFSR]  = SCB->CFSR;
-        r.faultRegs[CoreDumpMsg::HFSR]  = SCB->HFSR;
-        r.faultRegs[CoreDumpMsg::MMFAR] = SCB->MMFAR;
-        r.faultRegs[CoreDumpMsg::BFAR]  = SCB->BFAR;
+        if (source == CORE_DUMP_SRC_HARD_FAULT) {
+            r.faultRegs[CoreDumpMsg::CFSR]  = SCB->CFSR;
+            r.faultRegs[CoreDumpMsg::HFSR]  = SCB->HFSR;
+            r.faultRegs[CoreDumpMsg::MMFAR] = SCB->MMFAR;
+            r.faultRegs[CoreDumpMsg::BFAR]  = SCB->BFAR;
+        }
 
         const uint32_t xpsr = frame[CoreDumpMsg::XPSR];
-        CopyActiveContext(r.task, sizeof(r.task), xpsr & 0x1FFu, (excReturn & 0x4u) != 0);
+        if (context)
+            CopyString(r.task, sizeof(r.task), context);
+        else
+            CopyActiveContext(r.task, sizeof(r.task), xpsr & 0x1FFu, (excReturn & 0x4u) != 0);
 
         // The faulting instruction and its caller come first, then the stack
         // above the exception frame: 8 words, or 26 with FPU state
@@ -318,6 +327,39 @@ extern "C" void CoreDump_StoreAndReset(uint32_t source, const char* where, uint3
     ItmWrite(" ***\r\n");
     Store(source, where, line, aux, nullptr, 0);
     Reset();
+}
+
+extern "C" void CoreDump_StoreHungTask(const char* threadName, void* task, uint32_t stalledMs)
+{
+    // Runs in the watchdog checker task (the Startup task), so the current
+    // stack is the checker's. Read the unresponsive task's instead: it is not
+    // running (the checker has the highest priority), so its context is the one
+    // PendSV saved when it was last switched out. FreeRTOS GCC/ARM_CM4F:
+    // pxTopOfStack, the TCB's first member, points at r4-r11 and EXC_RETURN,
+    // then s16-s31 if EXC_RETURN bit 4 is clear, then the hardware frame
+    // (r0-r3, r12, LR, PC, xPSR, plus FP words).
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    const uint32_t* frame = nullptr;
+    uint32_t excReturn = 0;
+    // The running task's saved context is stale (from its last switch-out), so
+    // for it -- if a watched thread ever ran the check on itself -- capture the
+    // live stack instead (frame = nullptr).
+    const uint32_t* const* tcb = static_cast<const uint32_t* const*>(task);
+    if (tcb && task != xTaskGetCurrentTaskHandle() &&
+        IsRamRange(reinterpret_cast<const uint32_t*>(tcb), 1)) {
+        const uint32_t* top = *tcb;
+        if (IsRamRange(top, 9)) {
+            excReturn = top[8];
+            frame = top + 9 + ((excReturn & 0x10u) ? 0u : 16u);
+            if (!IsRamRange(frame, 8))
+                frame = nullptr;
+        }
+    }
+    Store(CORE_DUMP_SRC_WATCHDOG, threadName, 0, stalledMs, frame, excReturn,
+          frame ? pcTaskGetName(static_cast<TaskHandle_t>(task)) : nullptr);
+    if (primask == 0)
+        __enable_irq();
 }
 
 extern "C" void CoreDump_FaultEntry(uint32_t* frame, uint32_t excReturn)

@@ -124,9 +124,16 @@ float F4Board::ReadVibrationG()
 
 /// Deliberate crash for testing the core dump: executes an undefined
 /// instruction -> UsageFault. Not inlined, so it shows in the call stack.
+/// Built with -DPUMPTRON_TEST_HANG=ON, it hangs the Pump thread instead, so its
+/// thread watchdog expires and the dump shows where the thread was stuck.
 [[noreturn]] __attribute__((noinline)) static void TriggerTestFault()
 {
+#if defined(PUMPTRON_TEST_HANG)
+    for (;;)
+        __asm volatile("nop");
+#else
     __builtin_trap();
+#endif
 }
 
 bool F4Board::IsLocalStopPressed()
