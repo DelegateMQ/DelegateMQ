@@ -1024,7 +1024,7 @@ static void Watchdog_RecreatedWithoutTimeoutNotReported()
 // The watchdog hook (dmq::os::SetWatchdogHook()). A real expiry ends the process
 // in WatchdogHandler(), so these check the hook isn't called for live threads,
 // and what WatchdogCheckAll()'s report passes it. os/freertos-bare-metal's
-// Test 14 checks a real expiry: two hung threads, both reported, then the fault.
+// Test 15 checks a real expiry: two hung threads, both reported, then the fault.
 static std::atomic<int> s_watchdogHookCalls{0};
 static const Thread* s_watchdogHookThread = nullptr;
 static std::string s_watchdogHookName;

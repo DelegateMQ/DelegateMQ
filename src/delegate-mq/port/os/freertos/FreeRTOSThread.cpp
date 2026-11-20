@@ -235,6 +235,8 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
         } else {
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
 
             if (msg) {
                 // Block until message is sent. This ensures the thread WILL receive it.
@@ -303,10 +305,8 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // If using XALLOCATOR explicit operator new required. See xallocator.h.
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
 
-    if (threadMsg == nullptr) {
-        printf("[Thread] CRITICAL: 'new ThreadMsg' returned NULL! System Heap full? (%s)\n", THREAD_NAME.c_str());
-        return false;
-    }
+    if (threadMsg == nullptr)
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif

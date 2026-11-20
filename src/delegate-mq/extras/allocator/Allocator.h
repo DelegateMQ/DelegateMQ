@@ -39,6 +39,13 @@ public:
     /// @return     Returns pointer to the block. Otherwise NULL if unsuccessful.
     void* Allocate(size_t size);
 
+    /// Get a block without faulting or using the heap: a free block, else an
+    /// unused pool block. For xmalloc()'s static pools, which report a full
+    /// pool by returning NULL (an extern "C" function must not throw).
+    /// @return     A block, or NULL if the pool is full (or this allocator has
+    ///             no pool and no free block).
+    void* TryAllocate();
+
     /// Return a pointer to the memory pool.
     /// @param[in]  pBlock - block of memory deallocate (i.e push onto free-list)
     void Deallocate(void* pBlock);

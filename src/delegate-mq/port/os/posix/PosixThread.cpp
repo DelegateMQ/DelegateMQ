@@ -7,6 +7,7 @@
 #include "PosixThread.h"
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
+#include <new>
 #include <cerrno>
 #include <iostream>
 
@@ -671,7 +672,9 @@ PosixThread*& PosixThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& PosixThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

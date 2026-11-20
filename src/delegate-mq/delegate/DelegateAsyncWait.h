@@ -174,9 +174,9 @@ namespace detail {
 /// result in or out. Intentionally never destroyed (same as `Timer::GetLock()`), so a
 /// delegate destroyed during static destruction can still use it.
 inline RecursiveMutex& AsyncWaitResultLock() {
-    static RecursiveMutex* lock = new(std::nothrow) RecursiveMutex();
-    if (!lock)
-        BAD_ALLOC();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(RecursiveMutex) static char storage[sizeof(RecursiveMutex)];
+    static RecursiveMutex* lock = new (storage) RecursiveMutex();
     return *lock;
 }
 

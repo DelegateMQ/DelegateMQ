@@ -172,9 +172,9 @@ private:
 
     static dmq::RecursiveMutex& GetListLock()
     {
-        static dmq::RecursiveMutex* lock = new(std::nothrow) dmq::RecursiveMutex();
-        if (!lock)
-            BAD_ALLOC();
+        // Static storage, not the heap: constructed on first use, never destroyed
+        alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+        static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
         return *lock;
     }
 

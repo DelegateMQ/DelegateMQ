@@ -76,6 +76,16 @@
 /// never interfere with normal desktop bursts.
 #define DMQ_THREAD_DESKTOP_QUEUE_SIZE   1000
 
+/// DMQ_ALLOCATOR: static pools instead of heap blocks. Every block comes from
+/// static memory and the heap is never used; a full pool faults. Set the
+/// number of blocks of each size (header included, a power of two; 0 = none).
+/// Get the numbers from xalloc_print_pool_config() after running the
+/// application under its heaviest load, and add headroom.
+// #define DMQ_XALLOCATOR_STATIC_POOLS
+// #define DMQ_XALLOC_POOL_32     16
+// #define DMQ_XALLOC_POOL_64     8
+// #define DMQ_XALLOC_POOL_128    4
+
 /// Max number of threads that can be registered with the watchdog.
 #define DMQ_MAX_WATCHDOG_THREADS        16
 

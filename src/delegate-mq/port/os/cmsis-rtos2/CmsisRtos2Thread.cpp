@@ -232,6 +232,8 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
             if (msg)
             {
                 // Send pointer, wait forever to ensure it gets in.
@@ -303,7 +305,8 @@ bool CmsisRtos2Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
-    if (!threadMsg) return false;
+    if (!threadMsg)
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -427,7 +430,9 @@ CmsisRtos2Thread*& CmsisRtos2Thread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& CmsisRtos2Thread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

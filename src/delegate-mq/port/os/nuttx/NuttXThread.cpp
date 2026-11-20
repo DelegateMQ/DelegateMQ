@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring> // for memset
 #include <cassert>
+#include <new>
 
 // Define DMQ_ASSERT_TRUE if not already defined
 #ifndef DMQ_ASSERT_TRUE
@@ -216,6 +217,8 @@ void NuttXThread::ExitThread(ExitPolicy policy)
         {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
             if (msg)
             {
                 // Wait forever to ensure message is sent
@@ -316,7 +319,8 @@ bool NuttXThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
-    if (!threadMsg) return false;
+    if (!threadMsg)
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -440,7 +444,9 @@ NuttXThread*& NuttXThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& NuttXThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

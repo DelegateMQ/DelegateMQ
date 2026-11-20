@@ -40,8 +40,14 @@ else()
 endif()
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${DELEGATE_APP})
 
-# Set build options
-set(DMQ_ALLOCATOR "OFF")
+# Set build options. The Cortex-M targets use the fixed-block allocator, in
+# static pools (targets/<name>/target.cmake): Test 14 checks that nothing uses
+# the heap once the system is running.
+if(BM_TARGET)
+    set(DMQ_ALLOCATOR "ON")
+else()
+    set(DMQ_ALLOCATOR "OFF")
+endif()
 set(DMQ_UTIL "ON")
 set(DMQ_THREAD "DMQ_THREAD_FREERTOS")
 set(DMQ_SERIALIZE "DMQ_SERIALIZE_NONE")

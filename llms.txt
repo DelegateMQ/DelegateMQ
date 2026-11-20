@@ -218,7 +218,7 @@ Defaults live in `delegate/DelegateMQConfig_Default.h`; override them in your ow
 
 For applications running on MCUs with limited RAM (e.g., 64KB–512KB), follow these guidelines to ensure deterministic performance and prevent heap exhaustion:
 
-1. **Enable `DMQ_ALLOCATOR`**: This is the most critical step. It replaces the standard `malloc`/`free` with DelegateMQ's fixed-block allocator for all internal library structures (DataBus topics, connections, async messages). This eliminates fragmentation and makes memory usage predictable.
+1. **Enable `DMQ_ALLOCATOR`**: This is the most critical step. It replaces the standard `malloc`/`free` with DelegateMQ's fixed-block allocator for all internal library structures (DataBus topics, connections, async messages). This eliminates fragmentation and makes memory usage predictable. To use no heap at all once running, add `DMQ_XALLOCATOR_STATIC_POOLS` with a block count per size (`DMQ_XALLOC_POOL_<size>`), sized from `xalloc_print_pool_config()` after a run under the heaviest load, plus headroom; a full pool faults. Allocations outside the allocator (a large lambda capture in `std::function`, application code) still use the heap: check with a wrapped `malloc` (see "No Heap After Startup" in `docs/SAFETY.md`).
 2. **Prefer Class Member Delegates**: Use `dmq::MakeDelegate(this, &Class::Method)` instead of capturing lambdas for internal plumbing or long-lived connections. Member function delegates are fixed-size and never allocate, whereas a lambda is stored in a `std::function` and a large capture can silently exceed its small-buffer optimization and allocate.
 3. **Be Mindful of Async Arguments**: When using `DelegateAsync`, every argument is copied: by-value arguments into the message, the data behind reference and pointer arguments to the heap. 
     - **Avoid**: Passing large structs or strings by value.
@@ -367,7 +367,7 @@ void MyClass::LongHandler() {
 
 ### Capturing the failure (hooks)
 
-DelegateMQ captures nothing itself, but calls the application's hooks on the way down: `dmq::os::SetWatchdogHook()` for each hung thread (all of them, then one fault) and `dmq::util::SetFaultHook()` for `DMQ_ASSERT` faults. The watchdog hook runs in the checker task, not the hung thread: read the hung thread's saved context through `info.thread.GetThreadId()` (the OS handle), e.g. its saved PC on FreeRTOS Cortex-M (`os/freertos-bare-metal` Test 14). Hooks record only (`.noinit` RAM, flash, core dump): no allocation, locks, delegates or DataBus, no thread creation or waits (the watchdog list lock is held), and finish before a hardware watchdog fires. Details: "Capturing the Failure" in `docs/PORTING.md`.
+DelegateMQ captures nothing itself, but calls the application's hooks on the way down: `dmq::os::SetWatchdogHook()` for each hung thread (all of them, then one fault) and `dmq::util::SetFaultHook()` for `DMQ_ASSERT` faults. The watchdog hook runs in the checker task, not the hung thread: read the hung thread's saved context through `info.thread.GetThreadId()` (the OS handle), e.g. its saved PC on FreeRTOS Cortex-M (`os/freertos-bare-metal` Test 15). Hooks record only (`.noinit` RAM, flash, core dump): no allocation, locks, delegates or DataBus, no thread creation or waits (the watchdog list lock is held), and finish before a hardware watchdog fires. Details: "Capturing the Failure" in `docs/PORTING.md`.
 
 ### Priority requirement
 

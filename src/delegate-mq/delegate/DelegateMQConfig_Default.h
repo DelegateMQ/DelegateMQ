@@ -154,6 +154,44 @@
     #define DMQ_XALLOCATOR_MAX_ALLOCATORS   15
 #endif
 
+// Static pools (DMQ_ALLOCATOR with DMQ_XALLOCATOR_STATIC_POOLS defined): blocks of
+// each size (header included, a power of two) in static memory; the heap is never
+// used. 0: no pool for that size, and an allocation of it faults. Size them with
+// xalloc_print_pool_config() after running under the heaviest load.
+#ifndef DMQ_XALLOC_POOL_16
+    #define DMQ_XALLOC_POOL_16     0
+#endif
+#ifndef DMQ_XALLOC_POOL_32
+    #define DMQ_XALLOC_POOL_32     0
+#endif
+#ifndef DMQ_XALLOC_POOL_64
+    #define DMQ_XALLOC_POOL_64     0
+#endif
+#ifndef DMQ_XALLOC_POOL_128
+    #define DMQ_XALLOC_POOL_128    0
+#endif
+#ifndef DMQ_XALLOC_POOL_256
+    #define DMQ_XALLOC_POOL_256    0
+#endif
+#ifndef DMQ_XALLOC_POOL_512
+    #define DMQ_XALLOC_POOL_512    0
+#endif
+#ifndef DMQ_XALLOC_POOL_1024
+    #define DMQ_XALLOC_POOL_1024   0
+#endif
+#ifndef DMQ_XALLOC_POOL_2048
+    #define DMQ_XALLOC_POOL_2048   0
+#endif
+#ifndef DMQ_XALLOC_POOL_4096
+    #define DMQ_XALLOC_POOL_4096   0
+#endif
+#ifndef DMQ_XALLOC_POOL_8192
+    #define DMQ_XALLOC_POOL_8192   0
+#endif
+#ifndef DMQ_XALLOC_POOL_16384
+    #define DMQ_XALLOC_POOL_16384  0
+#endif
+
 // Default max remote peers per NetworkNode instance (fixed allocation).
 // Override per-instantiation via NetworkNode's MaxPeers template parameter.
 #ifndef DMQ_NETWORK_NODE_MAX_PEERS

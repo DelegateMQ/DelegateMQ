@@ -49,6 +49,7 @@
 #include <string>
 #include <memory>
 #include <atomic>
+#include <new>
 #include <optional>
 
 namespace dmq::os {
@@ -253,7 +254,9 @@ private:
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock()
     {
-        static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+        // Static storage, not the heap: constructed on first use, never destroyed
+        alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+        static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
         return *lock;
     }
 

@@ -10,6 +10,7 @@
 #include "Win32Thread.h"
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
+#include <new>
 #include <iostream>
 
 namespace dmq::os {
@@ -600,7 +601,9 @@ Win32Thread*& Win32Thread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& Win32Thread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

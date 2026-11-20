@@ -121,9 +121,10 @@ namespace detail {
     /// DelegateFunction::Equal()). A critical section, not std::atomic, so it
     /// also builds where atomic read-modify-write needs libatomic (Cortex-M0).
     inline uint32_t NextFunctionBindId() {
-        static dmq::CriticalSection* lock = new(std::nothrow) dmq::CriticalSection();
+        // Static storage, not the heap: constructed on first use, never destroyed
+        alignas(dmq::CriticalSection) static char storage[sizeof(dmq::CriticalSection)];
+        static dmq::CriticalSection* lock = new (storage) dmq::CriticalSection();
         static uint32_t next = 0;
-        DMQ_ASSERT_TRUE(lock != nullptr);
         dmq::LockGuard<dmq::CriticalSection> guard(*lock);
         if (++next == 0)
             ++next;     // 0 means empty

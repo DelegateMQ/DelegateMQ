@@ -13,6 +13,7 @@ This document is an informational self-assessment — a snapshot of how the libr
 - [What's Already Handled Well](#whats-already-handled-well)
 - [Areas of Concern](#areas-of-concern)
   - [RTTI Is Optional (`DMQ_NO_RTTI`)](#rtti-is-optional-dmq_no_rtti)
+  - [No Heap After Startup (Static Pools)](#no-heap-after-startup-static-pools)
   - [C-Style Casts](#c-style-casts)
   - [Dynamic Memory Details](#dynamic-memory-details)
   - [Global State](#global-state)
@@ -64,6 +65,27 @@ A type ID is the address of a static variable that exists once per type (`TypeId
 
 **Measured** (`-Os`, `--gc-sections`): bare metal on a Cortex-M4, 29,780 → 28,108 bytes of code (−5.6%); FreeRTOS on a Cortex-M3 with async delegates, 211,748 → 209,364 bytes (−1.1%). Tested: the whole unit-test app with RTTI off (CI: GCC and MSVC), and `bare-metal/qemu`'s Cortex-M0 target, which builds with `-fno-rtti`.
 
+### No Heap After Startup (Static Pools)
+
+Many safety standards and coding rules (MISRA C++, DO-178C and IEC 61508 practice) forbid dynamic allocation once the system is running: everything is allocated during startup, so a long-running system can't fragment or exhaust the heap. DelegateMQ supports this with its fixed-block allocator in static pools.
+
+**Workflow:**
+1. Build with `DMQ_ALLOCATOR`. By default the pools grow on demand from the heap and never shrink (heap-blocks mode): convenient for development.
+2. Run the application under its heaviest load: stress tests, error and reconnect paths, the longest bursts. Then call `xalloc_print_pool_config()`. It prints, for each block size used, the most blocks in use at once, as config lines:
+   ```
+   #define DMQ_XALLOCATOR_STATIC_POOLS
+   #define DMQ_XALLOC_POOL_32     37
+   #define DMQ_XALLOC_POOL_64     7
+   ```
+3. Add headroom and put the lines in `DelegateMQConfig.h`. Every DelegateMQ block now comes from static memory (visible in the linker map); the heap is never used. A size set to 0 takes no memory. A full pool, or a size with no pool, faults through `BAD_ALLOC()`, so an undersized pool fails loudly rather than corrupting memory (the [fault hook](PORTING.md#capturing-the-failure-watchdog-and-fault-hooks) can record it).
+4. For a certification argument, the peak can also be bounded by calculation rather than only measured: with a bounded queue (`maxQueueSize`, `FullPolicy`), each thread holds at most that many messages in flight, each a fixed number of blocks.
+
+**What static pools don't cover:** allocations that don't go through DelegateMQ's allocator. A lambda whose captures exceed `std::function`'s small inline buffer allocates from the global heap (member-function delegates never do), and so does any application or third-party code. Check it rather than assume it: link with `-Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc`, count the calls in the wrappers (C++ `new` calls `malloc`), and check the count doesn't change once the system runs. `os/freertos-bare-metal` (`targets/arm-m3/main.c`, Test 14) does exactly that.
+
+**Verified:** `os/freertos-bare-metal` on a Cortex-M3 (QEMU) runs all its tests with static pools: 8 × 16 B, 48 × 32 B, 12 × 64 B, 4 × 128 B and 2 × 512 B blocks, 3,968 bytes. In its Test 14, async calls, signal emits, async-wait calls, `IsrDelegate` posts and timer ticks make zero heap calls. That check found one: `AsyncWaitResultLock()` created its mutex with `new` on the first async-wait call. The library's immortal locks are now all constructed in static storage instead.
+
+Startup still allocates: OS objects (thread stacks and queues, through the RTOS's own allocator), DataBus registrations, and the delegates the application creates. That's the "allocate during startup" part of the rule.
+
 ### C-Style Casts
 
 MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whether any individual instance is actually unsafe, because the compiler can't distinguish an intended `static_cast` from an intended `reinterpret_cast` at the call site. This codebase uses them in two places worth flagging:
@@ -75,8 +97,8 @@ MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whe
 
 ### Dynamic Memory Details
 
-- Two heap allocations are deliberately never freed, to dodge static-initialization/destruction-order undefined behavior for process-lifetime singletons (`extras/util/Timer.h`, `extras/allocator/xallocator.cpp`) — both are commented as intentional, not leaks.
-- `xallocator`'s default configuration backs its fixed-block pools with a one-time `new char[]` (`HEAP_POOL` mode), even though the underlying `Allocator` class already supports a fully static `STATIC_POOL` mode fed by caller-provided memory (`extras/allocator/Allocator.cpp`). A genuinely zero-heap build is possible with this library, but it isn't the default path.
+- The library's process-lifetime locks (`Timer.h`, `xallocator.cpp`, `DelegateAsyncWait.h`, `IsrDelegate.h` and the RTOS thread ports' watchdog registries) are deliberately never destroyed, to avoid static destruction-order undefined behavior. They are constructed in static storage on first use, not with `new`, so they use no heap.
+- `xallocator`'s default configuration takes its fixed blocks from the heap as needed and recycles them (heap-blocks mode). `DMQ_XALLOCATOR_STATIC_POOLS` takes every block from static memory instead; see [No Heap After Startup](#no-heap-after-startup-static-pools).
 - Placement-new followed by a manual destructor call appears in the allocator internals and in `DataBus`'s last-value-cache in-place reconstruction (`extras/databus/DataBus.h`) — the latter's exception-safety was reviewed earlier in this project's own development history and has explicit handling for a throwing move/copy constructor.
 
 ### Global State
@@ -94,8 +116,8 @@ MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whe
 | Casts | C-style casts in in-scope embedded ports | Moderate | `ZephyrDelegateQueue.h`, `ZephyrThread.cpp`, `NetXUdpTransport.h` |
 | Casts | `reinterpret_cast` used sparingly, only where warranted | Positive | 11 files |
 | Dynamic memory | Allocator gating verified correct via inheritance | Positive | `Delegate.h`, `Signal.h`, `TimerDelegate.h` |
-| Dynamic memory | Two intentional "immortal singleton" allocations | Minor | `Timer.h`, `xallocator.cpp` |
-| Dynamic memory | Default pool mode uses heap `new[]` despite a static-pool alternative existing | Moderate | `Allocator.cpp`, `xallocator.cpp` |
+| Dynamic memory | Immortal locks constructed in static storage, no heap | Positive | `Timer.h`, `xallocator.cpp`, `DelegateAsyncWait.h`, RTOS ports |
+| Dynamic memory | Static pools (`DMQ_XALLOCATOR_STATIC_POOLS`): no heap after startup, verified by counting heap calls | Positive | `xallocator.cpp` |
 | Global state | Singleton `DataBus`, but consistently mutex-guarded | Minor | `DataBus.h` |
 | Banned CRT | None found (`sprintf`/`strcpy`/`strcat`/`atoi`/`gets`/`rand`) | Positive | library-wide |
 | UB-prone patterns | Placement-new + manual destructor, confined and reviewed | Minor | allocator internals, `DataBus.h` |
@@ -109,5 +131,5 @@ MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whe
 
 - If your target requires `-fno-rtti`, DelegateMQ builds that way (`DMQ_NO_RTTI`, automatic). See [RTTI Is Optional](#rtti-is-optional-dmq_no_rtti) for the one behavior difference.
 - If your certification process requires every cast to be typed as to intent (no C-style casts), the allocator core and the Zephyr/NetX embedded ports are where that work would concentrate.
-- If your build must be provably zero-heap, use `Allocator`'s `STATIC_POOL` mode with caller-provided memory rather than the default `HEAP_POOL` configuration. For `xallocator`, define `STATIC_POOLS` in `extras/allocator/xallocator.cpp` and size its pools there.
+- If your build must not use the heap once running, build with `DMQ_ALLOCATOR` and `DMQ_XALLOCATOR_STATIC_POOLS`, size the pools from `xalloc_print_pool_config()`, and check the rest of the program with a wrapped `malloc`. See [No Heap After Startup](#no-heap-after-startup-static-pools).
 - None of the above are defects in the ordinary correctness sense — see [Test coverage is extensive](#whats-already-handled-well) above, plus the sample-project builds referenced throughout `CLAUDE.md`: this code is exercised and it works. These are gaps specifically against *safety-standard style conventions*, which are a stricter and different bar than "does it work."

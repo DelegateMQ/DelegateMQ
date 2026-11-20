@@ -15,8 +15,23 @@ target_sources(${DELEGATE_APP} PRIVATE
 )
 target_compile_definitions(${DELEGATE_APP} PRIVATE BSP_TARGET DMQ_CUSTOM_FAULT_HANDLER)
 
+# DMQ_ALLOCATOR (CMakeLists.txt) in static pools: every DelegateMQ block comes
+# from static memory, none from the heap. The counts are Test 14's
+# xalloc_print_pool_config() peaks for the whole run, plus headroom.
+target_compile_definitions(${DELEGATE_APP} PRIVATE
+    DMQ_XALLOCATOR_STATIC_POOLS
+    DMQ_XALLOC_POOL_16=8        # peak 4
+    DMQ_XALLOC_POOL_32=48       # peak 37
+    DMQ_XALLOC_POOL_64=12       # peak 7
+    DMQ_XALLOC_POOL_128=4       # peak 1
+    DMQ_XALLOC_POOL_512=2       # peak 1
+)
+
+# Every call to malloc, calloc or realloc -- C++ new included -- goes through
+# main.c's counting wrappers (BspHeapCallCount()), for Test 14.
 target_link_options(${DELEGATE_APP} PRIVATE
     "-T${BARE_METAL_DIR}/arm-m4/flash.ld"
     "-Wl,-Map=${CMAKE_BINARY_DIR}/output.map"
+    "-Wl,--wrap=malloc" "-Wl,--wrap=calloc" "-Wl,--wrap=realloc"
 )
 target_link_libraries(${DELEGATE_APP} PRIVATE c gcc nosys)

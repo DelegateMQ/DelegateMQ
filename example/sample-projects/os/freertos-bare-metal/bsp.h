@@ -11,6 +11,7 @@
 
 #if defined(BSP_TARGET)
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -31,7 +32,13 @@ void BspStopTimerIsr(void);
 /// semihosting this ends QEMU with the same status.
 void BspExit(int status) __attribute__((noreturn));
 
-/// Set by a test that expects a watchdog expiry (Test 14): the target's
+/// Calls to malloc, calloc and realloc (C++ new included) since startup.
+uint32_t BspHeapCallCount(void);
+
+/// The return address and size of the last heap call, to find what allocated.
+void* BspHeapLastCaller(size_t* size);
+
+/// Set by a test that expects a watchdog expiry (Test 15): the target's
 /// WatchdogHandler() calls it instead of failing the run. It checks the
 /// result and ends the run itself.
 extern void (*BspWatchdogExpected)(const char* threadName);

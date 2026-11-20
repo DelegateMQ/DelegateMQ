@@ -50,7 +50,7 @@ The RTOS and bare-metal samples run on a desktop (POSIX/Win32 simulators, `nativ
 - Pick one OS port (`DMQ_THREAD_*`), and a serializer and transport only if you go remote. Third-party ports need `DMQ_DEPS_DIR`.
 - Use the same options in every file. Keep them in `DelegateMQConfig.h` or project-wide `-D` flags.
 - RTTI is optional (`-fno-rtti` defines `DMQ_NO_RTTI`), but every file that includes DelegateMQ must use the same setting: the two builds lay out classes differently. Without RTTI, a delegate made from a `std::function` object equals only its own copies; keep it to remove it.
-- On RTOS and bare metal, set `DMQ_ALLOCATOR` and `DMQ_ASSERTS`, and build with `-Os`/`-O2` or `DMQ_FORCE_OPTIMIZE_DEBUG` (unoptimized templates use a lot of stack and flash).
+- On RTOS and bare metal, set `DMQ_ALLOCATOR` and `DMQ_ASSERTS`, and build with `-Os`/`-O2` or `DMQ_FORCE_OPTIMIZE_DEBUG` (unoptimized templates use a lot of stack and flash). If nothing may use the heap once running, add static pools (`DMQ_XALLOCATOR_STATIC_POOLS`); see [No Heap After Startup](SAFETY.md#no-heap-after-startup-static-pools).
 
 Details: [BUILD](BUILD.md).
 

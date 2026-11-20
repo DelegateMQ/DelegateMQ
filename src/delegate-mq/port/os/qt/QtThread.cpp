@@ -7,6 +7,7 @@
 #include "QtThread.h"
 #include <QCoreApplication>
 #include "extras/util/Fault.h"
+#include <new>
 #include <QDebug>
 #include <limits>
 
@@ -366,7 +367,9 @@ QtThread*& QtThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& QtThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

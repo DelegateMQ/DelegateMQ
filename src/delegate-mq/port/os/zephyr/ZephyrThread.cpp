@@ -9,6 +9,7 @@
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
+#include <new>
 #include <cstring> // for memset
 
 // Define DMQ_ASSERT_TRUE if not already defined
@@ -230,6 +231,8 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
             if (msg)
             {
                 // Wait forever to ensure message is sent
@@ -337,7 +340,8 @@ bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
-    if (!threadMsg) return false;
+    if (!threadMsg)
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -464,7 +468,9 @@ ZephyrThread*& ZephyrThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& ZephyrThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

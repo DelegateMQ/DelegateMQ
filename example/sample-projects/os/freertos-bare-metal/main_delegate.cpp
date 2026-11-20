@@ -164,7 +164,17 @@ static void OnIsrPost(uint32_t seq, bool fromIsr) {
     s_isrPostReceived = s_isrPostReceived + 1;
 }
 
-// Test 14: the watchdog hook (dmq::os::SetWatchdogHook()). Two threads hang:
+// Test 14: no heap once running. The target builds with DMQ_ALLOCATOR in static
+// pools (target.cmake) and counts every malloc/calloc/realloc (main.c). After
+// startup, async calls, signal emits, async-wait calls, timer ticks and ISR
+// posts must not change the count. The targets below run on a worker thread.
+static std::atomic<uint32_t> s_noHeapCalls{0};
+static std::atomic<uint32_t> s_noHeapSum{0};
+static void NoHeapTarget(int value) { s_noHeapCalls++; s_noHeapSum += static_cast<uint32_t>(value); }
+static int NoHeapSquare(int value) { return value * value; }
+static void NoHeapTick() { s_noHeapCalls++; }
+
+// Test 15: the watchdog hook (dmq::os::SetWatchdogHook()). Two threads hang:
 // one blocked forever on a semaphore (as in a deadlock), one spinning in
 // SpinForever(). A checker task calls Thread::WatchdogCheckAll(). The hook
 // records each hung thread and the program counter FreeRTOS saved for it, which
@@ -649,8 +659,69 @@ void ExecuteAllTests() {
     }
 
 #if defined(BSP_TARGET)
-    // --- TEST 14: Watchdog hook (last: a watchdog expiry ends the run) ---
-    printf("\n[Test 14] Watchdog hook: two hung threads reported, then one fault:\n");
+    // --- TEST 14: No heap once the system is running ---
+    printf("\n[Test 14] Steady state uses no heap (static pools, heap calls counted):\n");
+    {
+        // Startup: may allocate (thread, connections, timer)
+        Thread worker("NoHeapWorker");
+        DMQ_ASSERT_TRUE(worker.CreateThread());
+        auto async = MakeDelegate(&NoHeapTarget, worker);
+        auto asyncWait = MakeDelegate(&NoHeapSquare, worker, WAIT_INFINITE);
+        Signal<void(int)> signal;
+        ScopedConnection conn = signal.Connect(MakeDelegate(&NoHeapTarget, worker));
+        Timer timer;
+        ScopedConnection timerConn = timer.OnExpired.Connect(MakeTimerDelegate(&NoHeapTick, worker));
+        IsrDelegate<void(int)> isrPost(MakeDelegate(&NoHeapTarget, worker));
+        s_noHeapCalls = 0;
+        s_noHeapSum = 0;
+
+        // Running: nothing below may call the heap
+        const uint32_t heapBefore = BspHeapCallCount();
+        timer.Start(std::chrono::milliseconds(10));
+        uint32_t expectSum = 0;
+        int waitOk = 0;
+        for (int i = 1; i <= 500; i++) {
+            async(i);
+            signal(i);
+            expectSum += 2u * static_cast<uint32_t>(i);
+            if (i % 5 == 0) {
+                if (isrPost.Post(i))
+                    expectSum += static_cast<uint32_t>(i);
+                IsrDelegates::ProcessAll();
+            }
+            if (i % 10 == 0) {
+                auto ret = asyncWait.AsyncInvoke(i);
+                if (ret.has_value() && ret.value() == i * i)
+                    waitOk++;
+            }
+            if (i % 50 == 0)
+                vTaskDelay(pdMS_TO_TICKS(20));      // let the worker and the timer run
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+        timer.Stop();
+        vTaskDelay(pdMS_TO_TICKS(50));
+        const uint32_t heapCalls = BspHeapCallCount() - heapBefore;
+
+        printf("  -> %lu calls ran on the worker (async, signal, ISR posts, timer ticks), %d async-wait results\n",
+               static_cast<unsigned long>(s_noHeapCalls.load()), waitOk);
+        printf("  -> heap calls while running: %lu\n", static_cast<unsigned long>(heapCalls));
+        if (heapCalls != 0) {
+            size_t size = 0;
+            void* caller = BspHeapLastCaller(&size);
+            printf("  -> last one: %lu bytes, called from %p (arm-none-eabi-addr2line -f -e delegate_app)\n",
+                   static_cast<unsigned long>(size), caller);
+        }
+        printf("  -> the fixed-block pools' peak use so far (xalloc_print_pool_config()):\n");
+        xalloc_print_pool_config();
+        DMQ_ASSERT_TRUE(waitOk == 50);
+        DMQ_ASSERT_TRUE(s_noHeapCalls >= 1000 + 100 + 10);  // async + signal, ISR posts, some ticks
+        DMQ_ASSERT_TRUE(s_noHeapSum == expectSum);           // every async, signal and ISR call ran once
+        DMQ_ASSERT_TRUE(heapCalls == 0);
+        worker.ExitThread();
+    }
+
+    // --- TEST 15: Watchdog hook (last: a watchdog expiry ends the run) ---
+    printf("\n[Test 15] Watchdog hook: two hung threads reported, then one fault:\n");
     {
         static Thread blocked("HungBlocked");
         static Thread spinning("HungSpin");

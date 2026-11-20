@@ -299,6 +299,8 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
             if (msg)
             {
                 // Wait forever to ensure message is sent
@@ -388,10 +390,7 @@ bool ThreadXThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
     if (!threadMsg)
-    {
-        // OOM: drop the message
-        return false;
-    }
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -519,7 +518,9 @@ dmq::xmap<TX_THREAD*, ThreadXThread*>& ThreadXThread::GetInstanceRegistry()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& ThreadXThread::GetInstanceRegistryLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 
@@ -537,7 +538,9 @@ ThreadXThread*& ThreadXThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& ThreadXThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

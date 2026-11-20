@@ -152,11 +152,10 @@ private:
     /// (see GetProcessLock()).
     static dmq::CriticalSection& GetLock()
     {
-        // Allocate on heap and NEVER delete. Prevents lock from being destroyed
-        // before the last Timer destructor runs at app shutdown.
-        static dmq::CriticalSection* lock = new(std::nothrow) dmq::CriticalSection();
-        if (!lock)
-            BAD_ALLOC();
+        // Static storage, constructed on first use and NEVER destroyed: the lock
+        // must outlive the last Timer destructor at app shutdown. Not the heap.
+        alignas(dmq::CriticalSection) static char storage[sizeof(dmq::CriticalSection)];
+        static dmq::CriticalSection* lock = new (storage) dmq::CriticalSection();
         return *lock;
     }
 
@@ -168,9 +167,8 @@ private:
     static dmq::RecursiveMutex& GetProcessLock()
     {
         // Immortal, like GetLock().
-        static dmq::RecursiveMutex* lock = new(std::nothrow) dmq::RecursiveMutex();
-        if (!lock)
-            BAD_ALLOC();
+        alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+        static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
         return *lock;
     }
 

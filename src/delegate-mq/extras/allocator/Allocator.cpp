@@ -146,6 +146,25 @@ void Allocator::Deallocate(void* pBlock)
 }
 
 //------------------------------------------------------------------------------
+// TryAllocate
+//------------------------------------------------------------------------------
+void* Allocator::TryAllocate()
+{
+    void* pBlock = Pop();
+    if (!pBlock && m_maxObjects && m_poolIndex < m_maxObjects)
+    {
+        pBlock = (void*)(m_pPool + (m_poolIndex++ * m_blockSize));
+        m_blockCnt++;
+    }
+    if (pBlock)
+    {
+        m_blocksInUse++;
+        m_allocations++;
+    }
+    return pBlock;
+}
+
+//------------------------------------------------------------------------------
 // AccountAlloc
 //------------------------------------------------------------------------------
 void Allocator::AccountAlloc(bool newBlock)
