@@ -118,6 +118,51 @@ bool SineWindowOk(const SignalStats& s, uint32_t rateHz, uint32_t intervalMs)
         && std::fabs(s.mean) < 0.05f;
 }
 
+const char* CommandName(dmq::DelegateRemoteId id)
+{
+    switch (id) {
+    case SensorTopic::SetRateId: return SensorTopic::SetRate;
+    case SensorTopic::SetLedId:  return SensorTopic::SetLed;
+    case SensorTopic::StartId:   return SensorTopic::Start;
+    default:                     return "?";
+    }
+}
+
+/// What went wrong in the network layers, as DelegateMQ reports it through its
+/// signals. The handlers run on whichever thread raised them (mostly the
+/// pump), so the counts are atomic. Each kind prints its first few events.
+class ErrorReport {
+public:
+    static constexpr uint32_t PRINT_LIMIT = 5;
+
+    std::atomic<uint32_t> ackTimeouts{0};       // no ACK in time: being retried
+    std::atomic<uint32_t> deliveryFailed{0};    // retries used up: the command is lost
+    std::atomic<uint32_t> databusErrors{0};     // serialize, deserialize, dispatch, ...
+    std::atomic<uint32_t> monitorOverflow{0};   // too many messages awaiting an ACK
+    std::atomic<uint32_t> receiveDropped{0};    // the receive thread's queue was full
+
+    void OnSendStatus(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status) {
+        if (status == TransportMonitor::Status::TIMEOUT && ++ackTimeouts <= PRINT_LIMIT)
+            printf("  [error] %s (transport seq %u): no ACK in time, retrying\n", CommandName(id), static_cast<unsigned>(seq));
+    }
+    void OnDeliveryFailed(dmq::DelegateRemoteId id, uint16_t seq) {
+        if (++deliveryFailed <= PRINT_LIMIT)
+            printf("  [error] %s (transport seq %u): not delivered, retries used up\n", CommandName(id), static_cast<unsigned>(seq));
+    }
+    void OnDataBusError(const dmq::xstring& topic, dmq::DelegateError error) {
+        if (++databusErrors <= PRINT_LIMIT)
+            printf("  [error] DataBus, topic %s: error %d\n", topic.c_str(), static_cast<int>(error));
+    }
+    void OnMonitorOverflow(size_t count) {
+        if (++monitorOverflow <= PRINT_LIMIT)
+            printf("  [error] transport monitor: %u messages awaiting an ACK, over its limit\n", static_cast<unsigned>(count));
+    }
+    void OnReceiveDropped(size_t count) {
+        receiveDropped += static_cast<uint32_t>(count);
+        printf("  [error] receive thread dropped %u messages\n", static_cast<unsigned>(count));
+    }
+};
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -154,6 +199,15 @@ int main(int argc, char* argv[])
     transportData.SetTransportMonitor(&monitor);
     transportData.SetSendTransport(&transportCmd);
 
+    // Error reporting: DelegateMQ reports through signals; nothing is fatal here,
+    // the self-test checks the counts at the end
+    ErrorReport errors;
+    ScopedConnection sendStatusConn = monitor.OnSendStatus.Connect(MakeDelegate(&errors, &ErrorReport::OnSendStatus));
+    ScopedConnection capConn = monitor.OnCapExceeded.Connect(MakeDelegate(&errors, &ErrorReport::OnMonitorOverflow));
+    ScopedConnection pendingConn = monitor.OnPendingExceeded.Connect(MakeDelegate(&errors, &ErrorReport::OnMonitorOverflow));
+    ScopedConnection deliveryConn = retry.OnDeliveryFailed.Connect(MakeDelegate(&errors, &ErrorReport::OnDeliveryFailed));
+    ScopedConnection databusErrorConn = DataBus::SubscribeError(MakeDelegate(&errors, &ErrorReport::OnDataBusError));
+
     serialization::serializer::Serializer<void(SignalStats)> statsSerializer;
     serialization::serializer::Serializer<void(Temperature)> tempSerializer;
     serialization::serializer::Serializer<void(Touch)> touchSerializer;
@@ -179,6 +233,7 @@ int main(int argc, char* argv[])
 
     // Each topic is delivered to the receive thread, which owns the NodeView
     dmq::os::Thread receiveThread("PcReceive");
+    receiveThread.SetDroppedHandler(MakeDelegate(&errors, &ErrorReport::OnReceiveDropped));
     receiveThread.CreateThread();
     Receiver receiver;
     receiver.verbose = seconds == 0;
@@ -287,6 +342,55 @@ int main(int argc, char* argv[])
         "the node measured its cross-core and same-core call latency");
     printf("  node's async-wait round trip: %.1f us to the other core, %.1f us within one\n",
            view.lastStatus.crossCoreUs, view.lastStatus.sameCoreUs);
+
+    // ----------------------------------------------------------------------
+    printf("\nTest 6: a command nobody ACKs is reported as not delivered\n");
+    constexpr const char* DEAD_TOPIC = "test/unacked";
+    constexpr dmq::DelegateRemoteId DEAD_ID = 299;
+    constexpr uint16_t DEAD_PORT = SensorNet::CMD_PORT + 50;    // nobody listens there
+    serialization::serializer::Serializer<void(SetLed)> deadSerializer;   // DataBus keeps a pointer to it
+    DataBus::RegisterSerializer<SetLed>(DEAD_TOPIC, deadSerializer);
+    {
+        // Its own transport, monitor and participant, sending to a local port
+        // nobody listens on, on a topic only it carries: the failure this
+        // provokes stays out of the counts the real link is checked against
+        transport::UdpTransport deadTransport;
+        Check(deadTransport.Create(transport::UdpTransport::Type::PUB, "127.0.0.1", DEAD_PORT) == 0,
+            "a transport to a port nobody listens on");
+        deadTransport.SetRecvTimeout(std::chrono::milliseconds(1));
+        TransportMonitor deadMonitor{ SensorNet::CMD_ACK_TIMEOUT };
+        RetryMonitor deadRetry(deadTransport, deadMonitor, SensorNet::CMD_RETRIES);
+        ReliableTransport deadReliable(deadTransport, deadRetry);
+        deadTransport.SetTransportMonitor(&deadMonitor);
+        std::atomic<uint32_t> failed{0};
+        ScopedConnection failedConn = deadRetry.OnDeliveryFailed.Connect(MakeDelegate(
+            [&failed](dmq::DelegateRemoteId, uint16_t) { failed++; }));
+
+        auto deadParticipant = std::make_shared<Participant>(deadReliable);
+        deadParticipant->AddRemoteTopic(DEAD_TOPIC, DEAD_ID);
+        DataBus::AddParticipant(deadParticipant);
+
+        DataBus::Publish<SetLed>(DEAD_TOPIC, SetLed{});
+        const auto end = std::chrono::steady_clock::now()
+            + SensorNet::CMD_RETRY_WINDOW + std::chrono::seconds(2);
+        while (failed == 0 && std::chrono::steady_clock::now() < end) {
+            deadMonitor.Process();      // times out the send, RetryMonitor re-sends
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        Check(failed == 1, "RetryMonitor::OnDeliveryFailed fired once, after the retries");
+        DataBus::RemoveParticipant(deadParticipant);
+    }
+
+    // ----------------------------------------------------------------------
+    printf("\nErrors on the real link\n");
+    printf("  ACK timeouts (retried): %u; delivery failures: %u; DataBus errors: %u; "
+           "monitor overflows: %u; receive drops: %u\n",
+           errors.ackTimeouts.load(), errors.deliveryFailed.load(), errors.databusErrors.load(),
+           errors.monitorOverflow.load(), errors.receiveDropped.load());
+    // A timeout that a retry then delivers is not a failure (Wi-Fi loses packets)
+    Check(errors.deliveryFailed == 0, "every command was delivered");
+    Check(errors.databusErrors == 0, "no DataBus errors (serialization, dispatch, ...)");
+    Check(errors.monitorOverflow == 0 && errors.receiveDropped == 0, "nothing overflowed or was dropped");
 
     if (s_failures == 0)
         printf("\nALL TESTS PASSED\n");

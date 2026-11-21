@@ -65,9 +65,15 @@ Windows Firewall asks the first time whether `sensor_pc` may receive on the netw
 
 ## Measured on the Board
 
-| | |
-| :--- | :--- |
-| Async-wait round trip, `ControlThread` (core 1) to `NetThread` (core 0) | about 207 µs mean |
-| Async-wait round trip, `ControlThread` to `SampleThread` (both core 1) | about 233 µs mean |
+At 160 MHz, means of 200 calls (the node measures at startup; a bench timed the parts with the CPU cycle counter):
 
-Both are far above the desktop's (1-20 µs) and about equal, so the cost is in the call itself, not in crossing cores. Under investigation.
+| | µs |
+| :--- | ---: |
+| Async-wait round trip, `ControlThread` (core 1) to `NetThread` (core 0) | about 165 |
+| Async-wait round trip, `ControlThread` to `SampleThread` (both core 1) | about 185 |
+| Raw FreeRTOS queue + semaphore round trip, to the other core / the same core | 23 / 41 |
+| Async call (no wait), the caller's cost | 39 |
+| ESP-IDF heap: allocate + free | 9.5 |
+| `dmq::Mutex` (a FreeRTOS mutex): lock + unlock | 5.9 |
+
+Most of an async-wait call is ESP-IDF's heap (the message, the argument copies) and kernel mutexes, each several microseconds here; crossing cores adds nothing. The FreeRTOS port's native semaphore took about 40 µs off (it was 207 and 233 µs with the generic one). At 240 MHz everything is about a third faster. The fixed-block allocator (`DMQ_ALLOCATOR`) prevents fragmentation but is slower here, since each allocation takes a kernel mutex; see "Trade-offs" in [DETAILS.md](../../../../../docs/DETAILS.md#trade-offs).

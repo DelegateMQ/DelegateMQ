@@ -103,9 +103,13 @@ For the board, see [node/platform/esp32s3](node/platform/esp32s3/README.md); the
 4. The Start's `intervalMs` set to 200: the node reports it, and its windows hold 200 ms of samples (two periods of the sine).
 5. Touch changes arrive (on the board: press BOOT within 30 s). The node applied the rate and LED commands once each (the repeated `seq` was ignored), its network thread dropped nothing, and it measured its cross-core and same-core round trips.
 
+6. A command sent where nobody listens (its own transport and participant, a local port with no node) is reported as not delivered: `RetryMonitor::OnDeliveryFailed` fires once, after the retries.
+
+Throughout, the client reports what DelegateMQ's signals say about the real link: ACK timeouts (`TransportMonitor::OnSendStatus`; a retry may still deliver the command, so they're only counted), commands not delivered (`RetryMonitor::OnDeliveryFailed`), DataBus errors (`DataBus::SubscribeError`: serialization, dispatch, ...), a full ACK table (`OnCapExceeded`, `OnPendingExceeded`) and messages its receive thread dropped (`Thread::SetDroppedHandler`). The test fails on any of these except ACK timeouts.
+
 It prints `ALL TESTS PASSED` and returns 0. The node prints `NODE CHECKS PASSED` when it published stats and temperatures and dropped nothing. `build_all.py` builds both and runs them together for 10 seconds over loopback UDP, on Windows and Linux.
 
-On a desktop OS the round trips (typically a few µs to a few tens of µs) depend on the scheduler and vary from run to run. On the board they are about 200 µs, both across cores and within one: under investigation.
+On a desktop OS the round trips (typically a few µs to a few tens of µs) depend on the scheduler and vary from run to run. On the board, at 160 MHz, they are about 165 µs to the other core and 185 µs within one, against about 23 µs for a raw FreeRTOS queue round trip: ESP-IDF's heap (about 9.5 µs per allocate-and-free) and kernel mutexes (about 6 µs per lock) dominate. See [node/platform/esp32s3](node/platform/esp32s3/README.md#measured-on-the-board).
 
 ## A Note on Polling the Sockets
 

@@ -323,8 +323,17 @@ void SensorNode::MeasureLatencies()
 void SensorNode::NetInit(std::string pcAddress)
 {
     // Data to the PC (PUB), commands from it (SUB)
-    DMQ_ASSERT_TRUE(m_transportData.Create(transport::UdpTransport::Type::PUB, pcAddress.c_str(), SensorNet::DATA_PORT) == 0);
-    DMQ_ASSERT_TRUE(m_transportCmd.Create(transport::UdpTransport::Type::SUB, "0.0.0.0", SensorNet::CMD_PORT) == 0);
+    // Without its sockets the node can't do its job: stop, but say why first
+    if (m_transportData.Create(transport::UdpTransport::Type::PUB, pcAddress.c_str(), SensorNet::DATA_PORT) != 0) {
+        printf("SensorNode: can't open the data socket to %s:%u (is the address valid?)\n",
+               pcAddress.c_str(), static_cast<unsigned>(SensorNet::DATA_PORT));
+        DMQ_ASSERT();
+    }
+    if (m_transportCmd.Create(transport::UdpTransport::Type::SUB, "0.0.0.0", SensorNet::CMD_PORT) != 0) {
+        printf("SensorNode: can't listen on UDP port %u (is another sensor node running?)\n",
+               static_cast<unsigned>(SensorNet::CMD_PORT));
+        DMQ_ASSERT();
+    }
 
     // OnNetTick() polls both sockets every 10 ms on NetThread, which also
     // publishes: a receive must return at once when nothing is waiting. (A
