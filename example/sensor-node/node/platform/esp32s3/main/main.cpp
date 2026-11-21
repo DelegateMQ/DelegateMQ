@@ -30,7 +30,8 @@ extern "C" void app_main()
     esp32s3::ChipTemperature temperature;
     esp32s3::RgbLed led;
     esp32s3::ButtonTouch touch;
-    Platform platform{ signal, temperature, led, touch };
+    esp32s3::EspFineClock clock;
+    Platform platform{ signal, temperature, led, touch, clock };
 
     NodeConfig config;
     config.pcAddress = CONFIG_APP_PC_ADDRESS;

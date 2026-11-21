@@ -28,6 +28,8 @@ bool RunNode(Platform& platform, const NodeConfig& config, Duration runFor, cons
     // On the heap: its socket buffers would crowd a small RTOS main-task stack
     auto node = std::make_unique<SensorNode>(platform);
     node->Start(config);
+    if (config.onStarted)
+        config.onStarted(*node);
 
     // The platform's part of the timing: DelegateMQ timers, IsrDelegate posts
     // (the touch interrupt) and the thread watchdogs
@@ -53,6 +55,8 @@ bool RunNode(Platform& platform, const NodeConfig& config, Duration runFor, cons
         ThisThread::sleep_for(LOOP_PERIOD);
     }
 
+    if (config.onStopping)
+        config.onStopping(*node);
     node->Stop();
 
     // The node's own checks; the PC client checks the data and the commands

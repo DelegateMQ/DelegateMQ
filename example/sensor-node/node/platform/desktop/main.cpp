@@ -2,19 +2,26 @@
 /// @brief The sensor node on Windows or Linux, with desktop stand-ins for the
 /// ESP32-S3's peripherals (DesktopHal.h). The program itself is RunNode().
 ///
-///   sensor_node [seconds] [pc-address]
+///   sensor_node [seconds] [pc-address] [--tools]
 ///
 /// seconds: run time; 0 (the default) runs until Ctrl+C.
 /// pc-address: where to publish (default 127.0.0.1). Run sensor_pc there.
+/// --tools: feed DelegateMQ's diagnostic tools (dmq-spy, dmq-monitor,
+/// dmq-thread; see DesktopTools.h). run_sensor_node.py starts them all.
 
 #include "NodeMain.h"
 #include "DesktopHal.h"
+#include "DesktopTools.h"
+#include "StdFineClock.h"
 
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <string>
+#include <vector>
 #include <thread>
 
 using namespace sensornode;
@@ -24,10 +31,23 @@ static void OnSignal(int) { s_stop = true; }
 
 int main(int argc, char* argv[])
 {
-    const int seconds = argc > 1 ? std::atoi(argv[1]) : 0;
+    // Positional arguments, and the --tools flag anywhere
+    std::vector<std::string> args;
+    bool tools = false;
+    for (int i = 1; i < argc; i++) {
+        if (std::strcmp(argv[i], "--tools") == 0)
+            tools = true;
+        else
+            args.emplace_back(argv[i]);
+    }
+    const int seconds = args.size() > 0 ? std::atoi(args[0].c_str()) : 0;
     NodeConfig config;
-    if (argc > 2)
-        config.pcAddress = argv[2];
+    if (args.size() > 1)
+        config.pcAddress = args[1];
+    if (tools) {
+        config.onStarted = [](SensorNode& node) { desktop::StartTools(node, "SensorNode"); };
+        config.onStopping = [](SensorNode& node) { desktop::StopTools(node); };
+    }
 
     // Like the ESP32-S3: sampling and control on core 1, the network on core 0
     if (std::thread::hardware_concurrency() >= 2) {
@@ -46,7 +66,8 @@ int main(int argc, char* argv[])
     desktop::DriftingTemperature temperature;
     desktop::ConsoleLed led;
     desktop::TouchSimulator touch;
-    Platform platform{ signal, temperature, led, touch };
+    StdFineClock clock;
+    Platform platform{ signal, temperature, led, touch, clock };
 
     if (seconds == 0)
         printf("Sensor node: Ctrl+C to stop\n");

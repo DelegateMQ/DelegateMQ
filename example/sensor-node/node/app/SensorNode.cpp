@@ -93,10 +93,19 @@ void SensorNode::Start(const NodeConfig& config)
     m_controlTimer.Start(CONTROL_PERIOD);
     m_netTimer.Start(NET_PERIOD);
 
-    printf("SensorNode: async-wait round trip from ControlThread: to NetThread (other core) "
-           "min %.1f / mean %.1f / max %.1f us; to SampleThread (same core) min %.1f / mean %.1f / max %.1f us\n",
-           m_crossCore.minUs, m_crossCore.meanUs, m_crossCore.maxUs,
-           m_sameCore.minUs, m_sameCore.meanUs, m_sameCore.maxUs);
+    if (m_crossCore.meanUs < 0.0f)
+        printf("SensorNode: async-wait round trip not measurable here (time doesn't pass while code runs)\n");
+    else {
+        // "Other core" only when the threads are pinned apart (not on a single core)
+        const bool pinnedApart = config.appCoreMask != 0 && config.netCoreMask != 0
+            && (config.appCoreMask & config.netCoreMask) == 0;
+        printf("SensorNode: async-wait round trip from ControlThread: to NetThread%s "
+               "min %.1f / mean %.1f / max %.1f us; to SampleThread%s min %.1f / mean %.1f / max %.1f us\n",
+               pinnedApart ? " (other core)" : "", static_cast<double>(m_crossCore.minUs),
+               static_cast<double>(m_crossCore.meanUs), static_cast<double>(m_crossCore.maxUs),
+               pinnedApart ? " (same core)" : "", static_cast<double>(m_sameCore.minUs),
+               static_cast<double>(m_sameCore.meanUs), static_cast<double>(m_sameCore.maxUs));
+    }
     printf("SensorNode: sampling at %u Hz, publishing to %s:%u\n",
            static_cast<unsigned>(m_rateHz), config.pcAddress.c_str(), static_cast<unsigned>(SensorNet::DATA_PORT));
 }
@@ -150,7 +159,7 @@ void SensorNode::OnSampleTick()
         const float v = block[i];
         if (m_windowCount == 0 || v < m_windowMin) m_windowMin = v;
         if (m_windowCount == 0 || v > m_windowMax) m_windowMax = v;
-        m_windowSum += v;
+        m_windowSum += static_cast<double>(v);
         m_windowCount++;
     }
 
@@ -290,19 +299,19 @@ namespace {
 // ControlThread: async-wait calls to an empty function on target, timed
 LatencyStats SensorNode::MeasureRoundTrips(dmq::os::Thread& target, uint32_t calls)
 {
-    using Clock = std::chrono::steady_clock;
+    IFineClock& clock = m_platform.clock;     // dmq::Clock may count milliseconds
     auto call = MakeDelegate(&RoundTripTarget, target, WAIT_INFINITE);
     call();     // warm up: first-use allocations, caches
 
     LatencyStats s;
     double sum = 0.0;
     for (uint32_t i = 0; i < calls; i++) {
-        const auto start = Clock::now();
+        const uint64_t start = clock.NowNs();
         call();
-        const float us = std::chrono::duration<float, std::micro>(Clock::now() - start).count();
+        const float us = static_cast<float>(clock.NowNs() - start) / 1000.0f;
         if (i == 0 || us < s.minUs) s.minUs = us;
         if (i == 0 || us > s.maxUs) s.maxUs = us;
-        sum += us;
+        sum += static_cast<double>(us);
     }
     s.calls = calls;
     s.meanUs = calls ? static_cast<float>(sum / calls) : 0.0f;
@@ -311,6 +320,14 @@ LatencyStats SensorNode::MeasureRoundTrips(dmq::os::Thread& target, uint32_t cal
 
 void SensorNode::MeasureLatencies()
 {
+    // A simulator whose time stands still while code runs can't time a call:
+    // report -1 (not measurable), not a misleading 0
+    if (!m_platform.clock.MeasuresRunTime()) {
+        LatencyStats none;
+        none.minUs = none.meanUs = none.maxUs = -1.0f;
+        m_crossCore = m_sameCore = none;
+        return;
+    }
     constexpr uint32_t CALLS = 200;
     m_crossCore = MeasureRoundTrips(m_netThread, CALLS);
     m_sameCore = MeasureRoundTrips(m_sampleThread, CALLS);

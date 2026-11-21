@@ -32,11 +32,15 @@
 #include "SensorTopics.h"
 #include "DelegateMQ.h"
 
+#include <array>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
 
 namespace sensornode {
+
+class SensorNode;
 
 struct NodeConfig {
     std::string pcAddress = "127.0.0.1";    ///< where the node publishes
@@ -45,6 +49,11 @@ struct NodeConfig {
     /// Thread::SetCoreAffinity(); 0 = any core). The ESP32-S3: 1 << 1 and 1 << 0.
     uint32_t appCoreMask = 0;
     uint32_t netCoreMask = 0;
+    /// Optional, for the platform: RunNode() calls onStarted after Start() and
+    /// onStopping before Stop(), on its own thread. The desktop starts
+    /// DelegateMQ's diagnostic bridges (dmq-spy, dmq-monitor, dmq-thread) here.
+    std::function<void(SensorNode&)> onStarted;
+    std::function<void(SensorNode&)> onStopping;
 };
 
 /// Async-wait round trips from ControlThread, measured at Start()
@@ -95,6 +104,12 @@ public:
     LatencyStats GetCrossCoreLatency() const { return m_crossCore; }
     LatencyStats GetSameCoreLatency() const { return m_sameCore; }
 
+    /// For diagnostics (e.g. dmq::util::ThreadMonitor, NodeBridge::Watch()),
+    /// valid between Start() and Stop()
+    std::array<dmq::os::Thread*, 3> GetThreads() { return { &m_sampleThread, &m_controlThread, &m_netThread }; }
+    dmq::util::TransportMonitor& GetTransportMonitor() { return m_monitor; }
+    dmq::util::RetryMonitor* GetRetryMonitor() { return m_retry.get(); }
+
 private:
     // SampleThread
     void OnSampleTick();
@@ -110,7 +125,7 @@ private:
     void ResetCommandGuards();
     void SendStatus();
     void MeasureLatencies();
-    static LatencyStats MeasureRoundTrips(dmq::os::Thread& target, uint32_t calls);
+    LatencyStats MeasureRoundTrips(dmq::os::Thread& target, uint32_t calls);
 
     // NetThread
     void NetInit(std::string pcAddress);

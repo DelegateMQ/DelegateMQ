@@ -42,12 +42,27 @@ public:
     virtual void Stop() = 0;
 };
 
+/// A fine-grained monotonic clock, for timing short intervals (the startup
+/// latency test). dmq::Clock counts milliseconds on several RTOS ports, too
+/// coarse for that. In nanoseconds, whatever the platform's real resolution
+/// (the ESP32-S3's esp_timer counts microseconds).
+class IFineClock {
+public:
+    virtual ~IFineClock() = default;
+    virtual uint64_t NowNs() = 0;
+    /// False when time doesn't pass while code runs, so a run time can't be
+    /// measured: a simulator that advances time only when the CPU idles
+    /// (Zephyr's native_sim)
+    virtual bool MeasuresRunTime() const { return true; }
+};
+
 /// Everything the node needs from its platform
 struct Platform {
     ISignalSource& signal;
     ITemperatureSensor& temperature;
     ILed& led;
     ITouchInput& touch;
+    IFineClock& clock;
 };
 
 } // namespace sensornode

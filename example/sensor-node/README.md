@@ -4,7 +4,7 @@ A sensor node for the Espressif **ESP32-S3** (dual-core Xtensa LX7, Wi-Fi) and a
 
 DelegateMQ is platform independent, so the whole system was built and tested on **Windows and Linux** first, with stand-ins for the board's peripherals. The same application code (`node/app`) runs on the board; only a small platform layer changes. The simple, single-app board demo is [boards/esp32s3-devkitc](../sample-projects/boards/esp32s3-devkitc/README.md).
 
-**Status:** runs on the desktop (`build_all.py` runs it on Windows and Linux) and on an ESP32-S3-DevKitC-1 N8R8 over Wi-Fi, where the PC client's self-test passes. On the board the fast signal is still the generated test sine; the ADC is next.
+**Status:** the same `node/app` code runs on four platforms, and the PC client's self-test passes against each: the desktop (Windows, Linux), ThreadX (its Linux port), Zephyr (`native_sim`), all three run by `build_all.py`, and an ESP32-S3-DevKitC-1 N8R8 over Wi-Fi (FreeRTOS under ESP-IDF). On the board the fast signal is still the generated test sine; the ADC is next.
 
 ## Architecture
 
@@ -63,10 +63,13 @@ Every message also carries `seq` (`MessageBase`). Messages use DelegateMQ's buil
 | Folder | Contents |
 | :--- | :--- |
 | `common/` | Topics, remote IDs, ports, retry settings and messages (`MessageBase`), shared by the node and the PC |
-| `node/app/` | The node's application, platform independent: `SensorNode`, `RunNode()`, the hardware interfaces (`Hal.h`) and the generated test signal (`TestSignal.h`) |
-| `node/platform/desktop/` | Desktop stand-ins for the hardware (`DesktopHal.h`) and `main()` |
+| `node/app/` | The node's application, platform independent: `SensorNode`, `RunNode()`, the hardware interfaces (`Hal.h`), the generated test signal (`TestSignal.h`) and a `std::chrono` fine clock (`StdFineClock.h`) |
+| `node/platform/desktop/` | Desktop stand-ins for the hardware (`DesktopHal.h`), the diagnostic bridges (`DesktopTools.h`) and `main()` |
 | `node/platform/esp32s3/` | The ESP32-S3 build: an ESP-IDF project ([README](node/platform/esp32s3/README.md)) |
+| `node/platform/threadx/` | `main()` on ThreadX's Linux port; the desktop's stand-ins, a ThreadX timer as the touch interrupt. Built by the top-level `CMakeLists.txt` with `SENSOR_NODE_RTOS=THREADX` |
+| `node/platform/zephyr/` | A Zephyr application for `native_sim`: stand-ins, a `k_timer` as the touch interrupt, sockets offloaded to the host |
 | `pc-client/` | The PC client and its self-test |
+| `run_sensor_node.py` | Starts the tools, the node and the PC client |
 
 ## Hardware on Each Platform
 
@@ -89,9 +92,56 @@ cmake --build build --config Release
 ./build/sensor_pc                    # the PC client: self-test, then the node's data
 ```
 
-Arguments: `sensor_node [seconds] [pc-address]` and `sensor_pc [seconds] [node-address]`. `seconds` = 0 (the default) runs until Ctrl+C. The addresses default to `127.0.0.1`; on two machines, give each the other's address.
+Arguments: `sensor_node [seconds] [pc-address] [--tools]` and `sensor_pc [seconds] [node-address] [--tools]`. `seconds` = 0 (the default) runs until Ctrl+C. The addresses default to `127.0.0.1`; on two machines, give each the other's address. `--tools` feeds DelegateMQ's diagnostic tools (below).
+
+### Run Everything, With the Diagnostic Tools
+
+`run_sensor_node.py` starts DelegateMQ's tools from `tools/bin` (build the tools first), then the node and the PC client with `--tools`, each in its own window:
+
+| Tool | Shows |
+| :--- | :--- |
+| `dmq-spy` | Every DataBus message the node and the client send and receive, tagged `SensorNode` / `PcClient` (logged to `tools/bin/spy_logs.txt`; `--plotjuggler` forwards the numbers to PlotJuggler) |
+| `dmq-monitor` | Both programs, their topics, and link health (ACK timeouts, undelivered messages) |
+| `dmq-thread` | Their threads: queue depth, messages processed |
+
+```bash
+python run_sensor_node.py                          # desktop node, PC client, tools
+python run_sensor_node.py --board 192.168.0.241    # PC client and tools, against the ESP32-S3
+python run_sensor_node.py --threadx                # or --zephyr (Linux)
+```
+
+It uses the newest build, from `build/` here or `build_all.py`'s `out/`. The ThreadX, Zephyr and board nodes have no diagnostic bridges (the tools are desktop programs), so only the client's side appears for them: `dmq-monitor` lists only `PcClient`, and in `dmq-spy` the node's data appears under `PcClient`, since the spy's "sender" is the program that reported a message (here, the client that received it), not the one that produced it. Ctrl+C in the script's window stops everything.
 
 For the board, see [node/platform/esp32s3](node/platform/esp32s3/README.md); the PC side is the same `sensor_pc`, given the board's address.
+
+## Build and Run on ThreadX and Zephyr (Linux)
+
+Two RTOS builds of the node, both Linux processes running the real kernel, both run with the desktop build's `sensor_pc`. They're single core, so the node's threads aren't pinned.
+
+```bash
+cd example/sensor-node
+
+# ThreadX (its Linux port; ThreadX fetched by scripts/01_fetch_repos.py)
+cmake -B build-threadx -DSENSOR_NODE_RTOS=THREADX .
+cmake --build build-threadx
+./build-threadx/sensor_node 10 &
+./build/sensor_pc 5
+
+# Zephyr (native_sim; ZEPHYR_BASE set, Zephyr SDK or host toolchain)
+cmake -B build-zephyr -DBOARD=native_sim/native/64 node/platform/zephyr
+cmake --build build-zephyr
+./build-zephyr/zephyr/zephyr.exe -testargs 10 &
+./build/sensor_pc 5
+```
+
+| | ThreadX | Zephyr |
+| :--- | :--- | :--- |
+| Network | Host UDP sockets (`LinuxUdpTransport`) | Zephyr's sockets, offloaded to the host's (`ZephyrUdpTransport`) |
+| Touch interrupt stand-in | A ThreadX timer (ThreadX's timer thread) | A `k_timer` (interrupt context) |
+| Tick | 10 ms (ThreadX's default): the platform loop runs every 10 ms | `native_sim`'s default |
+| Latency test | Measured (`std::chrono`, host time) | Reported as not measurable: `native_sim`'s time advances only when the CPU idles, so code takes no time |
+
+`build_all.py` builds and runs both on Linux, after the desktop pair.
 
 ## Self-Test
 
@@ -101,13 +151,13 @@ For the board, see [node/platform/esp32s3](node/platform/esp32s3/README.md); the
 2. A `cmd/rate` command is applied: the node reports the new rate and its windows are taken at it.
 3. A `cmd/led` command is applied: the node reports the new colour. The client then publishes the same message again (same `seq`).
 4. The Start's `intervalMs` set to 200: the node reports it, and its windows hold 200 ms of samples (two periods of the sine).
-5. Touch changes arrive (on the board: press BOOT within 30 s). The node applied the rate and LED commands once each (the repeated `seq` was ignored), its network thread dropped nothing, and it measured its cross-core and same-core round trips.
+5. Touch changes arrive (on the board: press BOOT within 30 s). The node applied the rate and LED commands once each (the repeated `seq` was ignored), its network thread dropped nothing, and it measured its round trips, or reported that its platform can't (Zephyr's `native_sim`).
 
 6. A command sent where nobody listens (its own transport and participant, a local port with no node) is reported as not delivered: `RetryMonitor::OnDeliveryFailed` fires once, after the retries.
 
 Throughout, the client reports what DelegateMQ's signals say about the real link: ACK timeouts (`TransportMonitor::OnSendStatus`; a retry may still deliver the command, so they're only counted), commands not delivered (`RetryMonitor::OnDeliveryFailed`), DataBus errors (`DataBus::SubscribeError`: serialization, dispatch, ...), a full ACK table (`OnCapExceeded`, `OnPendingExceeded`) and messages its receive thread dropped (`Thread::SetDroppedHandler`). The test fails on any of these except ACK timeouts.
 
-It prints `ALL TESTS PASSED` and returns 0. The node prints `NODE CHECKS PASSED` when it published stats and temperatures and dropped nothing. `build_all.py` builds both and runs them together for 10 seconds over loopback UDP, on Windows and Linux.
+It prints `ALL TESTS PASSED` and returns 0. The node prints `NODE CHECKS PASSED` when it published stats and temperatures and dropped nothing. `build_all.py` builds both and runs them together for 10 seconds over loopback UDP, on Windows and Linux; on Linux it also runs the client against the ThreadX and Zephyr nodes.
 
 On a desktop OS the round trips (typically a few µs to a few tens of µs) depend on the scheduler and vary from run to run. On the board, at 160 MHz, they are about 165 µs to the other core and 185 µs within one, against about 23 µs for a raw FreeRTOS queue round trip: ESP-IDF's heap (about 9.5 µs per allocate-and-free) and kernel mutexes (about 6 µs per lock) dominate. See [node/platform/esp32s3](node/platform/esp32s3/README.md#measured-on-the-board).
 

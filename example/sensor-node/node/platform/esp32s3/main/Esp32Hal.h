@@ -11,6 +11,7 @@
 #include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "driver/temperature_sensor.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "led_strip.h"
@@ -107,6 +108,12 @@ private:
     Sink* m_sink = nullptr;
     int m_lastLevel = 1;            // interrupt only, after Start()
     TickType_t m_lastEdge = 0;
+};
+
+/// esp_timer: microseconds since boot, 64 bits
+class EspFineClock : public IFineClock {
+public:
+    uint64_t NowNs() override { return static_cast<uint64_t>(esp_timer_get_time()) * 1000u; }
 };
 
 } // namespace sensornode::esp32s3

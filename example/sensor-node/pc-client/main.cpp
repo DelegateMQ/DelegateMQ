@@ -2,7 +2,7 @@
 /// @brief PC client for the sensor node: receives its topics over UDP (DataBus),
 /// sends it commands, and checks the round trip.
 ///
-///   sensor_pc [seconds] [node-address]
+///   sensor_pc [seconds] [node-address] [--tools]
 ///
 /// It sends the node a Start every second: the node publishes only while they
 /// keep coming, every intervalMs (the stats window) it asks for.
@@ -16,6 +16,13 @@
 #include "DelegateMQ.h"
 #include "SensorMessages.h"
 #include "SensorTopics.h"
+#include "SensorStringifiers.h"
+
+#if defined(DMQ_DATABUS_TOOLS)
+#include "SpyBridge.h"
+#include "NodeBridge.h"
+#include "extras/util/ThreadMonitor.h"
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -23,11 +30,13 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <random>
 #include <string>
 #include <thread>
+#include <vector>
 
 using namespace dmq;
 using namespace dmq::databus;
@@ -167,8 +176,18 @@ public:
 
 int main(int argc, char* argv[])
 {
-    const int seconds = argc > 1 ? std::atoi(argv[1]) : 0;
-    const std::string nodeAddress = argc > 2 ? argv[2] : "127.0.0.1";
+    // Positional arguments, and the --tools flag anywhere: feed dmq-spy,
+    // dmq-monitor and dmq-thread (run_sensor_node.py starts them)
+    std::vector<std::string> args;
+    bool tools = false;
+    for (int i = 1; i < argc; i++) {
+        if (std::strcmp(argv[i], "--tools") == 0)
+            tools = true;
+        else
+            args.emplace_back(argv[i]);
+    }
+    const int seconds = args.size() > 0 ? std::atoi(args[0].c_str()) : 0;
+    const std::string nodeAddress = args.size() > 1 ? args[1] : "127.0.0.1";
 
     std::signal(SIGINT, OnSignal);
     std::signal(SIGTERM, OnSignal);
@@ -235,6 +254,21 @@ int main(int argc, char* argv[])
     dmq::os::Thread receiveThread("PcReceive");
     receiveThread.SetDroppedHandler(MakeDelegate(&errors, &ErrorReport::OnReceiveDropped));
     receiveThread.CreateThread();
+
+#if defined(DMQ_DATABUS_TOOLS)
+    if (tools) {
+        sensornode::RegisterSensorStringifiers();      // values as text in dmq-spy
+        SpyBridge::Start("127.0.0.1", 9999, "PcClient");
+        NodeBridge::StartMulticast("PcClient", "239.1.1.1", 9998);
+        NodeBridge::Watch(monitor);
+        NodeBridge::Watch(retry);
+        ThreadMonitor::Register(&receiveThread);
+        ThreadMonitor::Enable();
+        printf("Diagnostics to dmq-spy (127.0.0.1:9999), dmq-monitor and dmq-thread (239.1.1.1:9998)\n");
+    }
+#else
+    (void)tools;
+#endif
     Receiver receiver;
     receiver.verbose = seconds == 0;
     ScopedConnection statsConn = DataBus::Subscribe<SignalStats>(SensorTopic::SignalStats,
@@ -267,6 +301,7 @@ int main(int argc, char* argv[])
             dataParticipant->ProcessIncoming();
             cmdParticipant->ProcessIncoming();
             monitor.Process();
+            Timer::ProcessTimers();     // the diagnostic bridges' periodic work
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     });
@@ -338,10 +373,16 @@ int main(int argc, char* argv[])
     Check(view.lastStatus.commands == commandsBefore + 2,
         "the node applied the rate and the LED command once each (the repeated seq was ignored)");
     Check(view.lastStatus.netDropped == 0, "the node's network thread dropped nothing");
-    Check(view.lastStatus.crossCoreUs > 0.0f && view.lastStatus.sameCoreUs > 0.0f,
-        "the node measured its cross-core and same-core call latency");
-    printf("  node's async-wait round trip: %.1f us to the other core, %.1f us within one\n",
-           view.lastStatus.crossCoreUs, view.lastStatus.sameCoreUs);
+    // Measured (> 0), or reported as not measurable (-1: a simulator whose time
+    // doesn't pass while code runs, such as Zephyr's native_sim); never 0
+    const bool measured = view.lastStatus.crossCoreUs > 0.0f && view.lastStatus.sameCoreUs > 0.0f;
+    const bool notMeasurable = view.lastStatus.crossCoreUs < 0.0f && view.lastStatus.sameCoreUs < 0.0f;
+    Check(measured || notMeasurable, "the node measured its call latency, or reported it can't");
+    if (measured)
+        printf("  node's async-wait round trip: %.1f us to NetThread, %.1f us to SampleThread\n",
+               static_cast<double>(view.lastStatus.crossCoreUs), static_cast<double>(view.lastStatus.sameCoreUs));
+    else if (notMeasurable)
+        printf("  node's async-wait round trip: not measurable on that platform\n");
 
     // ----------------------------------------------------------------------
     printf("\nTest 6: a command nobody ACKs is reported as not delivered\n");
@@ -405,6 +446,14 @@ int main(int argc, char* argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+#if defined(DMQ_DATABUS_TOOLS)
+    if (tools) {
+        ThreadMonitor::Disable();
+        ThreadMonitor::Deregister(&receiveThread);
+        NodeBridge::Stop();
+        SpyBridge::Stop();
+    }
+#endif
     statsConn.Disconnect();
     tempConn.Disconnect();
     touchConn.Disconnect();

@@ -443,8 +443,22 @@ def build_samples(use_clang=False, clean=False, full=False):
 
             # sensor-node: its top-level CMakeLists.txt builds the desktop node and
             # the PC client. node/platform/esp32s3 is an ESP-IDF project for the board.
+            # On Linux the node also builds for two RTOSes, run with the same PC
+            # client: ThreadX (build-threadx: the top level with
+            # SENSOR_NODE_RTOS=THREADX, ThreadX's Linux port) and Zephyr
+            # (node/platform/zephyr, native_sim).
             if os.path.basename(dirpath) == "sensor-node":
                 dirnames.clear()
+                if platform.system() == "Linux":
+                    threadx_build = full_suite.build_dir(dirpath, "build-threadx")
+                    if clean and os.path.exists(threadx_build):
+                        shutil.rmtree(threadx_build, ignore_errors=True)
+                    print(f"[CONFIGURING] sensor-node (ThreadX)")
+                    if run_configure(["cmake", "-B", threadx_build, "-DSENSOR_NODE_RTOS=THREADX", "."],
+                                     dirpath, "sensor-node (ThreadX)"):
+                        print("   Success!")
+                    configure_zephyr(os.path.join(dirpath, "node", "platform", "zephyr"),
+                                     "sensor-node/zephyr", clean, full)
 
             if "CMakeLists.txt" in files:
                 project_name = full_suite.sample_name(dirpath)

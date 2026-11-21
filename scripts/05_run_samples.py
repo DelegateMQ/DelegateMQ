@@ -503,20 +503,32 @@ def run_tools(repo_root, passed, failed, skipped):
 
 
 def run_sensor_node(repo_root, passed, failed, skipped):
-    """example/sensor-node: the desktop sensor node and its PC client over
-    loopback UDP. The client runs its self-test (data, commands, touches) and
-    must print ALL TESTS PASSED; the node must print NODE CHECKS PASSED."""
-    label = "sensor-node"
+    """example/sensor-node: the sensor node and its PC client over loopback UDP,
+    with the node on the desktop, and on Linux also on ThreadX (Linux port) and
+    Zephyr (native_sim). The client runs its self-test (data, commands, touches)
+    and must print ALL TESTS PASSED; the node must print NODE CHECKS PASSED."""
     project_dir = os.path.join(repo_root, "example", "sensor-node")
     build_dir = full_suite.build_dir(project_dir)
-    node = find_executable(build_dir, "sensor_node")
     pc = find_executable(build_dir, "sensor_pc")
-    if not node or not pc:
-        skipped.append((label, "not built"))
-        return
+    nodes = [("sensor-node", find_executable(build_dir, "sensor_node"), [])]
+    if not IS_WINDOWS:
+        nodes.append(("sensor-node/threadx",
+                      find_executable(full_suite.build_dir(project_dir, "build-threadx"), "sensor_node"), []))
+        zephyr_exe = os.path.join(full_suite.build_dir(os.path.join(project_dir, "node", "platform", "zephyr")),
+                                  "zephyr", "zephyr.exe")
+        # native_sim passes its own arguments after -testargs
+        nodes.append(("sensor-node/zephyr", zephyr_exe if os.path.isfile(zephyr_exe) else None, ["-testargs"]))
+    for label, node, prefix in nodes:
+        if not node or not pc:
+            skipped.append((label, "not built"))
+            continue
+        run_sensor_node_pair(label, node, prefix, pc, project_dir, passed, failed)
+
+
+def run_sensor_node_pair(label, node, prefix, pc, project_dir, passed, failed):
     print(f"[RUNNING] {label}  (node/pc-client)", flush=True)
     did_fail, results = run_group([
-        ("node", [node, str(APP_DURATION)], project_dir),
+        ("node", [node] + prefix + [str(APP_DURATION)], project_dir),
         ("pc", [pc, str(APP_DURATION)], project_dir),
     ])
     for role, text in {"node": "NODE CHECKS PASSED", "pc": "ALL TESTS PASSED"}.items():

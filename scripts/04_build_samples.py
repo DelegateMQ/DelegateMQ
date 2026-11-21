@@ -399,7 +399,7 @@ def build_samples(use_clang=False, full=False):
         # Cellutron's controller/safety nodes get an extra 'build-threadx'
         # variant (see 03_generate_samples.py) proving DelegateMQ isolates
         # app code from the RTOS choice.
-        extra_suffixes = ["build-threadx"] if project_name == "cellutron" else None
+        extra_suffixes = ["build-threadx"] if project_name in ("cellutron", "sensor-node") else None
         # --full: test/ has extra unit-test builds (see full_suite.py).
         if full and project_name == "test":
             extra_suffixes = [v["suffix"] for v in full_suite.test_variants()]
@@ -409,6 +409,11 @@ def build_samples(use_clang=False, full=False):
         targets = collect_build_dirs(target_dir, use_clang=use_clang, extra_suffixes=extra_suffixes)
         # Pumptron's STM32F4 firmware is a separate cross-compiled build tree
         # nested under build/ (configured only when the ARM toolchain exists).
+        # sensor-node's Zephyr node is its own Zephyr app (node/platform/zephyr)
+        if project_name == "sensor-node":
+            zephyr_dir = full_suite.build_dir(os.path.join(target_dir, "node", "platform", "zephyr"))
+            if os.path.isdir(zephyr_dir):
+                targets.append(("zephyr", zephyr_dir))
         if project_name == "pumptron":
             f4_dir = full_suite.build_dir(target_dir, "f4")
             if os.path.isdir(f4_dir):

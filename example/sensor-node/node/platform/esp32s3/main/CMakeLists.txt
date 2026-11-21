@@ -25,6 +25,7 @@ idf_component_register(
         lwip
         esp_driver_gpio
         esp_driver_tsens
+        esp_timer
         led_strip
 )
 
