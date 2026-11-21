@@ -1,0 +1,16 @@
+menu "ESP32-S3-DevKitC sample"
+
+    config APP_LED_GPIO
+        int "RGB LED (WS2812) GPIO"
+        default 38
+        help
+            The board's addressable RGB LED: GPIO 48 on DevKitC-1 v1.0, GPIO 38 on
+            v1.1. The board version is printed on the board.
+
+    config APP_BUTTON_GPIO
+        int "Button GPIO"
+        default 0
+        help
+            The BOOT button (GPIO 0, low when pressed).
+
+endmenu

@@ -20,6 +20,10 @@ build-*/
 sdkconfig
 sdkconfig.old
 dependencies.lock
+# ESP-IDF component manager downloads
+managed_components/
+# PlatformIO's generated ESP-IDF config, one per environment
+sdkconfig.esp32s3
 # build_all.py's build tree: out/<platform>/<path of the project>/<variant>
 /out/
 # PlatformIO release tarballs (scripts/package_readme.py)
