@@ -1,6 +1,6 @@
 # DelegateMQ — Technology Comparison
 
-This document compares DelegateMQ to related technologies across three areas: **signal/slot libraries**, **remote/IPC communication**, and **asynchronous callback patterns**. The goal is not to declare a winner — each technology has its place — but to identify where DelegateMQ offers a meaningfully different or simpler approach.
+This document compares DelegateMQ to related technologies across three areas: **signal/slot libraries**, **remote/IPC communication**, and **asynchronous callback patterns**, and to the most common alternative of all, **hand-coded infrastructure**. The goal is not to declare a winner — each technology has its place — but to identify where DelegateMQ offers a meaningfully different or simpler approach.
 
 ---
 
@@ -24,6 +24,11 @@ This document compares DelegateMQ to related technologies across three areas: **
     - [OS Message Queues (FreeRTOS, Win32, POSIX)](#os-message-queues-freertos-win32-posix)
     - [Boost.Asio / Executors](#boostasio--executors)
     - [Async Summary](#async-summary)
+  - [Hand-Coded Infrastructure](#hand-coded-infrastructure)
+    - [What a Reliable Link Has to Handle](#what-a-reliable-link-has-to-handle)
+    - [Tested Once, Fixed Once](#tested-once-fixed-once)
+    - [A Worked Example: sensor-node](#a-worked-example-sensor-node)
+    - [When Hand-Coding Is the Better Choice](#when-hand-coding-is-the-better-choice)
   - [Unified API: The Core Differentiator](#unified-api-the-core-differentiator)
 
 ---
@@ -580,6 +585,55 @@ Asio requires you to capture all arguments into the lambda manually. There is no
 | Object lifetime safety | No | No | No | Yes (`weak_ptr`) |
 | ISR-safe post | No | Yes (`FromISR` APIs) | No | Yes (`IsrDelegate`) |
 | Per-thread watchdog with failure-capture hooks | No | No | No | Yes |
+
+---
+
+## Hand-Coded Infrastructure
+
+The most common alternative to DelegateMQ isn't another library: it's writing the infrastructure yourself, on the RTOS's queues and the platform's sockets. Counting lines understates what that costs. The message queues and dispatch `switch`es are the easy part (see [OS Message Queues](#os-message-queues-freertos-win32-posix)). The hard part is making the link between threads and processors *reliable*, and that work is all new code, with its own bugs, to design, debug and test.
+
+### What a Reliable Link Has to Handle
+
+Each row is a problem a connected embedded app runs into, usually only after it has run for a while or met an unlucky timing:
+
+| Problem | Hand-coded | DelegateMQ |
+|---|---|---|
+| A message is lost | ACK protocol, timeout table, retry logic | `ReliableTransport` with `TransportMonitor` (ACK timeouts) and `RetryMonitor` (re-send) |
+| A retry arrives after the original was received | Sequence numbers and a recent-history table per sender | `Participant` drops a repeated transport sequence number within the sender's retry window (`SetSeqHistoryExpiry()`) |
+| An old retry arrives after a newer command | Per-message sequence numbers and a "newer than last" rule that survives wraparound | `dmq::util::MonotonicGuard` (with a `MessageBase` sequence, as in the Cellutron and Pumptron examples) |
+| A message can't be delivered at all | Give-up logic and a way to tell the application | `RetryMonitor::OnDeliveryFailed`; each timeout through `TransportMonitor::OnSendStatus` |
+| Serialization or dispatch fails | Error codes threaded through every layer | `DataBus::SubscribeError`, `SetErrorHandler` (`DelegateError` codes) |
+| A slow consumer fills a thread's queue | A policy per queue, and counters | `FullPolicy` (`FAULT`, `DROP`, `TIMEOUT`) and a dropped-message handler on every thread |
+| A thread hangs | Heartbeats, a monitor task, a report of which thread and where | `CreateThread(timeout)`, `Thread::WatchdogCheckAll()`, `SetWatchdogHook()` for failure capture |
+| An interrupt must hand work to a thread | `FromISR` queue calls and a drain loop per source | `IsrDelegate`: no heap or mutex in the interrupt |
+| The object a late call targets is gone | Manual lifetime rules | Delegates bound through `std::shared_ptr` hold a `weak_ptr` and skip the call |
+
+### Tested Once, Fixed Once
+
+DelegateMQ's mechanisms run in its test suite on every change: unit and stress tests with sanitizers, big-endian and Arm builds, every RTOS port on its simulator, Cortex-M, RISC-V and ESP32 targets under QEMU, and boards (see [Platform Support](../README.md#platform-support)). Hand-coded infrastructure gets the testing one team has time for, on one product.
+
+### A Worked Example: sensor-node
+
+[`example/sensor-node`](../example/sensor-node/README.md) is a sampling, control and networking node (three threads, timers, an interrupt, per-thread watchdogs, DataBus over UDP with acknowledged, retried and de-duplicated commands) and a PC client that monitors and commands it. Measured, in lines of code (no comments or blank lines):
+
+| Part | Lines |
+|---|---|
+| The node's application (`node/app`) | 602 |
+| Topics and messages shared with the PC (`common/`) | 173 |
+| Of which: the network set-up (`SensorNode::NetInit()`) | 36 |
+| Platform layer: desktop / ESP32-S3 (with Wi-Fi) | 86 / 187 |
+| PC client, with its self-test | 320 |
+
+A hand-coded equivalent (FreeRTOS queues, sockets, its own framing, ACKs, retries and duplicate filtering, plus the PC side of that protocol) is an estimate, not a measurement: roughly 1,500 to 2,200 lines for the node alone, two to three times as much. The bigger difference is which lines: DelegateMQ's are mostly application logic; the hand-coded version's extra lines are protocol and plumbing, the error-prone part.
+
+The node was built and tested on Windows and Linux before the board arrived, then ran on the ESP32-S3 the first day with only its platform layer added.
+
+### When Hand-Coding Is the Better Choice
+
+- **A measured hot path with a microsecond budget.** On an ESP32-S3 at 160 MHz a DelegateMQ async-wait round trip to the other core takes about 165 µs, against about 23 µs for a raw FreeRTOS queue and semaphore; a non-blocking async call costs the caller about 39 µs. Most of it is ESP-IDF's heap and kernel mutexes. Use raw primitives (or a `std::shared_ptr` handoff, which isn't copied) on that path, and DelegateMQ for the rest. See the [board measurements](../example/sensor-node/node/platform/esp32s3/README.md#measured-on-the-board).
+- **A very small MCU,** where template instantiations per call signature cost more flash than the part has.
+- **No heap at all, without configuring for it.** DelegateMQ copies arguments to the heap by default; the fixed-block allocator and static pools remove that, at a cost on some RTOSes (see [Trade-offs](DETAILS.md#trade-offs)).
+- **A team that won't learn the model:** argument copying (a `char*` argument to a non-blocking call copies one character), object lifetime, and storing `ScopedConnection`s. See the [Application Guide](APP-GUIDE.md).
 
 ---
 

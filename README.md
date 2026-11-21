@@ -173,6 +173,8 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 | Portable worker threads | One `dmq::os::Thread` API on every supported OS, with delegate dispatch, thread priorities (RTOS ports), a priority message queue, queue-full and shutdown policies, start/exit/idle hooks, a start gate for synchronized startup, a watchdog with failure-capture hooks, and error reporting built in. |
 | Off-target development | Embedded application logic builds and runs on a Windows or Linux host for testing; moving to hardware swaps only the thread port and transport. |
 | Location transparency | DataBus subscribers receive data identically whether the publisher is in the same thread, another process, or a remote processor. |
+| Reliable delivery built in | Acknowledgments and retries, duplicate and stale-message filtering, delivery-failure and error signals, queue-full policies and thread watchdogs: the parts of a link that are hardest to get right by hand. See [Hand-Coded Infrastructure](docs/COMPARISON.md#hand-coded-infrastructure). |
+| Tested infrastructure | Every mechanism runs in the test suite on every change: unit and stress tests with sanitizers, every RTOS port, QEMU targets and boards (see [Platform Support](#platform-support)). A bug found is fixed once, for every port, with a test to keep it fixed. |
 | Less application code | No hand-coded message queues, mutexes or transport plumbing: the library delivers type-safe data to its destination, across threads and processors. |
 
 # Supported Integrations

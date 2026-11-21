@@ -251,7 +251,7 @@ For fine-tuning numeric constants without editing library files (and, without CM
 
 ### Embedded (ARM/Bare-Metal)
 - **Stack Usage & Code Bloat**: In unoptimized Debug mode (`-O0`), variadic templates generate deep call stacks and heavy flash usage. Either use Release mode (`-O2`/`-Os`), increase your RTOS task stack sizes (min 4-8KB recommended), or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON` to eliminate template bloat while keeping your application debuggable.
-- **Static Memory**: Use `-DDMQ_ALLOCATOR=ON` to ensure all internal library allocations use fixed-sized pools, avoiding heap fragmentation.
+- **Static Memory**: Use `-DDMQ_ALLOCATOR=ON` so the library's own allocations use fixed-size pools, avoiding heap fragmentation. It can be slower than the platform's heap on an RTOS (each allocation takes a kernel mutex); see [Fixed-Block Memory Allocator: Trade-offs](DETAILS.md#trade-offs).
 
 ### Windows / Linux
 - **Standard Library**: On PC platforms, the library defaults to using `std::thread`, `std::mutex`, and `std::chrono` via the `stdlib` port.

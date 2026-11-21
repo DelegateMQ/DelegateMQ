@@ -889,9 +889,24 @@ The `DelegateMQ` library external dependencies are based upon on the intended us
 
 ## Fixed-Block Memory Allocator
 
-The `DelegateMQ` library includes an optional fixed-block memory allocator designed to improve performance and reduce heap fragmentation in mission-critical systems. This feature is enabled by defining `DMQ_ALLOCATOR`. See `DelegateOpt.h` for configuration details and `DelegateMQConfig_Default.h` for tunable constants. The underlying allocator implementation is based on the [stl_allocator](https://github.com/endurodave/stl_allocator) repository.
+The `DelegateMQ` library includes an optional fixed-block memory allocator that keeps its allocations from fragmenting the heap, for systems that run for a long time or must not fail on a fragmented heap. This feature is enabled by defining `DMQ_ALLOCATOR`. See `DelegateOpt.h` for configuration details and `DelegateMQConfig_Default.h` for tunable constants. The underlying allocator implementation is based on the [stl_allocator](https://github.com/endurodave/stl_allocator) repository.
 
 When `DMQ_ALLOCATOR` is defined, the `XALLOCATOR` macro is used to override `new` and `delete` operators for internal library objects.
+
+### Trade-offs
+
+What it gives:
+
+- **No fragmentation from DelegateMQ's allocations.** Blocks come in fixed sizes, one free list per size. By default (dynamic mode) a block is taken from the heap the first time and recycled after that, never returned, so in steady state messages and argument copies don't churn the heap. With `DMQ_XALLOCATOR_STATIC_POOLS` there's no heap at all: fixed memory, sized at build time, and a fault when a pool runs out (see [No Heap After Startup](SAFETY.md#no-heap-after-startup-static-pools)).
+- **Simple and predictable.** Taking or returning a block is a free-list pop or push, the same cost every time.
+
+What it costs:
+
+- **Speed, on some platforms.** Every allocation and free takes a global `dmq::Mutex`: three lock/unlock pairs per allocate-and-free (the size lookup, the pop, the push). On an RTOS that mutex is a kernel object, and on ESP-IDF's dual-core FreeRTOS each pair costs about 6 us at 160 MHz, so an allocate-and-free is about 18 us against about 9.5 us for ESP-IDF's own heap. Measured on an ESP32-S3: an async-wait round trip took 437 us with `DMQ_ALLOCATOR` and 200 us without, and a non-blocking async call 329 us against 39 us. On desktop OSes and single-core RTOSes the lock is much cheaper and the difference small.
+- **Memory.** Block sizes are powers of two, so a 70-byte request takes a 128-byte block (up to about half wasted). In dynamic mode the pools keep their peak size, since freed blocks go back to the pool, not the heap.
+- **Coverage.** Only what goes through it is covered: library objects with `XALLOCATOR`, `xmake_shared`, and the `x` containers (`xlist`, `xmap`, `xstring`, ...). A plain `std::make_shared` control block, a `std::function` capture larger than its small-buffer storage, or an RTOS kernel object still uses the heap. `test/AllocTrack.cpp` lists what still does (see [BUILD.md](BUILD.md)).
+
+For most systems the speed cost doesn't matter, and the allocator is the simple, robust answer to fragmentation. If one path allocates often enough that it does (many async calls per millisecond, say), fix that path, rather than give up the allocator: reuse the objects it allocates, or pass a `std::shared_ptr`, which an async call doesn't copy (see [Bypassing Argument Heap Copy](#bypassing-argument-heap-copy)).
 
 ## Function Argument Copy
 
