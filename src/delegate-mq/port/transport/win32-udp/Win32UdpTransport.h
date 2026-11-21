@@ -60,6 +60,13 @@ public:
         Close();
     }
 
+    /// @brief Open the socket. PUB sends to addr:port (and drains ACKs); SUB binds
+    /// port and receives.
+    /// @note Receive() blocks up to the receive timeout when nothing arrives:
+    /// DMQ_UDP_PUB_RECV_TIMEOUT_MS (2 ms) for PUB, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s)
+    /// for SUB. A thread that polls a SUB socket between other work (a timer, a
+    /// loop that also drains ACKs) stalls for the full 2 s each idle poll: call
+    /// SetRecvTimeout() with a short timeout after Create().
     int Create(Type type, LPCSTR addr, USHORT port)
     {
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -89,7 +96,9 @@ public:
                 return -1;
             }
 
-            DWORD timeout = 2;
+            // A short timeout (DMQ_UDP_PUB_RECV_TIMEOUT_MS) so polling for ACKs
+            // doesn't hold up the sender
+            DWORD timeout = static_cast<DWORD>(dmq::UDP_PUB_RECV_TIMEOUT.count());
             setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
         }
         else if (type == Type::SUB)
@@ -109,8 +118,9 @@ public:
                 return -1;
             }
 
-            // Set a 2-second receive timeout
-            DWORD timeout = 2000; // 2000 milliseconds = 2 seconds
+            // DMQ_UDP_SUB_RECV_TIMEOUT_MS: Receive() returns RECEIVE_NO_DATA after
+            // it, so the receiving thread can check for exit
+            DWORD timeout = static_cast<DWORD>(dmq::UDP_SUB_RECV_TIMEOUT.count());
             err = setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
             if (err == SOCKET_ERROR)
             {

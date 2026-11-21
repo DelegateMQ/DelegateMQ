@@ -53,7 +53,9 @@
 #define DMQ_DEFAULT_QUEUE_SIZE          20
 
 /// Stack size of each dmq::os::Thread on the RTOS ports, in each port's native
-/// unit. FreeRTOS counts words and applies to dynamically allocated stacks
+/// unit. FreeRTOS counts StackType_t units (words on mainline FreeRTOS, but bytes
+/// on ESP-IDF, where StackType_t is uint8_t: 4096 is 16 KB on an STM32 and 4 KB on
+/// an ESP32) and applies to dynamically allocated stacks
 /// (FreeRTOSThread::SetStackMem() supplies a static stack instead); the others
 /// count bytes.
 #define DMQ_FREERTOS_STACK_WORDS        4096
@@ -141,12 +143,13 @@
 /// there: the buffer's block must fit the allocator's largest, 16 KB).
 #define DMQ_MAX_MESSAGE_SIZE            65535
 
-/// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
-/// (header + payload, keep within the link MTU), the PUB socket's ACK-poll
-/// receive timeout, and the SUB socket's receive timeout (how often its thread
-/// can check for exit).
+/// UDP transports: datagram buffer size (header + payload, keep within the link
+/// MTU; embedded transports: lwIP, netconn, Zephyr, NetX), the PUB socket's
+/// ACK-poll receive timeout and the SUB socket's receive timeout (how often its
+/// thread can check for exit), for every UDP transport. Keep the PUB timeout
+/// short: NetworkNode drains each peer's ACKs in turn and waits it out per peer.
 #define DMQ_UDP_BUFFER_SIZE             1500
-#define DMQ_UDP_PUB_RECV_TIMEOUT_MS     50
+#define DMQ_UDP_PUB_RECV_TIMEOUT_MS     2
 #define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
 
 /// STM32 UART transport: RX ring buffer bytes (absorbs bursts between reads),

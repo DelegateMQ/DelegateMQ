@@ -17,6 +17,7 @@ Rules and patterns for writing an application **with** DelegateMQ. It's short on
 - [Remote DataBus](#remote-databus)
 - [Remote RPC](#remote-rpc)
 - [Diagnostics and Interop](#diagnostics-and-interop)
+- [Pitfalls](#pitfalls)
 - [Library Rules That Don't Apply to Application Code](#library-rules-that-dont-apply-to-application-code)
 - [Checklist](#checklist)
 
@@ -307,6 +308,20 @@ Details: [extras/rpc](../src/delegate-mq/extras/rpc/README.md), [DETAILS: Remote
 
 Details: [TOOLS](../tools/TOOLS.md), [INTEROP](INTEROP.md).
 
+## Pitfalls
+
+Mistakes that compile (or used to) and then misbehave quietly. Each was hit while building a real application.
+
+- **`char*` arguments in async calls.** A non-blocking async call copies its arguments for the target thread, and a pointer argument's *pointee* is copied: one object. For a `const char*` that's the first character, not the string, so the target reads garbage. This no longer compiles (a `static_assert` says so); take `std::string` (or `dmq::xstring`). An async-wait call passes the pointer itself while the caller waits, so `const char*` is fine there. If one character by pointer is really what you mean, define `DMQ_ALLOW_ASYNC_CHAR_PTR`.
+- **Arguments are copied, one way.** Pointer and reference arguments of a non-blocking async call point at the copy, so a handler's changes don't reach the caller: use async-wait for out-parameters. A `std::shared_ptr` argument copies the pointer, so the object is shared. C arrays decay to pointers: pass a `std::array`, `std::vector` or struct.
+- **An async call can outlive its target.** A queued call to an object bound by raw `this` runs even if the object was destroyed meanwhile. Bind objects created and destroyed at runtime with `std::shared_ptr` (the call is skipped once the object is gone), and follow the [shutdown order](#shutdown-order): stop the emitters, then exit the thread, then destroy the object.
+- **Polling a UDP SUB socket stalls the thread.** `Receive()` waits up to the socket's receive timeout when nothing arrives: 2 s for a SUB socket (`DMQ_UDP_SUB_RECV_TIMEOUT_MS`), so its thread can check for exit. A thread that also does other work (a timer, a loop draining ACKs, `Participant::ProcessIncoming()` from a tick) stalls 2 s on every idle poll. Call the transport's `SetRecvTimeout()` with a few milliseconds after `Create()`.
+- **A restarted sender's messages are dropped as duplicates.** A `Participant` drops a message whose sequence number it saw from the same sender recently: that's how retries are filtered. A sender that restarts numbers from the start again, so for the history window its new messages look like retries. Set `SetSeqHistoryExpiry()` to the sender's retry window (ACK timeout times retries), no longer; subscribe to `OnDuplicateDropped` (or read `DuplicatesDropped()`) to see drops; and give messages that must survive a restart their own session or sequence field (`example/sensor-node`'s `MessageBase`, checked with `MonotonicGuard`).
+- **Stack sizes on ESP-IDF are bytes.** `FreeRTOSThread`'s stack size (`DMQ_FREERTOS_STACK_WORDS`, `SetStackMem()`) counts `StackType_t` units: words on mainline FreeRTOS, bytes on ESP-IDF. 4096 is a 16 KB stack on an STM32 and 4 KB on an ESP32.
+- **One `std::cout` brings back all of iostreams.** DelegateMQ's library code uses no iostreams, but a single `std::cout`, `std::stringstream` or `<<` to a stream anywhere in the firmware links them all in, with their locale code: about 160 KB on an STM32F407 and 200 KB on an ESP32-S3. On an MCU, print with `printf` and format with `snprintf`.
+- **Messages have a size cap.** A remote message larger than `DMQ_MAX_MESSAGE_SIZE` (65535; 4096 under `DMQ_ALLOCATOR`) isn't sent: the error handler gets `ERR_MESSAGE_TOO_LARGE`. Raise the cap in your config if you need to (at most 8181 under `DMQ_ALLOCATOR`), or split the data.
+- **A discarded connection disconnects at once.** See [Connections Must Be Stored](#connections-must-be-stored).
+
 ## Library Rules That Don't Apply to Application Code
 
 These [CLAUDE.md](../CLAUDE.md) rules exist because the library must build on every target. In application code, follow your own platform's constraints instead:
@@ -344,3 +359,7 @@ Library *behaviour* does still apply: store connections, follow the shutdown ord
 - [ ] RPC receive handlers hand work off to an application thread; `RemoteInvokeWait` isn't called from a thread that must stay responsive.
 - [ ] `NetworkNode::Stop()` / `RemoteDispatcher::Stop()` run before the subscribers they feed are destroyed.
 - [ ] Blocking calls with a timeout check `IsSuccess()` (or use `AsyncInvoke()`'s `std::optional`).
+- [ ] Non-blocking async calls take `std::string`, not `const char*`; out-parameters use async-wait.
+- [ ] A thread that polls a UDP SUB socket between other work sets a short `SetRecvTimeout()`.
+- [ ] `SetSeqHistoryExpiry()` matches the sender's retry window, and `OnDuplicateDropped` is watched.
+- [ ] MCU firmware prints with `printf`, not `std::cout` (see [Pitfalls](#pitfalls)).

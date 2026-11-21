@@ -10,6 +10,7 @@
 #include "extras/util/Fault.h"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <string>
 #include <memory>
@@ -40,11 +41,28 @@ public:
 
     /// @brief How long a received sequence number counts toward duplicate
     /// detection. Defaults to dmq::SEQ_HISTORY_EXPIRY (DMQ_SEQ_HISTORY_EXPIRY_MS).
-    /// Set it to cover the sender's retry window if that differs from the default.
+    /// @details Set it to the sender's retry window (its ACK timeout times its
+    /// retries): long enough that every retry of a message is caught, and no
+    /// longer. A sender that restarts numbers its messages from the start again,
+    /// so within this window its new messages look like retries of old ones and
+    /// are dropped (reported through OnDuplicateDropped). Messages that must get
+    /// through a restart carry their own session or sequence field (see
+    /// example/sensor-node's MessageBase).
     void SetSeqHistoryExpiry(dmq::Duration expiry) {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         m_seqHistoryExpiry = expiry;
     }
+
+    /// @brief Fired when a received message is dropped as a duplicate: a retry of
+    /// one already delivered, or a restarted sender reusing a sequence number
+    /// within the history window (see SetSeqHistoryExpiry()). Retries are normal
+    /// on a lossy link; a steady stream of drops from one sender after it
+    /// restarted is not. Called on the thread that calls ProcessIncoming().
+    /// Subscribers receive: (remoteId, seqNum, sender node ID).
+    dmq::Signal<void(dmq::DelegateRemoteId, uint16_t, uint8_t)> OnDuplicateDropped;
+
+    /// @brief How many received messages were dropped as duplicates.
+    uint32_t DuplicatesDropped() const noexcept { return m_duplicatesDropped.load(std::memory_order_relaxed); }
 
     /// @brief Map a topic string to a remote ID for outbound sends to this
     /// participant.
@@ -75,6 +93,10 @@ public:
 
     // Process incoming data from the transport.
     // Must not be called concurrently — m_receiveMutex serializes the transport read.
+    // Blocks for up to the transport's receive timeout when nothing arrives: for a
+    // UDP SUB socket, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s by default). A thread that
+    // calls this between other work (from a timer, a polling loop) needs a short
+    // timeout: call the transport's SetRecvTimeout() (e.g. 1-2 ms) after Create().
     // @return The result code from ITransport::Receive.
     int ProcessIncoming() {
         dmq::transport::DmqHeader header;
@@ -108,18 +130,27 @@ public:
 
             dmq::IRemoteInvoker* invoker = nullptr;
             std::shared_ptr<void> channelLifetime; // keeps channel alive across lock gap
+            bool duplicate = false;
             {
                 dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
                 auto it = m_channels.find(id);
                 if (it != m_channels.end()) {
                     // Filter out duplicate messages (retries)
-                    if (id != dmq::ACK_REMOTE_ID &&
-                        m_history[HistoryKey(header.GetNodeId(), id)].is_duplicate(seqNum, dmq::Clock::now(), m_seqHistoryExpiry)) {
-                        return 0; // Silently drop duplicate
+                    if (m_history[HistoryKey(header.GetNodeId(), id)].is_duplicate(seqNum, dmq::Clock::now(), m_seqHistoryExpiry)) {
+                        duplicate = true;
+                    } else {
+                        channelLifetime = it->second.channel;
+                        invoker = it->second.invoker;
                     }
-                    channelLifetime = it->second.channel;
-                    invoker = it->second.invoker;
                 }
+            }
+
+            // Dropped, not delivered: counted and reported (outside the lock),
+            // never silently
+            if (duplicate) {
+                m_duplicatesDropped.fetch_add(1, std::memory_order_relaxed);
+                OnDuplicateDropped(id, seqNum, header.GetNodeId());
+                return 0;
             }
 
             // Invoke outside the lock to prevent deadlocks and allow re-entry
@@ -416,6 +447,7 @@ private:
         }
     };
     dmq::xmap<uint32_t, SeqHistory> m_history;
+    std::atomic<uint32_t> m_duplicatesDropped{ 0 };
 };
 
 } // namespace dmq::databus

@@ -122,6 +122,14 @@ The samples bind async delegates with a raw `this` (`MakeDelegate(this, &X::F, m
 - `DelegateAsync` (fire-and-forget) does not return the target function's return value. Use `DelegateAsyncWait` for blocking with return, or `Signal` for broadcast callbacks.
 - Out-parameters (pointer or reference arguments modified by the handler) are not reflected back to the caller for non-blocking async; deep-copying is one-way. Use blocking async if out-parameters are needed.
 - C-style array arguments decay to pointers per the C standard; pass `std::vector` or a struct instead.
+- A `char*`/`const char*` argument in a non-blocking async call doesn't compile (only the first character would be copied): use `std::string`. Async-wait calls may take `const char*`.
+- A queued async call to an object bound by raw `this` runs even after the object is destroyed: bind runtime objects with `std::shared_ptr`, and exit the thread before destroying what it calls.
+- A UDP SUB socket's `Receive()` waits up to 2 s (`DMQ_UDP_SUB_RECV_TIMEOUT_MS`) when idle; a thread that polls it between other work needs `SetRecvTimeout()` of a few ms.
+- `Participant` drops a sequence number it saw recently from the same sender (retries). A restarted sender reuses numbers: set `SetSeqHistoryExpiry()` to the sender's retry window and watch `OnDuplicateDropped`.
+- On ESP-IDF, FreeRTOS stack sizes (`DMQ_FREERTOS_STACK_WORDS`, `SetStackMem()`) are bytes, not words.
+- One `std::cout`/`std::stringstream` in MCU firmware links all of iostreams (~160-200 KB of flash); use `printf`/`snprintf`.
+- Remote messages over `DMQ_MAX_MESSAGE_SIZE` (65535; 4096 with `DMQ_ALLOCATOR`) fail with `ERR_MESSAGE_TOO_LARGE`.
+- More, with fixes: "Pitfalls" in `docs/APP-GUIDE.md`.
 - Passing a `std::shared_ptr` argument through an async delegate copies the smart pointer, not the pointed-to object — the pointed-to data is shared, not duplicated.
 - `Signal::Connect()` and every `Subscribe*()` return a `[[nodiscard]]` `dmq::ScopedConnection` that owns the subscription. Discarding it disconnects immediately: no callbacks, no error. Store it in a member variable or container.
 - Each DataBus topic has exactly one C++ type; a type mismatch between publisher and subscriber triggers a fault at runtime.

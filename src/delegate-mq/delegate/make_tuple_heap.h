@@ -199,6 +199,17 @@ Arg& heap_copy_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, Arg&
     return *heap_arg;
 }
 
+/// @brief A character type whose pointer usually means a string: an async call
+/// would copy only the first character (see store_async_arg()).
+template <typename T>
+struct is_text_char : std::bool_constant<
+    std::is_same_v<T, char> || std::is_same_v<T, wchar_t> ||
+    std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>
+#if defined(__cpp_char8_t)
+    || std::is_same_v<T, char8_t>
+#endif
+    > {};
+
 /// @brief Store one argument of a non-blocking async call. Chooses by `Param`, the
 /// bound function's declared parameter type, not by how the argument arrives.
 /// @details
@@ -222,6 +233,17 @@ template <typename Param, typename A>
 decltype(auto) store_async_arg(xlist<std::shared_ptr<heap_arg_deleter_base>>& heapArgs, A&& arg)
 {
     static_assert(!std::is_same<std::decay_t<Param>, void*>::value, "void* argument not allowed");
+#if !defined(DMQ_ALLOW_ASYNC_CHAR_PTR)
+    // A pointer argument's pointee is copied, one object: for a char* that's the
+    // first character, not the string, and the target reads past it. (A blocking
+    // async-wait call passes the pointer itself while the caller waits, so it's
+    // fine there.) signed/unsigned char are allowed: uint8_t* is usually one byte.
+    static_assert(!(std::is_pointer_v<std::decay_t<Param>> &&
+                    is_text_char<std::remove_cv_t<std::remove_pointer_t<std::decay_t<Param>>>>::value),
+        "char*/const char* argument in a non-blocking async call: only the first character "
+        "is copied, not the string. Take std::string (or dmq::xstring) instead. Define "
+        "DMQ_ALLOW_ASYNC_CHAR_PTR if one character by pointer is really what you mean.");
+#endif
     if constexpr (std::is_reference_v<Param>) {
         // Pass as an lvalue so heap_copy_arg()'s Arg& overload makes the heap copy;
         // it returns a reference to that copy.

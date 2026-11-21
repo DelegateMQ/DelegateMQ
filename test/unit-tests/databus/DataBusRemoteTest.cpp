@@ -302,6 +302,13 @@ int DataBusRemoteTestMain() {
             count++;
             last = val;
         });
+        // A dropped duplicate is reported, not dropped silently
+        int dupSignals = 0;
+        uint16_t dupSeq = 0;
+        uint8_t dupNode = 0;
+        auto dupConn = receiver->OnDuplicateDropped.Connect(dmq::MakeDelegate(
+            std::function<void(dmq::DelegateRemoteId, uint16_t, uint8_t)>(
+                [&](dmq::DelegateRemoteId, uint16_t seq, uint8_t node) { dupSignals++; dupSeq = seq; dupNode = node; })));
 
         auto inject = [&](uint8_t node, uint16_t seq, int value) {
             dmq::ByteWriter os;
@@ -320,6 +327,8 @@ int DataBusRemoteTestMain() {
 
         inject(1, 5, 10);                  // same node, same seq: retry, dropped
         DMQ_ASSERT_TRUE(count == 2);
+        DMQ_ASSERT_TRUE(receiver->DuplicatesDropped() == 1);
+        DMQ_ASSERT_TRUE(dupSignals == 1 && dupSeq == 5 && dupNode == 1);
 
         inject(1, 6, 11);                  // same node, next seq: delivered
         DMQ_ASSERT_TRUE(count == 3 && last == 11);

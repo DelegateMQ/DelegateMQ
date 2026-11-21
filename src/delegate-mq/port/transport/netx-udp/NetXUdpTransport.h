@@ -68,7 +68,13 @@ public:
         tx_mutex_delete(&m_mutex);
     }
 
-    /// @brief Initialize the UDP socket.
+    /// @brief Initialize the UDP socket. PUB sends to addr:port (and drains ACKs);
+    /// SUB binds port and receives.
+    /// @note Receive() blocks up to the receive timeout when nothing arrives:
+    /// DMQ_UDP_PUB_RECV_TIMEOUT_MS (2 ms) for PUB, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s)
+    /// for SUB. A thread that polls a SUB socket between other work (a timer, a
+    /// loop that also drains ACKs) stalls for the full 2 s each idle poll: call
+    /// SetRecvTimeout() with a short timeout after Create().
     int Create(Type type, const char* addr_str, uint16_t port)
     {
         Close();    // a second Create() replaces the socket instead of leaking it

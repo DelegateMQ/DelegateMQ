@@ -147,8 +147,11 @@ public:
     void SetThreadPriority(int priority);
 
     /// Optional: Provide a static buffer for the task stack to avoid Heap usage.
-    /// @param stackBuffer Pointer to a buffer of type StackType_t. 
-    /// @param stackSizeInWords Size of the buffer in WORDS (not bytes).
+    /// @param stackBuffer Pointer to a buffer of type StackType_t.
+    /// @param stackSizeInWords Size of the buffer in StackType_t units: words on
+    /// mainline FreeRTOS (4 bytes on a 32-bit MCU), but BYTES on ESP-IDF, where
+    /// StackType_t is uint8_t. 4096 is a 16 KB stack on an STM32 and 4 KB on an
+    /// ESP32. The same holds for DMQ_FREERTOS_STACK_WORDS.
     void SetStackMem(StackType_t* stackBuffer, uint32_t stackSizeInWords);
 
     // IThread Interface Implementation

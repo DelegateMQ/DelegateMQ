@@ -397,7 +397,8 @@ namespace dmq
     static_assert(MAX_MESSAGE_SIZE > 0 && MAX_MESSAGE_SIZE <= 65535,
         "DMQ_MAX_MESSAGE_SIZE: 1 to 65535 (the message header's length is 16 bits)");
 
-    /// @brief Embedded UDP transports: datagram buffer size and receive timeouts.
+    /// @brief UDP transports: datagram buffer size (embedded ones) and receive
+    /// timeouts (all).
     /// Override via DMQ_UDP_BUFFER_SIZE / DMQ_UDP_PUB_RECV_TIMEOUT_MS /
     /// DMQ_UDP_SUB_RECV_TIMEOUT_MS in delegatemqconfig.h.
     inline constexpr size_t UDP_BUFFER_SIZE = DMQ_UDP_BUFFER_SIZE;

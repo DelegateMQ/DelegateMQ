@@ -55,6 +55,11 @@ public:
     /// @param addr Target IP string (e.g. "192.168.1.50") for PUB; Ignored for SUB.
     /// @param port Local port to bind (SUB) or Remote port to target (PUB).
     /// @return 0 on success, -1 on failure
+    /// @note Receive() blocks up to the receive timeout when nothing arrives:
+    /// DMQ_UDP_PUB_RECV_TIMEOUT_MS (2 ms) for PUB, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s)
+    /// for SUB. A thread that polls a SUB socket between other work (a timer, a
+    /// loop that also drains ACKs) stalls for the full 2 s each idle poll: call
+    /// SetRecvTimeout() with a short timeout after Create().
     int Create(Type type, const char* addr, uint16_t port)
     {
         const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);

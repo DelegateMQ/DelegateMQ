@@ -36,7 +36,7 @@
 
 // Stack size of each dmq::os::Thread on the RTOS ports, in each port's native unit.
 #ifndef DMQ_FREERTOS_STACK_WORDS
-    #define DMQ_FREERTOS_STACK_WORDS        4096    // words; dynamic stacks (SetStackMem() overrides)
+    #define DMQ_FREERTOS_STACK_WORDS        4096    // StackType_t units: words, but bytes on ESP-IDF; dynamic stacks (SetStackMem() overrides)
 #endif
 #ifndef DMQ_THREADX_STACK_BYTES
     #define DMQ_THREADX_STACK_BYTES         2048
@@ -130,15 +130,17 @@
     #endif
 #endif
 
-// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
-// (header + payload), and receive timeouts. A PUB socket polls briefly for ACKs;
-// a SUB socket waits longer, returning RECEIVE_NO_DATA so its thread can check
-// for exit.
+// UDP transports: datagram buffer size (header + payload; the embedded ones:
+// lwIP, netconn, Zephyr, NetX) and receive timeouts (every UDP transport,
+// desktop too). A PUB socket polls briefly for ACKs, so a node that drains
+// several peers' ACKs in turn (NetworkNode) isn't held up; a SUB socket waits
+// longer, returning RECEIVE_NO_DATA so its thread can check for exit. A thread
+// that polls a SUB socket between other work needs SetRecvTimeout() shorter.
 #ifndef DMQ_UDP_BUFFER_SIZE
     #define DMQ_UDP_BUFFER_SIZE             1500
 #endif
 #ifndef DMQ_UDP_PUB_RECV_TIMEOUT_MS
-    #define DMQ_UDP_PUB_RECV_TIMEOUT_MS     50
+    #define DMQ_UDP_PUB_RECV_TIMEOUT_MS     2
 #endif
 #ifndef DMQ_UDP_SUB_RECV_TIMEOUT_MS
     #define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
