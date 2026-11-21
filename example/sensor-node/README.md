@@ -35,9 +35,14 @@ The Start also says how often to publish statistics: `intervalMs`, the stats win
 
 ### Commands Are Reliable
 
-Every command (`cmd/start`, `cmd/rate`, `cmd/led`) is ACKed by the node and, if no ACK comes within 250 ms, sent again, up to 3 times (`ReliableTransport` with a `RetryMonitor`). Each carries a `seq` from one counter in the client; a retry repeats it. The node applies a rate or LED command only if its `seq` differs from the last one it applied for that command, so a retry after a lost ACK isn't applied twice. (A repeated Start just renews the lease.) The client starts its counter from the clock, so a restarted client doesn't repeat the node's last `seq`.
+Every command (`cmd/start`, `cmd/rate`, `cmd/led`) is ACKed by the node and, if no ACK comes within 250 ms, sent again, up to 3 times (`ReliableTransport` with a `RetryMonitor`; `SensorNet::CMD_ACK_TIMEOUT` and `CMD_RETRIES`). The node's data is ACKed but not retried: the next window replaces a lost one.
 
-The node's data is ACKed but not retried: the next window replaces a lost one.
+Two layers keep a command from being applied twice:
+
+- **Retransmissions** (the same bytes sent again by `RetryMonitor`) are dropped by DelegateMQ's `Participant`, which remembers recent transport sequence numbers per sender. The node sets that memory to the client's retry window, 1 s (`SetSeqHistoryExpiry(SensorNet::CMD_RETRY_WINDOW)`): longer, and a restarted client, which numbers from 1 again, would have its first messages dropped as "retries".
+- **Repeated or stale commands** are dropped by the application. Every message derives from `MessageBase` (`common/MessageBase.h`, the same pattern as Cellutron's and Pumptron's), which stamps it with a `seq` at construction; a copy, or a second `Publish()` of the same object, keeps it. The node keeps a `MessageGuard` (`dmq::util::MonotonicGuard<uint32_t>`) per command and applies one only if its `seq` is newer than the last it applied: not a repeat, nor an old command arriving after a newer one.
+
+A restarted client counts its `seq` from 1 again. Each client run therefore picks a random **session** and sends it in every Start; when the node sees a new session it resets its guards. The node handles Start synchronously on `NetThread`, as it receives it, so the reset reaches `ControlThread` before any command sent after that Start.
 
 ### Topics
 
@@ -47,17 +52,17 @@ The node's data is ACKed but not retried: the next window replaces a lost one.
 | `sensor/temp` | node → PC | `Temperature` | every second |
 | `sensor/touch` | node → PC | `Touch`: pad, touched or released | on change |
 | `node/status` | node → PC | `NodeStatus`: uptime, rate, stats window, LED colour, commands applied, messages dropped, cross-core and same-core round trip (µs) | every second, and after each command |
-| `cmd/start` | PC → node | `StartPublishing`: seq, intervalMs | every second |
-| `cmd/rate` | PC → node | `SetRate`: seq, 100-10000 Hz (a multiple of 100) | |
-| `cmd/led` | PC → node | `SetLed`: seq, r, g, b | |
+| `cmd/start` | PC → node | `StartPublishing`: session, intervalMs | every second |
+| `cmd/rate` | PC → node | `SetRate`: 100-10000 Hz (a multiple of 100) | |
+| `cmd/led` | PC → node | `SetLed`: r, g, b | |
 
-Messages use DelegateMQ's built-in serializer (`common/SensorMessages.h`). The node sends to the PC on UDP port 9100; the PC sends commands to the node on port 9101.
+Every message also carries `seq` (`MessageBase`). Messages use DelegateMQ's built-in serializer (`common/SensorMessages.h`). The node sends to the PC on UDP port 9100; the PC sends commands to the node on port 9101.
 
 ## Folders
 
 | Folder | Contents |
 | :--- | :--- |
-| `common/` | Topics, remote IDs, ports and messages, shared by the node and the PC |
+| `common/` | Topics, remote IDs, ports, retry settings and messages (`MessageBase`), shared by the node and the PC |
 | `node/app/` | The node's application, platform independent: `SensorNode`, `RunNode()`, the hardware interfaces (`Hal.h`) and the generated test signal (`TestSignal.h`) |
 | `node/platform/desktop/` | Desktop stand-ins for the hardware (`DesktopHal.h`) and `main()` |
 | `node/platform/esp32s3/` | The ESP32-S3 build: an ESP-IDF project ([README](node/platform/esp32s3/README.md)) |
@@ -92,9 +97,9 @@ For the board, see [node/platform/esp32s3](node/platform/esp32s3/README.md); the
 
 `sensor_pc` checks, in order:
 
-1. Stats, temperature and status arrive (the first Start starts them); a stats window holds one period of the test sine (count = rate / 10, min < -0.9, max > 0.9, |mean| < 0.05); the temperature is in range.
+1. Stats, temperature and status arrive (the first Start starts them), at this client's 100 ms interval; a stats window holds one period of the test sine (count = rate / 10, min < -0.9, max > 0.9, |mean| < 0.05); the temperature is in range.
 2. A `cmd/rate` command is applied: the node reports the new rate and its windows are taken at it.
-3. A `cmd/led` command is applied: the node reports the new colour. The client then sends the same command with the same `seq`, as a retry would.
+3. A `cmd/led` command is applied: the node reports the new colour. The client then publishes the same message again (same `seq`).
 4. The Start's `intervalMs` set to 200: the node reports it, and its windows hold 200 ms of samples (two periods of the sine).
 5. Touch changes arrive (on the board: press BOOT within 30 s). The node applied the rate and LED commands once each (the repeated `seq` was ignored), its network thread dropped nothing, and it measured its cross-core and same-core round trips.
 

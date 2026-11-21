@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <functional>
 #include <memory>
+#include <random>
 #include <string>
 #include <thread>
 
@@ -57,7 +58,7 @@ public:
     void OnStats(const SignalStats& m) {
         m_view.stats++;
         m_view.lastStats = m;
-        if (verbose && m.seq % 10 == 0)
+        if (verbose && m_view.stats % 10 == 0)
             printf("stats  #%u  %u Hz  n=%u  min=%.3f max=%.3f mean=%.4f\n", static_cast<unsigned>(m.seq),
                    static_cast<unsigned>(m.rateHz), static_cast<unsigned>(m.count), m.min, m.max, m.mean);
     }
@@ -143,11 +144,11 @@ int main(int argc, char* argv[])
     // hold up the command ACKs for its default 2 s receive timeout
     transportData.SetRecvTimeout(std::chrono::milliseconds(2));
 
-    // Commands are reliable: a command not ACKed within 250 ms is sent again,
-    // up to 3 times (RetryMonitor). The node's data is ACKed but not retried:
-    // the next window replaces a lost one.
-    TransportMonitor monitor{ std::chrono::milliseconds(250) };
-    RetryMonitor retry(transportCmd, monitor, 3);
+    // Commands are reliable: a command not ACKed within CMD_ACK_TIMEOUT is sent
+    // again, up to CMD_RETRIES times (RetryMonitor). The node's data is ACKed
+    // but not retried: the next window replaces a lost one.
+    TransportMonitor monitor{ SensorNet::CMD_ACK_TIMEOUT };
+    RetryMonitor retry(transportCmd, monitor, SensorNet::CMD_RETRIES);
     ReliableTransport reliable(transportCmd, retry);
     transportCmd.SetTransportMonitor(&monitor);
     transportData.SetTransportMonitor(&monitor);
@@ -195,17 +196,15 @@ int main(int argc, char* argv[])
     // it falls silent a few seconds after this client exits.
     std::atomic<bool> pumping{true};
     std::atomic<uint32_t> intervalMs{100};      // stats window asked for in each Start
-    // One seq counter for every command (the tests below and the Starts here),
-    // started from the clock so a restarted client doesn't repeat the seq the
-    // node last applied
-    std::atomic<uint32_t> commandSeq{ static_cast<uint32_t>(
-        std::chrono::system_clock::now().time_since_epoch().count()) };
+    // This run's session: our seq counts from 1, so a new session tells the
+    // node to forget the last client's seq
+    const uint32_t session = std::random_device{}() | 1u;    // never 0, the node's initial value
     std::thread pump([&] {
-        StartPublishing start;
         auto nextStart = std::chrono::steady_clock::now();
         while (pumping) {
             if (std::chrono::steady_clock::now() >= nextStart) {
-                start.seq = ++commandSeq;
+                StartPublishing start;      // a new message: a new seq (MessageBase)
+                start.session = session;
                 start.intervalMs = intervalMs;
                 DataBus::Publish<StartPublishing>(SensorTopic::Start, start);
                 nextStart += std::chrono::seconds(1);
@@ -222,8 +221,11 @@ int main(int argc, char* argv[])
 
     // ----------------------------------------------------------------------
     printf("\nTest 1: data arrives from the node\n");
+    // Also wait for this client's 100 ms interval to take effect: a node that
+    // ran an earlier client may still use that one's interval at first
     Check(WaitFor(receiver, receiveThread, [](const NodeView& v) {
-        return v.stats >= 3 && v.temperatures >= 1 && v.statuses >= 1; }, std::chrono::seconds(5)),
+        return v.stats >= 3 && v.temperatures >= 1 && v.statuses >= 1 && v.lastStatus.intervalMs == 100
+            && v.lastStats.count == v.lastStats.rateHz / 10; }, std::chrono::seconds(5)),
         "stats, temperature and status received");
     NodeView view = MakeDelegate(&receiver, &Receiver::Snapshot, receiveThread, WAIT_INFINITE)();
     const uint32_t startRate = view.lastStatus.rateHz;
@@ -235,7 +237,6 @@ int main(int argc, char* argv[])
     printf("\nTest 2: a rate command is applied\n");
     const uint32_t newRate = startRate == 500 ? 2000 : 500;
     SetRate rate;
-    rate.seq = ++commandSeq;
     rate.rateHz = newRate;
     DataBus::Publish<SetRate>(SensorTopic::SetRate, rate);
     Check(WaitFor(receiver, receiveThread, [newRate](const NodeView& v) {
@@ -247,14 +248,14 @@ int main(int argc, char* argv[])
     // ----------------------------------------------------------------------
     printf("\nTest 3: an LED command is applied\n");
     SetLed led;
-    led.seq = ++commandSeq;
     led.r = 10; led.g = 20; led.b = 30;
     DataBus::Publish<SetLed>(SensorTopic::SetLed, led);
     Check(WaitFor(receiver, receiveThread, [](const NodeView& v) {
         return v.lastStatus.ledR == 10 && v.lastStatus.ledG == 20 && v.lastStatus.ledB == 30; },
         std::chrono::seconds(3)), "the node reports the new LED colour");
 
-    // What a retry after a lost ACK looks like to the node: the same seq again
+    // What a retry after a lost ACK looks like to the node: the same message,
+    // so the same seq (MessageBase stamps it at construction), again
     printf("  sending the same LED command again, same seq (a retry)\n");
     DataBus::Publish<SetLed>(SensorTopic::SetLed, led);
 

@@ -78,9 +78,11 @@ void SensorNode::Start(const NodeConfig& config)
         [this](const SetRate& cmd) { OnSetRate(cmd); }, &m_controlThread);
     m_setLedConn = DataBus::Subscribe<SetLed>(SensorTopic::SetLed,
         [this](const SetLed& cmd) { OnSetLed(cmd); }, &m_controlThread);
-    // The PC client's Start: NetThread, which decides whether to publish
+    // The PC client's Start: synchronously, on NetThread as it receives it
+    // (no thread argument), so a new session's guard reset is queued to
+    // ControlThread before any command received after this Start
     m_startConn = DataBus::Subscribe<StartPublishing>(SensorTopic::Start,
-        [this](const StartPublishing& msg) { OnStart(msg); }, &m_netThread);
+        [this](const StartPublishing& msg) { OnStart(msg); });
 
     m_platform.touch.Start(m_touchSink);
 
@@ -156,7 +158,6 @@ void SensorNode::OnSampleTick()
         return;
 
     SignalStats stats;
-    stats.seq = ++m_statsSeq;
     stats.rateHz = m_sampleRate;
     stats.count = m_windowCount;
     stats.min = m_windowMin;
@@ -197,7 +198,6 @@ void SensorNode::SetSampleRate(uint32_t rateHz)
 void SensorNode::OnControlTick()
 {
     Temperature t;
-    t.seq = ++m_tempSeq;
     t.celsius = m_platform.temperature.ReadCelsius();
     MakeDelegate(this, &SensorNode::PublishTemperature, m_netThread)(t);
 
@@ -207,26 +207,32 @@ void SensorNode::OnControlTick()
 void SensorNode::OnTouch(uint8_t pad, uint8_t touched)
 {
     Touch msg;
-    msg.seq = ++m_touchSeq;
     msg.pad = pad;
     msg.touched = touched;
     MakeDelegate(this, &SensorNode::PublishTouch, m_netThread)(msg);
 }
 
-// A retry repeats the command's seq: apply each seq once
-static bool Duplicate(uint32_t seq, uint32_t& lastSeq, const char* command)
+// A retry repeats the command's seq: apply a command only if it's newer than
+// the last one applied (not a duplicate, nor an old retry arriving late)
+static bool Stale(MessageGuard& guard, uint32_t seq, const char* command)
 {
-    if (seq == lastSeq) {
-        printf("SensorNode: %s seq %u already applied (a retry)\n", command, static_cast<unsigned>(seq));
-        return true;
-    }
-    lastSeq = seq;
-    return false;
+    if (guard.IsNewer(seq))
+        return false;
+    printf("SensorNode: %s seq %u not newer than the last applied: ignored\n", command, static_cast<unsigned>(seq));
+    return true;
+}
+
+// From NetThread when a Start brings a new client session: that client
+// counts its seq from 1
+void SensorNode::ResetCommandGuards()
+{
+    m_rateGuard.Reset();
+    m_ledGuard.Reset();
 }
 
 void SensorNode::OnSetRate(const SetRate& cmd)
 {
-    if (Duplicate(cmd.seq, m_lastRateSeq, "rate"))
+    if (Stale(m_rateGuard, cmd.seq, "rate"))
         return;
     if (!ValidRate(cmd.rateHz)) {
         printf("SensorNode: rejected rate %u Hz (100-10000, a multiple of 100)\n", static_cast<unsigned>(cmd.rateHz));
@@ -241,7 +247,7 @@ void SensorNode::OnSetRate(const SetRate& cmd)
 
 void SensorNode::OnSetLed(const SetLed& cmd)
 {
-    if (Duplicate(cmd.seq, m_lastLedSeq, "LED"))
+    if (Stale(m_ledGuard, cmd.seq, "LED"))
         return;
     m_led = cmd;
     m_commands++;
@@ -263,7 +269,6 @@ void SensorNode::OnSetInterval(uint32_t intervalMs)
 void SensorNode::SendStatus()
 {
     NodeStatus s;
-    s.seq = ++m_statusSeq;
     s.uptimeMs = static_cast<uint32_t>(
         std::chrono::duration_cast<std::chrono::milliseconds>(Timer::GetNow() - m_startTime).count());
     s.rateHz = m_rateHz;
@@ -348,6 +353,9 @@ void SensorNode::NetInit(std::string pcAddress)
     DataBus::RegisterSerializer<NodeStatus>(SensorTopic::Status, m_statusSerializer);
 
     m_cmdParticipant = std::make_shared<Participant>(m_transportCmd);
+    // A transport sequence number repeated within the client's retry window
+    // is a retransmission; after it, a restarted client reusing the number
+    m_cmdParticipant->SetSeqHistoryExpiry(SensorNet::CMD_RETRY_WINDOW);
     DataBus::AddIncomingTopic<SetRate>(SensorTopic::SetRate, SensorTopic::SetRateId, *m_cmdParticipant, m_setRateSerializer);
     DataBus::AddIncomingTopic<SetLed>(SensorTopic::SetLed, SensorTopic::SetLedId, *m_cmdParticipant, m_setLedSerializer);
     DataBus::AddIncomingTopic<StartPublishing>(SensorTopic::Start, SensorTopic::StartId, *m_cmdParticipant, m_startSerializer);
@@ -376,6 +384,15 @@ void SensorNode::OnNetTick()
 
 void SensorNode::OnStart(const StartPublishing& msg)
 {
+    if (msg.session != m_session) {
+        // A new client run: accept its seq from the start
+        m_session = msg.session;
+        m_startGuard.Reset();
+        MakeDelegate(this, &SensorNode::ResetCommandGuards, m_controlThread)();
+        printf("SensorNode: PC client session %08x\n", static_cast<unsigned>(m_session));
+    }
+    if (!m_startGuard.IsNewer(msg.seq))
+        return;     // a retry, or an old Start arriving late
     m_lastStart = Timer::GetNow();
     // The interval belongs to ControlThread (it validates it and reports it in
     // the status); pass it on only when it changes, not with every Start

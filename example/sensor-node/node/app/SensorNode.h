@@ -107,6 +107,7 @@ private:
     void OnSetRate(const SetRate& cmd);
     void OnSetLed(const SetLed& cmd);
     void OnSetInterval(uint32_t intervalMs);
+    void ResetCommandGuards();
     void SendStatus();
     void MeasureLatencies();
     static LatencyStats MeasureRoundTrips(dmq::os::Thread& target, uint32_t calls);
@@ -155,23 +156,21 @@ private:
     float m_windowMin = 0.0f;
     float m_windowMax = 0.0f;
     double m_windowSum = 0.0;
-    uint32_t m_statsSeq = 0;
 
     // ControlThread only
     uint32_t m_rateHz = 0;
-    uint32_t m_lastRateSeq = 0;         // commands' seq, to ignore a retried duplicate
-    uint32_t m_lastLedSeq = 0;
+    MessageGuard m_rateGuard;   // apply only newer commands (seq)
+    MessageGuard m_ledGuard;
     uint32_t m_intervalMs = 0;
     SetLed m_led;
-    uint32_t m_tempSeq = 0;
-    uint32_t m_touchSeq = 0;
-    uint32_t m_statusSeq = 0;
     LatencyStats m_crossCore;       // written at Start(), before the timers run
     LatencyStats m_sameCore;
 
     // NetThread only
     bool m_pcListening = false;         // a Start within PC_TIMEOUT
     dmq::TimePoint m_lastStart{};
+    MessageGuard m_startGuard;
+    uint32_t m_session = 0;             // the PC client run whose commands are accepted
     uint32_t m_requestedIntervalMs = 0;   // the last Start's, passed on to ControlThread
     dmq::transport::UdpTransport m_transportData;
     dmq::transport::UdpTransport m_transportCmd;

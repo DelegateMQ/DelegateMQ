@@ -6,6 +6,7 @@
 /// client. The remote IDs must match on both sides.
 
 #include "DelegateMQ.h"
+#include <chrono>
 #include <cstdint>
 
 namespace SensorTopic {
@@ -37,6 +38,17 @@ namespace SensorNet {
     /// The node sends to the PC on DATA_PORT; the PC sends commands to the node on CMD_PORT
     inline constexpr uint16_t DATA_PORT = 9100;
     inline constexpr uint16_t CMD_PORT  = 9101;
+
+    /// Commands are reliable: the client re-sends one not ACKed within
+    /// CMD_ACK_TIMEOUT, up to CMD_RETRIES times
+    inline constexpr auto CMD_ACK_TIMEOUT = std::chrono::milliseconds(250);
+    inline constexpr int CMD_RETRIES = 3;
+
+    /// The client's whole retry window. The node's command Participant drops a
+    /// transport sequence number seen again within it as a retransmission
+    /// (Participant::SetSeqHistoryExpiry()); a restarted client, which numbers
+    /// from 1 again, is accepted once it has passed.
+    inline constexpr auto CMD_RETRY_WINDOW = CMD_ACK_TIMEOUT * (CMD_RETRIES + 1);
 }
 
 #endif // SENSOR_TOPICS_H
