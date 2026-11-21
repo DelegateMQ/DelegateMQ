@@ -143,6 +143,13 @@ public:
     void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
     void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
 
+    /// Run the thread only on the cores in coreMask: bit 0 = core 0, bit 1 = core 1,
+    /// ... 0 (the default) = any core. Call before CreateThread(). The thread pins
+    /// itself as it starts, before the start handler; a core that doesn't exist, or
+    /// a platform without thread affinity (macOS), faults (DMQ_ASSERT) there.
+    void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(!m_thread); m_coreMask = coreMask; }
+    uint32_t GetCoreAffinity() const { return m_coreMask; }
+
     /// @brief Register a handler invoked on the worker thread before it processes
     /// any message. Use it for per-thread setup (COM, a language runtime attach,
     /// thread-local state, affinity). CreateThread() returns only after it completes.
@@ -263,6 +270,7 @@ private:
 
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
+    uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any core
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();

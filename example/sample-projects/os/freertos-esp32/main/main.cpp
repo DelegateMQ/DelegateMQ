@@ -328,6 +328,41 @@ static void IsrDelegateTest()
 }
 
 // --------------------------------------------------------------------------
+// Test 8: SetCoreAffinity()
+// --------------------------------------------------------------------------
+// A thread pinned to a core runs only there (xTaskCreatePinnedToCore()). Each
+// one is asked many times which core runs it, with the other core busy too,
+// so an unpinned task would be seen moving.
+static int CoreOfCaller() { return static_cast<int>(xPortGetCoreID()); }
+
+static void CoreAffinityTest()
+{
+    printf("\n[Test 8] SetCoreAffinity(): threads pinned to core 0 and core 1:\n");
+    for (int core = 0; core < portNUM_PROCESSORS; core++) {
+        Thread pinned("PinnedThread");
+        pinned.SetCoreAffinity(1u << core);
+        pinned.CreateThread();
+        int wrongCore = 0;
+        for (int i = 0; i < 200; i++) {
+            if (MakeDelegate(&CoreOfCaller, pinned, WAIT_INFINITE)() != core)
+                wrongCore++;
+            if (i % 20 == 0)
+                vTaskDelay(1);
+        }
+        pinned.ExitThread();
+        printf("  -> core %d: 200 calls, %d on another core\n", core, wrongCore);
+        DMQ_ASSERT_TRUE(wrongCore == 0);
+    }
+
+    // All cores (or 0) means no affinity
+    Thread any("AnyCoreThread");
+    any.SetCoreAffinity((1u << portNUM_PROCESSORS) - 1);
+    any.CreateThread();
+    DMQ_ASSERT_TRUE(MakeDelegate(&CoreOfCaller, any, WAIT_INFINITE)() >= 0);
+    any.ExitThread();
+}
+
+// --------------------------------------------------------------------------
 // Test task
 // --------------------------------------------------------------------------
 static void RunTests()
@@ -348,6 +383,7 @@ static void RunTests()
 
     IsrTimerTest();
     IsrDelegateTest();
+    CoreAffinityTest();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

@@ -6,6 +6,7 @@
 #include "DelegateMQ.h"
 #include "PosixThread.h"
 #include "port/os/common/ThreadHooks.h"
+#include "port/os/common/CoreAffinity.h"
 #include "extras/util/Fault.h"
 #include <new>
 #include <cerrno>
@@ -415,6 +416,9 @@ void PosixThread::Process()
     // dmq::ThisThread::GetCurrent() returns this thread from here on. Declared
     // after exitGuard, so it is cleared again before the exit handler runs.
     dmq::CurrentThreadScope currentScope(this);
+
+    // Pin to the cores set by SetCoreAffinity(), before any user code runs here
+    DMQ_ASSERT_TRUE(dmq::os::detail::SetCurrentThreadCoreAffinity(m_coreMask));
 
     if (m_startHandler)
         m_startHandler();

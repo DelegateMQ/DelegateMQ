@@ -161,6 +161,18 @@ public:
     /// thread, with the queue depth at the time of the drop.
     void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
     void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
+    /// Run the task only on the cores in coreMask: bit 0 = core 0, bit 1 = core 1,
+    /// ... 0 (the default) = any core. Call before CreateThread(); the core is
+    /// chosen when the task is created and can't change after.
+    /// - ESP-IDF: xTaskCreatePinnedToCore(). It pins to one core or allows any, so
+    ///   coreMask must name one core, or all of them.
+    /// - FreeRTOS SMP (configNUMBER_OF_CORES > 1, configUSE_CORE_AFFINITY = 1):
+    ///   xTaskCreateAffinitySet() with the mask as is.
+    /// - Single core: only a mask that includes core 0.
+    /// Any other mask faults (DMQ_ASSERT) in CreateThread().
+    void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(!IsThreadCreated()); m_coreMask = coreMask; }
+    uint32_t GetCoreAffinity() const { return m_coreMask; }
+
 
     /// @brief Register a handler invoked on the worker thread before it processes
     /// any message. Use it for per-thread setup (COM, a language runtime attach,
@@ -275,6 +287,7 @@ private:
 
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
+    uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any core
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();

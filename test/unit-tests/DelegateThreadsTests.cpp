@@ -1,6 +1,7 @@
 #include "DelegateMQ.h"
 #include "UnitTestCommon.h"
 #include "StartGatePortableTest.h"
+#include "port/os/common/CoreAffinity.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -1104,6 +1105,61 @@ static void FaultHook_CalledOnceWithFileAndLine()
     std::cout << "FaultHook_CalledOnceWithFileAndLine() complete!" << std::endl;
 }
 
+#if (defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_POSIX)) && (defined(_WIN32) || defined(__linux__))
+// SetCoreAffinity(): a pinned thread runs only on its core
+static int CurrentCoreOnThread() { return dmq::os::detail::GetCurrentCore(); }
+
+// The cores this process may use (bit n = core n, cores 0-31)
+static uint32_t AllowedCores()
+{
+#if defined(_WIN32)
+    DWORD_PTR process = 0, system = 0;
+    if (!GetProcessAffinityMask(GetCurrentProcess(), &process, &system))
+        return 1;
+    return static_cast<uint32_t>(process & 0xFFFFFFFFu);
+#else
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    if (sched_getaffinity(0, sizeof(set), &set) != 0)
+        return 1;
+    uint32_t mask = 0;
+    for (int core = 0; core < 32; core++)
+        if (CPU_ISSET(core, &set))
+            mask |= 1u << core;
+    return mask;
+#endif
+}
+
+static void CoreAffinity_PinnedThreadRunsOnItsCore()
+{
+    const uint32_t allowed = AllowedCores();
+    DMQ_ASSERT_TRUE(allowed != 0);
+    int first = 0, last = 31;
+    while (!(allowed & (1u << first))) first++;
+    while (!(allowed & (1u << last))) last--;
+
+    for (int core : { first, last }) {
+        Thread t("CoreAffinityThread");
+        t.SetCoreAffinity(1u << core);
+        DMQ_ASSERT_TRUE(t.GetCoreAffinity() == (1u << core));
+        t.CreateThread();
+        // Ask several times: an unpinned thread would be moved between cores
+        for (int i = 0; i < 20; i++) {
+            DMQ_ASSERT_TRUE(MakeDelegate(&CurrentCoreOnThread, t, WAIT_INFINITE)() == core);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        t.ExitThread();
+    }
+
+    // 0, the default: any core, no change
+    Thread any("AnyCoreThread");
+    DMQ_ASSERT_TRUE(any.GetCoreAffinity() == 0);
+    any.CreateThread();
+    DMQ_ASSERT_TRUE(MakeDelegate(&CurrentCoreOnThread, any, WAIT_INFINITE)() >= 0);
+    any.ExitThread();
+}
+#endif
+
 void DelegateThreadsTests()
 {
     workerThread1.CreateThread();
@@ -1147,6 +1203,9 @@ void DelegateThreadsTests()
     Watchdog_ReportPassesThreadAndStall();
 #endif
     FaultHook_CalledOnceWithFileAndLine();
+#if (defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_POSIX)) && (defined(_WIN32) || defined(__linux__))
+    CoreAffinity_PinnedThreadRunsOnItsCore();
+#endif
 #if defined(DMQ_HAS_START_GATE)
     StartGatePortableTest::Run();
 #endif

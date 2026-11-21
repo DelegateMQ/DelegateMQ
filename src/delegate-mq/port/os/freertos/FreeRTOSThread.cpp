@@ -159,11 +159,36 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         DMQ_ASSERT_TRUE(m_startSem != nullptr);
     }
 
-    // 3. Create Task
+    // 3. Create Task, on the cores set by SetCoreAffinity()
+#if defined(ESP_PLATFORM)
+    // ESP-IDF pins to one core or allows any (tskNO_AFFINITY)
+    const uint32_t allCores = (1u << portNUM_PROCESSORS) - 1;
+    BaseType_t coreId = tskNO_AFFINITY;
+    if (m_coreMask != 0 && (m_coreMask & allCores) != allCores) {
+        DMQ_ASSERT_TRUE((m_coreMask & ~allCores) == 0 && (m_coreMask & (m_coreMask - 1)) == 0);
+        coreId = 0;
+        while (!(m_coreMask & (1u << coreId)))
+            coreId++;
+    }
+#elif defined(configNUMBER_OF_CORES) && (configNUMBER_OF_CORES > 1) && defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
+    const UBaseType_t affinity = (m_coreMask == 0) ? tskNO_AFFINITY : static_cast<UBaseType_t>(m_coreMask);
+#else
+    // One core: only a mask that includes it
+    DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+#endif
 #if (configSUPPORT_STATIC_ALLOCATION == 1)
     if (m_stackBuffer != nullptr)
     {
         // --- STATIC ALLOCATION ---
+#if defined(ESP_PLATFORM)
+        m_thread = xTaskCreateStaticPinnedToCore(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, m_stackBuffer, &m_tcb, coreId);
+#elif defined(configNUMBER_OF_CORES) && (configNUMBER_OF_CORES > 1) && defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
+        m_thread = xTaskCreateStaticAffinitySet(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, m_stackBuffer, &m_tcb, affinity);
+#else
         m_thread = xTaskCreateStatic(
             (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
@@ -173,6 +198,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             m_stackBuffer,
             &m_tcb
         );
+#endif
     }
     else
 #endif  // configSUPPORT_STATIC_ALLOCATION; otherwise SetStackMem() faults, so always heap
@@ -180,6 +206,15 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // --- DYNAMIC ALLOCATION (Heap) ---
         // m_stackSize is the DMQ_FREERTOS_STACK_WORDS default here: SetStackMem()
         // changes it only together with a static buffer (the branch above).
+#if defined(ESP_PLATFORM)
+        BaseType_t xReturn = xTaskCreatePinnedToCore(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, &m_thread, coreId);
+#elif defined(configNUMBER_OF_CORES) && (configNUMBER_OF_CORES > 1) && defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
+        BaseType_t xReturn = xTaskCreateAffinitySet(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, affinity, &m_thread);
+#else
         BaseType_t xReturn = xTaskCreate(
             (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
@@ -187,6 +222,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             this,
             m_priority,
             &m_thread);
+#endif
 
         if (xReturn != pdPASS) {
             printf("Error: Failed to create task '%s'. OOM?\n", THREAD_NAME.c_str());

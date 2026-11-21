@@ -18,6 +18,7 @@ The OS ports (`src/delegate-mq/port/os`), transports (`port/transport`) and seri
   - [`dmq::IDispatcher`](#dmqidispatcher)
 - [Thread Implementations](#thread-implementations)
   - [Thread Priority and Latency](#thread-priority-and-latency)
+  - [Core Affinity](#core-affinity)
   - [Message Queueing](#message-queueing)
     - [dmq::FullPolicy (Back Pressure / Drop)](#dmqfullpolicy-back-pressure--drop)
     - [dmq::ExitPolicy (Shutdown)](#dmqexitpolicy-shutdown)
@@ -247,6 +248,18 @@ Each OS port provides a `dmq::os::Thread` (`StdlibThread`, `Win32Thread`, `Posix
 ### Thread Priority and Latency
 
 A dispatched delegate waits in the target thread's queue, so dispatch latency depends mostly on that thread's OS priority and scheduler wake-up time. Give time-critical work (commands, emergency stops) high-priority threads, general logic medium, and telemetry or logging low.
+
+### Core Affinity
+
+On a multicore CPU, `SetCoreAffinity(coreMask)`, called before `CreateThread()`, restricts a thread to a set of cores: bit 0 = core 0, bit 1 = core 1, ...; 0 (the default) = any core. A typical split puts time-critical work on one core and networking on another. Calls between threads on different cores are ordinary async delegates: on an SMP system (one OS, shared memory, such as the ESP32's two cores under ESP-IDF) they need no transport.
+
+| Port | How |
+| :--- | :--- |
+| `StdlibThread`, `Win32Thread`, `PosixThread` | The thread pins itself as it starts, before its start handler (`port/os/common/CoreAffinity.h`: `SetThreadAffinityMask()` on Windows, `pthread_setaffinity_np()` on Linux). macOS has no thread affinity: a non-zero mask faults there. |
+| `FreeRTOSThread` | Chosen when the task is created. ESP-IDF: `xTaskCreatePinnedToCore()`, so the mask must name one core or all of them. FreeRTOS SMP (`configNUMBER_OF_CORES > 1`, `configUSE_CORE_AFFINITY = 1`): `xTaskCreateAffinitySet()` with the mask as is. Single core: only a mask that includes core 0. |
+| Other ports | Not yet. |
+
+A mask the platform can't honor (a core that doesn't exist, a subset ESP-IDF can't express) faults (`DMQ_ASSERT`). `example/sensor-node` pins its threads and measures the cross-core round trip; `os/freertos-esp32`'s Test 8 checks pinning on both ESP32 cores.
 
 ### Message Queueing
 
