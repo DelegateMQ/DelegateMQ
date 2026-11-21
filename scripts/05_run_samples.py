@@ -42,6 +42,7 @@ os/freertos-bare-metal's Win32 simulator build/ also runs, on Windows.
 
 Skip List (always excluded):
     - boards/stm32-freertos         Embedded STM32 target, cannot run on host
+    - boards/esp32s3-devkitc        ESP32-S3 board, cannot run on host
 
 Windows-only (skipped on Linux):
     - databus/freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
@@ -91,6 +92,7 @@ APP_TIMEOUT = APP_DURATION + 15
 
 SKIP_ALWAYS = {
     "boards/stm32-freertos",
+    "boards/esp32s3-devkitc",
     "test",
     "tools",
 }
@@ -498,6 +500,33 @@ def run_tools(repo_root, passed, failed, skipped):
         for role, r in results.items():
             all_results[role if role not in all_results else role + " (2)"] = r
     report_group(label, did_fail, all_results, passed, failed)
+
+
+def run_sensor_node(repo_root, passed, failed, skipped):
+    """example/sensor-node: the desktop sensor node and its PC client over
+    loopback UDP. The client runs its self-test (data, commands, touches) and
+    must print ALL TESTS PASSED; the node must print NODE CHECKS PASSED."""
+    label = "sensor-node"
+    project_dir = os.path.join(repo_root, "example", "sensor-node")
+    build_dir = full_suite.build_dir(project_dir)
+    node = find_executable(build_dir, "sensor_node")
+    pc = find_executable(build_dir, "sensor_pc")
+    if not node or not pc:
+        skipped.append((label, "not built"))
+        return
+    print(f"[RUNNING] {label}  (node/pc-client)", flush=True)
+    did_fail, results = run_group([
+        ("node", [node, str(APP_DURATION)], project_dir),
+        ("pc", [pc, str(APP_DURATION)], project_dir),
+    ])
+    for role, text in {"node": "NODE CHECKS PASSED", "pc": "ALL TESTS PASSED"}.items():
+        r = results.get(role, {})
+        if text not in r.get("output", ""):
+            print(f"   FAILED  ({role} output missing: {text!r})")
+            r["failed"] = did_fail = True
+    if any(r.get("timed_out") for r in results.values()):
+        did_fail = True   # both end on their own; a timeout is a hang
+    report_group(label, did_fail, results, passed, failed)
 
 
 def report_group(label, did_fail, results, passed, failed):
@@ -1198,6 +1227,9 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
 
     # --- The diagnostic tools, against dmq-target ---
     run_tools(repo_root, passed, failed, skipped)
+
+    # --- example/sensor-node: the desktop node and its PC client ---
+    run_sensor_node(repo_root, passed, failed, skipped)
 
     # --- Unit tests and strict skips (--full) ---
     if full:

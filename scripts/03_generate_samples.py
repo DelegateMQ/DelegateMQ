@@ -375,6 +375,7 @@ def build_samples(use_clang=False, clean=False, full=False):
         os.path.join(repo_root, "example", "sample-interop"),
         os.path.join(repo_root, "example", "cellutron"),
         os.path.join(repo_root, "example", "pumptron"),
+        os.path.join(repo_root, "example", "sensor-node"),
         os.path.join(repo_root, "test"),
         os.path.join(repo_root, "tools")
     ]
@@ -392,7 +393,7 @@ def build_samples(use_clang=False, clean=False, full=False):
             if "install" in dirnames: dirnames.remove("install")
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
-            skip_dirs = ["unit-tests", "boards/stm32-freertos"]
+            skip_dirs = ["unit-tests", "boards/stm32-freertos", "boards/esp32s3-devkitc"]
             dirnames[:] = [d for d in dirnames if d not in skip_dirs
                            and full_suite.sample_name(os.path.join(dirpath, d)) not in skip_dirs]
 
@@ -438,6 +439,11 @@ def build_samples(use_clang=False, clean=False, full=False):
             # built by that top level, and controller/platform/f4 is a
             # cross-compiled firmware configured separately below.
             if os.path.basename(dirpath) == "pumptron":
+                dirnames.clear()
+
+            # sensor-node: its top-level CMakeLists.txt builds the desktop node and
+            # the PC client. node/platform/esp32s3 is an ESP-IDF project for the board.
+            if os.path.basename(dirpath) == "sensor-node":
                 dirnames.clear()
 
             if "CMakeLists.txt" in files:

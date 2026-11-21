@@ -436,6 +436,7 @@ def test_variants():
 # Samples --full doesn't cover yet: name -> what it needs.
 PENDING = {
     "boards/stm32-freertos":         "hardware: needs an STM32 board",
+    "boards/esp32s3-devkitc":        "hardware: needs an ESP32-S3 board",
 }
 
 # Folders with nothing to build or run at that step: name -> why.
