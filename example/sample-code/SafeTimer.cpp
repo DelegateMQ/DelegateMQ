@@ -4,6 +4,7 @@
 /// See Object Lifetime and Async Delegates in DETAILS.md for more information.
 
 #include "SafeTimer.h"
+#include <iostream>
 #include "DelegateMQ.h"
 
 using namespace dmq;

@@ -10,6 +10,7 @@
 #include "extras/util/Fault.h"
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <string>
 #include <memory>
 
@@ -77,7 +78,10 @@ public:
     // @return The result code from ITransport::Receive.
     int ProcessIncoming() {
         dmq::transport::DmqHeader header;
-        dmq::xstringstream inputStream(std::ios::in | std::ios::out | std::ios::binary);
+        // Views the transport's receive buffer: valid until its next Receive(),
+        // and ProcessIncoming() is never called concurrently, so it stays valid
+        // through the dispatch below
+        dmq::ByteReader inputStream;
 
         int result;
         {
@@ -291,12 +295,12 @@ private:
                 if (rid == id) { topic = t; break; }
             }
             if (topic.empty()) {
-                // xostringstream keeps this portable: under DMQ_ALLOCATOR, xstring and
-                // std::string are different types, so std::to_string concatenation
-                // would not compile.
-                dmq::xostringstream os;
-                os << "UnknownRemoteId:" << id;
-                topic = os.str();
+                // snprintf, not a stringstream: no iostreams in the library (and
+                // under DMQ_ALLOCATOR, xstring and std::string differ, so
+                // std::to_string concatenation wouldn't compile)
+                char name[32];
+                snprintf(name, sizeof(name), "UnknownRemoteId:%u", static_cast<unsigned>(id));
+                topic = name;
             }
             uint16_t bit = uint16_t(1u << static_cast<int>(error));
             auto& bits = m_reportedErrors[topic];

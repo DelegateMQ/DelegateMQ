@@ -9,14 +9,14 @@ public:
     int actuatorId = 0;
     bool actuatorPosition = false;
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, actuatorId);
         ms.write(os, actuatorPosition);
         return os;
     }
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, actuatorId);
         ms.read(is, actuatorPosition);

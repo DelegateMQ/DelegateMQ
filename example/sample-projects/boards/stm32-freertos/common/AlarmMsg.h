@@ -14,14 +14,14 @@ public:
     Source source;
     Alarm alarm;
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, source);
         ms.write(os, alarm);
         return os;
     }
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, source);
         ms.read(is, alarm);
@@ -36,13 +36,13 @@ public:
 
     virtual ~AlarmNote() = default;
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, note);
         return os;
     }
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override 
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override 
     {
         ms.read(is, note);
         return is;

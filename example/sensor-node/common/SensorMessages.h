@@ -29,13 +29,13 @@ struct SignalStats : public MessageBase {
     float max = 0.0f;
     float mean = 0.0f;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         ms.write(os, rateHz); ms.write(os, count);
         ms.write(os, min); ms.write(os, max);
         return ms.write(os, mean);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         ms.read(is, rateHz); ms.read(is, count);
         ms.read(is, min); ms.read(is, max);
@@ -47,11 +47,11 @@ struct SignalStats : public MessageBase {
 struct Temperature : public MessageBase {
     float celsius = 0.0f;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         return ms.write(os, celsius);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         return ms.read(is, celsius);
     }
@@ -62,12 +62,12 @@ struct Touch : public MessageBase {
     uint8_t pad = 0;
     uint8_t touched = 0;        // 1 = touched, 0 = released
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         ms.write(os, pad);
         return ms.write(os, touched);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         ms.read(is, pad);
         return ms.read(is, touched);
@@ -85,7 +85,7 @@ struct NodeStatus : public MessageBase {
     float crossCoreUs = 0.0f;   // mean async-wait round trip, ControlThread -> NetThread
     float sameCoreUs = 0.0f;    // mean async-wait round trip, ControlThread -> SampleThread
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         ms.write(os, uptimeMs); ms.write(os, rateHz); ms.write(os, intervalMs);
         ms.write(os, ledR); ms.write(os, ledG); ms.write(os, ledB);
@@ -93,7 +93,7 @@ struct NodeStatus : public MessageBase {
         ms.write(os, crossCoreUs);
         return ms.write(os, sameCoreUs);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         ms.read(is, uptimeMs); ms.read(is, rateHz); ms.read(is, intervalMs);
         ms.read(is, ledR); ms.read(is, ledG); ms.read(is, ledB);
@@ -107,11 +107,11 @@ struct NodeStatus : public MessageBase {
 struct SetRate : public MessageBase {
     uint32_t rateHz = 0;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         return ms.write(os, rateHz);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         return ms.read(is, rateHz);
     }
@@ -121,12 +121,12 @@ struct SetRate : public MessageBase {
 struct SetLed : public MessageBase {
     uint8_t r = 0, g = 0, b = 0;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         ms.write(os, r); ms.write(os, g);
         return ms.write(os, b);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         ms.read(is, r); ms.read(is, g);
         return ms.read(is, b);
@@ -143,12 +143,12 @@ struct StartPublishing : public MessageBase {
     uint32_t session = 0;
     uint32_t intervalMs = 100;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         ms.write(os, session);
         return ms.write(os, intervalMs);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         ms.read(is, session);
         return ms.read(is, intervalMs);

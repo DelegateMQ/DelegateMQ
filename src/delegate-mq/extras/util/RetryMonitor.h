@@ -94,7 +94,7 @@ public:
 
     /// @brief Sends a message and tracks it for potential retries.
     /// @return 0 on success, -1 on immediate transport failure.
-    int SendWithRetry(dmq::xostringstream& os, const dmq::transport::DmqHeader& header)
+    int SendWithRetry(const dmq::ByteWriter& os, const dmq::transport::DmqHeader& header)
     {
         DMQ_ASSERT_TRUE(m_transport != nullptr);
         // Critical Section: Store the packet for retry before sending.
@@ -112,7 +112,7 @@ public:
                 RetryEntry entry;
                 entry.attemptsRemaining = m_maxRetries;
                 entry.header = header;
-                entry.packetData = os.str(); // Copy data
+                entry.packetData.assign(os.data(), os.size()); // Copy data
                 entry.isSent = false;        // Mark as NOT yet sent to physical transport
                 m_retryStore[key] = entry;
             }
@@ -239,7 +239,7 @@ private:
         // 2. Non-Critical Section: Perform blocking network operations
         if (shouldRetry && m_transport)
         {
-            dmq::xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+            dmq::ByteWriter os;
             os.write(retryPayload.data(), retryPayload.size());
 
             bool added = true;

@@ -13,12 +13,12 @@ struct FaultMsg : public MessageBase
     FaultMsg() = default;
     FaultMsg(uint8_t code) : faultCode(code) {}
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         return ms.read(is, faultCode);
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         return ms.write(os, faultCode);
     }

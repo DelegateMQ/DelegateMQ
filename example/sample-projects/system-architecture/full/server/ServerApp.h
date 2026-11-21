@@ -2,6 +2,7 @@
 #define SERVER_APP_H
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "Actuator.h"
 #include "Sensor.h"
 

@@ -37,7 +37,6 @@
 #include "port/transport/common/ITransportMonitor.h"
 #include "port/transport/common/DmqHeader.h"
 #include <windows.h>
-#include <sstream>
 #include <cstdio>
 #include <iostream>
 #include <vector>
@@ -169,7 +168,7 @@ public:
 
     /// @brief Send data over the TCP link.
     /// @details In SERVER mode, this broadcasts to all connected clients.
-    virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         // m_mutex guards m_sendBuffer and keeps frames from different threads
         // (including ACKs sent by Receive()) from interleaving on the stream.
@@ -186,8 +185,9 @@ public:
     }
 
     /// @brief Receive data from the TCP link.
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         if (m_type == Type::SERVER) {
             return ReceiveServer(is, header);
         } else {
@@ -221,16 +221,16 @@ public:
 
 private:
     /// @brief Internal helper to send to a specific socket.
-    int SendToSocket(SOCKET s, dmq::xostringstream& os, const DmqHeader& header) {
+    int SendToSocket(SOCKET s, const dmq::ByteWriter& os, const DmqHeader& header) {
         if (s == INVALID_SOCKET) return -1;
 
         // Get payload data without string copy if possible
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -258,7 +258,7 @@ private:
     }
 
     /// @brief Internal helper to handle server-side multiplexing.
-    int ReceiveServer(dmq::xstringstream& is, DmqHeader& header) {
+    int ReceiveServer(dmq::ByteReader& is, DmqHeader& header) {
         // 1. Lazy Accept: Check for new client connections
         TIMEVAL tv = { 0, 1000 }; // 1ms poll
         fd_set fds;
@@ -307,7 +307,7 @@ private:
     }
 
     /// @brief Internal helper to read from a specific socket and parse DMQ protocol.
-    int ReceiveSocket(SOCKET s, dmq::xstringstream& is, DmqHeader& header) {
+    int ReceiveSocket(SOCKET s, dmq::ByteReader& is, DmqHeader& header) {
         if (s == INVALID_SOCKET) return -1;
 
         // Poll check to prevent blocking if no data is waiting
@@ -337,7 +337,7 @@ private:
         {
             if (payloadSize > BUFFER_SIZE) return -2;
             if (!ReadExact(s, m_recvBuffer, payloadSize)) return -2;
-            is.write(m_recvBuffer, payloadSize);
+            is.assign(m_recvBuffer, payloadSize);
         }
 
         // 3. Handle Acknowledgment

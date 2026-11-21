@@ -58,19 +58,19 @@ void Logs::OnInit() {
 }
 
 void Logs::OnStart(StartProcessMsg msg) {
-    dmq::xostringstream ss;
+    std::ostringstream ss;
     ss << "[CMD] START Process Command (Seq: " << msg.seq << ")";
     WriteToFile(ss.str().c_str());
 }
 
 void Logs::OnStop(StopProcessMsg msg) {
-    dmq::xostringstream ss;
+    std::ostringstream ss;
     ss << "[CMD] ABORT Process Command (Seq: " << msg.seq << ")";
     WriteToFile(ss.str().c_str());
 }
 
 void Logs::OnSpeed(CentrifugeSpeedMsg msg) {
-    dmq::xostringstream ss;
+    std::ostringstream ss;
     ss << "[STATUS] Centrifuge Speed: " << msg.rpm << " RPM (Seq: " << msg.seq << ")";
     WriteToFile(ss.str().c_str());
 }
@@ -83,14 +83,14 @@ void Logs::OnRunStatus(RunStatusMsg msg) {
         case RunStatus::ABORTING:   status_text = "ABORTING";   break;
         case RunStatus::FAULT:      status_text = "FAULT";      break;
     }
-    dmq::xostringstream ss;
+    std::ostringstream ss;
     ss << "[STATUS] System State: " << status_text;
     WriteToFile(ss.str().c_str());
 }
 
 void Logs::OnFault(FaultMsg msg) {
     const char* reason = "UNKNOWN";
-    dmq::xostringstream ss;
+    std::ostringstream ss;
     switch (msg.faultCode) {
         case FAULT_OVERSPEED:        reason = "CENTRIFUGE OVERSPEED";      break;
         case FAULT_SAFETY_LOST:      reason = "SAFETY HEARTBEAT LOST";     break;
@@ -100,14 +100,14 @@ void Logs::OnFault(FaultMsg msg) {
         case FAULT_BLOCKAGE:         reason = "PRESSURE BLOCKAGE";         break;
         default:
             ss << "UNKNOWN (Code: " << msg.faultCode << ")";
-            WriteToFile((dmq::xstring("[CRITICAL] FAULT DETECTED: ") + ss.str()).c_str());
+            WriteToFile((dmq::xstring("[CRITICAL] FAULT DETECTED: ") + ss.str().c_str()).c_str());
             return;
     }
     WriteToFile((dmq::xstring("[CRITICAL] FAULT DETECTED: ") + reason).c_str());
 }
 
 void Logs::OnActuator(ActuatorStatusMsg msg) {
-    dmq::xostringstream ss;
+    std::ostringstream ss;
     if (msg.type == ActuatorType::VALVE) {
         ss << "[HW] Valve " << (int)msg.id << " changed to " << (msg.value ? "OPEN" : "CLOSED");
     } else {
@@ -117,7 +117,7 @@ void Logs::OnActuator(ActuatorStatusMsg msg) {
 }
 
 void Logs::OnSensor(SensorStatusMsg msg) {
-    dmq::xostringstream ss;
+    std::ostringstream ss;
     if (msg.type == SensorType::PRESSURE) {
         ss << "[HW] Pressure Sensor: " << msg.value;
     } else {
@@ -177,7 +177,7 @@ std::string Logs::GetTimestamp() {
 #endif
     ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
     ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
-    return ss.str();
+    return ss.str().c_str();
 }
 
 } // namespace util

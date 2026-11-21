@@ -8,6 +8,7 @@
 /// @brief MQTT with remote delegates examples. 
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "../common/data.h"
 
 using namespace dmq;
@@ -25,8 +26,7 @@ public:
 
     /// @param[in] broker MQTT broker URI, e.g. "tcp://localhost:1883".
     explicit Receiver(const char* broker) :
-        m_thread("Receiver"),
-        m_argStream(ios::in | ios::out | ios::binary)
+        m_thread("Receiver")
     {
         // Set the delegate interfaces
         m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, Data::DATA_ID);
@@ -72,7 +72,7 @@ private:
         while (!m_exit)
         {
             // Get incoming data
-            xstringstream arg_data(std::ios::in | std::ios::out | std::ios::binary);
+            dmq::ByteReader arg_data;
             DmqHeader header;
 
             // This blocks for up to 1000ms (set in MqttTransport)
@@ -104,7 +104,7 @@ private:
     Thread m_thread;
     std::atomic<bool> m_exit{ false }; 
 
-    xostringstream m_argStream;
+    dmq::ByteWriter m_argStream;
     MqttTransport m_transport;
     Serializer<void(Data&)> m_serializer;
 

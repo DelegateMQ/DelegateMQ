@@ -64,12 +64,11 @@ void SpyBridge::OnMonitorPacket(const dmq::databus::SpyPacket& packet) {
     outgoing.nodeId = inst.nodeId;
 
     serialize ms;
-    dmq::xostringstream oss(std::ios::out | std::ios::binary);
+    dmq::ByteWriter oss;
     ms.write(oss, outgoing);
 
     if (oss.good()) {
-        const auto s = oss.str();
-        inst.telemetrySocket.Send(s.data(), s.size());
+        inst.telemetrySocket.Send(oss.data(), oss.size());
     }
 }
 

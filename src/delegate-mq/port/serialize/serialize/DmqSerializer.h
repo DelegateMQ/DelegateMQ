@@ -13,8 +13,6 @@
 /// ERR_SERIALIZE / ERR_DESERIALIZE. No try/catch here, per the library rules.
 
 #include "delegate/ISerializer.h"
-#include <istream>
-#include <ostream>
 #include "msg_serialize.h"
 
 namespace dmq::serialization::serializer {
@@ -27,21 +25,16 @@ template<class RetType, class... Args>
 class Serializer<RetType(Args...)> : public dmq::ISerializer<RetType(Args...)>
 {
 public:
-    // Write arguments to a stream
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
-        os.seekp(0, std::ios::beg);
-#if !defined(DMQ_NO_RTTI)
-        // Without RTTI the caller clears it (DelegateRemote does)
-        if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os))
-            ss->str("");
-#endif
+    // Write arguments into the buffer, replacing what it held
+    virtual dmq::ByteWriter& Write(dmq::ByteWriter& os, const Args&... args) override {
+        os.reset();
         ::serialize ser;
         (ser.write(os, args), ...);  // C++17 fold expression to serialize each argument
         return os;
     }
 
-    // Read arguments from a stream
-    virtual std::istream& Read(std::istream& is, Args&... args) override {
+    // Read arguments from the received bytes
+    virtual dmq::ByteReader& Read(dmq::ByteReader& is, Args&... args) override {
         ::serialize ser;
         (ser.read(is, args), ...);  // C++17 fold expression to unserialize each argument
         return is;

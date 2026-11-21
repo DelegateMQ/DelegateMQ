@@ -118,9 +118,8 @@ public:
         std::vector<char> data;
     };
 
-    int Send(xostringstream& os, const DmqHeader& header) override {
-        xstring s = os.str();
-        std::vector<char> d(s.begin(), s.end());
+    int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
+        std::vector<char> d(os.data(), os.data() + os.size());
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_queue.push({header, std::move(d)});
@@ -129,14 +128,14 @@ public:
         return 0;
     }
 
-    int Receive(xstringstream& is, DmqHeader& header) override {
+    int Receive(dmq::ByteReader& is, DmqHeader& header) override {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_cv.wait(lock, [this]() { return !m_queue.empty() || m_stopped; });
         if (m_queue.empty()) return -1; // stopped with queue drained
-        auto p = std::move(m_queue.front());
+        m_current = std::move(m_queue.front());   // the reader views it until the next Receive()
         m_queue.pop();
-        header = p.header;
-        is.write(p.data.data(), p.data.size());
+        header = m_current.header;
+        is.assign(m_current.data.data(), m_current.data.size());
         return 0;
     }
 
@@ -152,6 +151,7 @@ private:
     std::mutex              m_mutex;
     std::condition_variable m_cv;
     std::queue<Packet>      m_queue;
+    Packet                  m_current;   ///< What Receive() last returned (the reader views it)
     bool                    m_stopped = false;
 };
 

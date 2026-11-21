@@ -7,16 +7,14 @@
 ///
 /// @details
 /// This library provides a framework for marshaling C++ objects, primitives, and STL
-/// containers into binary streams (std::ostream) and demarshaling them back (std::istream).
-/// It is designed for network communication and data persistence where binary compatibility
+/// containers into a byte buffer (dmq::ByteWriter) and demarshaling them back from one
+/// (dmq::ByteReader). It is designed for network communication where binary compatibility
 /// and protocol evolution are required.
 ///
-/// **CRITICAL REQUIREMENTS:**
-/// * **Binary Mode:** Streams MUST be opened in binary mode (std::ios::binary). Text-mode 
-///   streams will corrupt binary data (e.g., newline conversion on Windows).
-/// * **Seekable Streams:** User-defined objects (inheriting from `serialize::I`) require 
-///   seekable streams (e.g., `std::stringstream`, `std::fstream`) to backfill object sizes.
-///   Non-seekable streams (like `std::cout` or sockets) will trigger a `NON_SEEKABLE_STREAM` error.
+/// DelegateMQ's copy of MessageSerialize: the standalone library works on std:: streams;
+/// this one on dmq::ByteWriter / dmq::ByteReader, so it needs no iostreams (and none of
+/// their code size: about 150 KB of flash on an ESP32-S3). Both always seek, which user
+/// objects need (their size is filled in after they're written).
 ///
 /// **Key Features:**
 /// * **Single Header:** A self-contained, header-only library with no external dependencies
@@ -55,8 +53,6 @@
     #include <typeinfo>
     #define MSG_SERIALIZE_TYPE_ID(expr) typeid(expr)
 #endif
-#include <istream>
-#include <ostream>
 #include <memory>
 #include <array>
 #include <vector>
@@ -75,16 +71,6 @@ namespace serialize_traits
 
     template <typename U>
     struct is_unsupported_container : std::false_type {};
-
-    /// @brief Trait to check if a stream type is seekable.
-    template <typename T, typename = void>
-    struct is_seekable : std::false_type {};
-
-    template <typename T>
-    struct is_seekable<T, std::void_t<
-        decltype(std::declval<T&>().seekp(std::declval<std::streampos>())),
-        decltype(std::declval<T&>().tellp())
-    >> : std::true_type {};
 }
 
 // Define to enable compile-time checking of unsupported container types
@@ -180,7 +166,7 @@ public:
         /// @param[in] ms - the message serialize instance
         /// @param[in] os - the output stream
         /// @return The output stream
-        virtual std::ostream& write(serialize& ms, std::ostream& os) = 0;
+        virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) = 0;
 
         /// Inheriting class implements the read function. Read each
         /// class member from the istream. Read in the same order as write().
@@ -189,7 +175,7 @@ public:
         /// @param[in] ms - the message serialize instance
         /// @param[in] is - the input stream
         /// @return The input stream
-        virtual std::istream& read(serialize& ms, std::istream& is) = 0;
+        virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) = 0;
     };
 
     enum class Type
@@ -211,7 +197,7 @@ public:
         NONE,
         TYPE_MISMATCH,
         STREAM_ERROR,
-        NON_SEEKABLE_STREAM,    // Stream does not support tellp/seekp (required for objects)
+        NON_SEEKABLE_STREAM,    // Unused: dmq::ByteWriter/ByteReader always seek (kept so the codes don't shift)
         STRING_TOO_LONG,
         CONTAINER_TOO_MANY,
         INVALID_INPUT,
@@ -235,7 +221,7 @@ public:
     /// @param[in] is - input stream
     /// @param[out] littleEndian - set to true if stream was written on a little-endian host
     /// @return The input stream.
-    std::istream& readEndian(std::istream& is, bool& littleEndian)
+    dmq::ByteReader& readEndian(dmq::ByteReader& is, bool& littleEndian)
     {
         if (read_type(is, Type::ENDIAN))
         {
@@ -246,7 +232,7 @@ public:
 
     /// Write current CPU endian to stream.
     /// @param[in] os - output stream
-    void writeEndian(std::ostream& os)
+    void writeEndian(dmq::ByteWriter& os)
     {
         bool littleEndian = LE();
         write_type(os, Type::ENDIAN);
@@ -260,7 +246,7 @@ public:
     /// @param[in] is - the input stream
     /// @param[in] t_ - the object to read
     /// @return The input stream
-    std::istream& read(std::istream& is, I* t_)
+    dmq::ByteReader& read(dmq::ByteReader& is, I* t_)
     {
         if (check_stop_parse(is))
             return is;
@@ -270,34 +256,26 @@ public:
             if (read_type(is, Type::USER_DEFINED))
             {
                 uint16_t size = 0;
-                std::streampos startPos = is.tellg();
-                if (startPos == std::streampos(-1))
-                {
-                    raiseError(ParsingError::NON_SEEKABLE_STREAM, __LINE__, __FILE__);
-                    is.setstate(std::ios::failbit);
-                    return is;
-                }
+                const size_t startPos = is.tellg();
 
                 read(is, size, false);
+                if (!check_stream(is))      // cut short inside the size field
+                    return is;
 
-                std::streampos targetStopPos = startPos + std::streampos(size);
-
-                // Bounds check: ensure size does not exceed stream EOF
-                std::streampos dataPos = is.tellg();
-                is.seekg(0, std::ios::end);
-                std::streampos endPosStream = is.tellg();
-                is.seekg(dataPos);
-
-                if (targetStopPos > endPosStream) {
+                // Bounds check: ensure size does not exceed the data (compared as
+                // a remaining count, so startPos + size can't overflow)
+                if (size > is.size() - startPos) {
                     raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                    is.setstate(std::ios::failbit);
+                    is.setfail();
                     return is;
                 }
+
+                const size_t targetStopPos = startPos + size;
 
                 // Bounds check: ensure size does not exceed parent object's bounds
                 if (stopParsePosIdx > 0 && targetStopPos > stopParsePosStack[stopParsePosIdx - 1]) {
                     raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                    is.setstate(std::ios::failbit);
+                    is.setfail();
                     return is;
                 }
 
@@ -306,7 +284,7 @@ public:
                 // Save the stop parsing position to prevent parsing overrun
                 if (!push_stop_parse_pos(targetStopPos)) {
                     raiseError(ParsingError::NESTING_TOO_DEEP, __LINE__, __FILE__);
-                    is.setstate(std::ios::failbit);
+                    is.setfail();
                     return is;
                 }
 
@@ -316,15 +294,14 @@ public:
 
                 if (is.good())
                 {
-                    std::streampos endPos = is.tellg();
+                    const size_t endPos = is.tellg();
                     uint16_t rcvdSize = static_cast<uint16_t>(endPos - startPos);
 
                     // Did sender send a larger object than what receiver parsed?
                     if (rcvdSize < size)
                     {
                         // Skip over the extra received data
-                        uint16_t seekOffset = size - rcvdSize;
-                        is.seekg(seekOffset, std::ios_base::cur);
+                        is.skip(static_cast<size_t>(size - rcvdSize));
                     }
                 }
                 return is;
@@ -338,7 +315,7 @@ public:
     /// @param[in] s - the string to read
     /// @return The input stream
     template <typename Traits, typename Alloc>
-    std::istream& read(std::istream& is, std::basic_string<char, Traits, Alloc>& s)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::basic_string<char, Traits, Alloc>& s)
     {
         if (check_stop_parse(is))
             return is;
@@ -363,7 +340,7 @@ public:
     /// @param[in] s - the string to read
     /// @return The input stream
     template <typename Traits, typename Alloc>
-    std::istream& read(std::istream& is, std::basic_string<wchar_t, Traits, Alloc>& s)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::basic_string<wchar_t, Traits, Alloc>& s)
     {
         if (check_stop_parse(is))
             return is;
@@ -394,7 +371,7 @@ public:
     /// @param[in] str - the character string to read into
     /// @param[in] maxLen - the capacity of str in bytes (including null terminator)
     /// @return The input stream
-    std::istream& read(std::istream& is, char* str, size_t maxLen)
+    dmq::ByteReader& read(dmq::ByteReader& is, char* str, size_t maxLen)
     {
         if (check_stop_parse(is))
             return is;
@@ -408,7 +385,7 @@ public:
             if (maxLen == 0)
             {
                 raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-                is.setstate(std::ios::failbit);
+                is.setfail();
                 return is;
             }
             // Leave str a valid (empty) C string on every early return below.
@@ -421,7 +398,7 @@ public:
             if (size > maxLen)
             {
                 raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-                is.setstate(std::ios::failbit);
+                is.setfail();
                 return is;
             }
             parseStatus(MSG_SERIALIZE_TYPE_ID(str), size);
@@ -448,7 +425,7 @@ public:
                 {
                     str[maxLen - 1] = '\0';
                     raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-                    is.setstate(std::ios::failbit);
+                    is.setfail();
                 }
             }
         }
@@ -463,7 +440,7 @@ public:
     /// @param[in] is - the input stream
     /// @param[in] container - the vector container to read into
     /// @return The input stream
-    std::istream& read(std::istream& is, std::vector<bool>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::vector<bool>& container)
     {
         if (check_stop_parse(is))
             return is;
@@ -494,20 +471,14 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] t_ - the object to write
     /// @return The output stream
-    std::ostream& write(std::ostream& os, I* t_)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, I* t_)
     {
         if (check_pointer(os, t_))
         {
             uint16_t elementSize = 0;
 
             write_type(os, Type::USER_DEFINED);
-            std::streampos elementSizePos = os.tellp();
-            if (elementSizePos == std::streampos(-1))
-            {
-                raiseError(ParsingError::NON_SEEKABLE_STREAM, __LINE__, __FILE__);
-                os.setstate(std::ios::failbit);
-                return os;
-            }
+            const size_t elementSizePos = os.tellp();
             write(os, elementSize, false);
 
             // Write user defined object
@@ -515,13 +486,13 @@ public:
 
             if (os.good())
             {
-                // Backfill the object size into the stream (requires seekable stream)
-                std::streampos currentPos = os.tellp();
+                // Backfill the object size
+                const size_t currentPos = os.tellp();
                 os.seekp(elementSizePos);
                 auto sizeDiff = currentPos - elementSizePos;
                 if (sizeDiff > UINT16_MAX) {
                     raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                    os.setstate(std::ios::failbit);
+                    os.setfail();
                     return os;
                 }
                 elementSize = static_cast<uint16_t>(sizeDiff);
@@ -538,11 +509,11 @@ public:
     /// @param[in] s - the string to write
     /// @return The output stream
     template <typename Traits, typename Alloc>
-    std::ostream& write(std::ostream& os, const std::basic_string<char, Traits, Alloc>& s)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::basic_string<char, Traits, Alloc>& s)
     {
         if (s.size() > MAX_STRING_SIZE) {
             raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(s.size());
@@ -560,7 +531,7 @@ public:
     /// @param[in] s - the string to write
     /// @return The output stream
     template <typename Traits, typename Alloc>
-    std::ostream& write(std::ostream& os, std::basic_string<char, Traits, Alloc>& s)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::basic_string<char, Traits, Alloc>& s)
     {
         return write(os, static_cast<const std::basic_string<char, Traits, Alloc>&>(s));
     }
@@ -570,11 +541,11 @@ public:
     /// @param[in] s - the string to write
     /// @return The output stream
     template <typename Traits, typename Alloc>
-    std::ostream& write(std::ostream& os, const std::basic_string<wchar_t, Traits, Alloc>& s)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::basic_string<wchar_t, Traits, Alloc>& s)
     {
         if (s.size() > MAX_STRING_SIZE) {
             raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(s.size());
@@ -597,7 +568,7 @@ public:
     /// @param[in] s - the string to write
     /// @return The output stream
     template <typename Traits, typename Alloc>
-    std::ostream& write(std::ostream& os, std::basic_string<wchar_t, Traits, Alloc>& s)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::basic_string<wchar_t, Traits, Alloc>& s)
     {
         return write(os, static_cast<const std::basic_string<wchar_t, Traits, Alloc>&>(s));
     }
@@ -606,7 +577,7 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] str - the character string to write.
     /// @return The output stream
-    std::ostream& write(std::ostream& os, char* str)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, char* str)
     {
         return write(os, static_cast<const char*>(str));
     }
@@ -615,7 +586,7 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] str - the character string to write.
     /// @return The output stream
-    std::ostream& write(std::ostream& os, const char* str)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const char* str)
     {
         if (check_pointer(os, str))
         {
@@ -625,7 +596,7 @@ public:
             if (len > MAX_STRING_SIZE)
             {
                 raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-                os.setstate(std::ios::failbit);
+                os.setfail();
                 return os;
             }
             // No terminator on the wire, the same as std::string: the reader
@@ -649,11 +620,11 @@ public:
     /// @param[in] os - the output stream
     /// @param[in] container - the vector container to write
     /// @return The output stream
-    std::ostream& write(std::ostream& os, const std::vector<bool>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::vector<bool>& container)
     {
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -674,7 +645,7 @@ public:
     /// @param[in] t_ - the object to read into
     /// @return The input stream
     template<typename T>
-    std::istream& read(std::istream& is, T& t_, bool readPrependedType = true)
+    dmq::ByteReader& read(dmq::ByteReader& is, T& t_, bool readPrependedType = true)
     {
         static_assert(!serialize_traits::is_unsupported_container<T>::value, "Unsupported C++ container type");
 
@@ -725,7 +696,7 @@ public:
             {
                 // Can't read pointers to built-in types
                 raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                is.setstate(std::ios::failbit);
+                is.setfail();
                 return is;
             }
         }
@@ -757,7 +728,7 @@ public:
             {
                 // Can't read pointers to built-in type
                 raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                is.setstate(std::ios::failbit);
+                is.setfail();
                 return is;
             }
         }
@@ -782,7 +753,7 @@ public:
     /// @param[in] t_ - the object to write
     /// @return The output stream
     template<typename T>
-    std::ostream& write(std::ostream& os, T& t_, bool prependType = true)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, T& t_, bool prependType = true)
     {
         static_assert(!serialize_traits::is_unsupported_container<T>::value, "Unsupported C++ container type");
 
@@ -824,7 +795,7 @@ public:
             {
                 // Can't write pointers to built-in types
                 raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                os.setstate(std::ios::failbit);
+                os.setfail();
                 return os;
             }
         }
@@ -849,7 +820,7 @@ public:
             {
                 // Can't write pointers to built-in type
                 raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                os.setstate(std::ios::failbit);
+                os.setfail();
                 return os;
             }
         }
@@ -874,13 +845,13 @@ public:
     /// @param[in] container - the vector container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, const std::vector<T, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::vector<T, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -902,7 +873,7 @@ public:
     /// @param[in] container - the vector container to read into
     /// @return The input stream
     template <class T, class Alloc>
-    std::istream& read(std::istream& is, std::vector<T, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::vector<T, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
@@ -936,13 +907,13 @@ public:
     /// @param[in] container - the vector container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, const std::vector<T*, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::vector<T*, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -978,7 +949,7 @@ public:
     /// @param[in] container - the vector container to read into
     /// @return The input stream
     template <class T, class Alloc>
-    std::istream& read(std::istream& is, std::vector<T*, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::vector<T*, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
@@ -1023,13 +994,13 @@ public:
     /// @param[in] container - the map container to write
     /// @return The output stream
     template <class K, class V, class P, class Alloc>
-    std::ostream& write(std::ostream& os, const std::map<K, V, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::map<K, V, P, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<V>::value, "Type V must not be a shared_ptr type");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -1052,7 +1023,7 @@ public:
     /// @param[in] container - the map container to read into
     /// @return The input stream
     template <class K, class V, class P, class Alloc>
-    std::istream& read(std::istream& is, std::map<K, V, P, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::map<K, V, P, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<V>::value, "Type V must not be a shared_ptr type");
 
@@ -1086,13 +1057,13 @@ public:
     /// @param[in] container - the map container to write
     /// @return The output stream
     template <class K, class V, class P, class Alloc>
-    std::ostream& write(std::ostream& os, const std::map<K, V*, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::map<K, V*, P, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, V>::value, "Type V must be derived from serialize::I");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -1129,7 +1100,7 @@ public:
     /// @param[in] container - the map container to read into
     /// @return The input stream
     template <class K, class V, class P, class Alloc>
-    std::istream& read(std::istream& is, std::map<K, V*, P, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::map<K, V*, P, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, V>::value, "Type V must be derived from serialize::I");
 
@@ -1173,13 +1144,13 @@ public:
     /// @param[in] container - the set container to write
     /// @return The output stream
     template <class T, class P, class Alloc>
-    std::ostream& write(std::ostream& os, const std::set<T, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::set<T, P, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -1202,7 +1173,7 @@ public:
     /// @param[in] container - the set container to read into
     /// @return The input stream
     template <class T, class P, class Alloc>
-    std::istream& read(std::istream& is, std::set<T, P, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::set<T, P, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
@@ -1234,13 +1205,13 @@ public:
     /// @param[in] container - the set container to write
     /// @return The output stream
     template <class T, class P, class Alloc>
-    std::ostream& write(std::ostream& os, const std::set<T*, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::set<T*, P, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -1274,7 +1245,7 @@ public:
     /// @param[in] container - the set container to read into
     /// @return The input stream
     template <class T, class P, class Alloc>
-    std::istream& read(std::istream& is, std::set<T*, P, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::set<T*, P, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
@@ -1316,13 +1287,13 @@ public:
     /// @param[in] container - the list container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, const std::list<T, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::list<T, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -1345,7 +1316,7 @@ public:
     /// @param[in] container - the list container to read into
     /// @return The input stream
     template <class T, class Alloc>
-    std::istream& read(std::istream& is, std::list<T, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::list<T, Alloc>& container)
     {
         static_assert(!serialize_traits::is_shared_ptr<T>::value, "Type T must not be a shared_ptr type");
 
@@ -1377,13 +1348,13 @@ public:
     /// @param[in] container - the list container to write
     /// @return The output stream
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, const std::list<T*, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::list<T*, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
         if (container.size() > MAX_CONTAINER_SIZE) {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            os.setstate(std::ios::failbit);
+            os.setfail();
             return os;
         }
         uint16_t size = static_cast<uint16_t>(container.size());
@@ -1418,7 +1389,7 @@ public:
     /// @param[in] container - the list container to read into
     /// @return The input stream
     template <class T, class Alloc>
-    std::istream& read(std::istream& is, std::list<T*, Alloc>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::list<T*, Alloc>& container)
     {
         static_assert(std::is_base_of<serialize::I, T>::value, "Type T must be derived from serialize::I");
 
@@ -1463,7 +1434,7 @@ public:
     /// @param[in] container - the array to write
     /// @return The output stream
     template <class T, size_t N>
-    std::ostream& write(std::ostream& os, const std::array<T, N>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, const std::array<T, N>& container)
     {
         static_assert(N <= MAX_CONTAINER_SIZE, "std::array larger than DMQ_SERIALIZE_MAX_CONTAINER_SIZE");
         static_assert(!std::is_pointer<T>::value, "std::array of pointers is not supported");
@@ -1486,7 +1457,7 @@ public:
     /// @param[in] container - the array to read into
     /// @return The input stream
     template <class T, size_t N>
-    std::istream& read(std::istream& is, std::array<T, N>& container)
+    dmq::ByteReader& read(dmq::ByteReader& is, std::array<T, N>& container)
     {
         static_assert(N <= MAX_CONTAINER_SIZE, "std::array larger than DMQ_SERIALIZE_MAX_CONTAINER_SIZE");
         static_assert(!std::is_pointer<T>::value, "std::array of pointers is not supported");
@@ -1503,7 +1474,7 @@ public:
                 if (size != N)
                 {
                     raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                    is.setstate(std::ios::failbit);
+                    is.setfail();
                     return is;
                 }
                 parseStatus(MSG_SERIALIZE_TYPE_ID(container), size);
@@ -1517,53 +1488,53 @@ public:
     // Non-const containers forward to the const overloads above. Without these,
     // a non-const container binds better to the generic write(os, T&, bool)
     // template than to a const overload, and fails its static_assert.
-    std::ostream& write(std::ostream& os, std::vector<bool>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::vector<bool>& container)
     {
         return write(os, static_cast<const std::vector<bool>&>(container));
     }
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::vector<T, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::vector<T, Alloc>& container)
     {
         return write(os, static_cast<const std::vector<T, Alloc>&>(container));
     }
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::vector<T*, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::vector<T*, Alloc>& container)
     {
         return write(os, static_cast<const std::vector<T*, Alloc>&>(container));
     }
     template <class K, class V, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::map<K, V, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::map<K, V, P, Alloc>& container)
     {
         return write(os, static_cast<const std::map<K, V, P, Alloc>&>(container));
     }
     template <class K, class V, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::map<K, V*, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::map<K, V*, P, Alloc>& container)
     {
         return write(os, static_cast<const std::map<K, V*, P, Alloc>&>(container));
     }
     template <class T, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::set<T, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::set<T, P, Alloc>& container)
     {
         return write(os, static_cast<const std::set<T, P, Alloc>&>(container));
     }
     template <class T, class P, class Alloc>
-    std::ostream& write(std::ostream& os, std::set<T*, P, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::set<T*, P, Alloc>& container)
     {
         return write(os, static_cast<const std::set<T*, P, Alloc>&>(container));
     }
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::list<T, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::list<T, Alloc>& container)
     {
         return write(os, static_cast<const std::list<T, Alloc>&>(container));
     }
     template <class T, class Alloc>
-    std::ostream& write(std::ostream& os, std::list<T*, Alloc>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::list<T*, Alloc>& container)
     {
         return write(os, static_cast<const std::list<T*, Alloc>&>(container));
     }
 
     template <class T, size_t N>
-    std::ostream& write(std::ostream& os, std::array<T, N>& container)
+    dmq::ByteWriter& write(dmq::ByteWriter& os, std::array<T, N>& container)
     {
         return write(os, static_cast<const std::array<T, N>&>(container));
     }
@@ -1594,85 +1565,85 @@ private:
     /// write(os, x, false) on a string or container would pick the generic
     /// template instead, which only handles literals and serialize::I types.
     template <typename C, typename Traits, typename Alloc>
-    std::ostream& write_element(std::ostream& os, const std::basic_string<C, Traits, Alloc>& s)
+    dmq::ByteWriter& write_element(dmq::ByteWriter& os, const std::basic_string<C, Traits, Alloc>& s)
     {
         return write(os, s);
     }
 
     template <class T, class Alloc>
-    std::ostream& write_element(std::ostream& os, const std::vector<T, Alloc>& c)
+    dmq::ByteWriter& write_element(dmq::ByteWriter& os, const std::vector<T, Alloc>& c)
     {
         return write(os, c);
     }
 
     template <class T, class Alloc>
-    std::ostream& write_element(std::ostream& os, const std::list<T, Alloc>& c)
+    dmq::ByteWriter& write_element(dmq::ByteWriter& os, const std::list<T, Alloc>& c)
     {
         return write(os, c);
     }
 
     template <class T, class P, class Alloc>
-    std::ostream& write_element(std::ostream& os, const std::set<T, P, Alloc>& c)
+    dmq::ByteWriter& write_element(dmq::ByteWriter& os, const std::set<T, P, Alloc>& c)
     {
         return write(os, c);
     }
 
     template <class K, class V, class P, class Alloc>
-    std::ostream& write_element(std::ostream& os, const std::map<K, V, P, Alloc>& c)
+    dmq::ByteWriter& write_element(dmq::ByteWriter& os, const std::map<K, V, P, Alloc>& c)
     {
         return write(os, c);
     }
 
     template <class T, size_t N>
-    std::ostream& write_element(std::ostream& os, const std::array<T, N>& c)
+    dmq::ByteWriter& write_element(dmq::ByteWriter& os, const std::array<T, N>& c)
     {
         return write(os, c);
     }
 
     template <typename T>
-    std::ostream& write_element(std::ostream& os, const T& t_)
+    dmq::ByteWriter& write_element(dmq::ByteWriter& os, const T& t_)
     {
         return write(os, t_, false);
     }
 
     template <typename C, typename Traits, typename Alloc>
-    std::istream& read_element(std::istream& is, std::basic_string<C, Traits, Alloc>& s)
+    dmq::ByteReader& read_element(dmq::ByteReader& is, std::basic_string<C, Traits, Alloc>& s)
     {
         return read(is, s);
     }
 
     template <class T, class Alloc>
-    std::istream& read_element(std::istream& is, std::vector<T, Alloc>& c)
+    dmq::ByteReader& read_element(dmq::ByteReader& is, std::vector<T, Alloc>& c)
     {
         return read(is, c);
     }
 
     template <class T, class Alloc>
-    std::istream& read_element(std::istream& is, std::list<T, Alloc>& c)
+    dmq::ByteReader& read_element(dmq::ByteReader& is, std::list<T, Alloc>& c)
     {
         return read(is, c);
     }
 
     template <class T, class P, class Alloc>
-    std::istream& read_element(std::istream& is, std::set<T, P, Alloc>& c)
+    dmq::ByteReader& read_element(dmq::ByteReader& is, std::set<T, P, Alloc>& c)
     {
         return read(is, c);
     }
 
     template <class K, class V, class P, class Alloc>
-    std::istream& read_element(std::istream& is, std::map<K, V, P, Alloc>& c)
+    dmq::ByteReader& read_element(dmq::ByteReader& is, std::map<K, V, P, Alloc>& c)
     {
         return read(is, c);
     }
 
     template <class T, size_t N>
-    std::istream& read_element(std::istream& is, std::array<T, N>& c)
+    dmq::ByteReader& read_element(dmq::ByteReader& is, std::array<T, N>& c)
     {
         return read(is, c);
     }
 
     template <typename T>
-    std::istream& read_element(std::istream& is, T& t_)
+    dmq::ByteReader& read_element(dmq::ByteReader& is, T& t_)
     {
         return read(is, t_, false);
     }
@@ -1685,7 +1656,7 @@ private:
     /// @param[in] size - number of bytes to read
     /// @param[in] no_swap - true suppresses byte-order reversal (used for char arrays)
     /// @return The input stream.
-    std::istream& read_internal(std::istream& is, char* p, uint32_t size, bool no_swap = false)
+    dmq::ByteReader& read_internal(dmq::ByteReader& is, char* p, uint32_t size, bool no_swap = false)
     {
         if (check_stop_parse(is))
             return is;
@@ -1709,7 +1680,7 @@ private:
     /// @param[in] size - number of bytes to write
     /// @param[in] no_swap - true suppresses byte-order reversal (used for char arrays)
     /// @return The output stream.
-    std::ostream& write_internal(std::ostream& os, const char* p, uint32_t size, bool no_swap = false)
+    dmq::ByteWriter& write_internal(dmq::ByteWriter& os, const char* p, uint32_t size, bool no_swap = false)
     {
         if (!check_pointer(os, p))
             return os;
@@ -1719,7 +1690,7 @@ private:
             if (size > 8)
             {
                 raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-                os.setstate(std::ios::failbit);
+                os.setfail();
                 return os;
             }
 
@@ -1746,7 +1717,7 @@ private:
 
     // LIFO stack used to track stop-parse positions for versioned object reads.
     static constexpr size_t MAX_PARSE_STACK_DEPTH = dmq::SERIALIZE_MAX_NESTING;
-    std::array<std::streampos, MAX_PARSE_STACK_DEPTH> stopParsePosStack;
+    std::array<size_t, MAX_PARSE_STACK_DEPTH> stopParsePosStack;
     size_t stopParsePosIdx = 0;
 
     ErrorHandler error_handler = nullptr;
@@ -1769,20 +1740,20 @@ private:
             parse_handler(typeId, size);
     }
 
-    void write_type(std::ostream& os, Type type_)
+    void write_type(dmq::ByteWriter& os, Type type_)
     {
         uint8_t type = static_cast<uint8_t>(type_);
         write_internal(os, reinterpret_cast<const char*>(&type), sizeof(type));
     }
 
-    bool read_type(std::istream& is, Type type_)
+    bool read_type(dmq::ByteReader& is, Type type_)
     {
         // Check for end-of-stream before attempting the cast
         auto peeked = is.peek();
-        if (peeked == std::istream::traits_type::eof())
+        if (peeked == dmq::ByteReader::END_OF_DATA)
         {
             raiseError(ParsingError::END_OF_FILE, __LINE__, __FILE__);
-            is.setstate(std::ios::failbit);
+            is.setfail();
             return false;
         }
         Type type = static_cast<Type>(peeked);
@@ -1795,51 +1766,59 @@ private:
         else
         {
             raiseError(ParsingError::TYPE_MISMATCH, __LINE__, __FILE__);
-            is.setstate(std::ios::failbit);
+            is.setfail();
             return false;
         }
     }
 
-    bool check_stream(std::ios& stream)
+    // A dmq::ByteReader or dmq::ByteWriter
+    template <typename Stream>
+    bool check_stream(Stream& stream)
     {
         if (!stream.good())
         {
             raiseError(ParsingError::STREAM_ERROR, __LINE__, __FILE__);
-            stream.setstate(std::ios::failbit);
+            stream.setfail();
         }
         return stream.good();
     }
 
-    bool check_slength(std::ios& stream, int stringSize)
+    // A dmq::ByteReader or dmq::ByteWriter
+    template <typename Stream>
+    bool check_slength(Stream& stream, int stringSize)
     {
         bool sizeOk = stringSize <= MAX_STRING_SIZE;
         if (!sizeOk)
         {
             raiseError(ParsingError::STRING_TOO_LONG, __LINE__, __FILE__);
-            stream.setstate(std::ios::failbit);
+            stream.setfail();
         }
         if (stringSize == 0)
             return false;
         return sizeOk;
     }
 
-    bool check_container_size(std::ios& stream, int containerSize)
+    // A dmq::ByteReader or dmq::ByteWriter
+    template <typename Stream>
+    bool check_container_size(Stream& stream, int containerSize)
     {
         bool sizeOk = containerSize <= MAX_CONTAINER_SIZE;
         if (!sizeOk)
         {
             raiseError(ParsingError::CONTAINER_TOO_MANY, __LINE__, __FILE__);
-            stream.setstate(std::ios::failbit);
+            stream.setfail();
         }
         return sizeOk;
     }
 
-    bool check_pointer(std::ios& stream, const void* ptr)
+    // A dmq::ByteReader or dmq::ByteWriter
+    template <typename Stream>
+    bool check_pointer(Stream& stream, const void* ptr)
     {
         if (!ptr)
         {
             raiseError(ParsingError::INVALID_INPUT, __LINE__, __FILE__);
-            stream.setstate(std::ios::failbit);
+            stream.setfail();
         }
         return ptr != nullptr;
     }
@@ -1849,7 +1828,7 @@ private:
     // nested more than MAX_PARSE_STACK_DEPTH levels deep), so a malformed message
     // must fail that one parse, not hard-fault the process. Caller must not call
     // pop_stop_parse_pos() for a push that returned false.
-    bool push_stop_parse_pos(std::streampos stopParsePos)
+    bool push_stop_parse_pos(size_t stopParsePos)
     {
         if (stopParsePosIdx >= MAX_PARSE_STACK_DEPTH)
             return false;
@@ -1860,13 +1839,13 @@ private:
     // Every call site pairs this 1:1 with a push_stop_parse_pos() that returned
     // true, so an empty stack here means internal state corruption, not malformed
     // input — stays a hard fault.
-    std::streampos pop_stop_parse_pos()
+    size_t pop_stop_parse_pos()
     {
         DMQ_ASSERT_TRUE(stopParsePosIdx > 0);
         return stopParsePosStack[--stopParsePosIdx];
     }
 
-    bool check_stop_parse(std::istream& is)
+    bool check_stop_parse(dmq::ByteReader& is)
     {
         if (is.eof())
         {
@@ -1875,7 +1854,7 @@ private:
         }
         if (stopParsePosIdx > 0)
         {
-            std::streampos stopParsePos = stopParsePosStack[stopParsePosIdx - 1];
+            size_t stopParsePos = stopParsePosStack[stopParsePosIdx - 1];
             if (is.tellg() >= stopParsePos)
             {
                 return true;

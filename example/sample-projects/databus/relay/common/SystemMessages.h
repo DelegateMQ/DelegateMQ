@@ -9,11 +9,11 @@ struct TempMsg : public serialize::I {
     float celsius = 0.0f;
     uint32_t seq = 0;
 
-    virtual std::ostream& write(::serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, celsius);
         return ms.write(os, seq);
     }
-    virtual std::istream& read(::serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, celsius);
         return ms.read(is, seq);
     }
@@ -23,10 +23,10 @@ struct TempMsg : public serialize::I {
 struct SetpointMsg : public serialize::I {
     float celsius = 0.0f;
 
-    virtual std::ostream& write(::serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         return ms.write(os, celsius);
     }
-    virtual std::istream& read(::serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         return ms.read(is, celsius);
     }
 };

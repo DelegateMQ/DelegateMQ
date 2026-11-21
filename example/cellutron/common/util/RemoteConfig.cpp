@@ -1,5 +1,6 @@
 #include "RemoteConfig.h"
 #include "util/Constants.h"
+#include <cstdio>
 
 namespace cellutron {
 
@@ -27,19 +28,23 @@ void RegisterSerializers() {
     dmq::databus::DataBus::RegisterSerializer<HeartbeatMsg>(cellutron::topics::GUI_HEARTBEAT, serHeartbeat);
 }
 
+// snprintf, not a stringstream: iostreams cost a lot of flash on the boards
+template <typename... T>
+static dmq::xstring Format(const char* fmt, T... args) {
+    char text[96];
+    snprintf(text, sizeof(text), fmt, args...);
+    return text;
+}
+
 static dmq::xstring StringifyStart(const StartProcessMsg&) { return "START"; }
 static dmq::xstring StringifyStop(const StopProcessMsg&) { return "ABORT"; }
 
 static dmq::xstring StringifyCentrifugeSpeed(const CentrifugeSpeedMsg& msg) {
-    dmq::xostringstream oss;
-    oss << msg.rpm << " RPM";
-    return oss.str();
+    return Format("%u RPM", (unsigned)msg.rpm);
 }
 
 static dmq::xstring StringifyCentrifugeStatus(const CentrifugeStatusMsg& msg) {
-    dmq::xostringstream oss;
-    oss << msg.rpm << " RPM";
-    return oss.str();
+    return Format("%u RPM", (unsigned)msg.rpm);
 }
 
 static dmq::xstring StringifyRunStatus(const RunStatusMsg& msg) {
@@ -53,45 +58,31 @@ static dmq::xstring StringifyRunStatus(const RunStatusMsg& msg) {
 }
 
 static dmq::xstring StringifyFault(const FaultMsg& msg) {
-    dmq::xostringstream oss;
-    oss << "FAULT CODE: " << msg.faultCode;
-    return oss.str();
+    return Format("FAULT CODE: %u", (unsigned)msg.faultCode);
 }
 
 static dmq::xstring StringifyActuatorStatus(const ActuatorStatusMsg& msg) {
-    dmq::xostringstream oss;
-    oss << ((msg.type == ActuatorType::VALVE) ? "VALVE" : "PUMP") << " " << msg.id << ": " << msg.value;
-    return oss.str();
+    return Format("%s %u: %d", (msg.type == ActuatorType::VALVE) ? "VALVE" : "PUMP", (unsigned)msg.id, (int)msg.value);
 }
 
 static dmq::xstring StringifySensorStatus(const SensorStatusMsg& msg) {
-    dmq::xostringstream oss;
-    oss << ((msg.type == SensorType::PRESSURE) ? "PRESSURE" : "AIR") << ": " << msg.value;
-    return oss.str();
+    return Format("%s: %d", (msg.type == SensorType::PRESSURE) ? "PRESSURE" : "AIR", (int)msg.value);
 }
 
 static dmq::xstring StringifyHeartbeat(const HeartbeatMsg& msg) {
-    dmq::xostringstream oss;
-    oss << msg.counter;
-    return oss.str();
+    return Format("%lu", (unsigned long)msg.counter);
 }
 
 static dmq::xstring StringifyInletPressure(const SensorStatusMsg& msg) {
-    dmq::xostringstream oss;
-    oss << "Inlet: " << msg.value << " mmHg";
-    return oss.str();
+    return Format("Inlet: %d mmHg", (int)msg.value);
 }
 
 static dmq::xstring StringifyOutletPressure(const SensorStatusMsg& msg) {
-    dmq::xostringstream oss;
-    oss << "Outlet: " << msg.value << " mmHg";
-    return oss.str();
+    return Format("Outlet: %d mmHg", (int)msg.value);
 }
 
 static dmq::xstring StringifyRPM(const CentrifugeSpeedMsg& msg) {
-    dmq::xostringstream oss;
-    oss << "RPM: " << msg.rpm;
-    return oss.str();
+    return Format("RPM: %u", (unsigned)msg.rpm);
 }
 
 static dmq::xstring StringifyAirInlet(const SensorStatusMsg& msg) {

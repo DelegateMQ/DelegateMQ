@@ -1,6 +1,7 @@
 #include "UI.h"
 #include "util/Constants.h"
 #include "system/System.h"
+#include <sstream>
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
@@ -28,17 +29,17 @@ namespace {
 xstring StringifyCommand(const PumpCommandMsg& m) {
     static const char* names[] = { "START", "STOP", "ESTOP", "RESET", "SET_SPEED", "QUERY" };
     const auto i = static_cast<size_t>(m.command);
-    xostringstream oss;
+    std::ostringstream oss;
     oss << (i < 6 ? names[i] : "?");
     if (m.command == PumpCommand::SET_SPEED) oss << " " << m.setpointRpm << " RPM";
-    return oss.str();
+    return oss.str().c_str();
 }
 
 xstring StringifyStatus(const PumpStatusMsg& m) {
-    xostringstream oss;
+    std::ostringstream oss;
     oss << ToString(m.state) << " sp=" << m.setpointRpm;
     if (m.faultCode != AlarmCode::NONE) oss << " fault=" << ToString(m.faultCode);
-    return oss.str();
+    return oss.str().c_str();
 }
 
 // "name=value unit" so tools that extract numbers from the text (dmq-spy
@@ -51,15 +52,15 @@ xstring StringifyTelemetry(const TelemetryMsg& m) {
 }
 
 xstring StringifyAlarm(const AlarmMsg& m) {
-    xostringstream oss;
+    std::ostringstream oss;
     oss << ToString(m.severity) << " " << ToString(m.code) << (m.active ? " RAISED" : " cleared");
-    return oss.str();
+    return oss.str().c_str();
 }
 
 xstring StringifyHeartbeat(const HeartbeatMsg& m) {
-    xostringstream oss;
+    std::ostringstream oss;
     oss << "#" << m.counter;
-    return oss.str();
+    return oss.str().c_str();
 }
 
 void RegisterStringifiersImpl() {

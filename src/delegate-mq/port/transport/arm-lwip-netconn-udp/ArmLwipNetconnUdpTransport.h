@@ -118,10 +118,10 @@ public:
         }
     }
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        if (os.bad() || os.fail() || !m_conn) {
+        if (os.fail() || !m_conn) {
             return -1;
         }
 
@@ -135,11 +135,11 @@ public:
         }
 
         // Get payload data without string copy if possible
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -173,8 +173,9 @@ public:
         return 0;
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB that
         // also drains its ACKs here) isn't held up for the receive timeout.
         const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -223,9 +224,7 @@ public:
         // Extract Payload
         if (payloadSize > 0) {
             netbuf_copy_partial(buf, m_recvBuffer, payloadSize, DmqHeader::HEADER_SIZE);
-            is.clear(); 
-            is.str(""); 
-            is.write(m_recvBuffer, payloadSize);
+            is.assign(m_recvBuffer, payloadSize);
         }
 
         netbuf_delete(buf);
@@ -239,7 +238,7 @@ public:
         // has no monitor but must still ACK the sender's RELIABLE messages.
         else if (m_sendTransport) {
             // Auto-ACK using Send logic
-            dmq::xostringstream ss_ack;
+            dmq::ByteWriter ss_ack;
             DmqHeader ack;
             ack.SetId(dmq::ACK_REMOTE_ID);
             ack.SetSeqNum(header.GetSeqNum());

@@ -138,8 +138,8 @@ public:
     // ------------------------------------------------------------------------
     // Send() Implementation
     // ------------------------------------------------------------------------
-    virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override {
-        if (os.bad() || os.fail()) return -1;
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
+        if (os.fail()) return -1;
         if (!m_huart || !m_mutex) return -1;
 
         // CRITICAL SECTION: Protect UART TX hardware
@@ -148,13 +148,13 @@ public:
         const uint32_t txTimeout = static_cast<uint32_t>(dmq::UART_TX_TIMEOUT.count());
 
         // 1. Prepare Packet Structure
-        dmq::xstring payload = os.str();
-        if (payload.length() > BUFFER_SIZE) {  // receiver's reassembly limit
+        const dmq::ByteWriter& payload = os;   // sent in place, no copy
+        if (payload.size() > BUFFER_SIZE) {  // receiver's reassembly limit
             xSemaphoreGiveRecursive(m_mutex);
             return -1;
         }
         DmqHeader headerCopy = header;
-        headerCopy.SetLength((uint16_t)payload.length());
+        headerCopy.SetLength((uint16_t)payload.size());
 
         // Serialize Header (Network Byte Order)
         uint8_t packet[DmqHeader::HEADER_SIZE];
@@ -166,15 +166,15 @@ public:
         }
 
         // 3. Send Payload
-        if (payload.length() > 0) {
-            if (HAL_UART_Transmit(m_huart, (uint8_t*)payload.data(), (uint16_t)payload.length(), txTimeout) != HAL_OK) {
+        if (payload.size() > 0) {
+            if (HAL_UART_Transmit(m_huart, (uint8_t*)payload.data(), (uint16_t)payload.size(), txTimeout) != HAL_OK) {
                 xSemaphoreGiveRecursive(m_mutex); return -1;
             }
         }
 
         // 4. Calculate and Send CRC (Required for PC communication)
         uint16_t crc = dmq::util::Crc16CalcBlock(packet, DmqHeader::HEADER_SIZE, 0xFFFF);
-        if (payload.length() > 0) crc = dmq::util::Crc16CalcBlock((uint8_t*)payload.data(), payload.length(), crc);
+        if (payload.size() > 0) crc = dmq::util::Crc16CalcBlock((uint8_t*)payload.data(), payload.size(), crc);
 
         const uint8_t crcBytes[2] = { static_cast<uint8_t>(crc >> 8), static_cast<uint8_t>(crc) };  // big-endian
         if (HAL_UART_Transmit(m_huart, const_cast<uint8_t*>(crcBytes), 2, txTimeout) != HAL_OK) {
@@ -188,7 +188,8 @@ public:
     // ------------------------------------------------------------------------
     // Receive() Implementation
     // ------------------------------------------------------------------------
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override {
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         if (m_recvTransport != this) return -1;
 
         uint8_t headerBuf[DmqHeader::HEADER_SIZE];
@@ -234,8 +235,8 @@ public:
             for (int i = 0; i < len; i++) {
                 if (!ReadByte(m_tempRxBuffer[i], frameTimeout)) return -1;
             }
-            is.clear(); is.str(""); is.write((char*)m_tempRxBuffer, len);
         }
+        is.assign((const char*)m_tempRxBuffer, len);   // viewed in place (empty for an ACK)
 
         // 4. Read & Verify CRC (big-endian)
         uint8_t crcBytes[2];
@@ -256,7 +257,7 @@ public:
         // has no monitor but must still ACK the sender's RELIABLE messages.
         else if (m_sendTransport) {
              // Auto-Reply with ACK
-             dmq::xostringstream ss;
+             dmq::ByteWriter ss;
              DmqHeader ack;
              ack.SetId(dmq::ACK_REMOTE_ID);
              ack.SetSeqNum(header.GetSeqNum());

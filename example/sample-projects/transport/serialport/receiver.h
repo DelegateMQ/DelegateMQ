@@ -8,6 +8,7 @@
 /// @brief Serial port with remote delegates examples. 
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "data.h"
 #include <atomic>
 
@@ -25,7 +26,6 @@ public:
     Receiver(DelegateRemoteId id, const char* port) :
         m_id(id),
         m_thread("Receiver"),
-        m_argStream(ios::in | ios::out | ios::binary),
         m_transportMonitor(std::chrono::milliseconds(500))
     {
         // Link Monitor (For ACK management)
@@ -80,7 +80,7 @@ private:
     void Poll()
     {
         // Get incoming data
-        xstringstream arg_data(std::ios::in | std::ios::out | std::ios::binary);
+        dmq::ByteReader arg_data;
         DmqHeader header;
         int error = m_transport.Receive(arg_data, header);
 
@@ -92,7 +92,7 @@ private:
         }
 
         // Incoming remote delegate data arrived?
-        if (!error && !arg_data.str().empty())
+        if (!error && arg_data.size() > 0)
         {
             // Invoke the receiver target function with the sender's argument data
             m_lastSeqNum = header.GetSeqNum();
@@ -119,7 +119,7 @@ private:
     Timer m_recvTimer;
     dmq::ScopedConnection m_recvTimerConn;
 
-    xostringstream m_argStream;
+    dmq::ByteWriter m_argStream;
     SerialTransport m_transport;
     Serializer<void(Data&, DataAux&)> m_serializer;
     TransportMonitor m_transportMonitor; // Tracks sequence numbers

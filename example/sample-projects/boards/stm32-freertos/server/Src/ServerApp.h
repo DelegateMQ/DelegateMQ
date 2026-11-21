@@ -2,6 +2,7 @@
 #define SERVER_APP_H
 
 #include "DelegateMQ.h"
+#include <cstdio>   // printf, not iostreams: iostreams cost a lot of flash
 #include "Actuator.h"
 #include "Sensor.h"
 
@@ -39,14 +40,14 @@ public:
     // Receive and handle client actuator message
     void ActuatorMsgRecv(ActuatorMsg& command)
     {
-        std::cout << "Actuator " << command.actuatorId << " position " << command.actuatorPosition << std::endl;
+        printf("Actuator %d position %d\n", (int)command.actuatorId, (int)command.actuatorPosition);
 
         if (command.actuatorId == 1)
             m_actuator1.SetPosition(command.actuatorPosition);
         else if (command.actuatorId == 2)
             m_actuator2.SetPosition(command.actuatorPosition);
         else
-            std::cout << "Unknown actuator ID" << std::endl;
+            printf("Unknown actuator ID\n");
     }
 
 private:
@@ -103,13 +104,13 @@ private:
     void ErrorHandler(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux)
     {
         if (error != dmq::DelegateError::SUCCESS)
-            std::cout << "ServerApp Error: " << id << " " << (int)error << " " << aux << std::endl;
+            printf("ServerApp Error: %u %d %d\n", (unsigned)id, (int)error, (int)aux);
     }
 
     void SendStatusHandler(dmq::DelegateRemoteId id, uint16_t seqNum, dmq::util::TransportMonitor::Status status)
     {
         if (status != dmq::util::TransportMonitor::Status::SUCCESS)
-            std::cout << "ServerApp Timeout: " << id << " " << seqNum << std::endl;
+            printf("ServerApp Timeout: %u %u\n", (unsigned)id, (unsigned)seqNum);
     }
 
     // Fires once the retry budget is exhausted -- a real, actionable failure on
@@ -117,7 +118,7 @@ private:
     // system-architecture sample where this signal never fires).
     void DeliveryFailureHandler(dmq::DelegateRemoteId id, uint16_t seqNum)
     {
-        std::cout << "ServerApp Delivery Failed (retries exhausted): ID " << id << " Seq " << seqNum << std::endl;
+        printf("ServerApp Delivery Failed (retries exhausted): ID %u Seq %u\n", (unsigned)id, (unsigned)seqNum);
     }
 
     dmq::os::Thread m_thread;

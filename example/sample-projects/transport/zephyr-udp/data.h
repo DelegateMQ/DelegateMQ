@@ -17,8 +17,8 @@ public:
     int x = 0;
     int y = 0;
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override;
-    virtual std::istream& read(serialize& ms, std::istream& is) override;
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override;
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override;
 };
 
 /// @brief Argument data sent to endpoint.
@@ -28,8 +28,8 @@ public:
     std::vector<DataPoint> dataPoints;
     std::string msg;
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override;
-    virtual std::istream& read(serialize& ms, std::istream& is) override;
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override;
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override;
 };
 
 class DataAux : public serialize::I
@@ -37,8 +37,8 @@ class DataAux : public serialize::I
 public:
     std::string auxMsg;
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override;
-    virtual std::istream& read(serialize& ms, std::istream& is) override;
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override;
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override;
 };
 
 #endif

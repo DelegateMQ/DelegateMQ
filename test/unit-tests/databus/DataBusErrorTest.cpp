@@ -7,16 +7,16 @@ using namespace dmq::databus;
 
 class MockTransport : public dmq::transport::ITransport {
 public:
-    int Send(dmq::xostringstream&, const dmq::transport::DmqHeader&) override { return 0; }
-    int Receive(dmq::xstringstream&, dmq::transport::DmqHeader&) override { return -1; }
+    int Send(const dmq::ByteWriter&, const dmq::transport::DmqHeader&) override { return 0; }
+    int Receive(dmq::ByteReader&, dmq::transport::DmqHeader&) override { return -1; }
 };
 
 // Simulates a successful low-level read (result == 0) that carries a corrupt/wrong
 // DmqHeader marker, exercising Participant::ProcessIncoming()'s framing check.
 class BadMarkerTransport : public dmq::transport::ITransport {
 public:
-    int Send(dmq::xostringstream&, const dmq::transport::DmqHeader&) override { return 0; }
-    int Receive(dmq::xstringstream&, dmq::transport::DmqHeader& header) override {
+    int Send(const dmq::ByteWriter&, const dmq::transport::DmqHeader&) override { return 0; }
+    int Receive(dmq::ByteReader&, dmq::transport::DmqHeader& header) override {
         header.SetMarker(0x0000); // Not dmq::transport::DmqHeader::MARKER
         return 0;
     }
@@ -27,7 +27,7 @@ template <typename T>
 class FailingSerializer : public dmq::ISerializer<void(T)> {
 public:
     bool fail = false;
-    std::ostream& Write(std::ostream& os, const T& data) override {
+    dmq::ByteWriter& Write(dmq::ByteWriter& os, const T& data) override {
         if (fail) {
             // Note: Test 2 assumes this exception is caught by the RemoteChannel layer
             // and converted into a dmq::DelegateError::ERR_SERIALIZE.
@@ -37,7 +37,7 @@ public:
         os.write("x", 1);
         return os;
     }
-    std::istream& Read(std::istream& is, T& data) override {
+    dmq::ByteReader& Read(dmq::ByteReader& is, T& data) override {
         char c;
         is.read(&c, 1);
         return is;

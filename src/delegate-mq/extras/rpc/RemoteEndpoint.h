@@ -29,8 +29,8 @@ struct RemoteEndpoint<TClass, RetType(Args...)>
     /// @brief The transport used to send the serialized data.
     dmq::transport::ITransport* transport = nullptr;
 
-    /// @brief The stream used for serializing the function arguments.
-    dmq::xostringstream stream;
+    /// @brief The buffer the function arguments are serialized into.
+    dmq::ByteWriter stream;
 
     /// @brief The identifier for the remote endpoint.
     dmq::DelegateRemoteId id = 0;
@@ -41,7 +41,7 @@ struct RemoteEndpoint<TClass, RetType(Args...)>
     /// @param[in] _transport The transport to be used for remote communication.
     /// @param[in] _id The remote identifier for this endpoint.
     RemoteEndpoint(std::shared_ptr<TClass> obj, RetType(TClass::* func)(Args...), dmq::transport::ITransport& _transport, dmq::DelegateRemoteId _id)
-        : delegate(obj, func, _id), transport(&_transport), stream(std::ios::in | std::ios::out | std::ios::binary), id(_id)
+        : delegate(obj, func, _id), transport(&_transport), id(_id)
     {
     }
 };
@@ -59,8 +59,8 @@ struct RemoteEndpoint<void, RetType(Args...)>
     /// @brief The transport used to send the serialized data.
     dmq::transport::ITransport* transport = nullptr;
 
-    /// @brief The stream used for serializing the function arguments.
-    dmq::xostringstream stream;
+    /// @brief The buffer the function arguments are serialized into.
+    dmq::ByteWriter stream;
 
     /// @brief The identifier for the remote endpoint.
     dmq::DelegateRemoteId id = 0;
@@ -70,7 +70,7 @@ struct RemoteEndpoint<void, RetType(Args...)>
     /// @param[in] _transport The transport to be used for remote communication.
     /// @param[in] _id The remote identifier for this endpoint.
     RemoteEndpoint(RetType(*func)(Args...), dmq::transport::ITransport& _transport, dmq::DelegateRemoteId _id)
-        : delegate(func, _id), transport(&_transport), stream(std::ios::in | std::ios::out | std::ios::binary), id(_id)
+        : delegate(func, _id), transport(&_transport), id(_id)
     {
     }
 };

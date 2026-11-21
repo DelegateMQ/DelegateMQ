@@ -13,49 +13,47 @@
 #include "SensorMessages.h"
 #include "SensorTopics.h"
 #include "DelegateMQ.h"
+#include <cstdio>
 
 namespace sensornode {
 
 namespace detail {
+    // snprintf, not a stringstream: these run on the boards too, and
+    // iostreams cost a lot of flash. %g prints a float as a stream would.
+    template <typename... T>
+    inline dmq::xstring Format(const char* fmt, T... args) {
+        char text[192];
+        snprintf(text, sizeof(text), fmt, args...);
+        return text;
+    }
+
     inline dmq::xstring StringifyStats(const SignalStats& m) {
-        dmq::xostringstream os;
-        os << "rate: " << m.rateHz << " Hz n: " << m.count << " min: " << m.min
-           << " max: " << m.max << " mean: " << m.mean;
-        return os.str();
+        return Format("rate: %lu Hz n: %lu min: %g max: %g mean: %g",
+                      (unsigned long)m.rateHz, (unsigned long)m.count, (double)m.min, (double)m.max, (double)m.mean);
     }
     inline dmq::xstring StringifyTemperature(const Temperature& m) {
-        dmq::xostringstream os;
-        os << "temp: " << m.celsius << " C";
-        return os.str();
+        return Format("temp: %g C", (double)m.celsius);
     }
     inline dmq::xstring StringifyTouch(const Touch& m) {
-        dmq::xostringstream os;
-        os << "pad: " << static_cast<unsigned>(m.pad) << " touched: " << static_cast<unsigned>(m.touched);
-        return os.str();
+        return Format("pad: %u touched: %u", (unsigned)m.pad, (unsigned)m.touched);
     }
     inline dmq::xstring StringifyStatus(const NodeStatus& m) {
-        dmq::xostringstream os;
-        os << "up(ms): " << m.uptimeMs << " rate: " << m.rateHz << " interval(ms): " << m.intervalMs
-           << " led: " << static_cast<unsigned>(m.ledR) << "," << static_cast<unsigned>(m.ledG) << ","
-           << static_cast<unsigned>(m.ledB) << " commands: " << m.commands << " dropped: " << m.netDropped
-           << " crossCore(us): " << m.crossCoreUs << " sameCore(us): " << m.sameCoreUs;
-        return os.str();
+        return Format("up(ms): %lu rate: %lu interval(ms): %lu led: %u,%u,%u commands: %lu dropped: %lu "
+                      "crossCore(us): %g sameCore(us): %g",
+                      (unsigned long)m.uptimeMs, (unsigned long)m.rateHz, (unsigned long)m.intervalMs,
+                      (unsigned)m.ledR, (unsigned)m.ledG, (unsigned)m.ledB,
+                      (unsigned long)m.commands, (unsigned long)m.netDropped,
+                      (double)m.crossCoreUs, (double)m.sameCoreUs);
     }
     inline dmq::xstring StringifyRate(const SetRate& m) {
-        dmq::xostringstream os;
-        os << "seq: " << m.seq << " rate: " << m.rateHz << " Hz";
-        return os.str();
+        return Format("seq: %lu rate: %lu Hz", (unsigned long)m.seq, (unsigned long)m.rateHz);
     }
     inline dmq::xstring StringifyLed(const SetLed& m) {
-        dmq::xostringstream os;
-        os << "seq: " << m.seq << " r: " << static_cast<unsigned>(m.r) << " g: " << static_cast<unsigned>(m.g)
-           << " b: " << static_cast<unsigned>(m.b);
-        return os.str();
+        return Format("seq: %lu r: %u g: %u b: %u", (unsigned long)m.seq, (unsigned)m.r, (unsigned)m.g, (unsigned)m.b);
     }
     inline dmq::xstring StringifyStart(const StartPublishing& m) {
-        dmq::xostringstream os;
-        os << "seq: " << m.seq << " interval(ms): " << m.intervalMs << " session: " << std::hex << m.session;
-        return os.str();
+        return Format("seq: %lu interval(ms): %lu session: %lx",
+                      (unsigned long)m.seq, (unsigned long)m.intervalMs, (unsigned long)m.session);
     }
 }
 

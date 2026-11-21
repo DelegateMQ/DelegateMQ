@@ -15,6 +15,7 @@
 /// Exits with status 0 if the receiver got at least one message, else 1.
 
 #include "sender.h"
+#include <iostream>
 #include "receiver.h"
 #include <cstdlib>
 

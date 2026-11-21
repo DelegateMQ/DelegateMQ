@@ -21,6 +21,7 @@
 #include <atomic>
 #include <cctype>
 #include <cstdlib>
+#include <sstream>
 
 int main(int argc, char* argv[]) {
     bool healthDemo = false;
@@ -55,14 +56,14 @@ int main(int argc, char* argv[]) {
 
     // 3. Register stringifiers for topics we want to monitor
     dmq::databus::DataBus::RegisterStringifier<int>("sensor/temp", dmq::MakeDelegate([](int v) -> dmq::xstring {
-        dmq::xostringstream ss;
+        std::ostringstream ss;
         ss << v << " C";
-        return ss.str();
+        return ss.str().c_str();
     }));
     dmq::databus::DataBus::RegisterStringifier<float>("sensor/humidity", dmq::MakeDelegate([](float v) -> dmq::xstring {
-        dmq::xostringstream ss;
+        std::ostringstream ss;
         ss << v << " %";
-        return ss.str();
+        return ss.str().c_str();
     }));
     dmq::databus::DataBus::RegisterStringifier<dmq::xstring>("system/status", dmq::MakeDelegate([](const dmq::xstring& v) -> dmq::xstring {
         return v;

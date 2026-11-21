@@ -111,14 +111,14 @@ int main(int argc, char* argv[]) {
 #ifdef DMQ_DATABUS_TOOLS
     SpyBridge::Start("127.0.0.1", 9999);
     dmq::databus::DataBus::RegisterStringifier<DataMsg>(SystemTopic::DataMsg, dmq::MakeDelegate([](const DataMsg& msg) -> dmq::xstring {
-        dmq::xostringstream ss;
+        std::ostringstream ss;
         ss << "Actuators: " << msg.actuators.size() << ", Sensors: " << msg.sensors.size();
-        return ss.str();
+        return ss.str().c_str();
     }));
     dmq::databus::DataBus::RegisterStringifier<CommandMsg>(SystemTopic::CommandMsg, dmq::MakeDelegate([](const CommandMsg& msg) -> dmq::xstring {
-        dmq::xostringstream ss;
+        std::ostringstream ss;
         ss << "Command: PollingRate=" << msg.pollingRateMs << "ms";
-        return ss.str();
+        return ss.str().c_str();
     }));
 #endif
 

@@ -296,14 +296,14 @@ int NetworkNodeTestMain() {
         DMQ_ASSERT_TRUE(sub.Create(T::Type::SUB, "127.0.0.1", 15320) == 0);
         sub.SetRecvTimeout(std::chrono::milliseconds(50));
 
-        xstringstream is(std::ios::in | std::ios::out | std::ios::binary);
+        dmq::ByteReader is;
         transport::DmqHeader header;
         DMQ_ASSERT_TRUE(sub.Receive(is, header) == transport::ITransport::RECEIVE_NO_DATA);
 
         T pub;
         DMQ_ASSERT_TRUE(pub.Create(T::Type::PUB, "127.0.0.1", 15320) == 0);
-        xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
-        os << "hello";
+        dmq::ByteWriter os;
+        os.write("hello", 5);
         DMQ_ASSERT_TRUE(pub.Send(os, transport::DmqHeader(77, 1)) == 0);
 
         int result = transport::ITransport::RECEIVE_NO_DATA;
@@ -312,7 +312,7 @@ int NetworkNodeTestMain() {
         DMQ_ASSERT_TRUE(result == 0);
         DMQ_ASSERT_TRUE(header.GetId() == 77);
         DMQ_ASSERT_TRUE(header.GetLength() == 5);
-        DMQ_ASSERT_TRUE(is.str() == "hello");
+        DMQ_ASSERT_TRUE(std::string(is.data(), is.size()) == "hello");
 
         pub.Close();
         sub.Close();

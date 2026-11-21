@@ -456,7 +456,7 @@ dmq::xmap<int, dmq::xstring> names;                // std::map, std::string equi
 auto msg = dmq::xmake_shared<SensorMsg>();         // object and control block from the pool
 ```
 
-`dmq::xset`, `dmq::xqueue`, `dmq::xstringstream`, and others are also available. See [Fixed-Block Memory Allocator](docs/DETAILS.md#fixed-block-memory-allocator).
+`dmq::xset`, `dmq::xqueue`, and others are also available. See [Fixed-Block Memory Allocator](docs/DETAILS.md#fixed-block-memory-allocator).
 
 # DataBus (DDS Lite)
 

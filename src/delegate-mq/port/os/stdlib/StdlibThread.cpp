@@ -5,6 +5,8 @@
 
 #include "DelegateMQ.h"
 #include "StdlibThread.h"
+#include <cstdio>
+#include <stdexcept>
 #include "port/os/common/ThreadHooks.h"
 #include "port/os/common/CoreAffinity.h"
 #include "extras/util/Fault.h"
@@ -580,23 +582,23 @@ void StdlibThread::Process()
                             if (!selfExit) DMQ_ASSERT_TRUE(success);
                         }
                         catch (const std::bad_alloc& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled bad_alloc in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (const std::invalid_argument& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled invalid_argument in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (const std::runtime_error& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled runtime_error in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (const std::exception& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (...) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled unknown exception in delegate callback." << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
                             DMQ_ASSERT();
                         }
 #else

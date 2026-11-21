@@ -31,7 +31,6 @@
 #include "port/transport/common/ITransportMonitor.h"
 #include "extras/util/crc16.h"
 
-#include <sstream>
 #include <iostream>
 #include <vector>
 #include <cstdint>
@@ -88,17 +87,17 @@ public:
         }
     }
 
-    virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         if (!m_port) return -1;
 
         DmqHeader headerCopy = header;
-        dmq::xstring payload = os.str();
-        if (payload.length() > UINT16_MAX) return -1;
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > UINT16_MAX) return -1;
+        headerCopy.SetLength(static_cast<uint16_t>(payload.size()));
 
-        dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        dmq::ByteWriter ss;
 
         // SERIALIZE HEADER (Big Endian)
         char headerBuf[DmqHeader::HEADER_SIZE];
@@ -109,21 +108,19 @@ public:
         ss.write(payload.data(), payload.size());
 
         // CRC (big-endian)
-        dmq::xstring packetWithoutCrc = ss.str();
-        uint16_t crc = dmq::util::Crc16CalcBlock((unsigned char*)packetWithoutCrc.c_str(), (int)packetWithoutCrc.length(), 0xFFFF);
+        uint16_t crc = dmq::util::Crc16CalcBlock((const unsigned char*)ss.data(), (int)ss.size(), 0xFFFF);
         const char crcBytes[2] = { static_cast<char>(crc >> 8), static_cast<char>(crc & 0xFF) };
         ss.write(crcBytes, sizeof(crcBytes));
 
-        dmq::xstring packetData = ss.str();
-
-        int result = sp_blocking_write(m_port, packetData.c_str(), packetData.length(), 1000);
-        if (result != (int)packetData.length()) return -1;
+        int result = sp_blocking_write(m_port, ss.data(), ss.size(), 1000);
+        if (result != (int)ss.size()) return -1;
 
         return 0;
     }
 
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // Held for the whole read so Close() can't free m_port under it. Send()
         // uses m_mutex, so it's never blocked by an idle read.
         std::lock_guard<std::recursive_mutex> recvLock(m_recvMutex);
@@ -173,8 +170,8 @@ public:
             if (len > BUFFER_SIZE) return -1;
             // INCREASED TIMEOUT: 1000ms
             if (!ReadExact(m_buffer, len, 1000)) return -1;
-            is.write(m_buffer, len);
         }
+        is.assign(m_buffer, len);   // the payload, viewed in place (empty for an ACK)
 
         // 5. CRC Check (big-endian)
         unsigned char crcBytes[2] = {};
@@ -195,7 +192,7 @@ public:
             if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
         }
         else if (m_sendTransport) {
-            dmq::xostringstream ss_ack;
+            dmq::ByteWriter ss_ack;
             DmqHeader ack;
             ack.SetId(dmq::ACK_REMOTE_ID);
             ack.SetSeqNum(header.GetSeqNum());

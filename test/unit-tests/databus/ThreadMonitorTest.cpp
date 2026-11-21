@@ -131,13 +131,15 @@ void SerializerTest()
     in.dispatch_count = 0x1234567890ULL;   // needs more than 32 bits
 
     ThreadStatsPacketSerializer ser;
-    std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+    dmq::ByteWriter ss;
     ser.Write(ss, in);
     DMQ_ASSERT_TRUE(ss.good());
 
     ThreadStatsPacket out;
-    ser.Read(ss, out);
-    DMQ_ASSERT_TRUE(!ss.fail());
+    dmq::ByteReader rs(ss);
+    ser.Read(rs, out);
+    DMQ_ASSERT_TRUE(!rs.fail());
+    DMQ_ASSERT_TRUE(rs.remaining() == 0);
     DMQ_ASSERT_TRUE(out.cpu_name == in.cpu_name);
     DMQ_ASSERT_TRUE(out.thread_name == in.thread_name);
     DMQ_ASSERT_TRUE(out.queue_depth == in.queue_depth);

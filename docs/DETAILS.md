@@ -627,16 +627,16 @@ class ISerializer<RetType(Args...)>
 {
 public:
     /// Serialize data for transport.
-    /// @param[out] os The output stream
-    /// @param[in] args The target function arguments 
-    /// @return The output stream
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) = 0;
+    /// @param[out] os The buffer to write the bytes to
+    /// @param[in] args The target function arguments
+    /// @return The buffer
+    virtual ByteWriter& Write(ByteWriter& os, const Args&... args) = 0;
 
-    /// Deserialize data from transport. 
-    /// @param[in] is The input stream
-    /// @param[out] args The target function arguments 
-    /// @return The input stream
-    virtual std::istream& Read(std::istream& is, Args&... args) = 0;
+    /// Deserialize data from transport.
+    /// @param[in] is The received bytes
+    /// @param[out] args The target function arguments
+    /// @return The reader
+    virtual ByteReader& Read(ByteReader& is, Args&... args) = 0;
 };
 
 /// @brief Delegate interface class to dispatch serialized function argument data
@@ -646,12 +646,14 @@ class IDispatcher
 public:
     virtual ~IDispatcher() = default;
 
-    /// Dispatch a stream of bytes to a remote system. 
-    /// @param[in] os An outgoing stream to send to the remote destination.
+    /// Dispatch serialized bytes to a remote system.
+    /// @param[in] os The outgoing bytes.
     /// @param[in] id The unique delegate identifier shared between sender and receiver.
-    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
+    virtual int Dispatch(ByteWriter& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
 };
 ```
+
+`dmq::ByteWriter` is a growable byte buffer the serializer writes into; `dmq::ByteReader` is a read cursor over received bytes, which it views without copying. Both work like a minimal binary stream (`write()`/`read()`, `tellp()`/`seekp()`, `good()`/`fail()`, `setfail()`) without the cost of iostreams: on an ESP32-S3 node, dropping iostreams from the remote path saved about 205 KB of flash.
 
 The sender sends the remote delegate. All function argument data is serialized and sent using the dispatcher.
 
@@ -661,10 +663,14 @@ dmq::Dispatcher dispatcher;
 dispatcher.SetTransport(&transport);  // any dmq::transport::ITransport
 dmq::serialization::serializer::Serializer<void(int)> serializer;
 
-// Send delegate and registers dispatcher and serializer
+// The buffer each call is serialized into
+dmq::ByteWriter buffer;
+
+// Send delegate and registers dispatcher, serializer and buffer
 dmq::DelegateFreeRemote<void(int)> delegateRemote(REMOTE_ID);
 delegateRemote.SetDispatcher(&dispatcher);
 delegateRemote.SetSerializer(&serializer);
+delegateRemote.SetStream(&buffer);
 
 // Send invokes the remote function using the serializer and dispatcher interfaces
 delegateRemote(123);
@@ -683,12 +689,12 @@ dmq::serialization::serializer::Serializer<void(int)> serializer;
 dmq::DelegateFreeRemote<void(int)> delegateRemote(FreeFuncInt, REMOTE_ID);
 delegateRemote.SetSerializer(&serializer);
 
-// TODO: Receiver code obtains the serializers incoming argument data
-// from your application-specific reception code and stored within a stream.
-std::istream& recv_stream = GetReceivedStream();  // your reception code
+// TODO: Receiver code obtains the incoming argument bytes from your
+// application-specific reception code (a transport's Receive() fills a reader)
+dmq::ByteReader received(data, size);  // your reception code's bytes
 
 // Receiver invokes the remote target function
-delegateRemote.Invoke(recv_stream);
+delegateRemote.Invoke(received);
 ```
 ## Error Handling
 

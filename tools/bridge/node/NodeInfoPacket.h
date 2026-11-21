@@ -30,7 +30,7 @@ struct NodeInfoPacket : public serialize::I {
     uint32_t    totalMsgCount = 0;  ///< Total DataBus messages published since start
     dmq::xstring topicsStr;     ///< Semicolon-delimited topics (e.g. "sensor/temp;system/status")
 
-    std::ostream& write(serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, nodeId);
         ms.write(os, hostname);
         ms.write(os, ipAddress);
@@ -39,7 +39,7 @@ struct NodeInfoPacket : public serialize::I {
         return ms.write(os, topicsStr);
     }
 
-    std::istream& read(serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, nodeId);
         ms.read(is, hostname);
         ms.read(is, ipAddress);
@@ -73,7 +73,7 @@ struct NodeHealthPacket : public serialize::I {
     uint32_t    pendingExceeded  = 0;  ///< Expired entries piling up faster than they're processed (OnPendingExceeded)
     dmq::xstring lastEvent;     ///< Most recent problem, as text (e.g. "delivery failed, Controller id=12 seq=40, retries exhausted")
 
-    std::ostream& write(serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, nodeId);
         ms.write(os, ipAddress);
         ms.write(os, sources);
@@ -85,7 +85,7 @@ struct NodeHealthPacket : public serialize::I {
         return ms.write(os, lastEvent);
     }
 
-    std::istream& read(serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, nodeId);
         ms.read(is, ipAddress);
         ms.read(is, sources);

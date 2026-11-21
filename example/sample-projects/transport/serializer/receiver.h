@@ -6,6 +6,7 @@
 /// David Lafreniere, 2025.
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "transport.h"
 #include "data.h"
 
@@ -21,8 +22,7 @@ class Receiver
 public:
     Receiver(DelegateRemoteId id) :
         m_id(id),
-        m_thread("Receiver"),
-        m_argStream(ios::in | ios::out | ios::binary)
+        m_thread("Receiver")
 #if SAMPLE_ACKS
         , m_transportMonitor(std::chrono::milliseconds(2000))
 #endif
@@ -73,12 +73,12 @@ private:
     void Poll()
     {
         // Get incoming data
-        xstringstream arg_data(std::ios::in | std::ios::out | std::ios::binary);
+        dmq::ByteReader arg_data;
         DmqHeader header;
         int error = m_transport.Receive(arg_data, header);
 
         // Incoming remote delegate data arrived?
-        if (!error && !arg_data.str().empty())
+        if (!error && arg_data.size() > 0)
         {
             // Invoke the receiver target function with the sender's argument data
             m_recvDelegate.Invoke(arg_data);
@@ -120,7 +120,7 @@ private:
     dmq::ScopedConnection m_recvTimerConn;
     std::atomic<int> m_received{ 0 };
 
-    xostringstream m_argStream;
+    dmq::ByteWriter m_argStream;
     SampleTransport m_transport;
     SampleSerializer<SampleSig> m_serializer;
 #if SAMPLE_ACKS

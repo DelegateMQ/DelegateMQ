@@ -30,7 +30,6 @@
 #include "port/transport/common/ITransportMonitor.h"
 
 #include <iostream>
-#include <sstream>
 #include <cstring>
 #include <cstdlib>
 #include <unistd.h>
@@ -165,7 +164,7 @@ public:
         }
     }
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         // Allow ACKs on SUB sockets. Block only regular data.
@@ -179,15 +178,12 @@ public:
             return -1;
         }
 
-        // Get payload data without string copy if possible
-        // Note: os.str() still creates a copy. In a full zero-copy version,
-        // we would use a custom streambuf that points to m_sendBuffer.
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -209,8 +205,9 @@ public:
         return 0;
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB socket
         // that also drains its ACKs here) isn't held up for the receive timeout.
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -256,7 +253,7 @@ public:
             return -1;
 
         if (payloadSize > 0) {
-            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+            is.assign(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
         }
 
         // 3. Handle ACKs and Metadata

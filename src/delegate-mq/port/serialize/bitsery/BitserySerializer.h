@@ -14,15 +14,13 @@
 
 // Core Bitsery
 #include <bitsery/bitsery.h>
-#include <bitsery/adapter/stream.h>
+#include <bitsery/adapter/buffer.h>
 
 // Common Traits (Include these so standard types work out of the box)
 #include <bitsery/traits/string.h>
 #include <bitsery/traits/vector.h>
 #include <bitsery/traits/list.h>
 
-#include <istream>
-#include <ostream>
 #include <type_traits>
 
 namespace dmq::serialization::bitsery {
@@ -34,47 +32,41 @@ template<class RetType, class... Args>
 class Serializer<RetType(Args...)> : public dmq::ISerializer<RetType(Args...)>
 {
 public:
-    // Bitsery Adapters for std::ostream / std::istream
-    using OutputAdapter = ::bitsery::OutputStreamAdapter;
-    using InputAdapter = ::bitsery::InputStreamAdapter;
+    // Bitsery buffer adapters: writes go to an xstring (bitsery's string traits
+    // grow it), then into the ByteWriter; reads run over the received bytes in
+    // place (BufferAdapterTraits<const T*>), with no copy.
+    using OutputAdapter = ::bitsery::OutputBufferAdapter<dmq::xstring>;
+    using InputAdapter = ::bitsery::InputBufferAdapter<const char*>;
 
     // No try/catch here: this adapter must build without exceptions (-fno-exceptions),
-    // the common embedded setting. Failures are reported through the stream state,
-    // which DelegateRemote checks (ERR_DESERIALIZE / ERR_STREAM_NOT_GOOD).
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
-        // Reset stream position.
-        os.seekp(0, std::ios::beg);
+    // the common embedded setting. Failures are reported through the writer/reader
+    // flags, which DelegateRemote checks (ERR_DESERIALIZE / ERR_BUFFER).
+    virtual dmq::ByteWriter& Write(dmq::ByteWriter& os, const Args&... args) override {
+        // Replace what the buffer held: DelegateMQ reuses it per remote delegate
+        os.reset();
 
-        // Clear stringstreams explicitly to avoid appending new data to old data.
-        // DelegateMQ often reuses the stream object.
-#if !defined(DMQ_NO_RTTI)
-        // Without RTTI the caller clears it (DelegateRemote does)
-        if (auto* ss = dynamic_cast<dmq::xostringstream*>(&os)) {
-            ss->str("");
-        }
-#endif
-
-        // Construct the adapter properly passing the stream
-        ::bitsery::Serializer<OutputAdapter> writer{ OutputAdapter{os} };
+        dmq::xstring buffer;
+        ::bitsery::Serializer<OutputAdapter> writer{ buffer };
 
         // Serialize each argument using C++17 fold expression
         (writer.object(args), ...);
 
-        // Ensure buffer is flushed to the stream
         writer.adapter().flush();
+        os.write(buffer.data(), writer.adapter().writtenBytesCount());
         return os;
     }
 
-    virtual std::istream& Read(std::istream& is, Args&... args) override {
-        // Construct the adapter properly passing the stream
-        ::bitsery::Deserializer<InputAdapter> reader{ InputAdapter{is} };
+    virtual dmq::ByteReader& Read(dmq::ByteReader& is, Args&... args) override {
+        ::bitsery::Deserializer<InputAdapter> reader{ is.data() + is.tellg(), is.remaining() };
 
         // Deserialize each argument using fold expression
         (reader.object(args), ...);
 
-        // A truncated or malformed message: fail the stream.
+        // A truncated or malformed message: fail the reader.
         if (reader.adapter().error() != ::bitsery::ReaderError::NoError) {
-            is.setstate(std::ios::failbit);
+            is.setfail();
+        } else {
+            is.skip(reader.adapter().currentReadPos());
         }
         return is;
     }

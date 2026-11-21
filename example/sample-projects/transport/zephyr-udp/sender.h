@@ -6,6 +6,7 @@
 /// David Lafreniere, 2025.
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "extras/util/RetryMonitor.h"
 #include "extras/util/ReliableTransport.h"
 #include "data.h"
@@ -24,7 +25,6 @@ class Sender
 public:
     Sender(DelegateRemoteId id) :
         m_thread("Sender"),
-        m_argStream(ios::in | ios::out | ios::binary),
         m_transportMonitor(std::chrono::milliseconds(500)),
         m_retryMonitor(m_transport, m_transportMonitor, 3),
         m_reliableTransport(m_transport, m_retryMonitor),
@@ -90,7 +90,7 @@ public:
         // We try to read from the socket. 
         // If an ACK is waiting, Transport::Receive automatically processes it 
         // and calls m_transportMonitor->Remove(seq).
-        xstringstream ss;
+        dmq::ByteReader ss;
         DmqHeader h;
         m_transport.Receive(ss, h);
 
@@ -117,7 +117,7 @@ private:
     Timer m_sendTimer;
     dmq::ScopedConnection m_sendTimerConn;
 
-    xostringstream m_argStream;
+    dmq::ByteWriter m_argStream;
     Dispatcher m_dispatcher;
 
     UdpTransport m_transport;           // 1. Initialized first

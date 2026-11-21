@@ -21,19 +21,17 @@ public:
         std::vector<char> data;
     };
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override {
-        xstring s = os.str();
-        std::vector<char> data(s.begin(), s.end());
-        m_queue.push({header, data});
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
+        m_queue.push({header, std::vector<char>(os.data(), os.data() + os.size())});
         return 0;
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override {
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override {
         if (m_queue.empty()) return -1;
-        Packet p = m_queue.front();
+        m_current = std::move(m_queue.front());   // the reader views it until the next Receive()
         m_queue.pop();
-        header = p.header;
-        is.write(p.data.data(), p.data.size());
+        header = m_current.header;
+        is.assign(m_current.data.data(), m_current.data.size());
         return 0;
     }
 
@@ -44,6 +42,7 @@ public:
 
 private:
     std::queue<Packet> m_queue;
+    Packet m_current;
 };
 
 int DataBusRemoteTestMain() {
@@ -80,8 +79,8 @@ int DataBusRemoteTestMain() {
         // Count how many times the transport is asked to send
         struct CountingTransport : public ITransport {
             int sendCount = 0;
-            int Send(xostringstream&, const DmqHeader&) override { sendCount++; return 0; }
-            int Receive(xstringstream&, DmqHeader&) override { return -1; }
+            int Send(const dmq::ByteWriter&, const DmqHeader&) override { sendCount++; return 0; }
+            int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
         } countingTransport;
 
         auto participant = std::make_shared<Participant>(countingTransport);
@@ -123,8 +122,8 @@ int DataBusRemoteTestMain() {
 
             struct CountingTransport : public ITransport {
                 int sendCount = 0;
-                int Send(xostringstream&, const DmqHeader&) override { sendCount++; return 0; }
-                int Receive(xstringstream&, DmqHeader&) override { return -1; }
+                int Send(const dmq::ByteWriter&, const DmqHeader&) override { sendCount++; return 0; }
+                int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
             } downstreamTransport;
 
             // Register a downstream participant that would receive re-forwarded data
@@ -153,8 +152,8 @@ int DataBusRemoteTestMain() {
 
             struct CountingTransport : public ITransport {
                 int sendCount = 0;
-                int Send(xostringstream&, const DmqHeader&) override { sendCount++; return 0; }
-                int Receive(xstringstream&, DmqHeader&) override { return -1; }
+                int Send(const dmq::ByteWriter&, const DmqHeader&) override { sendCount++; return 0; }
+                int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
             } downstreamTransport;
 
             auto downParticipant = std::make_shared<Participant>(downstreamTransport);
@@ -184,14 +183,14 @@ int DataBusRemoteTestMain() {
 
             struct CountingTransport : public ITransport {
                 int sendCount = 0;
-                int Send(xostringstream&, const DmqHeader&) override { sendCount++; return 0; }
-                int Receive(xstringstream&, DmqHeader&) override { return -1; }
+                int Send(const dmq::ByteWriter&, const DmqHeader&) override { sendCount++; return 0; }
+                int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
             } downstreamTransport;
 
             // Loopback that also counts sends made after the test packet is injected
             struct CountingLoopbackTransport : public DataBusLoopbackTransport {
                 int sendCount = 0;
-                int Send(xostringstream& os, const DmqHeader& header) override {
+                int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
                     sendCount++;
                     return DataBusLoopbackTransport::Send(os, header);
                 }
@@ -229,12 +228,12 @@ int DataBusRemoteTestMain() {
         public:
             dmq::os::Thread* expectedThread = nullptr;
             std::atomic<bool>* calledOnWorker = nullptr;
-            int Send(xostringstream&, const DmqHeader&) override {
+            int Send(const dmq::ByteWriter&, const DmqHeader&) override {
                 if (calledOnWorker)
                     calledOnWorker->store(expectedThread->IsCurrentThread());
                 return 0;
             }
-            int Receive(xstringstream&, DmqHeader&) override { return -1; }
+            int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
         } trackingTransport;
 
         trackingTransport.expectedThread = &sendWorker;
@@ -305,11 +304,11 @@ int DataBusRemoteTestMain() {
         });
 
         auto inject = [&](uint8_t node, uint16_t seq, int value) {
-            xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+            dmq::ByteWriter os;
             serializer.Write(os, value);
             DmqHeader h(300, seq);
             h.SetNodeId(node);
-            transport.Inject(h, os.str());
+            transport.Inject(h, xstring(os.data(), os.size()));
             receiver->ProcessIncoming();
         };
 
@@ -327,12 +326,12 @@ int DataBusRemoteTestMain() {
 
         // A header with an unknown version is rejected, not delivered.
         {
-            xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+            dmq::ByteWriter os;
             serializer.Write(os, 99);
             DmqHeader h(300, 7);
             h.SetNodeId(1);
             h.SetVersion(DmqHeader::VERSION + 1);
-            transport.Inject(h, os.str());
+            transport.Inject(h, xstring(os.data(), os.size()));
             receiver->ProcessIncoming();
             DMQ_ASSERT_TRUE(count == 3);
         }

@@ -10,12 +10,12 @@ struct Actuator : public serialize::I {
     float position = 0.0f;
     float voltage = 0.0f;
 
-    virtual std::ostream& write(::serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, id);
         ms.write(os, position);
         return ms.write(os, voltage);
     }
-    virtual std::istream& read(::serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, id);
         ms.read(is, position);
         return ms.read(is, voltage);
@@ -28,12 +28,12 @@ struct Sensor : public serialize::I {
     float supplyV = 0.0f;
     float readingV = 0.0f;
 
-    virtual std::ostream& write(::serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, id);
         ms.write(os, supplyV);
         return ms.write(os, readingV);
     }
-    virtual std::istream& read(::serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, id);
         ms.read(is, supplyV);
         return ms.read(is, readingV);
@@ -45,11 +45,11 @@ struct DataMsg : public serialize::I {
     std::vector<Actuator> actuators;
     std::vector<Sensor> sensors;
 
-    virtual std::ostream& write(::serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, actuators);
         return ms.write(os, sensors);
     }
-    virtual std::istream& read(::serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, actuators);
         return ms.read(is, sensors);
     }
@@ -59,10 +59,10 @@ struct DataMsg : public serialize::I {
 struct CommandMsg : public serialize::I {
     int pollingRateMs = 1000;
 
-    virtual std::ostream& write(::serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         return ms.write(os, pollingRateMs);
     }
-    virtual std::istream& read(::serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         return ms.read(is, pollingRateMs);
     }
 };

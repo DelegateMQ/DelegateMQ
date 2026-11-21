@@ -248,7 +248,7 @@ void ReceiverThread(UdpSocket& socket) {
             std::string senderIp = socket.GetRemoteAddress();
             g_packetCount++;
             dmq::databus::SpyPacket packet;
-            std::istringstream iss(std::string(reinterpret_cast<char*>(buffer.data()), received), std::ios::binary);
+            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data()), static_cast<size_t>(received));
             ms_decoder.read(iss, packet);
             if (iss.good()) {
                 LogPacket(senderIp, packet);
@@ -383,7 +383,7 @@ int RunCli(UdpSocket& socket, CliMode mode, const std::string& topicFilter, bool
         if (received > 0) {
             std::string senderIp = socket.GetRemoteAddress();
             dmq::databus::SpyPacket packet;
-            std::istringstream iss(std::string(reinterpret_cast<char*>(buffer.data()), received), std::ios::binary);
+            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data()), static_cast<size_t>(received));
             ms_decoder.read(iss, packet);
             if (iss.good()) {
                 LogPacket(senderIp, packet);

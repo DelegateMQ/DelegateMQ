@@ -15,7 +15,7 @@ struct SensorStatusMsg : public MessageBase
     SensorStatusMsg() = default;
     SensorStatusMsg(SensorType t, int16_t v) : type(t), value(v) {}
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         uint8_t t;
         ms.read(is, t);
@@ -24,7 +24,7 @@ struct SensorStatusMsg : public MessageBase
         return is;
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         uint8_t t = static_cast<uint8_t>(type);
         ms.write(os, t);

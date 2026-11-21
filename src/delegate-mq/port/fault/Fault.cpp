@@ -9,8 +9,6 @@
 #include <cstdlib>
 
 #if defined(_WIN32) || defined(__linux__)
-#include <iostream>
-#include <iomanip>
 #include "delegate/DelegateOpt.h"
 #endif
 
@@ -289,9 +287,10 @@ extern "C" void InstallCrashHandlers()
 extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
 {
 #if defined(_WIN32) || defined(__linux__)
-    std::cout << "\n************************************************" << std::endl;
-    std::cout << "WATCHDOG EXPIRED: " << threadName << std::endl;
-    std::cout << "************************************************\n" << std::endl;
+    printf("\n************************************************\n");
+    printf("WATCHDOG EXPIRED: %s\n", threadName ? threadName : "?");
+    printf("************************************************\n\n");
+    fflush(stdout);
     // The watchdog hook has already run; DMQ_ASSERT() (for the stack traces)
     // mustn't also call the fault hook. The process ends here.
     dmq::util::SetFaultHook(nullptr);

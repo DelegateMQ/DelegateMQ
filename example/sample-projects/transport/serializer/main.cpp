@@ -11,6 +11,7 @@
 /// (SAMPLE_ACKS), if none was acknowledged.
 
 #include "sender.h"
+#include <iostream>
 #include "receiver.h"
 #include "extras/util/NetworkConnect.h"
 #include <memory>

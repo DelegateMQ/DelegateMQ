@@ -5,6 +5,7 @@
 /// @brief MQTT and RapidJSON with remote delegates examples.
 
 #include "receiver.h"
+#include <iostream>
 #include <atomic>
 #include <cstdlib>
 

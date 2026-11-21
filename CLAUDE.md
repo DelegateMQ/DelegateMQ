@@ -19,7 +19,7 @@ Rules for modifying the `delegate-mq` library itself. Apply these whenever addin
 
 Do not `#include` allocator or platform headers directly in library files. `DelegateOpt.h` gates everything behind build options:
 
-- `DMQ_ALLOCATOR` — fixed-block allocator (`xmap`, `xlist`, `xstring`, `xsstream`, `dmq::stl_allocator`, `xnew`, `xmake_shared`)
+- `DMQ_ALLOCATOR` — fixed-block allocator (`xmap`, `xlist`, `xstring`, `dmq::stl_allocator`, `xnew`, `xmake_shared`)
 - `DMQ_THREAD_*` — OS/mutex/clock selection
 - `DMQ_ASSERTS` — assert vs. exception error handling
 - `DMQ_STRICT` — enable strict compiler warnings and errors
@@ -30,6 +30,8 @@ To add a new allocator-gated type (e.g., `xunordered_map`):
 2. Include it in the `#ifdef DMQ_ALLOCATOR` block in `DelegateOpt.h`.
 3. Add a `std::*` fallback alias in the `#else` block of `DelegateOpt.h`.
 4. Reference it in library code with no direct include — `DelegateOpt.h` is already transitively included everywhere via `DelegateRemote.h` → `DelegateOpt.h`.
+
+**Types `DelegateOpt.h` provides reach library code only through it.** That covers the allocator containers, the port types (`dmq::Mutex`, `dmq::Semaphore`, `dmq::Clock`, ...) and the byte buffers (`dmq::ByteWriter`, `dmq::ByteReader`). A library header that needs one includes `DelegateOpt.h` (most get it already, transitively), never the type's own header: including it directly is a recurring mistake, and it breaks when that header depends on something `DelegateOpt.h` defines first (`ByteWriter` stores an `xstring`). When adding such a type: give it its own header, include that header from `DelegateOpt.h` after whatever it depends on, and don't have it include `DelegateOpt.h` back (a note in the header says to include `DelegateOpt.h` instead).
 
 `DelegateOpt.h` selects; it doesn't implement. It holds conditional includes, `using` aliases, `inline constexpr` constants and adapters of a few lines (e.g. `PortableLockGuard`). Anything larger goes in its own header under `port/` (OS-specific: `port/os/<os>/`; shared by several ports: `port/os/common/`) or `extras/`, and `DelegateOpt.h` includes it and adds the alias, as it does for `dmq::os::FreeRTOSMutex` → `dmq::Mutex` and `dmq::os::PortableScopedLock` → `dmq::ScopedLock`.
 
@@ -108,16 +110,14 @@ auto conn = DataBus::SubscribeError([&](auto topic, auto err) { ... });
 
 Store connections in member variables (`dmq::ScopedConnection m_conn`) or in a container (`std::vector<dmq::ScopedConnection>` / `xlist<dmq::ScopedConnection>`).
 
-## Stream Types
+## Byte Buffers, Not Streams
 
-Use the portable stream aliases instead of std:: streams in transport and serialization code:
+The remote path carries bytes in `dmq::ByteWriter` (serializers write into it, transports send `data()`/`size()`) and `dmq::ByteReader` (a transport's `Receive()` points it at its receive buffer with `assign()`, serializers read from it). Both come from `DelegateOpt.h`. No iostreams (`<iostream>`, `<sstream>`, `std::cout`/`std::cerr`) in library code that can run on an MCU: `delegate/`, `extras/`, every `port/os/` port (desktop ones too, to keep them alike), `port/fault/`, and the embedded transports. They cost about 200 KB of flash on an ESP32-S3. For text (stringifiers, log lines, fault messages) use `printf`/`fprintf(stderr, ...)`, or `snprintf` into a `char` buffer, then `dmq::xstring`. The desktop-only transports (see "Port Exception") may use `std::cerr`, but must `#include <iostream>` themselves: no library header provides it any more. Application code (`test/`, `example/`) includes what it uses too.
 
-| Instead of | Use |
-|---|---|
-| `std::ostringstream` | `dmq::xostringstream` |
-| `std::stringstream` | `dmq::xstringstream` |
-
-Under `DMQ_ALLOCATOR` these use the fixed-block allocator for internal buffers. They are defined in `DelegateOpt.h` and available everywhere.
+- A transport's `Receive()` must set the reader on every call (`is.assign(nullptr, 0)` first), and the bytes it points at must outlive the call: a member buffer, valid until the next `Receive()`, never a local.
+- A serializer that rejects data calls `setfail()`; reading past the end sets `fail()` by itself.
+- `ByteWriter` stores an `xstring`, so under `DMQ_ALLOCATOR` its buffer comes from the fixed-block allocator; `reset()` keeps the capacity. It never grows past `dmq::MAX_MESSAGE_SIZE` (`DMQ_MAX_MESSAGE_SIZE`): a write past it sets `fail()` and `overflowed()` without allocating, and a remote delegate reports `ERR_MESSAGE_TOO_LARGE`. Under `DMQ_ALLOCATOR` a `static_assert` in `ByteWriter.h` keeps the cap within the allocator's largest block.
+- A remote delegate reports a failed buffer as `ERR_BUFFER` (formerly `ERR_STREAM_NOT_GOOD`, same value).
 
 ## Error Reporting
 

@@ -9,13 +9,13 @@ The `dmq::Dispatcher` is responsible for taking the serialized payload (function
 ## Key Components
 
 * **`Dispatcher.h`**: The concrete implementation of the `dmq::IDispatcher` interface.
-* **`RemoteChannel.h`**: An aggregator that owns a `dmq::Dispatcher`, an `dmq::xostringstream` (serialization buffer), and borrows an `dmq::ISerializer` for a single function signature. Use `dmq::RemoteChannel` to configure `dmq::DelegateMemberRemote` endpoints without manually wiring each component.
+* **`RemoteChannel.h`**: An aggregator that owns a `dmq::Dispatcher`, a `dmq::ByteWriter` (serialization buffer), and borrows an `dmq::ISerializer` for a single function signature. Use `dmq::RemoteChannel` to configure `dmq::DelegateMemberRemote` endpoints without manually wiring each component.
 
 ### Responsibilities
 
 #### dmq::Dispatcher
 1. **Protocol Framing**: It constructs the `dmq::transport::DmqHeader` for every message, assigning the correct **Remote ID** and generating a monotonic **Sequence Number**.
-2. **Stream Validation**: It ensures the output stream (`dmq::xostringstream`) contains valid data before transmission.
+2. **Buffer Reset**: After the transport sends the bytes, it empties the `dmq::ByteWriter` for the next message (keeping its capacity).
 3. **Transport Handoff**: It forwards the framed message (Header + Payload) to the registered `dmq::transport::ITransport` instance for physical transmission.
 
 #### dmq::RemoteChannel

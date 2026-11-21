@@ -6,6 +6,7 @@
 #include "DelegateMQ.h"
 #include "QtThread.h"
 #include <QCoreApplication>
+#include <stdexcept>
 #include "extras/util/Fault.h"
 #include "port/os/common/CoreAffinity.h"
 #include <new>

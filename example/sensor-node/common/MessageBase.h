@@ -32,10 +32,10 @@ struct MessageBase : public ::serialize::I
 
     MessageBase() : seq(NextSeq()) {}
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         return ms.write(os, seq);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         return ms.read(is, seq);
     }
 

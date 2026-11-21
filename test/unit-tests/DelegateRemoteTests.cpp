@@ -1,6 +1,7 @@
 #include "DelegateMQ.h"
 #include "UnitTestCommon.h"
 #include <iostream>
+#include <sstream>
 #include <set>
 #include <cstring>
 #include <thread>
@@ -123,22 +124,19 @@ namespace Remote
     class MockDispatcher : public IDispatcher
     {
     public:
-        MockDispatcher() : m_ss(ios::in | ios::out | ios::binary) {}
-
-        virtual int Dispatch(dmq::xostringstream& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
-            // Save dispatched string to simulate sending data over a transport
-            m_ss.str("");
-            m_ss.clear();
-            m_ss << os.str();
-            os.str("");
-            os.clear();
+        virtual int Dispatch(dmq::ByteWriter& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
+            // Save the dispatched bytes to simulate sending data over a transport
+            m_data.assign(os.data(), os.size());
+            m_reader.assign(m_data.data(), m_data.size());
+            os.reset();
             return 0;
         }
 
-        std::stringstream& GetDispached() { return m_ss; }
+        dmq::ByteReader& GetDispached() { return m_reader; }
 
     private:
-        std::stringstream m_ss;
+        std::string m_data;
+        dmq::ByteReader m_reader;
     };
 
     template<typename... Ts>
@@ -188,13 +186,23 @@ namespace Remote
     class Serializer<RetType(Args...)> : public ISerializer<RetType(Args...)>
     {
     public:
-        virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
-            make_serialized(os, args...);
+        // Text format through operator<< / operator>>: formatted in a
+        // stringstream (test code), then copied into the ByteWriter
+        virtual dmq::ByteWriter& Write(dmq::ByteWriter& os, const Args&... args) override {
+            std::stringstream ss;
+            make_serialized(ss, args...);
+            const std::string text = ss.str();
+            os.write(text.data(), text.size());
             return os;
         }
 
-        virtual std::istream& Read(std::istream& is, Args&... args) override {
-            make_unserialized(is, args...);
+        virtual dmq::ByteReader& Read(dmq::ByteReader& is, Args&... args) override {
+            std::istringstream ss(std::string(is.data() + is.tellg(), is.remaining()));
+            make_unserialized(ss, args...);
+            if (ss.fail())
+                is.setfail();
+            else
+                is.skip(is.remaining());
             return is;
         }
     };
@@ -271,7 +279,7 @@ static void DelegateFreeRemoteTests()
     {
         MockDispatcher dispatcher;
         Serializer<void(const int*)> serializer;
-        xostringstream os(ios::in | ios::out | ios::binary);
+        dmq::ByteWriter os;
         auto d = MakeDelegate(&FreeFuncConstIntPtr, REMOTE_ID);
         d.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
         d.SetStream(&os);
@@ -281,7 +289,7 @@ static void DelegateFreeRemoteTests()
         int val = TEST_INT;
         d(&val);
 
-        std::stringstream& ss = dispatcher.GetDispached();
+        dmq::ByteReader& ss = dispatcher.GetDispached();
         DelegateFreeRemote<void(const int*)> dest(&FreeFuncConstIntPtr, REMOTE_ID);
         dest.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
         dest.SetSerializer(&serializer);
@@ -291,7 +299,7 @@ static void DelegateFreeRemoteTests()
     {
         MockDispatcher dispatcher;
         Serializer<void(const int&)> serializer;
-        xostringstream os(ios::in | ios::out | ios::binary);
+        dmq::ByteWriter os;
         auto d = MakeDelegate(&FreeFuncConstIntRef, REMOTE_ID);
         d.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
         d.SetStream(&os);
@@ -301,7 +309,7 @@ static void DelegateFreeRemoteTests()
         int val = TEST_INT;
         d(val);
 
-        std::stringstream& ss = dispatcher.GetDispached();
+        dmq::ByteReader& ss = dispatcher.GetDispached();
         DelegateFreeRemote<void(const int&)> dest(&FreeFuncConstIntRef, REMOTE_ID);
         dest.SetErrorHandler(MakeDelegate([](DelegateRemoteId, DelegateError, int){}));
         dest.SetSerializer(&serializer);
@@ -459,7 +467,7 @@ static void DelegateFreeRemoteTests()
     };
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandlerNoAssert = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {};
     MockDispatcher dispatcher;
-    xostringstream os(ios::in | ios::out | ios::binary);
+    dmq::ByteWriter os;
 
     {
         Remote::Serializer<void(int)> serializer;
@@ -470,15 +478,15 @@ static void DelegateFreeRemoteTests()
         delegateRemote.SetSerializer(&serializer);
         delegateRemote(TEST_INT);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
-        recv_stream.setstate(std::ios::failbit);
+        recv_stream.setfail();
         delegateRemote.Invoke(recv_stream);
-        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_BUFFER);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
@@ -492,7 +500,7 @@ static void DelegateFreeRemoteTests()
         int i = TEST_INT;
         delegateRemote(i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -507,7 +515,7 @@ static void DelegateFreeRemoteTests()
         int i = TEST_INT;
         delegateRemote(&i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -524,7 +532,7 @@ static void DelegateFreeRemoteTests()
         int* pi = &i;
         delegateRemote(&pi);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -540,7 +548,7 @@ static void DelegateFreeRemoteTests()
         RemoteData d(TEST_INT, TEST_INT+1);
         delegateRemote(d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -555,7 +563,7 @@ static void DelegateFreeRemoteTests()
         RemoteData d(TEST_INT, TEST_INT + 1);
         delegateRemote(&d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -568,7 +576,7 @@ static void DelegateFreeRemoteTests()
 static void DeserializeExceptionMisattributionTests()
 {
     MockDispatcher dispatcher;
-    xostringstream os(ios::in | ios::out | ios::binary);
+    dmq::ByteWriter os;
 
     // Multi-argument case: deserialization succeeds, then the target throws.
     {
@@ -587,7 +595,7 @@ static void DeserializeExceptionMisattributionTests()
         delegateRemote.SetSerializer(&serializer);
         delegateRemote(TEST_INT);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
 
         bool caught = false;
@@ -618,7 +626,7 @@ static void DeserializeExceptionMisattributionTests()
         delegateRemote.SetSerializer(&serializer);
         delegateRemote();
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
 
         bool caught = false;
@@ -808,7 +816,7 @@ static void DelegateMemberRemoteTests()
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandlerNoAssert = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {};
     MockDispatcher dispatcher;
     RemoteClass remoteClass;
-    xostringstream os(ios::in | ios::out | ios::binary);
+    dmq::ByteWriter os;
 
     {
         Remote::Serializer<void(int)> serializer;
@@ -819,15 +827,15 @@ static void DelegateMemberRemoteTests()
         delegateRemote.SetSerializer(&serializer);
         delegateRemote(TEST_INT);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
-        recv_stream.setstate(std::ios::failbit);
+        recv_stream.setfail();
         delegateRemote.Invoke(recv_stream);
-        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_BUFFER);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
@@ -841,7 +849,7 @@ static void DelegateMemberRemoteTests()
         int i = TEST_INT;
         delegateRemote(i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -856,7 +864,7 @@ static void DelegateMemberRemoteTests()
         int i = TEST_INT;
         delegateRemote(&i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -871,7 +879,7 @@ static void DelegateMemberRemoteTests()
         RemoteData d(TEST_INT, TEST_INT + 1);
         delegateRemote(d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -886,7 +894,7 @@ static void DelegateMemberRemoteTests()
         RemoteData d(TEST_INT, TEST_INT + 1);
         delegateRemote(&d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1028,7 +1036,7 @@ static void DelegateMemberSpRemoteTests()
         DMQ_ASSERT_TRUE(d->y == TEST_INT + 1);
     };
     MockDispatcher dispatcher;
-    xostringstream os(ios::in | ios::out | ios::binary);
+    dmq::ByteWriter os;
 
     {
         Remote::Serializer<void(int)> serializer;
@@ -1039,15 +1047,15 @@ static void DelegateMemberSpRemoteTests()
         delegateRemote.SetSerializer(&serializer);
         delegateRemote(TEST_INT);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
-        recv_stream.setstate(std::ios::failbit);
+        recv_stream.setfail();
         delegateRemote.Invoke(recv_stream);
-        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_BUFFER);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
@@ -1061,7 +1069,7 @@ static void DelegateMemberSpRemoteTests()
         int i = TEST_INT;
         delegateRemote(i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1076,7 +1084,7 @@ static void DelegateMemberSpRemoteTests()
         int i = TEST_INT;
         delegateRemote(&i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1091,7 +1099,7 @@ static void DelegateMemberSpRemoteTests()
         RemoteData d(TEST_INT, TEST_INT + 1);
         delegateRemote(d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1106,7 +1114,7 @@ static void DelegateMemberSpRemoteTests()
         RemoteData d(TEST_INT, TEST_INT + 1);
         delegateRemote(&d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1247,7 +1255,7 @@ static void DelegateFunctionRemoteTests()
     };
     std::function<void(DelegateRemoteId, DelegateError, int)> errorHandlerNoAssert = [](DelegateRemoteId id, DelegateError error, DelegateErrorAux code) {};
     MockDispatcher dispatcher;
-    xostringstream os(ios::in | ios::out | ios::binary);
+    dmq::ByteWriter os;
     auto remoteClass = std::make_shared<RemoteClass>();
 
     {
@@ -1259,15 +1267,15 @@ static void DelegateFunctionRemoteTests()
         delegateRemote.SetSerializer(&serializer);
         delegateRemote(TEST_INT);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
 
         delegateRemote.SetErrorHandler(MakeDelegate(errorHandlerNoAssert));
-        recv_stream.setstate(std::ios::failbit);
+        recv_stream.setfail();
         delegateRemote.Invoke(recv_stream);
-        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_STREAM_NOT_GOOD);
+        DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::ERR_BUFFER);
         DMQ_ASSERT_TRUE(delegateRemote.GetError() == DelegateError::SUCCESS);
     }
 
@@ -1281,7 +1289,7 @@ static void DelegateFunctionRemoteTests()
         int i = TEST_INT;
         delegateRemote(i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1296,7 +1304,7 @@ static void DelegateFunctionRemoteTests()
         int i = TEST_INT;
         delegateRemote(&i);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1311,7 +1319,7 @@ static void DelegateFunctionRemoteTests()
         RemoteData d(TEST_INT, TEST_INT + 1);
         delegateRemote(d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
@@ -1326,14 +1334,79 @@ static void DelegateFunctionRemoteTests()
         RemoteData d(TEST_INT, TEST_INT + 1);
         delegateRemote(&d);
 
-        std::istream& recv_stream = dispatcher.GetDispached();
+        dmq::ByteReader& recv_stream = dispatcher.GetDispached();
         recv_stream.seekg(0);
         delegateRemote.Invoke(recv_stream);
     }
 }
 
+// ByteWriter / ByteReader: the size cap, reserve(), and failing on null pointers
+static void ByteBufferTests()
+{
+    // A write past the cap writes nothing and sets fail() and overflowed()
+    {
+        dmq::ByteWriter w(8);
+        DMQ_ASSERT_TRUE(w.maxsize() == 8);
+        w.write("12345678", 8);
+        DMQ_ASSERT_TRUE(w.good() && w.size() == 8);
+        w.write("9", 1);
+        DMQ_ASSERT_TRUE(w.fail() && w.overflowed() && w.size() == 8);
+        w.reset();
+        DMQ_ASSERT_TRUE(w.good() && !w.overflowed() && w.size() == 0);
+        w.write("123456789", 9);    // one write larger than the cap
+        DMQ_ASSERT_TRUE(w.overflowed() && w.size() == 0);
+    }
+    // The cap can't exceed MAX_MESSAGE_SIZE
+    {
+        dmq::ByteWriter w(dmq::MAX_MESSAGE_SIZE + 100);
+        DMQ_ASSERT_TRUE(w.maxsize() == dmq::MAX_MESSAGE_SIZE);
+    }
+    // reserve() allocates up front, at most the cap; reset() keeps the capacity
+    {
+        dmq::ByteWriter w(64);
+        w.reserve(1000);
+        DMQ_ASSERT_TRUE(w.capacity() >= 64);
+        const size_t cap = w.capacity();
+        w.write("abc", 3);
+        w.reset();
+        DMQ_ASSERT_TRUE(w.capacity() == cap);
+    }
+    // Overwriting after seekp() within the data doesn't count past the cap
+    {
+        dmq::ByteWriter w(4);
+        w.write("abcd", 4);
+        w.seekp(1);
+        w.write("XY", 2);
+        DMQ_ASSERT_TRUE(w.good() && w.size() == 4 && std::string(w.data(), w.size()) == "aXYd");
+    }
+    // read(nullptr, n) fails, like write(nullptr, n)
+    {
+        const char data[4] = { 1, 2, 3, 4 };
+        dmq::ByteReader r(data, sizeof(data));
+        r.read(nullptr, 2);
+        DMQ_ASSERT_TRUE(r.fail() && r.tellg() == 0);
+    }
+    // A remote delegate whose message exceeds its buffer's cap reports
+    // ERR_MESSAGE_TOO_LARGE and sends nothing
+    {
+        MockDispatcher dispatcher;
+        Serializer<void(int)> serializer;
+        dmq::ByteWriter os(2);      // the text serializer writes TEST_INT as 8 digits
+        DelegateFreeRemote<void(int)> d(FreeFuncInt, REMOTE_ID);
+        DelegateError last = DelegateError::SUCCESS;
+        d.SetErrorHandler(MakeDelegate([&last](DelegateRemoteId, DelegateError e, DelegateErrorAux) { last = e; }));
+        d.SetStream(&os);
+        d.SetDispatcher(&dispatcher);
+        d.SetSerializer(&serializer);
+        d(TEST_INT);
+        DMQ_ASSERT_TRUE(last == DelegateError::ERR_MESSAGE_TOO_LARGE);
+        DMQ_ASSERT_TRUE(dispatcher.GetDispached().size() == 0);
+    }
+}
+
 void DelegateRemoteTests()
 {
+    ByteBufferTests();
     DelegateFreeRemoteTests();
     DeserializeExceptionMisattributionTests();
     DelegateMemberRemoteTests();

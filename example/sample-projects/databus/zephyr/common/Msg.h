@@ -20,12 +20,12 @@ struct SensorMsg : public serialize::I
     int   sensorId = 1;
     float temp     = 0.0f;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, sensorId);
         return ms.write(os, temp);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, sensorId);
         return ms.read(is, temp);
@@ -38,11 +38,11 @@ struct CmdMsg : public serialize::I
 {
     int intervalMs = 1000;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override
     {
         return ms.write(os, intervalMs);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override
     {
         return ms.read(is, intervalMs);
     }
@@ -56,12 +56,12 @@ struct AlarmMsg : public serialize::I
     int  alarmId = 1;
     bool active  = false;
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, alarmId);
         return ms.write(os, active);
     }
-    std::istream& read(::serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, alarmId);
         return ms.read(is, active);

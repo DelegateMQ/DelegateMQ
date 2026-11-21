@@ -13,12 +13,12 @@ struct HeartbeatMsg : public MessageBase
     HeartbeatMsg() = default;
     HeartbeatMsg(uint32_t c) : counter(c) {}
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         return ms.read(is, counter);
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         return ms.write(os, counter);
     }

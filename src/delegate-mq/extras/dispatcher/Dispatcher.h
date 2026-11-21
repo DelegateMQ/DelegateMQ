@@ -15,7 +15,7 @@
 /// 1. **Message Construction:** Creates the protocol header (`DmqHeader`) containing 
 ///    the Remote ID and a monotonic Sequence Number.
 /// 2. **Stream Management:** Validates that the output stream is compatible 
-///    (expects `xostringstream`).
+///    (a `ByteWriter`).
 /// 3. **Dispatch:** Forwards the header and the serialized payload (stream) to the 
 ///    registered `ITransport::Send()` method.
 /// 
@@ -27,7 +27,6 @@
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransport.h"
 #include <atomic>
-#include <sstream>
 
 namespace dmq {
 
@@ -45,22 +44,17 @@ public:
     }
 
     // Send argument data to the transport
-    int Dispatch(dmq::xostringstream& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override
+    int Dispatch(dmq::ByteWriter& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override
     {
-        dmq::xostringstream* ss = &os;
-
         if (m_transport)
         {
             uint16_t seq = m_seqNum.fetch_add(1);
             if (outSeqNum) *outSeqNum = seq;
             transport::DmqHeader header(id, seq);
-            int err = m_transport->Send(*ss, header);
+            int err = m_transport->Send(os, header);
 
-            // Reset the stream content and error state for the next use.
-            // This prevents the stream from growing indefinitely.
-            ss->str(dmq::xstring());
-            ss->clear();
-            ss->seekp(0);
+            // Empty the buffer for the next message, keeping its capacity
+            os.reset();
 
             LOG_INFO("Dispatcher::Dispatch id={} seqNum={} err={}", header.GetId(), header.GetSeqNum(), err);
             return err;

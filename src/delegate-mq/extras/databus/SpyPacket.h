@@ -27,14 +27,14 @@ struct SpyPacket : public ::serialize::I {
                             ///< appeared on, published there or received from a remote
                             ///< participant. Not necessarily where the message originated.
 
-    std::ostream& write(::serialize& ms, std::ostream& os) override {
+    dmq::ByteWriter& write(::serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, topic);
         ms.write(os, value);
         ms.write(os, timestamp_us);
         return ms.write(os, nodeId);
     }
 
-    std::istream& read(::serialize& ms, std::istream& is) override {
+    dmq::ByteReader& read(::serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, topic);
         ms.read(is, value);
         ms.read(is, timestamp_us);

@@ -6,6 +6,7 @@
 /// David Lafreniere, 2025.
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "extras/util/RetryMonitor.h"
 #include "extras/util/ReliableTransport.h"
 #include "data.h"
@@ -25,7 +26,6 @@ public:
     Sender(DelegateRemoteId id, const char* port) :
         m_thread("Sender"),
         m_sendDelegate(id),
-        m_argStream(ios::in | ios::out | ios::binary),
         m_transportMonitor(chrono::milliseconds(1000)),      // 1s timeout
         m_retryMonitor(m_transport, m_transportMonitor, 3),  // 3 retries
         m_reliableTransport(m_transport, m_retryMonitor)
@@ -96,7 +96,7 @@ public:
 
         // 2. Poll for ACKs
         // If you don't do this, the ACK sits in the buffer and you Timeout.
-        xstringstream ss;
+        dmq::ByteReader ss;
         DmqHeader h;
         m_transport.Receive(ss, h);
 
@@ -130,7 +130,7 @@ private:
     dmq::ScopedConnection m_sendTimerConn;
     dmq::ScopedConnection m_monitorTimerConn;
 
-    xostringstream m_argStream;
+    dmq::ByteWriter m_argStream;
     Dispatcher m_dispatcher;
 
     SerialTransport m_transport;

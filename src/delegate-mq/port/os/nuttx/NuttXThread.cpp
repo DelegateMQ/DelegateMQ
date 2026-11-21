@@ -9,6 +9,7 @@
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
+#include <stdexcept>
 #include <cstring> // for memset
 #include <cassert>
 #include <new>
@@ -594,15 +595,15 @@ void NuttXThread::Run()
                     if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled bad_alloc in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::invalid_argument& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled invalid_argument in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::runtime_error& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled runtime_error in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::exception& e) {

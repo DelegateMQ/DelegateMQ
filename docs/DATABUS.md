@@ -49,8 +49,8 @@ Three steps to send data between components:
 ```cpp
 struct TemperatureMsg : public serialize::I {
     float celsius = 0.0f;
-    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, celsius); }
-    std::istream& read (serialize& ms, std::istream& is) override { return ms.read (is, celsius); }
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override { return ms.write(os, celsius); }
+    dmq::ByteReader& read (serialize& ms, dmq::ByteReader& is) override { return ms.read (is, celsius); }
 };
 ```
 
@@ -214,6 +214,8 @@ auto conn = dmq::databus::DataBus::SubscribeError(
 Fires for (non-exhaustive):
 - `ERR_TYPE_MISMATCH` — the same topic string used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer`/`RegisterStringifier` calls. A **local programmer-error detector**: `T` is a compile-time template parameter, so this can never be triggered by a remote peer's wire bytes, only by your own process's source code.
 - `ERR_NO_SERIALIZER` / `ERR_SERIALIZE` / `ERR_DESERIALIZE` — a topic has remote interest but no serializer registered, or serialization/deserialization itself failed.
+- `ERR_BUFFER` — the message's `ByteWriter` or `ByteReader` was left failed (bad or truncated data).
+- `ERR_MESSAGE_TOO_LARGE` — the serialized message is larger than `dmq::MAX_MESSAGE_SIZE` (`DMQ_MAX_MESSAGE_SIZE`). Nothing is sent.
 - `ERR_NO_DISPATCHER` — a message arrived with a remote ID that has no incoming topic registered on that participant.
 - `ERR_TRANSPORT_RECEIVE` — a `Participant` received bytes but the `DmqHeader` framing was corrupt (bad marker or version). Distinct from a plain non-zero `Receive()` result during normal polling, which is *not* reported here — see the note under NetworkNode below.
 - `ERR_CAPACITY_EXCEEDED` — a fixed-size capacity limit was reached (e.g. `dmq::MAX_PARTICIPANTS`).

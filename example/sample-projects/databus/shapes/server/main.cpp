@@ -71,14 +71,14 @@ int main(int argc, char* argv[]) {
     SpyBridge::StartMulticast("239.1.1.1", 9999, localIP);
     NodeBridge::StartMulticast("ShapesServer", "239.1.1.1", 9998, localIP);
     dmq::databus::DataBus::RegisterStringifier<ShapeMsg>(SystemTopic::Square, dmq::MakeDelegate([](const ShapeMsg& m) -> dmq::xstring {
-        dmq::xostringstream ss;
+        std::ostringstream ss;
         ss << "Square X=" << m.x << " Y=" << m.y;
-        return ss.str();
+        return ss.str().c_str();
     }));
     dmq::databus::DataBus::RegisterStringifier<ShapeMsg>(SystemTopic::Circle, dmq::MakeDelegate([](const ShapeMsg& m) -> dmq::xstring {
-        dmq::xostringstream ss;
+        std::ostringstream ss;
         ss << "Circle X=" << m.x << " Y=" << m.y;
-        return ss.str();
+        return ss.str().c_str();
     }));
 #endif
 

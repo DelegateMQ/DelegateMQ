@@ -38,12 +38,10 @@
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransportMonitor.h"
 #include <zmq.h>
-#include <sstream>
 #include <cstdio>
 #include <cstring>
 #include <cerrno>
 #include <mutex>
-#include <iostream> // For std::cout/cerr
 
 namespace dmq::transport {
 
@@ -182,11 +180,11 @@ public:
         }
     }
 
-    virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
-        if (os.bad() || os.fail() || m_zmq == nullptr) {
+        if (os.fail() || m_zmq == nullptr) {
             return -1;
         }
 
@@ -199,11 +197,11 @@ public:
         }
 
         // Get payload data without string copy if possible
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -227,8 +225,9 @@ public:
         return 0;
     }
 
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
 
         if (m_zmq == nullptr) {
@@ -273,9 +272,7 @@ public:
             return -1;
 
         if (payloadSize > 0) {
-            is.clear();
-            is.str("");
-            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+            is.assign(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
         }
 
         if (header.GetId() == dmq::ACK_REMOTE_ID)
@@ -292,7 +289,7 @@ public:
             if (m_sendTransport)
             {
                 // Send header with received seqNum as the ack message
-                dmq::xostringstream ss_ack;
+                dmq::ByteWriter ss_ack;
                 DmqHeader ack;
                 ack.SetId(dmq::ACK_REMOTE_ID);
                 ack.SetSeqNum(header.GetSeqNum());

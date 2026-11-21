@@ -203,7 +203,7 @@ void Thread::Process()
 
 ### `dmq::ISerializer`
 
-Serializes remote delegate arguments into a stream (`Write()`, sender) and back (`Read()`, receiver). Any format works, e.g. [MessagePack](https://msgpack.org/index.html); see `example/sample-projects`.
+Serializes remote delegate arguments into a `dmq::ByteWriter` (`Write()`, sender) and back from a `dmq::ByteReader` (`Read()`, receiver). On bad or missing data, call `os.setfail()` / `is.setfail()`; the remote delegate reports it as an error. Any format works, e.g. [MessagePack](https://msgpack.org/index.html); see `example/sample-projects`.
 
 ```cpp
 template <class R>
@@ -214,10 +214,10 @@ class ISerializer<RetType(Args...)>
 {
 public:
     /// Serialize args into os. Called by the sender.
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) = 0;
+    virtual ByteWriter& Write(ByteWriter& os, const Args&... args) = 0;
 
     /// Deserialize args from is. Called by the receiver.
-    virtual std::istream& Read(std::istream& is, Args&... args) = 0;
+    virtual ByteReader& Read(ByteReader& is, Args&... args) = 0;
 };
 ```
 
@@ -233,9 +233,10 @@ class IDispatcher
 public:
     virtual ~IDispatcher() = default;
 
-    /// Send os to the remote system over any transport (UDP, TCP, serial, shared memory, ...).
+    /// Send os.data() / os.size() to the remote system over any transport (UDP, TCP,
+    /// serial, shared memory, ...), then empty os (os.reset()) for the next message.
     /// @param[in] id The delegate identifier shared by sender and receiver.
-    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
+    virtual int Dispatch(ByteWriter& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
 };
 ```
 

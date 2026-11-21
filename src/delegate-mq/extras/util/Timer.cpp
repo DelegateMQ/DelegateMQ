@@ -1,6 +1,7 @@
 #include "Timer.h"
 #include "Fault.h"
 #include <array>
+#include <stdexcept>
 #include <chrono>
 #include <algorithm>
 

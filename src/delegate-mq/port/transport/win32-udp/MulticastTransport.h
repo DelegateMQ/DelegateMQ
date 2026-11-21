@@ -13,7 +13,6 @@
 #include "port/transport/common/ITransport.h"
 #include "port/transport/common/DmqHeader.h"
 #include <windows.h>
-#include <sstream>
 #include <cstdio>
 #include <iostream>
 
@@ -86,31 +85,31 @@ public:
         }
     }
 
-    virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override {
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::PUB) return -1;
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) return -1;
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) return -1;
         DmqHeader headerCopy = header;
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
+        headerCopy.SetLength(static_cast<uint16_t>(payload.size()));
 
-        dmq::xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        dmq::ByteWriter ss;
         char headerBuf[DmqHeader::HEADER_SIZE];
         headerCopy.Encode(headerBuf);
         ss.write(headerBuf, DmqHeader::HEADER_SIZE);
         ss.write(payload.data(), payload.size());
 
-        auto fullData = ss.str();
-        int err = sendto(m_socket, fullData.data(), (int)fullData.length(), 0, (sockaddr*)&m_addr, sizeof(m_addr));
+        int err = sendto(m_socket, ss.data(), (int)ss.size(), 0, (sockaddr*)&m_addr, sizeof(m_addr));
         
         if (err != SOCKET_ERROR) {
-            // std::cout << "[Multicast] Sent " << fullData.length() << " bytes" << std::endl;
+            // std::cout << "[Multicast] Sent " << ss.size() << " bytes" << std::endl;
             return 0;
         }
         return -1;
     }
 
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override {
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::SUB) return -1;
         int addrLen = sizeof(m_addr);
@@ -130,7 +129,7 @@ public:
         // One datagram is one message: the header length must match exactly.
         int payloadSize = size - static_cast<int>(DmqHeader::HEADER_SIZE);
         if (header.GetLength() != payloadSize) return -1;
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
+        is.assign(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }
 

@@ -390,6 +390,13 @@ namespace dmq
     /// Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.
     inline constexpr size_t MAX_TRANSPORT_MONITOR_PENDING = DMQ_TRANSPORT_MONITOR_MAX_PENDING;
 
+    /// @brief Largest serialized message (payload bytes) a dmq::ByteWriter holds;
+    /// writing past it fails (ERR_MESSAGE_TOO_LARGE). Override via
+    /// DMQ_MAX_MESSAGE_SIZE in delegatemqconfig.h.
+    inline constexpr size_t MAX_MESSAGE_SIZE = DMQ_MAX_MESSAGE_SIZE;
+    static_assert(MAX_MESSAGE_SIZE > 0 && MAX_MESSAGE_SIZE <= 65535,
+        "DMQ_MAX_MESSAGE_SIZE: 1 to 65535 (the message header's length is 16 bits)");
+
     /// @brief Embedded UDP transports: datagram buffer size and receive timeouts.
     /// Override via DMQ_UDP_BUFFER_SIZE / DMQ_UDP_PUB_RECV_TIMEOUT_MS /
     /// DMQ_UDP_SUB_RECV_TIMEOUT_MS in delegatemqconfig.h.
@@ -578,7 +585,6 @@ namespace dmq
     #include "extras/allocator/xmap.h"
     #include "extras/allocator/xset.h"
     #include "extras/allocator/xqueue.h"
-    #include "extras/allocator/xsstream.h"
     #include "extras/allocator/stl_allocator.h"
     #include "extras/allocator/xnew.h"
     #include "extras/allocator/xmake_shared.h"
@@ -589,7 +595,6 @@ namespace dmq
     #include <set>
     #include <queue>
     #include <deque>
-    #include <sstream>
     #include <memory>
     #include <utility>
 
@@ -606,10 +611,6 @@ namespace dmq
         // overloaded on std::list (e.g. msg_serialize.h) accepts it in both builds.
         template <typename T, typename Alloc = stl_allocator<T>>
         using xlist = std::list<T, Alloc>;
-
-        // stl_allocator is std::allocator here, so these are the standard types
-        typedef std::ostringstream xostringstream;
-        typedef std::stringstream xstringstream;
 
         typedef std::string xstring;
 
@@ -690,5 +691,11 @@ namespace dmq
     #define DMQ_OPTIMIZE_ON
     #define DMQ_OPTIMIZE_OFF
 #endif
+
+// dmq::ByteWriter / dmq::ByteReader: the byte buffers serializers write into and
+// read from, and transports send and receive. Included last: they store an
+// xstring (above). Library code gets them here, not from their own headers.
+#include "ByteWriter.h"
+#include "ByteReader.h"
 
 #endif // _DELEGATE_OPT_H

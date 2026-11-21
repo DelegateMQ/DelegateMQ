@@ -24,11 +24,11 @@ struct MessageBase : public serialize::I
 
     MessageBase() : seq(NextSeq()) {}
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         return ms.read(is, seq);
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         return ms.write(os, seq);
     }
 

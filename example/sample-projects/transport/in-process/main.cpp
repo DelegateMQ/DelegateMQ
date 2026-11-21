@@ -4,7 +4,9 @@
 
 #include "DelegateMQ.h"
 #include <iostream>
-#include <sstream>
+#include <cstdint>
+#include <mutex>
+#include <string>
 #include <chrono>
 
 using namespace dmq;
@@ -23,34 +25,27 @@ static void ProcessTimers()
     }
 }
 
-// The "transport" is simplely a shared std::stringstream
+// The "transport" is simply a shared byte buffer
 class Transport
 {
 public:
-    static void Send(std::stringstream& os) {
+    static void Send(const char* data, size_t size) {
         std::lock_guard<std::mutex> lk(m_mutex);
-        m_ss << os.str();
+        m_buffer.append(data, size);
     }
-    static std::stringstream Receive() {
+    // Take everything sent so far (an isolated copy)
+    static std::string Receive() {
         std::lock_guard<std::mutex> lk(m_mutex);
-
-        std::stringstream temp;
-        // Move all current data to the temp stream
-        temp << m_ss.rdbuf();
-
-        // Clear the shared stream so we don't re-read data
-        m_ss.str("");
-        m_ss.clear();
-
-        return temp; // Return isolated copy
+        std::string temp;
+        temp.swap(m_buffer);
+        return temp;
     }
 private:
-    // Simulate send/recv data using a stream
-    static std::stringstream m_ss;
+    static std::string m_buffer;
     static std::mutex m_mutex;
 };
 
-std::stringstream Transport::m_ss(ios::in | ios::out | ios::binary);
+std::string Transport::m_buffer;
 std::mutex Transport::m_mutex;
 
 // Dispatcher sends data to the transport for transmission to the receiver
@@ -58,74 +53,10 @@ class BareMetalDispatcher : public IDispatcher
 {
 public:
     // Send argument data to the transport
-    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
-        std::stringstream ss(ios::in | ios::out | ios::binary);
-        ss << os.str();
-        os.str(dmq::xstring());
-        os.clear();
-        os.seekp(0);
-        Transport::Send(ss);
+    virtual int Dispatch(dmq::ByteWriter& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
+        Transport::Send(os.data(), os.size());
+        os.reset();   // empty the buffer for the next message
         return 0;
-    }
-};
-// make_serialized serializes each remote function argument
-template<typename... Ts>
-void make_serialized(std::ostream& os) { }
-
-template<typename Arg1, typename... Args>
-void make_serialized(std::ostream& os, Arg1& arg1, Args... args) {
-    os << arg1;
-    make_serialized(os, args...);
-}
-
-template<typename Arg1, typename... Args>
-void make_serialized(std::ostream& os, Arg1* arg1, Args... args) {
-    os << *arg1;
-    make_serialized(os, args...);
-}
-
-template<typename Arg1, typename... Args>
-void make_serialized(std::ostream& os, Arg1** arg1, Args... args) {
-    static_assert(!std::is_pointer_v<Arg1>, "Pointer-to-pointer argument not supported");
-}
-
-// make_unserialized serializes each remote function argument
-template<typename... Ts>
-void make_unserialized(std::istream& is) { }
-
-template<typename Arg1, typename... Args>
-void make_unserialized(std::istream& is, Arg1& arg1, Args&&... args) {
-    is >> arg1;
-    make_unserialized(is, args...);
-}
-
-template<typename Arg1, typename... Args>
-void make_unserialized(std::istream& is, Arg1* arg1, Args&&... args) {
-    is >> *arg1;
-    make_unserialized(is, args...);
-}
-
-template<typename Arg1, typename... Args>
-void make_unserialized(std::istream& is, Arg1** arg1, Args&&... args) {
-    static_assert(!std::is_pointer_v<Arg1>, "Pointer-to-pointer argument not supported");
-}
-
-template <class R>
-struct Serializer; // Not defined
-
-// Serialize all target function argument data
-template<class RetType, class... Args>
-class Serializer<RetType(Args...)> : public ISerializer<RetType(Args...)>
-{
-public:
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
-        make_serialized(os, args...);
-        return os;
-    }
-
-    virtual std::istream& Read(std::istream& is, Args&... args) override {
-        make_unserialized(is, args...);
-        return is;
     }
 };
 
@@ -137,21 +68,59 @@ public:
     std::string msg;
 };
 
-// Simple serialization of Data. Use any serialization scheme as necessary. 
-std::ostream& operator<<(std::ostream& os, const Data& data) {
-    os << data.x << endl;
-    os << data.y << endl;
-    os << data.msg << endl;
-    return os;
+// A hand-written binary format: int32 as 4 raw bytes (sender and receiver
+// share the byte order here), a string as a 16-bit length then its bytes.
+// Use any serialization scheme as necessary, or a ready-made serializer
+// (port/serialize).
+inline void WriteValue(dmq::ByteWriter& os, int32_t v) {
+    os.write(reinterpret_cast<const char*>(&v), sizeof(v));
+}
+inline void WriteValue(dmq::ByteWriter& os, const std::string& s) {
+    if (s.size() > UINT16_MAX) { os.setfail(); return; }
+    const uint16_t len = static_cast<uint16_t>(s.size());
+    os.write(reinterpret_cast<const char*>(&len), sizeof(len));
+    os.write(s.data(), s.size());
+}
+inline void WriteValue(dmq::ByteWriter& os, const Data& data) {
+    WriteValue(os, data.x);
+    WriteValue(os, data.y);
+    WriteValue(os, data.msg);
 }
 
-// Simple unserialization of Data. Use any unserialization scheme as necessary. 
-std::istream& operator>>(std::istream& is, Data& data) {
-    is >> data.x;
-    is >> data.y;
-    is >> data.msg;
-    return is;
+inline void ReadValue(dmq::ByteReader& is, int32_t& v) {
+    is.read(reinterpret_cast<char*>(&v), sizeof(v));   // short data sets fail()
 }
+inline void ReadValue(dmq::ByteReader& is, std::string& s) {
+    uint16_t len = 0;
+    is.read(reinterpret_cast<char*>(&len), sizeof(len));
+    if (is.fail() || len > is.remaining()) { is.setfail(); return; }
+    s.assign(is.data() + is.tellg(), len);
+    is.skip(len);
+}
+inline void ReadValue(dmq::ByteReader& is, Data& data) {
+    ReadValue(is, data.x);
+    ReadValue(is, data.y);
+    ReadValue(is, data.msg);
+}
+
+template <class R>
+struct Serializer; // Not defined
+
+// Serialize all target function argument data
+template<class RetType, class... Args>
+class Serializer<RetType(Args...)> : public ISerializer<RetType(Args...)>
+{
+public:
+    virtual dmq::ByteWriter& Write(dmq::ByteWriter& os, const Args&... args) override {
+        (WriteValue(os, args), ...);   // C++17 fold: each argument in order
+        return os;
+    }
+
+    virtual dmq::ByteReader& Read(dmq::ByteReader& is, Args&... args) override {
+        (ReadValue(is, args), ...);
+        return is;
+    }
+};
 
 // Sender is an active object with a thread. The thread sends data to the 
 // remote every time the timer expires. 
@@ -160,8 +129,7 @@ class Sender
 public:
     Sender(DelegateRemoteId id) :
         m_thread("Sender"),
-        m_sendDelegate(id),
-        m_args(ios::in | ios::out | ios::binary)
+        m_sendDelegate(id)
     {
         // Set the delegate interfaces
         m_sendDelegate.SetStream(&m_args);
@@ -199,7 +167,7 @@ private:
     Thread m_thread;
     Timer m_sendTimer;
 
-    xostringstream m_args;
+    dmq::ByteWriter m_args;
     BareMetalDispatcher m_dispatcher;
     Serializer<void(Data&)> m_serializer;
     dmq::ScopedConnection m_sendTimerConn;
@@ -213,8 +181,7 @@ class Receiver
 {
 public:
     Receiver(DelegateRemoteId id) :
-        m_thread("Receiver"),
-        m_args(ios::in | ios::out | ios::binary)
+        m_thread("Receiver")
     {
         m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
 
@@ -244,10 +211,11 @@ public:
     void Poll()
     {
         // Get incoming data
-        auto arg_data = Transport::Receive();
+        const std::string received = Transport::Receive();
+        dmq::ByteReader arg_data(received.data(), received.size());
 
         // Incoming remote delegate data arrived?
-        if (!arg_data.str().empty())
+        if (arg_data.size() > 0)
         {
             // Try/Catch Block
             // Protect the thread loop from crashing on bad data
@@ -287,7 +255,7 @@ private:
     Thread m_thread;
     Timer m_recvTimer;
 
-    xostringstream m_args;
+    dmq::ByteWriter m_args;
     Serializer<void(Data&)> m_serializer;
     dmq::ScopedConnection m_recvTimerConn;
 

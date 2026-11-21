@@ -117,6 +117,19 @@
     #define DMQ_TRANSPORT_MONITOR_MAX_PENDING 100
 #endif
 
+// Largest serialized message (payload bytes, no header) a remote delegate can
+// send: a ByteWriter fails (ERR_MESSAGE_TOO_LARGE) instead of growing past it.
+// At most 65535 (the header's 16-bit length). Under DMQ_ALLOCATOR the buffer's
+// block must fit the fixed-block allocator's largest (16 KB), so the default is
+// smaller there.
+#ifndef DMQ_MAX_MESSAGE_SIZE
+    #ifdef DMQ_ALLOCATOR
+        #define DMQ_MAX_MESSAGE_SIZE        4096
+    #else
+        #define DMQ_MAX_MESSAGE_SIZE        65535
+    #endif
+#endif
+
 // Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
 // (header + payload), and receive timeouts. A PUB socket polls briefly for ACKs;
 // a SUB socket waits longer, returning RECEIVE_NO_DATA so its thread can check

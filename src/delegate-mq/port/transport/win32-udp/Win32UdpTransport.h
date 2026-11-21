@@ -34,8 +34,8 @@
 #include "port/transport/common/ITransportMonitor.h"
 #include "port/transport/common/DmqHeader.h"
 #include <windows.h>
-#include <sstream>
 #include <cstdio>
+#include <iostream>
 #include <mutex>
 
 namespace dmq::transport {
@@ -147,11 +147,11 @@ public:
         }
     }
 
-    virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-        if (os.bad() || os.fail()) {
-            std::cout << "Error: xostringstream is in a bad state!" << std::endl;
+        if (os.fail()) {
+            std::cout << "Error: the ByteWriter is in a failed state!" << std::endl;
             return -1;
         }
 
@@ -166,12 +166,12 @@ public:
         }
 
         // Get payload data without string copy if possible
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -194,8 +194,9 @@ public:
         return (err == SOCKET_ERROR) ? -1 : 0;
     }
 
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB socket
         // that also drains its ACKs here) isn't held up for the receive timeout.
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -244,7 +245,7 @@ public:
         }
 
         if (payloadSize > 0) {
-            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+            is.assign(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
         }
 
         // 3. Handle Acknowledgment

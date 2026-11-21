@@ -64,8 +64,7 @@ static void ReceiverThread(UdpSocket& socket) {
             }
 
             dmq::util::ThreadStatsPacket packet;
-            std::string data(reinterpret_cast<char*>(buffer.data() + 1), received - 1);
-            std::istringstream iss(data, std::ios::binary);
+            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data() + 1), static_cast<size_t>(received - 1));
             serializer.Read(iss, packet);
 
             if (!packet.thread_name.empty()) {

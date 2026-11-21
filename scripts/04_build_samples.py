@@ -106,7 +106,9 @@ BUILD_CONFIG = "Release"
 # unlimited concurrent jobs, not one-per-core. Multi-subproject trees like
 # cellutron can then fire off enough concurrent, template-heavy compiles to
 # exhaust RAM+swap. Cap it explicitly, leaving one core free for the desktop.
-BUILD_JOBS = max(1, (os.cpu_count() or 1) - 1)
+# DMQ_BUILD_JOBS overrides it: on Windows each MSBuild job can also run several
+# compilers (/MP), so a machine short of memory may need far fewer jobs.
+BUILD_JOBS = max(1, int(os.environ.get('DMQ_BUILD_JOBS') or ((os.cpu_count() or 1) - 1)))
 
 # ---------------------------------------------------------------------------
 # Helpers

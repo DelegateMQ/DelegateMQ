@@ -5,7 +5,7 @@
 #include "NetworkMgr.h"
 #include "AlarmMsg.h"
 #include <string>
-#include <iostream> 
+#include <cstdio>   // printf, not iostreams: this also runs on the STM32 server
 
 // AlarmMgr handles client and server alarms.
 class AlarmMgr
@@ -62,11 +62,11 @@ private:
     {
         if (msg.source == AlarmMsg::Source::CLIENT)
         {
-            std::cout << "Client Alarm: " << note.note << std::endl;
+            printf("Client Alarm: %s\n", note.note.c_str());
         }
         else if (msg.source == AlarmMsg::Source::SERVER)
         {
-            std::cout << "Server Alarm: " << note.note << std::endl;
+            printf("Server Alarm: %s\n", note.note.c_str());
         }
     }
 
@@ -78,7 +78,7 @@ private:
     void ErrorHandler(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux)
     {
         if (error != dmq::DelegateError::SUCCESS && id == ids::ALARM_MSG_ID)
-            std::cout << "AlarmMgr Error: " << id << " " << (int)error << " " << aux << std::endl;
+            printf("AlarmMgr Error: %u %d %d\n", (unsigned)id, (int)error, (int)aux);
     }
 
     dmq::os::Thread m_thread;

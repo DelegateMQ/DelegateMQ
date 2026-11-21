@@ -18,9 +18,9 @@ int DataBusSpyTestMain() {
 
     // Register stringifiers for topics we want to spy on
     DataBus::RegisterStringifier<int>("sensor/temp", dmq::MakeDelegate([](int val) -> dmq::xstring {
-        dmq::xostringstream ss;
-        ss << val << " C";
-        return ss.str();
+        char text[32];
+        snprintf(text, sizeof(text), "%d C", val);
+        return text;
     }));
     DataBus::RegisterStringifier<dmq::xstring>("system/status", dmq::MakeDelegate([](const dmq::xstring& val) -> dmq::xstring {
         return val;

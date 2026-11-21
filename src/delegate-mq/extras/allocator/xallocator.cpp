@@ -8,7 +8,6 @@
 #include "delegate/DelegateOpt.h"
 #include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <mutex>
 #include <new>
 
@@ -530,12 +529,12 @@ extern "C" void xalloc_stats()
 		if (dmq::_allocators[i] == 0)
 			break;
 
-		if (dmq::_allocators[i]->GetName() != NULL)
-			std::cout << dmq::_allocators[i]->GetName();
-		std::cout << " Block Size: " << dmq::_allocators[i]->GetBlockSize();
-		std::cout << " Block Count: " << dmq::_allocators[i]->GetBlockCount();
-		std::cout << " Blocks In Use: " << dmq::_allocators[i]->GetBlocksInUse();
-		std::cout << std::endl;
+		const char* name = dmq::_allocators[i]->GetName();
+		printf("%s Block Size: %u Block Count: %u Blocks In Use: %u\n",
+			name != NULL ? name : "",
+			static_cast<unsigned>(dmq::_allocators[i]->GetBlockSize()),
+			static_cast<unsigned>(dmq::_allocators[i]->GetBlockCount()),
+			static_cast<unsigned>(dmq::_allocators[i]->GetBlocksInUse()));
 	}
 
 	dmq::get_mutex().unlock();

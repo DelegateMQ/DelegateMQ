@@ -6,6 +6,7 @@
 /// David Lafreniere, 2025.
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "../common/data.h"
 
 using namespace dmq;
@@ -25,8 +26,7 @@ public:
     /// @param[in] broker MQTT broker URI, e.g. "tcp://localhost:1883".
     explicit Sender(const char* broker) :
         m_thread("Sender"),
-        m_sendDelegate(Data::DATA_ID),
-        m_argStream(ios::in | ios::out | ios::binary)
+        m_sendDelegate(Data::DATA_ID)
     {
         // Set the delegate interfaces
         m_sendDelegate.SetStream(&m_argStream);
@@ -134,7 +134,7 @@ private:
     Timer m_sendTimer;
     dmq::ScopedConnection m_sendTimerConn;
 
-    xostringstream m_argStream;
+    dmq::ByteWriter m_argStream;
     Dispatcher m_dispatcher;
     MqttTransport m_transport;
     Serializer<void(Data&)> m_serializer;

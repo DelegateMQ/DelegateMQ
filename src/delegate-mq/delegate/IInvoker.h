@@ -5,6 +5,7 @@
 /// @brief Delegate inter-thread invoker base class. 
 
 #include <memory>
+#include "DelegateOpt.h"
 
 namespace dmq {
 
@@ -33,9 +34,9 @@ public:
     virtual ~IRemoteInvoker() = default;
 
     /// Called to invoke the bound target function by the remote system. 
-    /// @param[in] is The incoming remote message stream. 
+    /// @param[in] is The incoming remote message's bytes.
     /// @return `true` if function was invoked; `false` if failed. 
-    virtual bool Invoke(std::istream& is) = 0;
+    virtual bool Invoke(ByteReader& is) = 0;
 };
 
 }

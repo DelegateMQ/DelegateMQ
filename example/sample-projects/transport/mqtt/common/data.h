@@ -8,6 +8,7 @@
 /// RapidJSON serialized data classes for transport using remote delegates.
 
 #include "rapidjson/prettywriter.h"
+#include <iostream>
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
 #include <vector>
@@ -19,7 +20,7 @@ public:
     int x = 0;
     int y = 0;
 
-    void Read(const rapidjson::Value& value, std::istream& is)
+    void Read(const rapidjson::Value& value, dmq::ByteReader& is)
     {
         if (value.HasMember("x") && value["x"].IsInt())
             x = value["x"].GetInt();
@@ -32,7 +33,7 @@ public:
             std::cout << "Parse error: missing or invalid 'y' value." << std::endl;
     }
 
-    void Write(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, const std::ostream& os)
+    void Write(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, const dmq::ByteWriter& os)
     {
         writer.StartObject();
 
@@ -54,7 +55,7 @@ public:
     std::vector<DataPoint> dataPoints;
     std::string msg;
 
-    void Read(rapidjson::Document& doc, std::istream& is)
+    void Read(rapidjson::Document& doc, dmq::ByteReader& is)
     {
         if (doc.HasMember("msg") && doc["msg"].IsString())
             msg = doc["msg"].GetString();
@@ -77,7 +78,7 @@ public:
         }
     }
 
-    void Write(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, const std::ostream& os)
+    void Write(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, const dmq::ByteWriter& os)
     {
         writer.StartObject();
 

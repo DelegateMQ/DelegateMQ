@@ -53,7 +53,6 @@ Many embedded and safety-critical toolchains build with `-fno-rtti`, for code si
 | `std::dynamic_pointer_cast` of the message in an async `Invoke()` | `MsgCast<T>()`: each message class reports its type ID |
 | `std::function::target_type()` in `DelegateFunction::Equal()` | the callable's type ID, recorded by `MakeDelegate()` from a lambda or other callable (see the limit below) |
 | `std::type_index` for DataBus and Participant topic type checks | `dmq::TypeKey`, a type ID |
-| `dynamic_cast` to detect an `xostringstream` in the serializers | not needed: the remote delegate clears its stream before each write |
 | `typeid` in MessageSerialize's parse handler | the parse handler gets a `dmq::TypeId` |
 
 A type ID is the address of a static variable that exists once per type (`TypeIdOf<T>()`, an inline variable since C++17). With RTTI on, the helpers are plain `dynamic_cast`, `std::dynamic_pointer_cast` and `std::type_index`, so nothing changes.

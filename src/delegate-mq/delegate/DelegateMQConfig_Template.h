@@ -135,6 +135,12 @@
 /// Default per-message ACK timeout (seconds) for TransportMonitor.
 #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
 
+/// Largest serialized message (payload bytes) a remote delegate can send; a
+/// larger one fails with ERR_MESSAGE_TOO_LARGE before anything is allocated.
+/// At most 65535. Default 65535, or 4096 under DMQ_ALLOCATOR (at most 8181
+/// there: the buffer's block must fit the allocator's largest, 16 KB).
+#define DMQ_MAX_MESSAGE_SIZE            65535
+
 /// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
 /// (header + payload, keep within the link MTU), the PUB socket's ACK-poll
 /// receive timeout, and the SUB socket's receive timeout (how often its thread

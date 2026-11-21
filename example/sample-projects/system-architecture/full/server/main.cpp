@@ -13,6 +13,7 @@
 /// actuators. Start both applications to run sample. 
 
 #include "NetworkMgr.h"
+#include <iostream>
 #include "AlarmMgr.h"
 #include "ServerApp.h"
 #include <thread>
