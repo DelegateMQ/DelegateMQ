@@ -21,8 +21,11 @@ struct SpyPacket : public ::serialize::I {
 
     dmq::xstring topic;      ///< The name of the data topic.
     dmq::xstring value;      ///< Stringified representation of the data (or "?" if no stringifier registered).
-    uint64_t timestamp_us = 0;  ///< Microseconds (usually since boot) when the message was published.
-    dmq::xstring nodeId;    ///< Unique identifier for the sending node.
+    uint64_t timestamp_us = 0;  ///< Microseconds (usually since boot) when the message appeared on
+                                ///< the reporting node's DataBus.
+    dmq::xstring nodeId;    ///< The node that reported the message: the one whose DataBus it
+                            ///< appeared on, published there or received from a remote
+                            ///< participant. Not necessarily where the message originated.
 
     std::ostream& write(::serialize& ms, std::ostream& os) override {
         ms.write(os, topic);

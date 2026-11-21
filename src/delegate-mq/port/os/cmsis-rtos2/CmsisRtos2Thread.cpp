@@ -120,6 +120,12 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         attr.name = THREAD_NAME.c_str();
         attr.stack_size = STACK_SIZE;
         attr.priority = m_priority;
+        // The cores set by SetCoreAffinity()
+#if defined(osThreadProcessor)
+        attr.affinity_mask = m_coreMask;
+#else
+        DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+#endif
 
         // If the kernel is running, CreateThread() waits for the start handler.
         // Before osKernelStart() it cannot block; the start handler then runs

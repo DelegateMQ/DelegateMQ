@@ -122,6 +122,17 @@ bool NuttXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
         pthread_attr_setschedparam(&attr, &sp);
 
+        // The cores set by SetCoreAffinity()
+#if defined(CONFIG_SMP)
+        if (m_coreMask != 0) {
+            DMQ_ASSERT_TRUE((m_coreMask >> CONFIG_SMP_NCPUS) == 0);
+            cpu_set_t cpus = static_cast<cpu_set_t>(m_coreMask);
+            DMQ_ASSERT_TRUE(pthread_attr_setaffinity_np(&attr, sizeof(cpus), &cpus) == 0);
+        }
+#else
+        DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+#endif
+
         int rc = pthread_create(&m_thread, &attr, NuttXThread::Process, this);
         pthread_attr_destroy(&attr);
         DMQ_ASSERT_TRUE(rc == 0);

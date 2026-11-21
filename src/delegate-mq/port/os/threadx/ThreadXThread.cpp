@@ -177,6 +177,17 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                 const dmq::LockGuard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
                 GetInstanceRegistry()[&m_thread] = this;
             }
+
+            // The cores set by SetCoreAffinity(), before the thread first runs
+#if defined(TX_THREAD_SMP_MAX_CORES)
+            if (m_coreMask != 0) {
+                const ULONG allCores = (1ul << TX_THREAD_SMP_MAX_CORES) - 1ul;
+                DMQ_ASSERT_TRUE((m_coreMask & ~allCores) == 0);
+                tx_thread_smp_core_exclude(&m_thread, allCores & ~static_cast<ULONG>(m_coreMask));
+            }
+#else
+            DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+#endif
             tx_thread_resume(&m_thread);
 
             // Wait for the start handler to complete

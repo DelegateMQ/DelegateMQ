@@ -255,9 +255,16 @@ On a multicore CPU, `SetCoreAffinity(coreMask)`, called before `CreateThread()`,
 
 | Port | How |
 | :--- | :--- |
-| `StdlibThread`, `Win32Thread`, `PosixThread` | The thread pins itself as it starts, before its start handler (`port/os/common/CoreAffinity.h`: `SetThreadAffinityMask()` on Windows, `pthread_setaffinity_np()` on Linux). macOS has no thread affinity: a non-zero mask faults there. |
+| `StdlibThread`, `Win32Thread`, `PosixThread`, `QtThread` | The thread pins itself as it starts, before its start handler (`port/os/common/CoreAffinity.h`: `SetThreadAffinityMask()` on Windows, `pthread_setaffinity_np()` on Linux). macOS has no thread affinity: a non-zero mask faults there. |
 | `FreeRTOSThread` | Chosen when the task is created. ESP-IDF: `xTaskCreatePinnedToCore()`, so the mask must name one core or all of them. FreeRTOS SMP (`configNUMBER_OF_CORES > 1`, `configUSE_CORE_AFFINITY = 1`): `xTaskCreateAffinitySet()` with the mask as is. Single core: only a mask that includes core 0. |
-| Other ports | Not yet. |
+| `ThreadXThread` | ThreadX SMP (`TX_THREAD_SMP_MAX_CORES`): `tx_thread_smp_core_exclude()` with the other cores, before the thread first runs. Single core: only a mask that includes core 0. |
+| `ZephyrThread` | With `CONFIG_SCHED_CPU_MASK`: the thread is created unstarted, given the mask (`k_thread_cpu_mask_clear()`/`_enable()`), then started. Without it: only a mask that includes CPU 0. |
+| `CmsisRtos2Thread` | CMSIS-RTOS2 API 2.3 or later (`osThreadProcessor()` defined): `osThreadAttr_t::affinity_mask`, which a kernel without SMP may ignore. Older API: only a mask that includes core 0. |
+| `NuttXThread` | `CONFIG_SMP`: `pthread_attr_setaffinity_np()` on the new thread. Otherwise: only a mask that includes core 0. |
+
+Every thread port has it, so portable application code can call `SetCoreAffinity()` unconditionally: on a single core, 1 << 0 or 0 is always accepted.
+
+Tested: pinning on Windows and Linux (a unit test asks a pinned thread which core runs it) and on ESP32 (`os/freertos-esp32` Test 8 under QEMU, `sensor-node` on an ESP32-S3). The multi-core paths of FreeRTOS SMP, ThreadX SMP, Zephyr, CMSIS-RTOS2 and NuttX follow each kernel's documented API but haven't run on a multi-core build yet; their single-core paths run in the test suite.
 
 A mask the platform can't honor (a core that doesn't exist, a subset ESP-IDF can't express) faults (`DMQ_ASSERT`). `example/sensor-node` pins its threads and measures the cross-core round trip; `os/freertos-esp32`'s Test 8 checks pinning on both ESP32 cores.
 

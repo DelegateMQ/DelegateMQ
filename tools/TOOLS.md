@@ -129,7 +129,9 @@ dmq::databus::DataBus::RegisterStringifier<MyData>("sensor/temp", [](const MyDat
 ```
 
 #### 3. Start the Bridge
-Call `Start` (unicast) or `StartMulticast` at application initialization. It is highly recommended to provide a unique **Node ID** so the Spy tool can distinguish between multiple processes running on the same machine:
+Call `Start` (unicast) or `StartMulticast` at application initialization. It is highly recommended to provide a unique **Node ID** so the Spy tool can distinguish between multiple processes running on the same machine.
+
+**"Sender" means the reporting node.** A bridge reports every message on its own DataBus: the ones its process publishes, and the ones it receives from remote participants (they're republished locally). Spy's "sender", the node ID or IP shown with a message, is the process that reported it, and the timestamp is when the message appeared on that process's DataBus. Neither says where the message originated: data a device publishes, received by a PC that runs a bridge while the device doesn't, shows up under the PC's node ID. When both ends run a bridge, each message appears twice, once from each.
 
 ```cpp
 #include "SpyBridge.h"

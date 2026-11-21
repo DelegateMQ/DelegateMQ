@@ -151,6 +151,15 @@ public:
     /// @details Must be called while the thread is not running (before CreateThread(),
     /// or after ExitThread()); calling it on a running thread faults. It runs again
     /// on each CreateThread(). Messages dispatched meanwhile are queued, not lost.
+    /// Run the thread only on the cores in coreMask: bit 0 = core 0, bit 1 = core 1,
+    /// ... 0 (the default) = any core. Call before CreateThread().
+    /// - CMSIS-RTOS2 API 2.3 or later (osThreadProcessor() defined): passed in
+    ///   osThreadAttr_t::affinity_mask; a kernel without SMP may ignore it.
+    /// - Older API: only a mask that includes core 0.
+    /// Any other mask faults (DMQ_ASSERT) in CreateThread().
+    void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(m_thread == NULL); m_coreMask = coreMask; }
+    uint32_t GetCoreAffinity() const { return m_coreMask; }
+
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = std::move(handler); }
 
@@ -245,6 +254,7 @@ private:
 
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
+    uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any core
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();

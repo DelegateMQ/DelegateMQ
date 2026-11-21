@@ -7,6 +7,7 @@
 #include "QtThread.h"
 #include <QCoreApplication>
 #include "extras/util/Fault.h"
+#include "port/os/common/CoreAffinity.h"
 #include <new>
 #include <QDebug>
 #include <limits>
@@ -223,8 +224,9 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         connect(m_thread, &QThread::started, m_worker,
             [worker, self, qt, startSem, startHandler = m_startHandler,
              idleHandler = m_idleHandler, idleInterval = m_idleInterval,
-             watchdog = m_watchdogTimeout.load()]() {
+             watchdog = m_watchdogTimeout.load(), coreMask = m_coreMask]() {
                 worker->BeginCurrentScope(self);
+                DMQ_ASSERT_TRUE(dmq::os::detail::SetCurrentThreadCoreAffinity(coreMask));
                 if (startHandler)
                     startHandler();
                 if (idleHandler)

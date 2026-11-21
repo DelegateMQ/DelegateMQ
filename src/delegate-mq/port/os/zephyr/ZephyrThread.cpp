@@ -133,19 +133,40 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // when the thread is first scheduled, still before any message.
         m_startSync = !k_is_pre_kernel() && !k_is_in_isr();
 
+        // The CPUs set by SetCoreAffinity(): with CONFIG_SCHED_CPU_MASK the thread
+        // is created unstarted, given its mask, then started
+#if defined(CONFIG_SCHED_CPU_MASK)
+        const bool pinned = (m_coreMask != 0);
+#else
+        DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+        const bool pinned = false;
+#endif
+
         k_tid_t tid = k_thread_create(&m_thread,
                                       (k_thread_stack_t*)m_stackMemory.get(),
                                       STACK_SIZE,
                                       (k_thread_entry_t)ZephyrThread::Process,
                                       this, NULL, NULL,
                                       m_priority,
-                                      0, 
-                                      K_NO_WAIT);
-        
+                                      0,
+                                      pinned ? K_FOREVER : K_NO_WAIT);
+
         DMQ_ASSERT_TRUE(tid != nullptr);
-        
+
         // Optional: Set thread name for debug
         k_thread_name_set(tid, THREAD_NAME.c_str());
+
+#if defined(CONFIG_SCHED_CPU_MASK)
+        if (pinned) {
+            DMQ_ASSERT_TRUE((m_coreMask >> CONFIG_MP_MAX_NUM_CPUS) == 0);
+            DMQ_ASSERT_TRUE(k_thread_cpu_mask_clear(tid) == 0);
+            for (unsigned cpu = 0; cpu < CONFIG_MP_MAX_NUM_CPUS; cpu++) {
+                if (m_coreMask & (1u << cpu))
+                    DMQ_ASSERT_TRUE(k_thread_cpu_mask_enable(tid, static_cast<int>(cpu)) == 0);
+            }
+            k_thread_start(tid);
+        }
+#endif
 
         // Wait for the start handler to complete
         if (m_startSync)
