@@ -4,9 +4,12 @@
 ///
 ///   sensor_pc [seconds] [node-address]
 ///
+/// It sends the node a Start every second: the node publishes only while they
+/// keep coming, every intervalMs (the stats window) it asks for.
+///
 /// It always runs the self-test first (data arrives and is right, a rate and an
-/// LED command are applied, touches arrive) and prints ALL TESTS PASSED or the
-/// failed checks. With seconds > 0 it then exits (the exit code is the result);
+/// LED command are applied, the Start's interval sets the stats window,
+/// touches arrive) and prints ALL TESTS PASSED or the failed checks. With seconds > 0 it then exits (the exit code is the result);
 /// with 0 (the default) it keeps printing what the node sends until Ctrl+C.
 /// node-address: where to send commands (default 127.0.0.1).
 
@@ -74,9 +77,9 @@ public:
         m_view.statuses++;
         m_view.lastStatus = m;
         if (verbose)
-            printf("status #%u  up %u ms  %u Hz  LED %u,%u,%u  %u commands  %u dropped\n",
+            printf("status #%u  up %u ms  %u Hz  stats every %u ms  LED %u,%u,%u  %u commands  %u dropped\n",
                    static_cast<unsigned>(m.seq), static_cast<unsigned>(m.uptimeMs), static_cast<unsigned>(m.rateHz),
-                   m.ledR, m.ledG, m.ledB, static_cast<unsigned>(m.commands), static_cast<unsigned>(m.netDropped));
+                   static_cast<unsigned>(m.intervalMs), m.ledR, m.ledG, m.ledB, static_cast<unsigned>(m.commands), static_cast<unsigned>(m.netDropped));
     }
     NodeView Snapshot() const { return m_view; }
 
@@ -106,10 +109,11 @@ bool WaitFor(Receiver& receiver, dmq::os::Thread& thread, const std::function<bo
     return false;
 }
 
-/// One window of the node's 10 Hz test sine: one full period
-bool SineWindowOk(const SignalStats& s, uint32_t rateHz)
+/// One stats window of the node's 10 Hz test sine: whole periods (the window
+/// is a multiple of 100 ms), so mean 0 and extremes near -1 and 1
+bool SineWindowOk(const SignalStats& s, uint32_t rateHz, uint32_t intervalMs)
 {
-    return s.rateHz == rateHz && s.count == rateHz / 10 && s.max > 0.9f && s.min < -0.9f
+    return s.rateHz == rateHz && s.count == rateHz * intervalMs / 1000 && s.max > 0.9f && s.min < -0.9f
         && std::fabs(s.mean) < 0.05f;
 }
 
@@ -139,8 +143,11 @@ int main(int argc, char* argv[])
     // hold up the command ACKs for its default 2 s receive timeout
     transportData.SetRecvTimeout(std::chrono::milliseconds(2));
 
-    TransportMonitor monitor{ std::chrono::seconds(1) };
-    RetryMonitor retry(transportCmd, monitor, 0);
+    // Commands are reliable: a command not ACKed within 250 ms is sent again,
+    // up to 3 times (RetryMonitor). The node's data is ACKed but not retried:
+    // the next window replaces a lost one.
+    TransportMonitor monitor{ std::chrono::milliseconds(250) };
+    RetryMonitor retry(transportCmd, monitor, 3);
     ReliableTransport reliable(transportCmd, retry);
     transportCmd.SetTransportMonitor(&monitor);
     transportData.SetTransportMonitor(&monitor);
@@ -152,13 +159,16 @@ int main(int argc, char* argv[])
     serialization::serializer::Serializer<void(NodeStatus)> statusSerializer;
     serialization::serializer::Serializer<void(SetRate)> setRateSerializer;
     serialization::serializer::Serializer<void(SetLed)> setLedSerializer;
+    serialization::serializer::Serializer<void(StartPublishing)> startSerializer;
 
     auto cmdParticipant = std::make_shared<Participant>(reliable);
     cmdParticipant->AddRemoteTopic(SensorTopic::SetRate, SensorTopic::SetRateId);
     cmdParticipant->AddRemoteTopic(SensorTopic::SetLed, SensorTopic::SetLedId);
+    cmdParticipant->AddRemoteTopic(SensorTopic::Start, SensorTopic::StartId);
     DataBus::AddParticipant(cmdParticipant);
     DataBus::RegisterSerializer<SetRate>(SensorTopic::SetRate, setRateSerializer);
     DataBus::RegisterSerializer<SetLed>(SensorTopic::SetLed, setLedSerializer);
+    DataBus::RegisterSerializer<StartPublishing>(SensorTopic::Start, startSerializer);
 
     auto dataParticipant = std::make_shared<Participant>(transportData);
     DataBus::AddIncomingTopic<SignalStats>(SensorTopic::SignalStats, SensorTopic::SignalStatsId, *dataParticipant, statsSerializer);
@@ -180,10 +190,26 @@ int main(int argc, char* argv[])
     ScopedConnection statusConn = DataBus::Subscribe<NodeStatus>(SensorTopic::Status,
         [&receiver](const NodeStatus& m) { receiver.OnStatus(m); }, &receiveThread);
 
-    // Network pump: incoming topics, command ACKs, retries
+    // Network pump: incoming topics, command ACKs, retries, and a Start every
+    // second. The node publishes only while Starts keep coming (a lease), so
+    // it falls silent a few seconds after this client exits.
     std::atomic<bool> pumping{true};
+    std::atomic<uint32_t> intervalMs{100};      // stats window asked for in each Start
+    // One seq counter for every command (the tests below and the Starts here),
+    // started from the clock so a restarted client doesn't repeat the seq the
+    // node last applied
+    std::atomic<uint32_t> commandSeq{ static_cast<uint32_t>(
+        std::chrono::system_clock::now().time_since_epoch().count()) };
     std::thread pump([&] {
+        StartPublishing start;
+        auto nextStart = std::chrono::steady_clock::now();
         while (pumping) {
+            if (std::chrono::steady_clock::now() >= nextStart) {
+                start.seq = ++commandSeq;
+                start.intervalMs = intervalMs;
+                DataBus::Publish<StartPublishing>(SensorTopic::Start, start);
+                nextStart += std::chrono::seconds(1);
+            }
             dataParticipant->ProcessIncoming();
             cmdParticipant->ProcessIncoming();
             monitor.Process();
@@ -201,37 +227,60 @@ int main(int argc, char* argv[])
         "stats, temperature and status received");
     NodeView view = MakeDelegate(&receiver, &Receiver::Snapshot, receiveThread, WAIT_INFINITE)();
     const uint32_t startRate = view.lastStatus.rateHz;
-    Check(startRate > 0 && SineWindowOk(view.lastStats, startRate), "a stats window holds one period of the test sine");
+    const uint32_t commandsBefore = view.lastStatus.commands;  // a board may have run other clients
+    Check(startRate > 0 && SineWindowOk(view.lastStats, startRate, 100), "a stats window holds one period of the test sine");
     Check(view.lastTemperature.celsius > 0.0f && view.lastTemperature.celsius < 100.0f, "temperature in range");
 
     // ----------------------------------------------------------------------
     printf("\nTest 2: a rate command is applied\n");
     const uint32_t newRate = startRate == 500 ? 2000 : 500;
     SetRate rate;
+    rate.seq = ++commandSeq;
     rate.rateHz = newRate;
     DataBus::Publish<SetRate>(SensorTopic::SetRate, rate);
     Check(WaitFor(receiver, receiveThread, [newRate](const NodeView& v) {
         return v.lastStatus.rateHz == newRate && v.lastStats.rateHz == newRate; }, std::chrono::seconds(3)),
         "the node reports the new rate, and samples at it");
     view = MakeDelegate(&receiver, &Receiver::Snapshot, receiveThread, WAIT_INFINITE)();
-    Check(SineWindowOk(view.lastStats, newRate), "a window at the new rate holds one period of the sine");
+    Check(SineWindowOk(view.lastStats, newRate, 100), "a window at the new rate holds one period of the sine");
 
     // ----------------------------------------------------------------------
     printf("\nTest 3: an LED command is applied\n");
     SetLed led;
+    led.seq = ++commandSeq;
     led.r = 10; led.g = 20; led.b = 30;
     DataBus::Publish<SetLed>(SensorTopic::SetLed, led);
     Check(WaitFor(receiver, receiveThread, [](const NodeView& v) {
         return v.lastStatus.ledR == 10 && v.lastStatus.ledG == 20 && v.lastStatus.ledB == 30; },
         std::chrono::seconds(3)), "the node reports the new LED colour");
 
+    // What a retry after a lost ACK looks like to the node: the same seq again
+    printf("  sending the same LED command again, same seq (a retry)\n");
+    DataBus::Publish<SetLed>(SensorTopic::SetLed, led);
+
     // ----------------------------------------------------------------------
-    printf("\nTest 4: touches arrive (from the touch interrupt)\n");
-    Check(WaitFor(receiver, receiveThread, [](const NodeView& v) { return v.touches >= 2; },
-        std::chrono::seconds(3)), "touch changes received");
+    printf("\nTest 4: the Start command's interval sets the stats window\n");
+    intervalMs = 200;       // sent with the next Start, within a second
+    Check(WaitFor(receiver, receiveThread, [newRate](const NodeView& v) {
+        return v.lastStatus.intervalMs == 200 && v.lastStats.count == newRate * 200 / 1000; },
+        std::chrono::seconds(4)), "the node reports 200 ms, and its windows are 200 ms long");
+    view = MakeDelegate(&receiver, &Receiver::Snapshot, receiveThread, WAIT_INFINITE)();
+    Check(SineWindowOk(view.lastStats, newRate, 200), "a 200 ms window holds two periods of the sine");
+
+    // ----------------------------------------------------------------------
+    printf("\nTest 5: touches arrive (from the touch interrupt)\n");
+    // The desktop node simulates touches; on a board a person presses the pad
+    // (on the ESP32-S3 build, the BOOT button)
+    const bool localNode = nodeAddress == "127.0.0.1" || nodeAddress == "localhost";
+    if (!localNode)
+        printf("  Press and release the node's touch pad (ESP32-S3: the BOOT button) within 30 s\n");
+    const uint32_t touchesBefore = MakeDelegate(&receiver, &Receiver::Snapshot, receiveThread, WAIT_INFINITE)().touches;
+    Check(WaitFor(receiver, receiveThread, [touchesBefore](const NodeView& v) { return v.touches >= touchesBefore + 2; },
+        localNode ? std::chrono::seconds(3) : std::chrono::seconds(30)), "touch changes received");
 
     view = MakeDelegate(&receiver, &Receiver::Snapshot, receiveThread, WAIT_INFINITE)();
-    Check(view.lastStatus.commands >= 2, "the node counted both commands");
+    Check(view.lastStatus.commands == commandsBefore + 2,
+        "the node applied the rate and the LED command once each (the repeated seq was ignored)");
     Check(view.lastStatus.netDropped == 0, "the node's network thread dropped nothing");
     Check(view.lastStatus.crossCoreUs > 0.0f && view.lastStatus.sameCoreUs > 0.0f,
         "the node measured its cross-core and same-core call latency");

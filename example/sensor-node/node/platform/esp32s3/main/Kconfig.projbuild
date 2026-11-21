@@ -1,0 +1,38 @@
+menu "Sensor node"
+
+    config APP_WIFI_SSID
+        string "Wi-Fi SSID"
+        default ""
+        help
+            The network the node joins (2.4 GHz). Set it here, not in
+            sdkconfig.defaults: the generated sdkconfig.esp32s3 that holds it
+            isn't committed.
+
+    config APP_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+        help
+            Empty for an open network.
+
+    config APP_PC_ADDRESS
+        string "PC client's IPv4 address"
+        default "192.168.0.100"
+        help
+            Where the node publishes its data (UDP port 9100). Run sensor_pc
+            there, with the node's address (printed at startup) as its second
+            argument.
+
+    config APP_LED_GPIO
+        int "RGB LED (WS2812) GPIO"
+        default 38
+        help
+            GPIO 38 on DevKitC-1 v1.1, GPIO 48 on v1.0.
+
+    config APP_BUTTON_GPIO
+        int "Touch stand-in button GPIO"
+        default 0
+        help
+            The BOOT button (GPIO 0, low when pressed). Its presses and
+            releases are the node's touch events (pad 0).
+
+endmenu

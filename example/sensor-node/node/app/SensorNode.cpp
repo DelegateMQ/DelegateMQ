@@ -12,7 +12,8 @@ namespace sensornode {
 namespace {
     constexpr auto SAMPLE_PERIOD = std::chrono::milliseconds(10);   // one block per tick
     constexpr uint32_t TICKS_PER_SECOND = 100;
-    constexpr uint32_t TICKS_PER_WINDOW = 10;                       // 100 ms windows
+    constexpr uint32_t TICK_MS = 10;
+    constexpr uint32_t DEFAULT_INTERVAL_MS = 100;                   // stats window until a Start sets one
     constexpr size_t MAX_BLOCK = SensorNode::MAX_RATE_HZ / TICKS_PER_SECOND;
     constexpr auto CONTROL_PERIOD = std::chrono::seconds(1);
     constexpr auto NET_PERIOD = std::chrono::milliseconds(10);
@@ -22,6 +23,11 @@ namespace {
     bool ValidRate(uint32_t hz)
     {
         return hz >= SensorNode::MIN_RATE_HZ && hz <= SensorNode::MAX_RATE_HZ && hz % 100 == 0;
+    }
+
+    bool ValidInterval(uint32_t ms)
+    {
+        return ms >= SensorNode::MIN_INTERVAL_MS && ms <= SensorNode::MAX_INTERVAL_MS && ms % 100 == 0;
     }
 }
 
@@ -46,6 +52,9 @@ void SensorNode::Start(const NodeConfig& config)
     m_startTime = Timer::GetNow();
     m_rateHz = ValidRate(config.rateHz) ? config.rateHz : 1000;
     m_sampleRate = m_rateHz;
+    m_intervalMs = DEFAULT_INTERVAL_MS;
+    m_ticksPerWindow = DEFAULT_INTERVAL_MS / TICK_MS;
+    m_requestedIntervalMs = DEFAULT_INTERVAL_MS;
 
     // A slow network must not hold up sampling: count what NetThread drops
     m_netThread.SetDroppedHandler(MakeDelegate(this, &SensorNode::OnNetDropped));
@@ -69,6 +78,9 @@ void SensorNode::Start(const NodeConfig& config)
         [this](const SetRate& cmd) { OnSetRate(cmd); }, &m_controlThread);
     m_setLedConn = DataBus::Subscribe<SetLed>(SensorTopic::SetLed,
         [this](const SetLed& cmd) { OnSetLed(cmd); }, &m_controlThread);
+    // The PC client's Start: NetThread, which decides whether to publish
+    m_startConn = DataBus::Subscribe<StartPublishing>(SensorTopic::Start,
+        [this](const StartPublishing& msg) { OnStart(msg); }, &m_netThread);
 
     m_platform.touch.Start(m_touchSink);
 
@@ -102,6 +114,7 @@ void SensorNode::Stop()
     m_platform.touch.Stop();
     m_setRateConn.Disconnect();
     m_setLedConn.Disconnect();
+    m_startConn.Disconnect();
 
     MakeDelegate(this, &SensorNode::NetShutdown, m_netThread, WAIT_INFINITE)();
 
@@ -139,7 +152,7 @@ void SensorNode::OnSampleTick()
         m_windowCount++;
     }
 
-    if (++m_windowTicks < TICKS_PER_WINDOW)
+    if (++m_windowTicks < m_ticksPerWindow)
         return;
 
     SignalStats stats;
@@ -161,6 +174,15 @@ void SensorNode::OnSampleTick()
         m_sampleRate = m_pendingRate;
         m_pendingRate = 0;
     }
+    if (m_pendingTicksPerWindow != 0) {
+        m_ticksPerWindow = m_pendingTicksPerWindow;
+        m_pendingTicksPerWindow = 0;
+    }
+}
+
+void SensorNode::SetWindow(uint32_t intervalMs)
+{
+    m_pendingTicksPerWindow = intervalMs / TICK_MS;
 }
 
 void SensorNode::SetSampleRate(uint32_t rateHz)
@@ -191,8 +213,21 @@ void SensorNode::OnTouch(uint8_t pad, uint8_t touched)
     MakeDelegate(this, &SensorNode::PublishTouch, m_netThread)(msg);
 }
 
+// A retry repeats the command's seq: apply each seq once
+static bool Duplicate(uint32_t seq, uint32_t& lastSeq, const char* command)
+{
+    if (seq == lastSeq) {
+        printf("SensorNode: %s seq %u already applied (a retry)\n", command, static_cast<unsigned>(seq));
+        return true;
+    }
+    lastSeq = seq;
+    return false;
+}
+
 void SensorNode::OnSetRate(const SetRate& cmd)
 {
+    if (Duplicate(cmd.seq, m_lastRateSeq, "rate"))
+        return;
     if (!ValidRate(cmd.rateHz)) {
         printf("SensorNode: rejected rate %u Hz (100-10000, a multiple of 100)\n", static_cast<unsigned>(cmd.rateHz));
         return;
@@ -206,9 +241,22 @@ void SensorNode::OnSetRate(const SetRate& cmd)
 
 void SensorNode::OnSetLed(const SetLed& cmd)
 {
+    if (Duplicate(cmd.seq, m_lastLedSeq, "LED"))
+        return;
     m_led = cmd;
     m_commands++;
     m_platform.led.Set(cmd.r, cmd.g, cmd.b);
+    SendStatus();
+}
+
+// From NetThread, when a Start asks for a new interval
+void SensorNode::OnSetInterval(uint32_t intervalMs)
+{
+    if (!ValidInterval(intervalMs) || intervalMs == m_intervalMs)
+        return;
+    m_intervalMs = intervalMs;
+    printf("SensorNode: stats every %u ms\n", static_cast<unsigned>(m_intervalMs));
+    MakeDelegate(this, &SensorNode::SetWindow, m_sampleThread)(m_intervalMs);
     SendStatus();
 }
 
@@ -219,6 +267,7 @@ void SensorNode::SendStatus()
     s.uptimeMs = static_cast<uint32_t>(
         std::chrono::duration_cast<std::chrono::milliseconds>(Timer::GetNow() - m_startTime).count());
     s.rateHz = m_rateHz;
+    s.intervalMs = m_intervalMs;
     s.ledR = m_led.r;
     s.ledG = m_led.g;
     s.ledB = m_led.b;
@@ -272,11 +321,13 @@ void SensorNode::NetInit(std::string pcAddress)
     DMQ_ASSERT_TRUE(m_transportData.Create(transport::UdpTransport::Type::PUB, pcAddress.c_str(), SensorNet::DATA_PORT) == 0);
     DMQ_ASSERT_TRUE(m_transportCmd.Create(transport::UdpTransport::Type::SUB, "0.0.0.0", SensorNet::CMD_PORT) == 0);
 
-    // OnNetTick() polls the sockets every 10 ms on NetThread, which also
+    // OnNetTick() polls both sockets every 10 ms on NetThread, which also
     // publishes: a receive must return at once when nothing is waiting. (A
     // SUB socket's default 2 s timeout suits a thread that only receives;
-    // here it would stall NetThread past its watchdog.)
+    // here it would stall NetThread past its watchdog. The PUB socket, which
+    // receives the PC's ACKs, defaults to 2 ms on the desktop but 50 ms on lwIP.)
     m_transportCmd.SetRecvTimeout(std::chrono::milliseconds(1));
+    m_transportData.SetRecvTimeout(std::chrono::milliseconds(1));
 
     // Reliable data (ACKed, retried) and ACKs for the PC's commands
     m_retry = std::make_unique<RetryMonitor>(m_transportData, m_monitor, 0);
@@ -299,6 +350,8 @@ void SensorNode::NetInit(std::string pcAddress)
     m_cmdParticipant = std::make_shared<Participant>(m_transportCmd);
     DataBus::AddIncomingTopic<SetRate>(SensorTopic::SetRate, SensorTopic::SetRateId, *m_cmdParticipant, m_setRateSerializer);
     DataBus::AddIncomingTopic<SetLed>(SensorTopic::SetLed, SensorTopic::SetLedId, *m_cmdParticipant, m_setLedSerializer);
+    DataBus::AddIncomingTopic<StartPublishing>(SensorTopic::Start, SensorTopic::StartId, *m_cmdParticipant, m_startSerializer);
+    printf("SensorNode: waiting for a PC client (it sends a start every second)\n");
 }
 
 void SensorNode::NetShutdown()
@@ -313,28 +366,58 @@ void SensorNode::OnNetTick()
     m_cmdParticipant->ProcessIncoming();
     m_dataParticipant->ProcessIncoming();
     m_monitor.Process();
+
+    if (m_pcListening && Timer::GetNow() - m_lastStart > PC_TIMEOUT) {
+        m_pcListening = false;
+        printf("SensorNode: no start from the PC client for %u s: publishing paused\n",
+               static_cast<unsigned>(std::chrono::duration_cast<std::chrono::seconds>(PC_TIMEOUT).count()));
+    }
 }
 
+void SensorNode::OnStart(const StartPublishing& msg)
+{
+    m_lastStart = Timer::GetNow();
+    // The interval belongs to ControlThread (it validates it and reports it in
+    // the status); pass it on only when it changes, not with every Start
+    if (msg.intervalMs != m_requestedIntervalMs) {
+        m_requestedIntervalMs = msg.intervalMs;
+        MakeDelegate(this, &SensorNode::OnSetInterval, m_controlThread)(msg.intervalMs);
+    }
+    if (!m_pcListening) {
+        m_pcListening = true;
+        printf("SensorNode: PC client listening: publishing\n");
+    }
+}
+
+// Each Publish*() sends only while a PC client is listening
 void SensorNode::PublishStats(const SignalStats& msg)
 {
+    if (!m_pcListening)
+        return;
     DataBus::Publish<SignalStats>(SensorTopic::SignalStats, msg);
     m_statsPublished++;
 }
 
 void SensorNode::PublishTemperature(const Temperature& msg)
 {
+    if (!m_pcListening)
+        return;
     DataBus::Publish<Temperature>(SensorTopic::Temperature, msg);
     m_temperaturesPublished++;
 }
 
 void SensorNode::PublishTouch(const Touch& msg)
 {
+    if (!m_pcListening)
+        return;
     DataBus::Publish<Touch>(SensorTopic::Touch, msg);
     m_touchesPublished++;
 }
 
 void SensorNode::PublishStatus(const NodeStatus& msg)
 {
+    if (!m_pcListening)
+        return;
     DataBus::Publish<NodeStatus>(SensorTopic::Status, msg);
 }
 

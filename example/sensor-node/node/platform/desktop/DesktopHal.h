@@ -6,6 +6,7 @@
 /// runs and is tested on Windows and Linux.
 
 #include "Hal.h"
+#include "TestSignal.h"
 
 #include <atomic>
 #include <chrono>
@@ -15,27 +16,8 @@
 
 namespace sensornode::desktop {
 
-/// A 10 Hz sine of amplitude 1: each 100 ms window holds exactly one period,
-/// so its mean is 0 and its min and max are close to -1 and 1 at any rate.
-/// The PC client's self-test checks for that.
-class SineSource : public ISignalSource {
-public:
-    static constexpr double FREQUENCY_HZ = 10.0;
-
-    void Read(float* out, size_t n, uint32_t rateHz) override {
-        constexpr double TWO_PI = 6.283185307179586;
-        const double step = TWO_PI * FREQUENCY_HZ / rateHz;
-        for (size_t i = 0; i < n; i++) {
-            out[i] = static_cast<float>(std::sin(m_phase));
-            m_phase += step;
-            if (m_phase >= TWO_PI)
-                m_phase -= TWO_PI;
-        }
-    }
-
-private:
-    double m_phase = 0.0;
-};
+/// The fast signal: the generated test sine (TestSignal.h)
+using SineSource = sensornode::SineSource;
 
 /// Around 24 C, drifting slowly
 class DriftingTemperature : public ITemperatureSensor {

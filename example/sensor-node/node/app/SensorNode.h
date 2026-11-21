@@ -9,7 +9,7 @@
 ///
 /// | Thread          | Core (ESP32-S3) | Work                                              |
 /// |-----------------|-----------------|---------------------------------------------------|
-/// | SampleThread    | 1               | Reads the fast signal every 10 ms; statistics per 100 ms window |
+/// | SampleThread    | 1               | Reads the fast signal every 10 ms; statistics per window (100 ms default) |
 /// | ControlThread   | 1               | Temperature, touch, LED, sample rate, PC commands, status |
 /// | NetThread       | 0               | DataBus over UDP: publishes to the PC, receives commands |
 ///
@@ -19,6 +19,10 @@
 /// ControlThread. Touch changes come from an interrupt through an IsrDelegate.
 /// NetThread drops (FullPolicy::DROP) rather than block the others when the
 /// network is slow.
+///
+/// The node publishes only while a PC client is listening: the client sends
+/// a Start every second, and the node stops publishing PC_TIMEOUT after the
+/// last one. An idle node (a powered board with no client) sends nothing.
 ///
 /// The platform's main loop must call dmq::util::Timer::ProcessTimers(),
 /// dmq::util::IsrDelegates::ProcessAll() and dmq::os::Thread::WatchdogCheckAll().
@@ -65,6 +69,12 @@ class SensorNode
 public:
     static constexpr uint32_t MIN_RATE_HZ = 100;
     static constexpr uint32_t MAX_RATE_HZ = 10000;
+    /// Publishing stops this long after the PC client's last Start
+    static constexpr auto PC_TIMEOUT = std::chrono::seconds(5);
+    /// The stats window (the Start command's intervalMs): whole 10 ms ticks,
+    /// and whole periods of the 10 Hz test signal
+    static constexpr uint32_t MIN_INTERVAL_MS = 100;
+    static constexpr uint32_t MAX_INTERVAL_MS = 10000;
 
     explicit SensorNode(Platform& platform);
     ~SensorNode();
@@ -89,12 +99,14 @@ private:
     // SampleThread
     void OnSampleTick();
     void SetSampleRate(uint32_t rateHz);
+    void SetWindow(uint32_t intervalMs);
 
     // ControlThread
     void OnControlTick();
     void OnTouch(uint8_t pad, uint8_t touched);
     void OnSetRate(const SetRate& cmd);
     void OnSetLed(const SetLed& cmd);
+    void OnSetInterval(uint32_t intervalMs);
     void SendStatus();
     void MeasureLatencies();
     static LatencyStats MeasureRoundTrips(dmq::os::Thread& target, uint32_t calls);
@@ -103,6 +115,7 @@ private:
     void NetInit(std::string pcAddress);
     void NetShutdown();
     void OnNetTick();
+    void OnStart(const StartPublishing& msg);
     void PublishStats(const SignalStats& msg);
     void PublishTemperature(const Temperature& msg);
     void PublishTouch(const Touch& msg);
@@ -127,6 +140,7 @@ private:
     dmq::ScopedConnection m_netConn;
     dmq::ScopedConnection m_setRateConn;
     dmq::ScopedConnection m_setLedConn;
+    dmq::ScopedConnection m_startConn;
 
     bool m_started = false;
     dmq::TimePoint m_startTime{};
@@ -134,6 +148,8 @@ private:
     // SampleThread only
     uint32_t m_sampleRate = 0;
     uint32_t m_pendingRate = 0;
+    uint32_t m_ticksPerWindow = 0;
+    uint32_t m_pendingTicksPerWindow = 0;
     uint32_t m_windowTicks = 0;
     uint32_t m_windowCount = 0;
     float m_windowMin = 0.0f;
@@ -143,6 +159,9 @@ private:
 
     // ControlThread only
     uint32_t m_rateHz = 0;
+    uint32_t m_lastRateSeq = 0;         // commands' seq, to ignore a retried duplicate
+    uint32_t m_lastLedSeq = 0;
+    uint32_t m_intervalMs = 0;
     SetLed m_led;
     uint32_t m_tempSeq = 0;
     uint32_t m_touchSeq = 0;
@@ -151,6 +170,9 @@ private:
     LatencyStats m_sameCore;
 
     // NetThread only
+    bool m_pcListening = false;         // a Start within PC_TIMEOUT
+    dmq::TimePoint m_lastStart{};
+    uint32_t m_requestedIntervalMs = 0;   // the last Start's, passed on to ControlThread
     dmq::transport::UdpTransport m_transportData;
     dmq::transport::UdpTransport m_transportCmd;
     dmq::util::TransportMonitor m_monitor{ std::chrono::seconds(1) };
@@ -164,6 +186,7 @@ private:
     dmq::serialization::serializer::Serializer<void(NodeStatus)> m_statusSerializer;
     dmq::serialization::serializer::Serializer<void(SetRate)> m_setRateSerializer;
     dmq::serialization::serializer::Serializer<void(SetLed)> m_setLedSerializer;
+    dmq::serialization::serializer::Serializer<void(StartPublishing)> m_startSerializer;
 
     // Any thread
     std::atomic<uint32_t> m_statsPublished{0};

@@ -1,0 +1,27 @@
+# ESP32-S3-DevKitC-1 N8R8: dual-core Xtensa LX7, ESP-IDF's FreeRTOS SMP
+CONFIG_IDF_TARGET="esp32s3"
+
+# 8 MB quad-I/O flash
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+# 8 MB octal PSRAM (it uses GPIO 35-37), added to the heap
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# RTTI on; no C++ exceptions: DelegateMQ faults through DMQ_ASSERT instead
+CONFIG_COMPILER_CXX_RTTI=y
+
+# 1 ms tick: the platform loop in main.cpp runs Timer::ProcessTimers() every
+# tick, and the sample timer is 10 ms
+CONFIG_FREERTOS_HZ=1000
+
+# The platform loop runs in the main task
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# DataBus, the serializer and Wi-Fi need more than the default 1 MB app
+# partition at -Og: the 1.5 MB one (the board has 8 MB), and -Os, which is
+# also what a release build would measure
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y

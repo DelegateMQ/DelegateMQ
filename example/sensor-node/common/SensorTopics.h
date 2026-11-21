@@ -18,6 +18,9 @@ namespace SensorTopic {
     // PC -> node
     inline constexpr const char* const SetRate     = "cmd/rate";
     inline constexpr const char* const SetLed      = "cmd/led";
+    /// The PC client sends Start every second (a lease); the node publishes only
+    /// while they keep coming, so an idle node sends nothing
+    inline constexpr const char* const Start       = "cmd/start";
 
     enum RemoteId : dmq::DelegateRemoteId {
         SignalStatsId = 200,
@@ -25,7 +28,8 @@ namespace SensorTopic {
         TouchId       = 202,
         StatusId      = 203,
         SetRateId     = 210,
-        SetLedId      = 211
+        SetLedId      = 211,
+        StartId       = 212
     };
 }
 
