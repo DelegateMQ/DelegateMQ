@@ -88,12 +88,14 @@
     #include "port/os/freertos/FreeRTOSClock.h"
     #include "port/os/freertos/FreeRTOSMutex.h"
     #include "port/os/freertos/FreeRTOSConditionVariable.h"
+    #include "port/os/freertos/FreeRTOSSemaphore.h"
     #include "port/os/freertos/FreeRTOSCriticalSection.h"
     #include "port/os/freertos/FreeRTOSThisThread.h"
 #elif defined(DMQ_THREAD_THREADX)
     #include "port/os/threadx/ThreadXClock.h"
     #include "port/os/threadx/ThreadXMutex.h"
     #include "port/os/threadx/ThreadXConditionVariable.h"
+    #include "port/os/threadx/ThreadXSemaphore.h"
     #include "port/os/threadx/ThreadXCriticalSection.h"
     #include "port/os/threadx/ThreadXThisThread.h"
 #elif defined(DMQ_THREAD_ZEPHYR)
@@ -435,7 +437,13 @@ namespace dmq
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
     #define DMQ_HAS_CV
-    #define DMQ_HAS_SEMAPHORE  // generic dmq::Semaphore (delegate/Semaphore.h) needs a real ConditionVariable
+    // dmq::Semaphore: FreeRTOS's own binary semaphore (FreeRTOSSemaphore.h),
+    // not the generic ConditionVariable + Mutex class in delegate/Semaphore.h.
+    // Every async-wait call creates one: one kernel object in static storage
+    // instead of two from the heap, and no mutex locking in Wait()/Signal().
+    using Semaphore = dmq::os::FreeRTOSSemaphore;
+    #define DMQ_HAS_SEMAPHORE
+    #define DMQ_HAS_NATIVE_SEMAPHORE   // delegate/Semaphore.h: don't define the generic class
 
 #elif defined(DMQ_THREAD_THREADX)
     // Use the custom ThreadX wrapper
@@ -449,7 +457,13 @@ namespace dmq
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
     #define DMQ_HAS_CV
-    #define DMQ_HAS_SEMAPHORE  // generic dmq::Semaphore (delegate/Semaphore.h) needs a real ConditionVariable
+    // dmq::Semaphore: one native TX_SEMAPHORE (ThreadXSemaphore.h), not the
+    // generic ConditionVariable + Mutex class in delegate/Semaphore.h. Every
+    // async-wait call creates one: one kernel object instead of two, and no
+    // mutex locking in Wait()/Signal().
+    using Semaphore = dmq::os::ThreadXSemaphore;
+    #define DMQ_HAS_SEMAPHORE
+    #define DMQ_HAS_NATIVE_SEMAPHORE   // delegate/Semaphore.h: don't define the generic class
 
 #elif defined(DMQ_THREAD_ZEPHYR)
     // Use the custom Zephyr wrapper
