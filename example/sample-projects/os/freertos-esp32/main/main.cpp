@@ -87,19 +87,24 @@ static void DelegateTests()
 
     printf("\n[Test 2] Async and async-wait delegates on a worker thread:\n");
     {
-        Thread worker("Worker");
+        // A queue for the whole burst below. With the default (20) and FAULT,
+        // the burst overflowed now and then: when the worker runs on the
+        // other core, QEMU can run all 100 posts while that core waits for its
+        // time slice. Full-queue behavior is Test 4's subject, not this one's.
+        constexpr int CALLS = 100;
+        Thread worker("Worker", CALLS + 1);
         DMQ_ASSERT_TRUE(worker.CreateThread());
 
         Counter counter;
         auto async = MakeDelegate(&counter, &Counter::Increment, worker);
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < CALLS; i++)
             async(1);
 
         // Async-wait: runs on the worker and returns its result; the worker
         // runs the 100 messages above first (one FIFO queue)
         auto asyncWait = MakeDelegate(&Add, worker, WAIT_INFINITE);
         DMQ_ASSERT_TRUE(asyncWait(40, 2) == 42);
-        DMQ_ASSERT_TRUE(counter.Get() == 100);
+        DMQ_ASSERT_TRUE(counter.Get() == CALLS);
 
         worker.ExitThread();
         printf("  -> passed\n");
@@ -363,6 +368,74 @@ static void CoreAffinityTest()
 }
 
 // --------------------------------------------------------------------------
+// Test 9: no false watchdog expiry when a heartbeat races the check
+// --------------------------------------------------------------------------
+// A thread under a watchdog runs on core 1, kept busy so it refreshes its
+// heartbeat constantly; a task on core 0 runs Thread::WatchdogCheckAll() in a
+// tight loop. A check that read the clock before the heartbeat could see a
+// heartbeat one tick newer than its clock reading, and the unsigned 32-bit
+// difference wrapped to ~49.7 days: a healthy thread reported as hung. On an
+// ESP32-S3 the old code failed this within 50,000 checks. A false expiry
+// faults (WatchdogHandler()), so this test passes by finishing.
+static std::atomic<bool> s_raceStop{false};
+static std::atomic<uint32_t> s_raceChecks{0};
+static std::atomic<uint32_t> s_raceCalls{0};
+static Thread* s_raceTarget = nullptr;
+
+static void RaceWork() { s_raceCalls++; }
+
+static void RaceHook(const WatchdogInfo& info)
+{
+    printf("  -> FALSE EXPIRY: %s reported stalled for %lld ms after %u checks\n", info.threadName,
+           static_cast<long long>(info.stalledFor.count()), static_cast<unsigned>(s_raceChecks.load()));
+}
+
+static void RaceFeeder(void*)
+{
+    auto call = MakeDelegate(&RaceWork, *s_raceTarget);
+    while (!s_raceStop) {
+        for (int i = 0; i < 50; i++)
+            call();
+        vTaskDelay(1);
+    }
+    vTaskDelete(nullptr);
+}
+
+static void RaceChecker(void*)
+{
+    while (!s_raceStop) {
+        for (int i = 0; i < 2000; i++) {
+            Thread::WatchdogCheckAll();
+            s_raceChecks++;
+        }
+        vTaskDelay(1);      // let the idle task run (ESP-IDF's task watchdog)
+    }
+    vTaskDelete(nullptr);
+}
+
+static void WatchdogRaceTest()
+{
+    printf("\n[Test 9] Watchdog check racing a busy thread's heartbeat (core 0 vs core 1):\n");
+    SetWatchdogHook(&RaceHook);
+    Thread target("RaceTarget", 0, FullPolicy::DROP);
+    s_raceTarget = &target;
+    target.SetCoreAffinity(1u << 1);
+    target.CreateThread(std::chrono::seconds(2));
+
+    xTaskCreatePinnedToCore(RaceFeeder, "RaceFeeder", 4096, nullptr, TEST_TASK_PRIORITY, nullptr, 1);
+    xTaskCreatePinnedToCore(RaceChecker, "RaceChecker", 4096, nullptr, TEST_TASK_PRIORITY, nullptr, 0);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    s_raceStop = true;
+    vTaskDelay(pdMS_TO_TICKS(50));      // both tasks see the flag and delete themselves
+
+    target.ExitThread();
+    SetWatchdogHook(nullptr);
+    printf("  -> %u checks, %u calls, no false expiry\n",
+           static_cast<unsigned>(s_raceChecks.load()), static_cast<unsigned>(s_raceCalls.load()));
+    DMQ_ASSERT_TRUE(s_raceChecks > 0 && s_raceCalls > 0);
+}
+
+// --------------------------------------------------------------------------
 // Test task
 // --------------------------------------------------------------------------
 static void RunTests()
@@ -384,6 +457,7 @@ static void RunTests()
     IsrTimerTest();
     IsrDelegateTest();
     CoreAffinityTest();
+    WatchdogRaceTest();
 
     printf("\n=========================================\n");
     printf("           ALL TESTS PASSED              \n");

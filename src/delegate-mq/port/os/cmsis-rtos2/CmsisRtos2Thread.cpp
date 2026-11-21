@@ -373,14 +373,20 @@ bool CmsisRtos2Thread::WatchdogExpired(dmq::Duration& stalledFor)
     if (m_startGate.IsHeld())
         return false;     // held at its start gate by design, not hung
 
-    const uint32_t now = ClockCount(Timer::GetNow());
+    // The heartbeat first, then the clock: the thread stamped its heartbeat
+    // before storing it, so a clock read after loading it is never older.
+    // Read the other way round, a heartbeat stored in between (the thread on
+    // another core, or preempting this task) can be a tick newer than "now",
+    // and the unsigned difference wraps to ~49 days: a false expiry.
     const uint32_t lastAlive = m_lastAliveTime.load();
+    const uint32_t now = ClockCount(Timer::GetNow());
     const uint32_t watchdogTimeout = m_watchdogTimeout.load();
 
     if (watchdogTimeout > 0)
     {
         const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
-        if (delta > watchdogTimeout)
+        // Wrap-safe; a negative difference (a heartbeat newer than now) is alive
+        if (static_cast<int32_t>(delta) > 0 && delta > watchdogTimeout)
         {
             stalledFor = dmq::Duration(delta);
             return true;

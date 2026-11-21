@@ -426,14 +426,20 @@ bool FreeRTOSThread::WatchdogExpired(dmq::Duration& stalledFor)
     if (m_startGate.IsHeld())
         return false;     // held at its start gate by design, not hung
 
-    auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
+    // The heartbeat first, then the clock: the thread stamped its heartbeat
+    // before storing it, so a clock read after loading it is never older.
+    // Read the other way round, a heartbeat stored in between (the thread on
+    // another core, or preempting this task) can be a tick newer than "now",
+    // and the unsigned difference wraps to ~49 days: a false expiry.
     auto lastAlive = m_lastAliveTime.load();
+    auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
     auto watchdogTimeout = m_watchdogTimeout.load();
 
     if (watchdogTimeout > 0)
     {
         auto delta = now - lastAlive;
-        if (delta > watchdogTimeout)
+        // Wrap-safe; a negative difference (a heartbeat newer than now) is alive
+        if (static_cast<int32_t>(delta) > 0 && delta > watchdogTimeout)
         {
             stalledFor = dmq::Duration(delta);
             return true;

@@ -259,6 +259,14 @@ DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
     printf("\nTerminating application...\n");
     fflush(stdout);
     abort();
+#elif defined(ESP_PLATFORM)
+    // ESP-IDF: abort() is its panic path, which prints a backtrace and then
+    // reboots or halts as the project configures (CONFIG_ESP_SYSTEM_PANIC_*).
+    // Spinning here instead starves the idle task, and ESP-IDF's task
+    // watchdog then repeats a warning every few seconds, burying this line.
+    printf("FaultHandler: %s line %u\r\n", file, static_cast<unsigned int>(line));
+    fflush(stdout);
+    abort();
 #else
     printf("FaultHandler: %s line %u\r\n", file, static_cast<unsigned int>(line));
     fflush(stdout);
@@ -288,6 +296,11 @@ extern "C" DMQ_NORETURN void WatchdogHandler(const char* threadName)
     // mustn't also call the fault hook. The process ends here.
     dmq::util::SetFaultHook(nullptr);
     DMQ_ASSERT();
+#elif defined(ESP_PLATFORM)
+    // ESP-IDF: its panic path, as in FaultHandler() above
+    printf("WATCHDOG EXPIRED: %s\r\n", threadName);
+    fflush(stdout);
+    abort();
 #else
     printf("WATCHDOG EXPIRED: %s\r\n", threadName);
     while (1);
