@@ -129,6 +129,19 @@ public:
         }
     }
 
+    /// Change how long Receive() waits for a datagram (after Create(); Create()
+    /// sets DMQ_UDP_PUB_RECV_TIMEOUT_MS or DMQ_UDP_SUB_RECV_TIMEOUT_MS). A thread
+    /// that polls this socket between other work wants a short one.
+    void SetRecvTimeout(std::chrono::milliseconds timeout)
+    {
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        if (m_socket >= 0)
+        {
+            struct timeval tv = ToTimeval(timeout);
+            lwip_setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        }
+    }
+
     virtual int Send(xostringstream& os, const DmqHeader& header) override
     {
         const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
