@@ -85,7 +85,10 @@ BARE_METAL_TARGETS = {
         "qemu":  ["qemu-system-riscv32", "-M", "virt", "-bios", "none"],
     },
 }
-BARE_METAL_TIMEOUT = 60
+# Seconds per QEMU bare-metal/RTOS run. os/freertos-bare-metal/arm-m3 takes
+# ~10 s idle but 25-55 s when the host is short of memory (QEMU stalls while it
+# pages, and its guest clock jumps), so 60 s cut it off near its last tests.
+BARE_METAL_TIMEOUT = 120
 BARE_METAL_SUCCESS = "ALL TESTS PASSED"
 
 # example/sample-projects/os/freertos-bare-metal: its default build is the
