@@ -460,8 +460,9 @@ def run_tools(repo_root, passed, failed, skipped):
 
     1. dmq-spy --echo and dmq-monitor --once: the spy must print dmq-target's
        sensor topics, the monitor must list its node (TargetApp).
-    2. dmq-thread --once: must list dmq-target's SpyBridge thread, which tests
-       ThreadMonitor end to end (thread stats -> DataBus -> NodeBridge -> UDP).
+    2. dmq-thread --once: must list dmq-target's SpyReporter thread (behind
+       SpyBridge), which tests ThreadMonitor end to end (thread stats ->
+       DataBus -> NodeBridge -> UDP).
 
     The listeners start first, so they hear dmq-target from its first message.
     """
@@ -483,7 +484,7 @@ def run_tools(repo_root, passed, failed, skipped):
          {"spy": "sensor/temp", "monitor": "TargetApp"}),
         ([("thread", [exes["dmq-thread"], "--once", str(listen)], tools_dir),
           ("target", [exes["dmq-target"], str(listen + 2)], tools_dir)],
-         {"thread": "SpyBridge"}),
+         {"thread": "SpyReporter"}),
     ]
     print(f"[RUNNING] {label}  (dmq-spy, dmq-monitor, dmq-thread against dmq-target)", flush=True)
     all_results, did_fail = {}, False
