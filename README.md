@@ -118,7 +118,7 @@ pio run -e esp32dev -t upload -t monitor
 
 - **CMake:** `FetchContent` or `add_subdirectory()`, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`. Options such as `DMQ_THREAD` are set in CMake. See [With CMake](docs/BUILD.md#with-cmake).
 - **Without CMake (Keil, IAR, STM32CubeIDE, Makefiles):** add `src/delegate-mq` to the include path, put your options in a `DelegateMQConfig.h`, and compile either `src/DelegateMQ.cpp` or every `.cpp` in `src/delegate-mq`. See [Without CMake](docs/BUILD.md#without-cmake).
-- **PlatformIO:** add `lib_deps = endurodave/DelegateMQ@^2.4.0`, enable C++17, and put `DelegateMQConfig.h` in `include/`. See [PlatformIO](example/platformio/PLATFORMIO.md).
+- **PlatformIO:** add `lib_deps = endurodave/DelegateMQ@^3.0.0`, enable C++17, and put `DelegateMQConfig.h` in `include/`. See [PlatformIO](example/platformio/PLATFORMIO.md).
 
 # Platform Support
 

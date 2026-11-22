@@ -7,7 +7,30 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
-## [Unreleased]
+## [3.0.0] - 2026-11-21
+
+3.0 removes iostreams from the remote path: serializers write into a `dmq::ByteWriter` and read from a `dmq::ByteReader` instead of `std::ostream`/`std::istream`. On an ESP32-S3 node that saved 210 KB of flash (20%); on an STM32F407 sample, 163 KB (78%). Code that only uses delegates, signals, threads, timers and the local DataBus doesn't change. Code with remote messages does, mostly by changing types in signatures.
+
+### Migrating from 2.x
+- **Message classes** (the built-in serializer's `serialize::I`): change the two signatures; the bodies stay the same.
+  ```cpp
+  // 2.x
+  std::ostream& write(serialize& ms, std::ostream& os) override;
+  std::istream& read(serialize& ms, std::istream& is) override;
+  // 3.0
+  dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override;
+  dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override;
+  ```
+  RapidJSON message classes: `Write(PrettyWriter&, const dmq::ByteWriter&)` and `Read(Document&, dmq::ByteReader&)`.
+- **Custom serializers** (`dmq::ISerializer`): `ByteWriter& Write(ByteWriter&, const Args&...)` and `ByteReader& Read(ByteReader&, Args&...)`. Report bad data with `setfail()` instead of `setstate(std::ios::failbit)`.
+- **Custom transports** (`ITransport`): `Send(const dmq::ByteWriter& os, const DmqHeader&)` sends `os.data()`/`os.size()`. `Receive(dmq::ByteReader& is, DmqHeader&)` calls `is.assign(nullptr, 0)` first, then `is.assign(data, size)` to view the payload in a buffer that stays valid until the next `Receive()` (a member, not a local).
+- **Custom dispatchers and receivers**: `IDispatcher::Dispatch(ByteWriter&, ...)` (call `os.reset()` after sending), `IRemoteInvoker::Invoke(ByteReader&)`, `SetStream(ByteWriter*)`. A `dmq::ByteWriter` replaces the `xostringstream` given to `SetStream()`.
+- **Removed**: `dmq::xostringstream`, `dmq::xstringstream` and `extras/allocator/xsstream.h`. Format text with `snprintf` (or `std::ostringstream` where iostreams don't matter).
+- **Renamed**: `DelegateError::ERR_STREAM_NOT_GOOD` is `ERR_BUFFER` (same value).
+- **`<iostream>`**: no DelegateMQ header includes it any more. Add `#include <iostream>` (and `<sstream>`) to files that use `std::cout` or string streams.
+- **`char*` in async calls**: a `const char*` argument of a non-blocking async call no longer compiles; take `std::string`.
+- **Message size**: remote messages are capped at `DMQ_MAX_MESSAGE_SIZE` (65535; 4096 under `DMQ_ALLOCATOR`); a larger one reports `ERR_MESSAGE_TOO_LARGE`.
+- **UDP**: the embedded UDP transports' default PUB receive timeout is 2 ms (was 50 ms), the same as the desktop ones.
 
 ### Added
 - **`Participant::OnDuplicateDropped` and `DuplicatesDropped()`.** A message dropped as a duplicate (a retry, or a restarted sender reusing a sequence number within the history window) is now counted and reported, with its remote ID, sequence number and sender node ID; before, it was dropped silently. `SetSeqHistoryExpiry()`'s documentation says what to set it to (the sender's retry window) and why a restarted sender's messages are dropped.

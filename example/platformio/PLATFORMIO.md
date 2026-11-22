@@ -89,7 +89,7 @@ A minimal ESP32 project:
 platform  = espressif32
 board     = esp32dev
 framework = arduino
-lib_deps  = endurodave/DelegateMQ@^2.4.0
+lib_deps  = endurodave/DelegateMQ@^3.0.0
 ; DelegateMQ needs C++17; Arduino cores default to C++11 or C++14
 build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
@@ -139,7 +139,7 @@ The STM32 Arduino core (STM32duino) has no RTOS. Add the STM32duino FreeRTOS lib
 platform  = ststm32
 board     = disco_f407vg
 framework = arduino
-lib_deps  = endurodave/DelegateMQ@^2.4.0
+lib_deps  = endurodave/DelegateMQ@^3.0.0
             stm32duino/STM32duino FreeRTOS@^10.3.2
 build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
@@ -198,7 +198,7 @@ void loop()
 
 Its `platformio.ini` is the board matrix: `pio run` builds them all, `pio run -e <env>` builds one.
 
-To start your own project from it, copy the folder and change `lib_deps = symlink://../../..` to `lib_deps = endurodave/DelegateMQ@^2.4.0` (the symlink points at this repository so that CI tests every commit).
+To start your own project from it, copy the folder and change `lib_deps = symlink://../../..` to `lib_deps = endurodave/DelegateMQ@^3.0.0` (the symlink points at this repository so that CI tests every commit).
 
 ## Troubleshooting
 
