@@ -39,6 +39,22 @@ local ACK_REMOTE_ID = 0
 -- load order between this file and the table files doesn't matter.
 dmq_topics = dmq_topics or {}
 
+-- Remote IDs DelegateMQ reserves for its diagnostic consoles (SpyPacket.h,
+-- NodePackets.h): SpyReporter/SpyBridge and NodeReporter/NodeBridge send each
+-- packet as one DelegateMQ message with one of these IDs. A topic table file
+-- may override them.
+local TOOL_IDS = {
+    [0xFFFE] = "[dmq-spy] SpyPacket",
+    [0xFFFD] = "[dmq-monitor] NodeInfoPacket",
+    [0xFFFC] = "[dmq-monitor] NodeHealthPacket",
+    [0xFFFB] = "[dmq-thread] ThreadStatsPacket",
+}
+for id, label in pairs(TOOL_IDS) do
+    if dmq_topics[id] == nil then
+        dmq_topics[id] = label
+    end
+end
+
 local f = dmq.fields
 f.marker  = ProtoField.uint16("dmq.marker", "Marker", base.HEX)
 f.node    = ProtoField.uint8("dmq.node", "Node ID", base.DEC)

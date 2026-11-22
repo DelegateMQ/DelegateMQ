@@ -100,6 +100,8 @@ A remote ID is a channel, not a topic. One ID can carry several topics (Cellutro
 
 Example: [`example/cellutron/wireshark/cellutron_topics.lua`](../../example/cellutron/wireshark/cellutron_topics.lua). Write one per project from its `RID_*` constants and the topics each node sends on them.
 
+**Diagnostic consoles' traffic is labeled already.** DelegateMQ's reporters (`SpyReporter`/`SpyBridge`, `NodeReporter`/`NodeBridge`) send each packet for `dmq-spy`, `dmq-monitor` and `dmq-thread` as a DelegateMQ message with a reserved remote ID, which `dmq.lua` names: 65534 (0xFFFE) `[dmq-spy] SpyPacket`, 65533 `[dmq-monitor] NodeInfoPacket`, 65532 `[dmq-monitor] NodeHealthPacket`, 65531 `[dmq-thread] ThreadStatsPacket`. They usually go to UDP ports 9999 (spy) and 9998 (monitor and thread, often multicast 239.1.1.1). Filter them out with `dmq && dmq.id < 65531`.
+
 ## Limitations
 
 - Payloads are shown as bytes, not decoded fields.

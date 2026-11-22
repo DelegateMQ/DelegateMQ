@@ -347,7 +347,7 @@ python run_pumptron.py --serial COM5 --plotjuggler   # same, plus live plots in 
 
 <img src="pumptron_plotjuggler.png" width="1000" alt="PlotJuggler plotting live Pumptron telemetry (RPM, flow) forwarded by dmq-spy --plotjuggler">
 
-In PlotJuggler's Timeseries List, series are nested under the sender (`GUI`) and topic path — expand `GUI` → `pump` → `telemetry`/`status` to find `rpm`, `flow`, `pressure`, `temp`, `vib`, `sp`, then drag one onto the plot. `timestamp` is metadata for the X-axis, not a series to plot itself.
+In PlotJuggler's Timeseries List, series are nested under the sender (`GUI`, and with the ESP32-S3 also `Controller`, the board's own copy) and topic path — expand `GUI` → `pump` → `telemetry`/`status` to find `rpm`, `flow`, `pressure`, `temp`, `vib`, `sp`, then drag one onto the plot. `timestamp` is metadata for the X-axis, not a series to plot itself.
 
 Running the GUI directly: `pumptron_gui --serial COM5 --spy`, or `--spy-address <host:port>` to send to a `dmq-spy` on another machine or port.
 
