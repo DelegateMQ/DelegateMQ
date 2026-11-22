@@ -368,6 +368,16 @@ namespace dmq
     /// instance via SpyReporter's constructor.
     inline constexpr size_t SPY_REPORTER_QUEUE_SIZE = DMQ_SPY_REPORTER_QUEUE_SIZE;
 
+    /// @brief Default NodeReporter send queue size.
+    /// Override via DMQ_NODE_REPORTER_QUEUE_SIZE in delegatemqconfig.h, or per
+    /// instance via NodeReporter's constructor.
+    inline constexpr size_t NODE_REPORTER_QUEUE_SIZE = DMQ_NODE_REPORTER_QUEUE_SIZE;
+
+    /// @brief Default NodeReporter heartbeat period.
+    /// Override via DMQ_NODE_REPORTER_HEARTBEAT_MS in delegatemqconfig.h, or per
+    /// instance via NodeReporter::Start().
+    inline constexpr std::chrono::milliseconds NODE_REPORTER_HEARTBEAT{DMQ_NODE_REPORTER_HEARTBEAT_MS};
+
     /// @brief Max messages drained per NetworkNode::ReceiverThread() tick.
     /// Override via DMQ_NETWORK_NODE_MAX_WORK in delegatemqconfig.h.
     inline constexpr int NETWORK_NODE_MAX_WORK = DMQ_NETWORK_NODE_MAX_WORK;

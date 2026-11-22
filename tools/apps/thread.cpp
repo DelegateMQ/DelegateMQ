@@ -10,7 +10,8 @@
 #include <ftxui/component/screen_interactive.hpp>
 
 #include "UdpSocket.h"
-#include "NodeInfoPacket.h"
+#include "extras/databus/NodePackets.h"
+#include "DmqFrame.h"
 #include "extras/util/ThreadMonitorSer.h"
 #include "extras/util/NetworkConnect.h"
 
@@ -58,13 +59,15 @@ static void ReceiverThread(UdpSocket& socket) {
             std::string senderIp = socket.GetRemoteAddress();
             g_packetCount++;
 
-            if (received < 2 ||
-                static_cast<dmq::PacketType>(buffer[0]) != dmq::PacketType::ThreadStats) {
+            // One DelegateMQ message per datagram (NodeReporter); keep only thread statistics
+            uint16_t id = 0;
+            dmq::ByteReader iss;
+            if (!UnframeDmq(buffer.data(), static_cast<size_t>(received), id, iss) ||
+                id != dmq::databus::THREAD_STATS_REMOTE_ID) {
                 continue;
             }
 
             dmq::util::ThreadStatsPacket packet;
-            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data() + 1), static_cast<size_t>(received - 1));
             serializer.Read(iss, packet);
 
             if (!packet.thread_name.empty()) {

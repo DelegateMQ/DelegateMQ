@@ -212,7 +212,7 @@ Pumptron controller (ESP32-S3) at 192.168.0.241, UDP 5021; GUI at 192.168.0.123:
 On the PC: pumptron_gui --udp 192.168.0.241
 ```
 
-Then on the PC run `python run_pumptron.py --udp 192.168.0.241`. It opens the GUI and [`dmq-spy`](#monitoring-with-dmq-spy), which shows the traffic both ways: the GUI's commands (`pump/cmd`) and the board's telemetry (10 Hz), status and alarms. The board reports to `dmq-spy` itself too, as sender `Controller` (DelegateMQ's `SpyReporter` on its own thread, `CONFIG_APP_SPY` in menuconfig, on by default), so each message shows from both ends. `--no-spy` leaves `dmq-spy` out; `pumptron_gui --udp 192.168.0.241` runs the GUI alone. Windows Firewall asks the first time whether `pumptron_gui` may receive on the network: allow it on private networks, or nothing from the board arrives.
+Then on the PC run `python run_pumptron.py --udp 192.168.0.241`. It opens the GUI and [`dmq-spy`](#monitoring-with-dmq-spy), which shows the traffic both ways: the GUI's commands (`pump/cmd`) and the board's telemetry (10 Hz), status and alarms. The board reports to `dmq-spy` itself too, as sender `Controller` (DelegateMQ's `SpyReporter` on its own thread, `CONFIG_APP_SPY` in menuconfig, on by default), so each message shows from both ends. It also opens [`dmq-monitor` and `dmq-thread`](#monitoring-with-dmq-monitor-and-dmq-thread): the board reports its node, link health and threads to them too (`CONFIG_APP_MONITOR`). `--no-tools` leaves all three consoles out; `pumptron_gui --udp 192.168.0.241` runs the GUI alone. Windows Firewall asks the first time whether `pumptron_gui` may receive on the network: allow it on private networks, or nothing from the board arrives.
 
 The board's hardware (`Esp32Board.h`):
 
@@ -227,10 +227,12 @@ The board's hardware (`Esp32Board.h`):
 
 ```
 Task             Prio  Core Stack free
-main                6     0       5960
-Pump                4     1       5460
-Controller_Netw    23     0       5256
-SpyReporter         2     0       6640
+main                6     0       5704
+ThreadMonitor      23     0       4872
+Pump                4     1       5380
+SpyReporter         2     0       5656
+NodeReporter        2     0       6524
+Controller_Netw    23     0       6448
 wifi               23     0       3472
 tiT                18   any       2004
 ...
@@ -241,11 +243,13 @@ tiT                18   any       2004
 | `Pump` (`PumpController`) | 1 | The state machine and the pump model, every 50 ms; publishes telemetry (10 Hz), status, alarms, heartbeats |
 | `Controller_NetworkThread` (`NetworkNode`) | 0 | Receives commands and heartbeats from the GUI, sends to it, ACKs and retries RELIABLE messages |
 | `SpyReporter` | 0 | Priority 2, below the application: sends every DataBus message to `dmq-spy` (`CONFIG_APP_SPY`) |
+| `NodeReporter` | 0 | Priority 2: heartbeat and link health to `dmq-monitor`, thread statistics to `dmq-thread` (`CONFIG_APP_MONITOR`) |
+| `ThreadMonitor` | 0 | Every 2 s: publishes the queue depth and dispatch latency of `Pump`, the link and both reporters (`CONFIG_APP_MONITOR`) |
 | `main` (`app_main`) | 0 | The platform loop: `Timer::ProcessTimers()` every 10 ms (the pump's timers, the link's receive poll), the thread watchdog, and the ESP-IDF task watchdog |
 
 The task watchdog (TWDT) watches the `main` loop, as the F4's IWDG does, and resets the board if it stops. The F4's crash dumps (`CoreDump.cpp`) are F4-only; ESP-IDF prints its own panic backtrace on the console.
 
-Measured: 855 KB of flash (the 1.5 MB app partition, `-Os`), 52 KB of static RAM; the spy reporter and the stringifiers are 15 KB and 4 KB of that. The self-test passes over Wi-Fi with every step on time, the controller clock at 1.00× real time, and no retries.
+Measured: 887 KB of flash (the 1.5 MB app partition, `-Os`), 58 KB of static RAM. Of that, the spy reporter and the stringifiers are 15 KB and 4 KB; the node reporter, `ThreadMonitor` and the per-thread statistics (`DMQ_DATABUS_TOOLS`, which times every dispatch) 32 KB and 6 KB. The self-test passes over Wi-Fi with every step on time, the controller clock at 1.00× real time, and no retries.
 
 ---
 
@@ -256,7 +260,8 @@ Measured: 855 KB of flash (the 1.5 MB app partition, `-Os`), 52 KB of static RAM
 ```bash
 python run_pumptron.py                         # simulation: controller + GUI, each in its own terminal
 python run_pumptron.py --serial COM5           # hardware: GUI only, talking to the flashed board
-python run_pumptron.py --udp 192.168.0.241     # ESP32-S3: GUI + dmq-spy, over Wi-Fi to the board's address
+python run_pumptron.py --udp 192.168.0.241     # ESP32-S3: GUI + dmq-spy, dmq-monitor, dmq-thread, over Wi-Fi
+python run_pumptron.py --monitor               # any mode: also open dmq-monitor and dmq-thread
 python run_pumptron.py --selftest              # simulation, headless end-to-end check
 python run_pumptron.py --serial COM5 --selftest
 ```
@@ -334,7 +339,7 @@ The GUI reports to `dmq-spy` for every controller, and the ESP32-S3 controller a
 
 ```bash
 python run_pumptron.py --serial COM5 --spy           # GUI + dmq-spy window
-python run_pumptron.py --udp 192.168.0.241           # ESP32-S3: dmq-spy opens by default (--no-spy to skip)
+python run_pumptron.py --udp 192.168.0.241           # ESP32-S3: all three consoles open by default (--no-tools to skip)
 python run_pumptron.py --serial COM5 --plotjuggler   # same, plus live plots in PlotJuggler
 ```
 
@@ -351,6 +356,17 @@ Things to know:
 - **With the F4 or the simulator, every message shows sender `GUI`.** Spy sees the GUI's copy of each message, with the GUI's timestamps, taken when it re-publishes each message, so they don't show the controller's own timing or the link's delay.
 - **With the ESP32-S3, each message shows twice:** once from `Controller`, the board's own copy with its own clock, and once from `GUI`. The board's heartbeat arrives exactly every 500 ms in its own timestamps, the GUI's copy 470-530 ms apart: the difference is the Wi-Fi link's jitter. The two clocks aren't synchronized, so compare the spacing within each sender, not times across them.
 - **Only one `dmq-spy` can listen on port 9999.** Close any other copy first.
+
+### Monitoring with dmq-monitor and dmq-thread
+
+`--monitor` makes the GUI report its node to [`dmq-monitor`](../../tools/TOOLS.md#dmq-monitor--node-monitor-console) (heartbeat, message count, topics, and the link's health: ACK timeouts, abandoned messages, backlog) and its threads to [`dmq-thread`](../../tools/TOOLS.md#dmq-thread--thread-monitor-console) (queue depth and dispatch latency of `GUI_System` and the link's threads). Both consoles listen on port 9998 on the multicast group 239.1.1.1, so the GUI sends there.
+
+```bash
+python run_pumptron.py --monitor                     # simulator, with dmq-monitor and dmq-thread
+python run_pumptron.py --udp 192.168.0.241           # ESP32-S3: opens them by default
+```
+
+The ESP32-S3 controller reports itself too (`CONFIG_APP_MONITOR`, on by default): `dmq-monitor` shows a `Controller` node with the board's own view of its link to the GUI, and `dmq-thread` shows `Pump`, `Controller_NetworkThread`, `SpyReporter` and `NodeReporter` with the board's address. The F4 and the simulator controller don't report; only the GUI's node and threads show.
 
 ### MQTT Gateway
 

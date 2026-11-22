@@ -14,7 +14,8 @@
 #include <ftxui/component/screen_interactive.hpp>
 
 #include "UdpSocket.h"
-#include "NodeInfoPacket.h"
+#include "extras/databus/NodePackets.h"
+#include "DmqFrame.h"
 #include "port/serialize/serialize/msg_serialize.h"
 #include "extras/util/NetworkConnect.h"
 
@@ -193,11 +194,10 @@ static void ResetHealthBaselines() {
 // --- Receiver thread ---
 
 template <typename Packet>
-static bool Decode(const std::vector<uint8_t>& buffer, int received, Packet& packet) {
+static bool Decode(dmq::ByteReader& payload, Packet& packet) {
     serialize ms;
-    dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data() + 1), static_cast<size_t>(received - 1));
-    ms.read(iss, packet);
-    return iss.good() && !packet.nodeId.empty();
+    ms.read(payload, packet);
+    return payload.good() && !packet.nodeId.empty();
 }
 
 static void ReceiverThread(UdpSocket& socket) {
@@ -207,13 +207,18 @@ static void ReceiverThread(UdpSocket& socket) {
 
     while (g_running) {
         int received = socket.Receive(buffer.data(), (int)buffer.size());
-        if (received < 2) continue;
+        if (received <= 0) continue;
 
-        const auto type = static_cast<dmq::PacketType>(buffer[0]);
-        if (type == dmq::PacketType::NodeInfo) {
+        // One DelegateMQ message per datagram (NodeReporter); the remote ID says which packet
+        uint16_t id = 0;
+        dmq::ByteReader payload;
+        if (!UnframeDmq(buffer.data(), static_cast<size_t>(received), id, payload))
+            continue;
+
+        if (id == dmq::databus::NODE_INFO_REMOTE_ID) {
             g_packetCount++;
             dmq::NodeInfoPacket packet;
-            if (Decode(buffer, received, packet)) {
+            if (Decode(payload, packet)) {
                 std::string key = MakeNodeKey(packet.nodeId, packet.ipAddress);
                 std::lock_guard<std::mutex> lock(g_nodesMutex);
                 NodeRecord& rec = g_nodes[key];
@@ -223,9 +228,9 @@ static void ReceiverThread(UdpSocket& socket) {
                 g_errorCount++;
                 SetStatusMessage("ERROR: cannot decode heartbeat (bytes=" + std::to_string(received) + ")");
             }
-        } else if (type == dmq::PacketType::Health) {
+        } else if (id == dmq::databus::NODE_HEALTH_REMOTE_ID) {
             dmq::NodeHealthPacket packet;
-            if (Decode(buffer, received, packet)) {
+            if (Decode(payload, packet)) {
                 std::string key = MakeNodeKey(packet.nodeId, packet.ipAddress);
                 const auto now = Clock::now();
                 const HealthCounts totals = HealthCounts::From(packet);

@@ -25,7 +25,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 *   **Per-Thread Metrics**: Tracks current, window-max, and all-time max queue depths.
 *   **Latency Analysis**: Measures how long messages wait in the queue before being dispatched (Average and Max).
 *   **CPU Grouping**: Threads are grouped by their logical CPU name (e.g. GUI, Controller, Safety).
-*   **Real-Time 1Hz Updates**: Per-node telemetry is pushed to the dashboard every second.
+*   **Live Updates**: `ThreadMonitor` publishes each registered thread's statistics every 2 seconds.
 *   **Multi-Node Aggregation**: Automatically aggregates and sorts threads from multiple physical machines or processes.
 *   **Zero-Impact Design**: Statistics are captured atomically and transmitted via a dedicated background bridge to ensure no interference with application timing.
 
@@ -33,7 +33,7 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 
 1.  **Instrumentation**: The `dmq::os::Thread` class tracks queue stats and message timestamps during normal operation.
 2.  **Telemetry Service** (`ThreadMonitor`): A service within the application that polls registered threads and publishes `ThreadStatsPacket` to the local DataBus.
-3.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): Reuses the existing node bridge to automatically pick up `ThreadStatsPacket` topics and broadcast them over UDP.
+3.  **The Node Reporter** (`dmq::databus::NodeReporter`, library code, or its desktop front end `NodeBridge`): forwards each `ThreadStatsPacket` to `dmq-thread` (remote ID `THREAD_STATS_REMOTE_ID`).
 4.  **The Thread Monitor Console** (`apps/thread.cpp`): The standalone `dmq-thread` application that receives and visualizes the aggregated telemetry.
 
 ### Integrating Thread Monitoring into Your App
@@ -50,14 +50,16 @@ dmq::util::ThreadMonitor::Register(&myNetworkThread);
 ```
 
 #### 2. Start the Monitor
-Enable the 1Hz telemetry polling:
+Enable the polling (every 2 s):
 
 ```cpp
 dmq::util::ThreadMonitor::Enable();
 ```
 
-#### 3. Start NodeBridge
-Ensure `NodeBridge` is started (see [Integrating NodeBridge into Your App](#integrating-nodebridge-into-your-app) below). It will automatically discover and broadcast the thread statistics.
+#### 3. Start NodeBridge (or NodeReporter)
+Ensure `NodeBridge` is started (see [Integrating NodeBridge into Your App](#integrating-nodebridge-into-your-app) below), or a `NodeReporter` on an embedded target. It forwards the thread statistics.
+
+`ThreadMonitor` needs `DMQ_DATABUS_TOOLS` (per-thread statistics: each thread times its dispatches). It is on by default for desktop DataBus builds and off on embedded ones; define it to monitor a board's threads.
 
 ### Usage
 
@@ -74,7 +76,7 @@ Ensure `NodeBridge` is started (see [Integrating NodeBridge into Your App](#inte
 ./dmq-thread --once 10
 ```
 
-`dmq-target` (built with the tools) enables `ThreadMonitor`, so `dmq-target` and `dmq-thread` side by side show its `SpyBridge` thread.
+`dmq-target` (built with the tools) enables `ThreadMonitor`, so `dmq-target` and `dmq-thread` side by side show its `SpyReporter` thread.
 
 ---
 
@@ -148,7 +150,7 @@ int main() {
 }
 ```
 
-#### On an Embedded Target
+#### SpyReporter on an Embedded Target
 
 A board with a network uses the library's `SpyReporter` directly, with its port's UDP transport (no `tools/` code, no iostreams). It reports as its own node, with its own clock:
 
@@ -299,17 +301,20 @@ A `name:` or `name=` before a number names it (a unit in parentheses is allowed)
 *   **Unicast & Multicast Support**: Receive heartbeats point-to-point or via a shared multicast group.
 *   **Interactive Navigation**: Arrow keys to select a node, `c` to clear offline entries, `r` to reset health counts, `q` to quit.
 *   **Snapshot Mode**: `--once <sec>` listens for a while, prints the table and every node's details as text, and exits, for scripts and bug reports.
-*   **Zero-Impact Architecture**: The Node Bridge uses a dedicated background thread with a 1-second heartbeat interval that does not block your application.
+*   **Zero-Impact Architecture**: The node reporter sends from its own background thread, with a 1-second heartbeat (`DMQ_NODE_REPORTER_HEARTBEAT_MS`), and drops rather than blocks your application.
 
 ### How it Works
 
 1.  **The Node Monitor Console** (`apps/monitor.cpp`): The standalone `dmq-monitor` application that displays the topology table.
-2.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): A component you add to each application node. It subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then broadcasts a `dmq::NodeInfoPacket` heartbeat over UDP every second, followed by a `dmq::NodeHealthPacket` with its health counters.
+2.  **The Node Reporter** (`src/delegate-mq/extras/databus/NodeReporter.h`, library code): subscribes to `dmq::databus::DataBus::Monitor` to auto-discover topics and message counts, then sends a `dmq::NodeInfoPacket` heartbeat every second, followed by a `dmq::NodeHealthPacket` with its health counters (`extras/databus/NodePackets.h`). Each goes through any DelegateMQ transport as one message, with its own remote ID (`NODE_INFO_REMOTE_ID`, `NODE_HEALTH_REMOTE_ID`). It runs on embedded targets as well as desktops.
+3.  **The Node Bridge** (`bridge/node/NodeBridge.cpp/.h`): the desktop front end, `NodeBridge::Start()`/`StartMulticast()`/`Watch()`. It runs a `NodeReporter` over its own UDP socket and adds the hostname and this machine's address.
+
+`dmq-monitor` and `dmq-thread` accept only these framed messages. Apps built with DelegateMQ before the node reporter don't show up in newer consoles, and the reverse; rebuild both.
 
 ### Integrating NodeBridge into Your App
 
 #### 1. Include the Bridge
-Add `tools/bridge/node/NodeBridge.cpp`, `tools/bridge/node/NodeBridge.h`, and `tools/bridge/node/NodeInfoPacket.h` to your build system (include directories `tools/bridge/node` and `tools/net`) and enable `DMQ_DATABUS_TOOLS`.
+Add `tools/bridge/node/NodeBridge.cpp` and `tools/bridge/node/NodeBridge.h` to your build system (include directories `tools/bridge/node` and `tools/net`) and enable `DMQ_DATABUS_TOOLS`.
 
 #### 2. Start the Bridge
 Call `Start` (unicast) or `StartMulticast` at application initialization, providing a unique node ID:
@@ -342,6 +347,32 @@ NodeBridge::Watch(retryMonitor);       // dmq::util::RetryMonitor
 ```
 
 `Watch()` can be called before or after `Start()`. `Stop()` drops all watches. A watched object must stay alive until `Stop()`, or until it is destroyed itself.
+
+#### NodeReporter on an Embedded Target
+
+A board with a network uses the library's `NodeReporter` directly, with its port's UDP transport. Send to the multicast group: `dmq-monitor` and `dmq-thread` share port 9998, and a unicast packet reaches only one of them.
+
+```cpp
+#include "extras/databus/NodeReporter.h"
+
+static dmq::transport::UdpTransport transport;    // the port's UDP transport
+static dmq::databus::NodeReporter reporter;
+
+transport.Create(dmq::transport::UdpTransport::Type::PUB, "239.1.1.1", 9998);
+reporter.Watch(networkNode);                      // optional: its peers' link health
+reporter.GetThread().SetThreadPriority(2);        // optional, before Start(): priority, stack, core
+reporter.Start(transport, "Controller", "192.168.0.241", "esp32s3");   // name, address, hostname
+
+// dmq-thread: per-thread statistics (needs DMQ_DATABUS_TOOLS)
+dmq::util::ThreadMonitor::Register(&pumpThread);
+dmq::util::ThreadMonitor::Register(networkNode.GetThread());
+dmq::util::ThreadMonitor::Enable();
+```
+
+- **Its own thread**, like `SpyReporter`: the queue (heartbeat ticks, thread statistics) drops when full, a failed send is dropped too, and every drop is counted (`GetDropped()`) and reported (`OnDropped`). Queue size `DMQ_NODE_REPORTER_QUEUE_SIZE` (default 16), heartbeat `DMQ_NODE_REPORTER_HEARTBEAT_MS` (default 1000) or `Start()`'s arguments; optional watchdog in `Start()`.
+- **The message count and topics** are counted on the publishing thread (a counter and a set lookup under a mutex), through `DataBus::Monitor()`.
+- **Timers:** the heartbeat is a `dmq::util::Timer`, so the target must call `Timer::ProcessTimers()`.
+- **Cost on an ESP32-S3:** about 32 KB of flash and 6 KB of static RAM, with `ThreadMonitor` and `DMQ_DATABUS_TOOLS`. See [Pumptron's ESP32-S3 controller](../example/pumptron/PUMPTRON.md#esp32-s3-firmware).
 
 ### Link Health
 
@@ -478,7 +509,7 @@ See [bridge/README.md](bridge/README.md) for an overview of the bridges and how 
 |-----------|----------|
 | `bridge/common/` | Shared JSON bridge layer: `JsonTopics`, `BridgeJson.h`, `BridgeCommon.cmake` |
 | `bridge/spy/` | `SpyBridge` (DataBus traffic to `dmq-spy`) |
-| `bridge/node/` | `NodeBridge`, `NodeInfoPacket.h` (heartbeats to `dmq-monitor` / `dmq-thread`) |
+| `bridge/node/` | `NodeBridge`, the desktop front end of the library's `NodeReporter` (heartbeats to `dmq-monitor` / `dmq-thread`) |
 | `bridge/mqtt/` | `MqttBridge`, `MqttBridge.cmake` |
 
 ---

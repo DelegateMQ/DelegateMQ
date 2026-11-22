@@ -14,6 +14,7 @@ extern int DataBusErrorTestMain();
 extern int DataBusCapacityTestMain();
 extern int NetworkNodeTestMain();
 extern int ThreadMonitorTestMain();
+extern int NodeReporterTestMain();
 
 void RunDataBusTests() {
     std::cout << "--- Running DataBus Unit Tests ---" << std::endl;
@@ -28,6 +29,7 @@ void RunDataBusTests() {
     DataBusCapacityTestMain(); // Disabled by default (#if 0) — see DataBusErrorTest.cpp
     NetworkNodeTestMain();
     ThreadMonitorTestMain();
+    NodeReporterTestMain();
     std::cout << "--- DataBus Unit Tests Completed ---" << std::endl;
 }
 

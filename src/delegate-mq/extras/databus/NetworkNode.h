@@ -177,6 +177,16 @@ public:
         return m_coreMask;
     }
 
+    /// @brief This node's thread (it receives, and sends to every peer), e.g. to
+    ///        register it with dmq::util::ThreadMonitor; nullptr before Start().
+    /// @note The thread lives until the node is destroyed: Start() again after
+    ///       Stop() makes a new one.
+    dmq::os::Thread* GetThread()
+    {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        return m_thread ? &*m_thread : nullptr;
+    }
+
     /// @brief Open the inbound transport and start the receive thread.
     ///
     /// @param nodeName    Human-readable name used for thread naming and logging.

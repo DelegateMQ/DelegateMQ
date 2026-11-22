@@ -35,6 +35,25 @@ menu "Pumptron"
         default 9999
         depends on APP_SPY
 
+    config APP_MONITOR
+        bool "Report to dmq-monitor and dmq-thread"
+        default y
+        help
+            The controller's heartbeat, link health and threads (Pump, the
+            link, the reporters) go to dmq-monitor and dmq-thread on the PC
+            (DelegateMQ's NodeReporter), to the multicast group both listen
+            on.
+
+    config APP_MONITOR_GROUP
+        string "dmq-monitor / dmq-thread multicast group"
+        default "239.1.1.1"
+        depends on APP_MONITOR
+
+    config APP_MONITOR_PORT
+        int "dmq-monitor / dmq-thread UDP port"
+        default 9998
+        depends on APP_MONITOR
+
     config APP_LED_GPIO
         int "RGB LED (WS2812) GPIO"
         default 38

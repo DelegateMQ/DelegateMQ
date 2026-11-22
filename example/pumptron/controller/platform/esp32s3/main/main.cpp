@@ -19,6 +19,10 @@
  *     the GUI), next to ESP-IDF's Wi-Fi and TCP/IP tasks, which it talks to.
  *   - Core 0: "SpyReporter" (CONFIG_APP_SPY), low priority: sends every DataBus
  *     message to dmq-spy on the PC, as sender "Controller".
+ *   - Core 0: "NodeReporter" (CONFIG_APP_MONITOR), low priority: heartbeat and
+ *     link health to dmq-monitor, thread statistics to dmq-thread.
+ *   - Any core: "ThreadMonitor" (CONFIG_APP_MONITOR): every 2 s, publishes
+ *     the registered threads' queue depth and dispatch latency.
  *   - Core 0: this task, app_main ("main"): Timer::ProcessTimers() every 10 ms
  *     (drives the pump's control and heartbeat timers and the link's receive
  *     poll), the thread watchdog, and the ESP-IDF task watchdog (TWDT).
@@ -28,6 +32,8 @@
 #include "DelegateMQ.h"
 #include "extras/databus/NetworkNode.h"
 #include "extras/databus/SpyReporter.h"
+#include "extras/databus/NodeReporter.h"
+#include "extras/util/ThreadMonitor.h"
 #include "pump/PumpController.h"
 #include "pump/LinkErrorReporter.h"
 #include "util/Stringifiers.h"
@@ -77,9 +83,11 @@ void PrintTasks()
     printf("\n");
 }
 
+/// The diagnostic reporters' threads: below the application's, so their
+/// traffic waits and the pump never does
+constexpr int PRIORITY_DIAGNOSTICS = 2;
+
 #if CONFIG_APP_SPY
-/// Below the application's threads: spy traffic waits, the pump never does
-constexpr int PRIORITY_SPY = 2;
 
 void OnSpyDropped(uint32_t total)
 {
@@ -92,7 +100,8 @@ void OnSpyDropped(uint32_t total)
 /// Every message on this node's DataBus -> dmq-spy on the PC, as sender
 /// "Controller", with this board's timestamps. Started before the link, so
 /// the first messages are already labeled and sent.
-void StartSpy()
+/// @return The reporter's thread (for ThreadMonitor), or nullptr if not started.
+dmq::os::Thread* StartSpy()
 {
     static dmq::transport::UdpTransport transport;
     static dmq::databus::SpyReporter spy;
@@ -101,15 +110,58 @@ void StartSpy()
     RegisterStringifiers();     // values as text in dmq-spy
     if (transport.Create(dmq::transport::UdpTransport::Type::PUB, CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT) != 0) {
         printf("SpyReporter: could not open UDP to %s:%d, dmq-spy off\n", CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT);
-        return;
+        return nullptr;
     }
     droppedConn = spy.OnDropped.Connect(dmq::MakeDelegate(&OnSpyDropped));
     spy.GetThread().SetCoreAffinity(NET_CORE_MASK);
-    spy.GetThread().SetThreadPriority(PRIORITY_SPY);
+    spy.GetThread().SetThreadPriority(PRIORITY_DIAGNOSTICS);
     // Watched like the pump and the link: a spy thread stuck in Send() is a
     // hung thread (WatchdogCheckAll() in the platform loop)
-    if (spy.Start(transport, "Controller", WATCHDOG_TIMEOUT))
-        printf("SpyReporter: DataBus traffic to dmq-spy at %s:%d\n", CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT);
+    if (!spy.Start(transport, "Controller", WATCHDOG_TIMEOUT))
+        return nullptr;
+    printf("SpyReporter: DataBus traffic to dmq-spy at %s:%d\n", CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT);
+    return &spy.GetThread();
+}
+#endif
+
+#if CONFIG_APP_MONITOR
+void OnMonitorDropped(uint32_t total)
+{
+    if (total == 1 || total % 100 == 0)
+        printf("NodeReporter: %lu messages dropped (queue full or send failed)\n",
+               static_cast<unsigned long>(total));
+}
+
+/// This node to dmq-monitor (heartbeat, the link's health) and its threads to
+/// dmq-thread (ThreadMonitor's statistics), on the multicast group both
+/// consoles listen on. After the link and the pump have started.
+void StartMonitor(ControllerLink& link, pump::PumpController& pumpController, dmq::os::Thread* spyThread)
+{
+    static dmq::transport::UdpTransport transport;
+    static dmq::databus::NodeReporter reporter;
+    static dmq::ScopedConnection droppedConn;
+
+    if (transport.Create(dmq::transport::UdpTransport::Type::PUB, CONFIG_APP_MONITOR_GROUP, CONFIG_APP_MONITOR_PORT) != 0) {
+        printf("NodeReporter: could not open UDP to %s:%d, dmq-monitor off\n",
+               CONFIG_APP_MONITOR_GROUP, CONFIG_APP_MONITOR_PORT);
+        return;
+    }
+    droppedConn = reporter.OnDropped.Connect(dmq::MakeDelegate(&OnMonitorDropped));
+    reporter.Watch(link);                               // its peers' ACK timeouts, failures, backlogs
+    reporter.GetThread().SetCoreAffinity(NET_CORE_MASK);
+    reporter.GetThread().SetThreadPriority(PRIORITY_DIAGNOSTICS);
+    if (!reporter.Start(transport, "Controller", esp32s3::WifiAddress(), "esp32s3",
+                        dmq::NODE_REPORTER_HEARTBEAT, WATCHDOG_TIMEOUT))
+        return;
+
+    // The threads dmq-thread shows: queue depth and dispatch latency, every 2 s
+    dmq::util::ThreadMonitor::Register(&pumpController.GetThread());
+    dmq::util::ThreadMonitor::Register(link.GetThread());
+    dmq::util::ThreadMonitor::Register(&reporter.GetThread());
+    if (spyThread)
+        dmq::util::ThreadMonitor::Register(spyThread);
+    dmq::util::ThreadMonitor::Enable();
+    printf("NodeReporter: to dmq-monitor and dmq-thread at %s:%d\n", CONFIG_APP_MONITOR_GROUP, CONFIG_APP_MONITOR_PORT);
 }
 #endif
 
@@ -123,8 +175,9 @@ extern "C" void app_main()
         return;
     }
 
+    dmq::os::Thread* spyThread = nullptr;
 #if CONFIG_APP_SPY
-    StartSpy();
+    spyThread = StartSpy();
 #endif
 
     // Built here, after Wi-Fi: dmq::os::Thread and the UDP sockets need the
@@ -147,6 +200,10 @@ extern "C" void app_main()
     pumpController.GetThread().SetThreadPriority(PRIORITY_PUMP);
     pumpController.GetThread().SetCoreAffinity(PUMP_CORE_MASK);
     pumpController.Start(WATCHDOG_TIMEOUT);
+
+#if CONFIG_APP_MONITOR
+    StartMonitor(link, pumpController, spyThread);
+#endif
 
     printf("Pumptron controller (ESP32-S3) at %s, UDP %u; GUI at %s:%u\n",
            esp32s3::WifiAddress(), CONTROLLER_UDP_PORT, CONFIG_APP_GUI_ADDRESS, GUI_UDP_PORT);

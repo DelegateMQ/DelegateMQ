@@ -80,14 +80,17 @@ file(GLOB_RECURSE COMMON_SOURCES CONFIGURE_DEPENDS
     "${PUMPTRON_COMMON_DIR}/*.cpp"
 )
 
-# --- DataBus tools bridge (--spy) ---
-# SpyBridge mirrors this node's DataBus traffic to dmq-spy over UDP. Requires
-# DMQ_DATABUS_TOOLS, on by default for desktop DataBus builds.
+# --- DataBus tools bridges (--spy, --monitor) ---
+# SpyBridge mirrors this node's DataBus traffic to dmq-spy over UDP; NodeBridge
+# reports the node, its link health and its threads to dmq-monitor and
+# dmq-thread. Requires DMQ_DATABUS_TOOLS, on by default for desktop DataBus builds.
 set(TOOLS_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/bridge")
 set(TOOLS_NET_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/net")
 set(TOOLS_SOURCES
     ${TOOLS_BRIDGE_DIR}/spy/SpyBridge.cpp
     ${TOOLS_BRIDGE_DIR}/spy/SpyBridge.h
+    ${TOOLS_BRIDGE_DIR}/node/NodeBridge.cpp
+    ${TOOLS_BRIDGE_DIR}/node/NodeBridge.h
 )
 
 set(GUI_SOURCES
@@ -121,6 +124,7 @@ target_include_directories(pumptron_gui PRIVATE
     ${PUMPTRON_COMMON_DIR}
     ${DMQ_INCLUDE_DIR}
     ${TOOLS_BRIDGE_DIR}/spy
+    ${TOOLS_BRIDGE_DIR}/node
     ${TOOLS_NET_DIR}
 )
 

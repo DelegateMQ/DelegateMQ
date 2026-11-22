@@ -35,13 +35,16 @@ idf_component_register(
 
 # The F4 build's options (FreeRTOS, the built-in serializer, DataBus, the
 # fixed-block allocator, Pumptron's DelegateMQConfig.h), with UDP over lwIP's
-# sockets instead of the STM32 UART. DMQ_FREERTOS_STACK_WORDS: on ESP-IDF a
+# sockets instead of the STM32 UART. DMQ_DATABUS_TOOLS: per-thread statistics
+# (queue depth, dispatch latency) for ThreadMonitor -> dmq-thread
+# (CONFIG_APP_MONITOR); it times every dispatch, a small cost on each thread. DMQ_FREERTOS_STACK_WORDS: on ESP-IDF a
 # stack is sized in bytes (StackType_t is one byte).
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     DMQ_THREAD_FREERTOS
     DMQ_SERIALIZE_SERIALIZE
     DMQ_TRANSPORT_ARM_LWIP_UDP
     DMQ_DATABUS
+    DMQ_DATABUS_TOOLS
     DMQ_ALLOCATOR
     DMQ_USER_CONFIG="DelegateMQConfig.h"
     DMQ_FREERTOS_STACK_WORDS=8192

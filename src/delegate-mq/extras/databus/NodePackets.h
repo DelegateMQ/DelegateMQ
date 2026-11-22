@@ -1,9 +1,12 @@
-// NodeInfoPacket.h
-// @see https://github.com/DelegateMQ/DelegateMQ
-// Node heartbeat packet for the DelegateMQ Node Monitor.
+#ifndef DMQ_NODE_PACKETS_H
+#define DMQ_NODE_PACKETS_H
 
-#ifndef NODE_INFO_PACKET_H
-#define NODE_INFO_PACKET_H
+/// @file NodePackets.h
+/// @brief What NodeReporter sends to DelegateMQ's diagnostic consoles, and the
+/// remote IDs that identify each message: node heartbeats and health counters
+/// for dmq-monitor, thread statistics (dmq::util::ThreadStatsPacket) for
+/// dmq-thread. Each goes out as one DelegateMQ message: a header with the
+/// remote ID below, then the serialized packet.
 
 #include <cstdint>
 #include "delegate/DelegateOpt.h"
@@ -11,22 +14,25 @@
 
 namespace dmq {
 
-enum class PacketType : uint8_t {
-    NodeInfo    = 1,
-    ThreadStats = 2,
-    SpyData     = 3,
-    Health      = 4,
-};
+namespace databus {
 
-/// @brief Heartbeat packet broadcast by NodeBridge to identify a node on the DataBus network.
-/// @details Periodically serialized and transmitted by NodeBridge. The dmq-monitor console
+/// @brief Remote IDs reserved for the diagnostic consoles, next to
+/// SPY_REMOTE_ID (0xFFFE, SpyPacket.h). Don't use them for application messages.
+inline constexpr uint16_t NODE_INFO_REMOTE_ID    = 0xFFFD;  ///< NodeInfoPacket (dmq-monitor)
+inline constexpr uint16_t NODE_HEALTH_REMOTE_ID  = 0xFFFC;  ///< NodeHealthPacket (dmq-monitor)
+inline constexpr uint16_t THREAD_STATS_REMOTE_ID = 0xFFFB;  ///< dmq::util::ThreadStatsPacket (dmq-thread)
+
+} // namespace databus
+
+/// @brief Heartbeat packet sent by NodeReporter to identify a node on the DataBus network.
+/// @details Periodically serialized and transmitted by NodeReporter. The dmq-monitor console
 /// listens for these packets and builds a live view of all active nodes.
 struct NodeInfoPacket : public serialize::I {
     XALLOCATOR
     dmq::xstring nodeId;        ///< User-assigned node name (e.g. "SensorNode-1")
     dmq::xstring hostname;      ///< Machine hostname
     dmq::xstring ipAddress;     ///< Self-reported IP address
-    uint64_t    uptimeMs    = 0;    ///< Milliseconds since NodeBridge::Start()
+    uint64_t    uptimeMs    = 0;    ///< Milliseconds since NodeReporter::Start()
     uint32_t    totalMsgCount = 0;  ///< Total DataBus messages published since start
     dmq::xstring topicsStr;     ///< Semicolon-delimited topics (e.g. "sensor/temp;system/status")
 
@@ -49,11 +55,10 @@ struct NodeInfoPacket : public serialize::I {
     }
 };
 
-/// @brief Health counters broadcast by NodeBridge next to each heartbeat.
-/// @details A separate packet type rather than extra NodeInfoPacket fields, so
-/// mixed versions keep working: an older dmq-monitor ignores packet types it
-/// doesn't know, and a newer one shows "-" for nodes that never send this.
-/// Counters are totals since NodeBridge::Start(); dmq-monitor computes recent
+/// @brief Health counters sent by NodeReporter next to each heartbeat.
+/// @details A separate message (NODE_HEALTH_REMOTE_ID) rather than extra
+/// NodeInfoPacket fields: dmq-monitor shows "-" for a node that never sends it.
+/// Counters are totals since NodeReporter::Start(); dmq-monitor computes recent
 /// activity from successive packets, so a lost packet loses nothing.
 struct NodeHealthPacket : public serialize::I {
     XALLOCATOR
@@ -100,4 +105,4 @@ struct NodeHealthPacket : public serialize::I {
 
 } // namespace dmq
 
-#endif // NODE_INFO_PACKET_H
+#endif // DMQ_NODE_PACKETS_H

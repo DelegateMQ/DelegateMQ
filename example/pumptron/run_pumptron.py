@@ -12,7 +12,9 @@ the operator console is started, on the given serial port:
 
 Or the flashed ESP32-S3-DevKitC-1, over Wi-Fi: the operator console is
 started, talking UDP to the board's address (it prints it at startup), with
-dmq-spy showing the traffic both ways (--no-spy to leave it out):
+DelegateMQ's three diagnostic consoles (--no-tools to leave them out):
+dmq-spy (the traffic, from both the board and the GUI), dmq-monitor (both
+nodes and their link health) and dmq-thread (both nodes' threads):
     python run_pumptron.py --udp 192.168.0.241
 
 Headless end-to-end check instead of the interactive console (either mode):
@@ -22,6 +24,10 @@ Headless end-to-end check instead of the interactive console (either mode):
 Watch all DataBus traffic, including everything received from the controller,
 in dmq-spy -- and optionally plot it live in PlotJuggler (either mode):
     python run_pumptron.py --spy
+
+Show the GUI node, its link health and its threads in dmq-monitor and
+dmq-thread (any mode):
+    python run_pumptron.py --monitor
     python run_pumptron.py --serial COM5 --plotjuggler
 
 Publish pump status, telemetry and alarms to an MQTT broker (default
@@ -125,7 +131,7 @@ def main():
                            "(e.g. COM5, /dev/ttyUSB0). Only the operator console is started.")
     link.add_argument("--udp", metavar="ADDRESS",
                       help="Controller is a real ESP32-S3 board at this IPv4 address, over Wi-Fi. "
-                           "Starts the operator console and dmq-spy (see --no-spy).")
+                           "Starts the operator console and the diagnostic consoles (see --no-tools).")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200)")
     parser.add_argument("--config", choices=["Debug", "Release"], default=None,
                         help="Build configuration to launch (default: whichever is built, "
@@ -136,8 +142,12 @@ def main():
     parser.add_argument("--spy", action="store_true",
                         help="Open dmq-spy and have the GUI mirror its DataBus traffic to it -- including "
                              "every message received from the controller over the link")
-    parser.add_argument("--no-spy", action="store_true",
-                        help="With --udp: don't open dmq-spy (opened by default for the ESP32-S3)")
+    parser.add_argument("--monitor", action="store_true",
+                        help="Open dmq-monitor and dmq-thread, and have the GUI report its node, link health "
+                             "and threads to them (multicast 239.1.1.1:9998)")
+    parser.add_argument("--no-tools", action="store_true",
+                        help="With --udp: don't open dmq-spy, dmq-monitor and dmq-thread "
+                             "(opened by default for the ESP32-S3)")
     parser.add_argument("--plotjuggler", action="store_true",
                         help="Like --spy, and dmq-spy also forwards numeric values to PlotJuggler's UDP "
                              "Server (127.0.0.1:9870) for live plots. See tools/TOOLS.md")
@@ -152,8 +162,11 @@ def main():
     args = parser.parse_args()
 
     simulate = args.serial is None and args.udp is None
-    # The ESP32-S3 link is a network: show its traffic in dmq-spy by default
-    use_spy = args.spy or args.plotjuggler or (args.udp is not None and not args.no_spy)
+    # The ESP32-S3 is on the network and reports to the consoles itself: open
+    # them all by default
+    board_tools = args.udp is not None and not args.no_tools
+    use_spy = args.spy or args.plotjuggler or board_tools
+    use_monitor = args.monitor or board_tools
     if args.mqtt_control and not args.mqtt:
         parser.error("--mqtt-control requires --mqtt")
 
@@ -194,6 +207,8 @@ def main():
         gui_args.append("--selftest")
     if use_spy:
         gui_args.append("--spy")
+    if use_monitor:
+        gui_args.append("--monitor")
     if args.mqtt:
         gui_args += ["--mqtt", args.mqtt, "--mqtt-prefix", args.mqtt_prefix]
         if args.mqtt_control:
@@ -224,6 +239,17 @@ def main():
             spy_args = ["9999"] + (["--plotjuggler"] if args.plotjuggler else [])
             print(f"Launching dmq-spy ({spy_exe} {' '.join(spy_args)})...")
             processes.append(launch_in_new_terminal(spy_exe, spy_args))
+
+        if use_monitor:
+            # Both listen on port 9998, on the multicast group the reporters send to
+            for name in ("dmq-monitor", "dmq-thread"):
+                exe = find_tool(name)
+                if not exe:
+                    print(f"WARNING: {name} not found in tools/bin (build the tools first): skipped")
+                    continue
+                tool_args = ["9998", "--multicast", "239.1.1.1"]
+                print(f"Launching {name} ({exe} {' '.join(tool_args)})...")
+                processes.append(launch_in_new_terminal(exe, tool_args))
             time.sleep(0.5)     # let it bind before traffic starts
 
         if simulate:
@@ -258,6 +284,9 @@ def main():
             subprocess.run(["pkill", "-9", "-f", "pumptron_controller"], stderr=subprocess.DEVNULL)
         if use_spy and not IS_WINDOWS:
             subprocess.run(["pkill", "-9", "-f", "dmq-spy"], stderr=subprocess.DEVNULL)
+        if use_monitor and not IS_WINDOWS:
+            subprocess.run(["pkill", "-9", "-f", "dmq-monitor"], stderr=subprocess.DEVNULL)
+            subprocess.run(["pkill", "-9", "-f", "dmq-thread"], stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

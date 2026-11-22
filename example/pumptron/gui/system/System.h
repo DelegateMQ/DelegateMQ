@@ -68,6 +68,11 @@ public:
     const LinkStats& GetLinkStats() const { return m_stats; }
     const std::string& GetLinkDescription() const { return m_linkDescription; }
 
+    /// For dmq-monitor and dmq-thread (--monitor): register this node's threads
+    /// with ThreadMonitor and give its link to NodeBridge for the health column.
+    /// Call after Initialize(), with NodeBridge started.
+    void StartNodeMonitor();
+
     /// Suspend/resume the GUI heartbeat (self-test: simulate a lost GUI).
     void SetHeartbeatEnabled(bool enabled) { m_heartbeatEnabled = enabled; }
 

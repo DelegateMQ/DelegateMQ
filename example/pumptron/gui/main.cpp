@@ -7,6 +7,8 @@
  *   pumptron_gui --udp                             FreeRTOS simulator on localhost
  *   pumptron_gui --udp <address>                   ESP32-S3 controller over Wi-Fi
  *   Add --selftest to run a headless end-to-end check instead of the UI.
+ *   Add --monitor to report this node, its link health and its threads to
+ *   dmq-monitor and dmq-thread (multicast 239.1.1.1:9998).
  *   Add --spy to mirror all DataBus traffic, including messages received over
  *   the link, to dmq-spy (see PUMPTRON.md, "Monitoring with dmq-spy").
  *   Add --mqtt <broker-uri> to publish pump status/telemetry/alarms to MQTT, and
@@ -21,6 +23,7 @@
 #include "selftest/SelfTest.h"
 #include "util/Constants.h"
 #include "SpyBridge.h"
+#include "NodeBridge.h"
 #if defined(PUMPTRON_HAVE_MQTT)
 #include "system/MqttGateway.h"
 #include "JsonTopics.h"
@@ -37,6 +40,10 @@ using namespace pumptron;
 
 /// dmq-spy's default listen port.
 static constexpr int SPY_DEFAULT_PORT = 9999;
+
+/// Where dmq-monitor and dmq-thread listen (both on one port, so multicast).
+static constexpr const char* MONITOR_GROUP = "239.1.1.1";
+static constexpr uint16_t MONITOR_PORT = 9998;
 
 struct SpyOptions {
     bool enabled = false;
@@ -60,6 +67,8 @@ static void PrintUsage(const char* exe)
     printf("  Add --selftest to run a headless end-to-end check of the controller instead of the UI.\n");
     printf("  Add --spy [--spy-address <host:port>] to mirror DataBus traffic to dmq-spy (default 127.0.0.1:%d).\n",
            SPY_DEFAULT_PORT);
+    printf("  Add --monitor to report to dmq-monitor and dmq-thread (multicast %s:%u).\n", MONITOR_GROUP,
+           static_cast<unsigned>(MONITOR_PORT));
 #if defined(PUMPTRON_HAVE_MQTT)
     printf("  Add --mqtt <broker-uri> [--mqtt-prefix <name>] [--mqtt-control] to publish pump data to MQTT\n");
     printf("    (e.g. tcp://127.0.0.1:1883, prefix \"pumptron\"); --mqtt-control also accepts pump commands.\n\n");
@@ -94,7 +103,7 @@ static bool ParseSpyAddress(const std::string& addr, SpyOptions& spy)
 }
 
 static bool ParseArgs(int argc, char* argv[], System::Options& options, bool& selfTest, SpyOptions& spy,
-                      MqttOptions& mqtt)
+                      bool& monitor, MqttOptions& mqtt)
 {
     bool haveLink = false;
     options.baud = SERIAL_BAUD;
@@ -113,6 +122,8 @@ static bool ParseArgs(int argc, char* argv[], System::Options& options, bool& se
             spy.enabled = true;
             if (!ParseSpyAddress(argv[++i], spy))
                 return false;
+        } else if (!strcmp(argv[i], "--monitor")) {
+            monitor = true;
         } else if (!strcmp(argv[i], "--mqtt") && i + 1 < argc) {
             mqtt.brokerUri = argv[++i];
         } else if (!strcmp(argv[i], "--mqtt-prefix") && i + 1 < argc) {
@@ -147,7 +158,8 @@ int main(int argc, char* argv[])
     bool selfTest = false;
     SpyOptions spy;
     MqttOptions mqtt;
-    if (!ParseArgs(argc, argv, options, selfTest, spy, mqtt)) {
+    bool monitor = false;
+    if (!ParseArgs(argc, argv, options, selfTest, spy, monitor, mqtt)) {
         PrintUsage(argv[0]);
         return 1;
     }
@@ -179,6 +191,13 @@ int main(int argc, char* argv[])
             SpyBridge::Stop();
         System::GetInstance().Shutdown();
         return 1;
+    }
+
+    // --monitor: this node, its link health and its threads to dmq-monitor and
+    // dmq-thread, which share port 9998 on the multicast group
+    if (monitor) {
+        NodeBridge::StartMulticast("GUI", MONITOR_GROUP, MONITOR_PORT);
+        System::GetInstance().StartNodeMonitor();
     }
 
 #if defined(PUMPTRON_HAVE_MQTT)
@@ -233,6 +252,10 @@ int main(int argc, char* argv[])
 #endif
     if (spy.enabled)
         SpyBridge::Stop();
+    if (monitor) {
+        dmq::util::ThreadMonitor::Disable();
+        NodeBridge::Stop();
+    }
     System::GetInstance().Shutdown();
 
     // The watchdog thread never returns from OnWatchdog(); skip static

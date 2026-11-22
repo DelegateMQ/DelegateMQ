@@ -1,4 +1,6 @@
 #include "System.h"
+#include "NodeBridge.h"
+#include "extras/util/ThreadMonitor.h"
 #include "util/Topology.h"
 #include "messages/HeartbeatMsg.h"
 #include "CoreDumpFile.h"
@@ -74,6 +76,23 @@ bool System::Initialize(const Options& options, std::string& error)
         util::MakeTimerDelegate(this, &System::OnHeartbeatTick, m_thread));
     m_heartbeatTimer.Start(HEARTBEAT_PERIOD);
     return true;
+}
+
+void System::StartNodeMonitor()
+{
+    dmq::util::ThreadMonitor::Register(&m_thread);
+#if defined(PUMPTRON_HAVE_SERIAL)
+    if (m_serial) {
+        dmq::util::ThreadMonitor::Register(&m_serial->GetSendThread());
+        dmq::util::ThreadMonitor::Register(&m_serial->GetRecvThread());
+        NodeBridge::Watch(*m_serial);
+    }
+#endif
+    if (m_udp) {
+        dmq::util::ThreadMonitor::Register(m_udp->GetThread());
+        NodeBridge::Watch(*m_udp);
+    }
+    dmq::util::ThreadMonitor::Enable();
 }
 
 void System::Shutdown()

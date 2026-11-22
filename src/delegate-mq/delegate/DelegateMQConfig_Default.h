@@ -226,6 +226,21 @@
     #define DMQ_SPY_REPORTER_QUEUE_SIZE       64
 #endif
 
+// Default NodeReporter send queue: heartbeat ticks and thread statistics
+// waiting to go to dmq-monitor / dmq-thread. When it's full, new ones are
+// dropped (counted, reported by NodeReporter::OnDropped). Override per
+// instance via NodeReporter's constructor.
+#ifndef DMQ_NODE_REPORTER_QUEUE_SIZE
+    #define DMQ_NODE_REPORTER_QUEUE_SIZE      16
+#endif
+
+// Default NodeReporter heartbeat period (ms): how often a node sends its
+// heartbeat and health counters to dmq-monitor. Override per instance via
+// NodeReporter::Start().
+#ifndef DMQ_NODE_REPORTER_HEARTBEAT_MS
+    #define DMQ_NODE_REPORTER_HEARTBEAT_MS    1000
+#endif
+
 // Max messages drained per NetworkNode::ReceiverThread() tick (applies to both
 // the incoming-message drain and the per-peer ACK drain).
 #ifndef DMQ_NETWORK_NODE_MAX_WORK

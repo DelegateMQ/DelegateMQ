@@ -8,10 +8,9 @@
 
 #include "DelegateMQ.h"
 #include "extras/databus/SpyReporter.h"
-#include "../../net/UdpSocket.h"
+#include "../../net/UdpSocketTransport.h"
 #include <string>
 #include <memory>
-#include <vector>
 
 /// @brief Static wrapper around the library's dmq::databus::SpyReporter for
 /// desktop processes. The library bridge does the work (DataBus::Monitor(),
@@ -46,23 +45,11 @@ private:
 
     enum class TransportType { UNICAST, MULTICAST };
 
-    /// ITransport over the bridge's UDP socket: header, then payload, one datagram
-    class SocketTransport : public dmq::transport::ITransport {
-    public:
-        UdpSocket socket;
-        std::vector<uint8_t> buffer;    // header + payload; the bridge's thread only
-        int Send(const dmq::ByteWriter& os, const dmq::transport::DmqHeader& header) override;
-        int Receive(dmq::ByteReader& is, dmq::transport::DmqHeader&) override {
-            is.assign(nullptr, 0);
-            return -1;      // send only
-        }
-    };
-
     static void Init(const std::string& address, uint16_t port, TransportType type, const std::string& nodeId, const std::string& localInterface = "");
 
     struct Instance {
         std::unique_ptr<dmq::databus::SpyReporter> bridge;
-        SocketTransport transport;
+        UdpSocketTransport transport;
     };
 
     static Instance& GetInstance() {

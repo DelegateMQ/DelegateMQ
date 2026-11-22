@@ -28,7 +28,7 @@
 #include "UdpSocket.h"
 #include "extras/databus/SpyPacket.h"
 #include "port/serialize/serialize/msg_serialize.h"
-#include "port/transport/common/DmqHeader.h"
+#include "DmqFrame.h"
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -244,15 +244,10 @@ void LogPacket(const std::string& senderIp, const dmq::databus::SpyPacket& packe
 /// (marker 0xAA55, remote ID SPY_REMOTE_ID, payload length), then the
 /// serialized SpyPacket. Anything else on the port is ignored.
 static bool DecodeSpyDatagram(const uint8_t* data, size_t size, serialize& ms, dmq::databus::SpyPacket& packet) {
-    using dmq::transport::DmqHeader;
-    if (size < DmqHeader::HEADER_SIZE)
+    uint16_t id = 0;
+    dmq::ByteReader iss;
+    if (!UnframeDmq(data, size, id, iss) || id != dmq::databus::SPY_REMOTE_ID)
         return false;
-    DmqHeader header;
-    header.Decode(data);
-    if (!header.IsValid() || header.GetId() != dmq::databus::SPY_REMOTE_ID ||
-        header.GetLength() > size - DmqHeader::HEADER_SIZE)
-        return false;
-    dmq::ByteReader iss(reinterpret_cast<const char*>(data + DmqHeader::HEADER_SIZE), header.GetLength());
     ms.read(iss, packet);
     return iss.good();
 }
