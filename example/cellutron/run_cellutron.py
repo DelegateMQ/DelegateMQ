@@ -9,6 +9,15 @@ import shutil
 IS_WINDOWS = platform.system() == "Windows"
 EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
 
+# build_all.py (scripts/03-05) builds outside the source tree, in
+# out/<platform>/<project path>/<variant> (see scripts/full_suite.py):
+# out/windows/example/cellutron/default/controller/Release/... A manual build
+# goes in this folder's build/. Both are searched; the newest executable wins.
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+OUT_PLATFORM = os.environ.get("DMQ_OUT_PLATFORM") or ("windows" if IS_WINDOWS else "linux")
+OUT_DIR = os.path.join(REPO_ROOT, "out", OUT_PLATFORM)
+
 def get_newest_exe(base, relative_paths):
     """Returns the full path to the newest existing file among the options."""
     newest_path = None
@@ -143,24 +152,35 @@ def main():
         {"name": "GUI",        "exe": f"cellutron_gui{EXE_SUFFIX}"},
     ]
 
+    # build_all.py's variant name for this build: build/ -> default,
+    # build-threadx/ -> threadx
+    out_variant = "threadx" if args_parsed.threadx else "default"
+    out_base = os.path.join(OUT_DIR, "example", "cellutron")
+
     apps_to_launch = []
     for app in app_definitions:
+        sub = app['name'].lower()
         # Search for the app in various common build locations
         search_paths = [
             # Global build (from example/cellutron)
-            f"{build_dir_name}/{app['name'].lower()}/{config}/{app['exe']}",
-            f"{build_dir_name}/{app['name'].lower()}/{app['exe']}",
+            f"{build_dir_name}/{sub}/{config}/{app['exe']}",
+            f"{build_dir_name}/{sub}/{app['exe']}",
             # Local build (from example/cellutron/app)
-            f"{app['name'].lower()}/{build_dir_name}/{config}/{app['exe']}",
-            f"{app['name'].lower()}/{build_dir_name}/{app['exe']}",
+            f"{sub}/{build_dir_name}/{config}/{app['exe']}",
+            f"{sub}/{build_dir_name}/{app['exe']}",
+            # build_all.py (absolute paths: os.path.join ignores base_path)
+            os.path.join(out_base, out_variant, sub, config, app['exe']),
+            os.path.join(out_base, out_variant, sub, app['exe']),
         ]
-        
+
         exe_path = get_newest_exe(base_path, search_paths)
         if exe_path:
             apps_to_launch.append({"name": app["name"], "path": exe_path, "args": []})
         else:
             print(f"ERROR: Could not find {app['name']} ({app['exe']}) in any expected build location.")
-            print(f"Searched in: {search_paths}")
+            print("Searched in:")
+            for p in search_paths:
+                print(f"  {os.path.normpath(os.path.join(base_path, p))}")
 
     processes = []
 
@@ -179,8 +199,15 @@ def main():
 
     # 1. Launch Tools (Monitor/Spy/Thread)
     for tool in tools_definitions:
-        # Every tools build copies the executables to tools/bin
-        exe_path = get_newest_exe(base_path, [f"../../tools/bin/{tool['exe']}"])
+        # Every tools build copies the executables to tools/bin; build_all.py
+        # also leaves them in out/<platform>/tools/default
+        tools_out = os.path.join(OUT_DIR, "tools", "default")
+        exe_path = get_newest_exe(base_path, [
+            f"../../tools/bin/{tool['exe']}",
+            os.path.join(tools_out, "Release", tool['exe']),
+            os.path.join(tools_out, "Debug", tool['exe']),
+            os.path.join(tools_out, tool['exe']),
+        ])
 
         if exe_path:
             # Special case: Clean up log for DMQ Spy in its specific directory
@@ -219,7 +246,7 @@ def main():
         sys.exit(1)
 
     for app in apps_to_launch:
-        print(f"Launching {app['name']}...")
+        print(f"Launching {app['name']} ({app['path']})...")
         
         # Start each process
         p = launch_process(app["path"], app["args"], os.path.dirname(app["path"]))

@@ -105,18 +105,31 @@ def main():
     base_path = os.path.dirname(os.path.abspath(__file__))
     other_config = "Debug" if args.config == "Release" else "Release"
 
+    # build_all.py (scripts/03-05) builds outside the source tree, in
+    # out/<platform>/<project path>/<variant> (see scripts/full_suite.py):
+    # out/windows/example/sample-projects/databus/relay/gateway/default/Release/...
+    # A manual build goes in each node's build/. Both are searched; the newest wins.
+    repo_root = os.path.normpath(os.path.join(base_path, "..", "..", "..", ".."))
+    out_platform = os.environ.get("DMQ_OUT_PLATFORM") or ("windows" if IS_WINDOWS else "linux")
+    out_base = os.path.join(repo_root, "out", out_platform,
+                            os.path.relpath(base_path, repo_root))
+
     to_launch = []
     for node in NODES:
         exe = node["exe"] + EXE_SUFFIX
+        build_dirs = [os.path.join(base_path, node["dir"], "build"),
+                      os.path.join(out_base, node["dir"], "default")]
         # Preferred config first; the other config (or a single-config build) only as fallback.
-        exe_path = get_newest_exe(base_path, [f"{node['dir']}/build/{args.config}/{exe}"])
+        exe_path = get_newest_exe(base_path, [os.path.join(d, args.config, exe) for d in build_dirs])
         if not exe_path:
-            exe_path = get_newest_exe(base_path, [
-                f"{node['dir']}/build/{other_config}/{exe}",
-                f"{node['dir']}/build/{exe}",
-            ])
+            exe_path = get_newest_exe(base_path,
+                [os.path.join(d, other_config, exe) for d in build_dirs] +
+                [os.path.join(d, exe) for d in build_dirs])
         if not exe_path:
-            print(f"ERROR: {node['name']} ({exe}) not found under {node['dir']}/build/. Build the sample first.")
+            print(f"ERROR: {node['name']} ({exe}) not found. Searched under:")
+            for d in build_dirs:
+                print(f"  {d}")
+            print("Build the sample first.")
             sys.exit(1)
         to_launch.append((node["name"], exe_path))
 

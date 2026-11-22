@@ -40,6 +40,8 @@ The Cellutron system is cross-platform and supports both **Windows** and **Linux
     ```bash
     python3 run_cellutron.py
     ```
+    It looks for the apps in this folder's `build/` (`build-threadx/` with `--threadx`) and in `build_all.py`'s output, `out/<platform>/example/cellutron/default` (`threadx`), and launches the newest build it finds.
+
     Or, to launch the ThreadX build:
     ```bash
     python3 run_cellutron.py --threadx
