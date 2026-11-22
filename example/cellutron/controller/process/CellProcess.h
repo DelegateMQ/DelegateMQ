@@ -11,7 +11,7 @@
 #define _CELL_PROCESS_H
 
 #include "DelegateMQ.h"
-#include "state-machine/StateMachine.h"
+#include "StateMachine.h"   // active-fsm
 #include "actuators/Centrifuge.h"
 #include <chrono>
 

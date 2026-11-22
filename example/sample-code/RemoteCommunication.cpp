@@ -39,14 +39,14 @@ namespace Example
         int y = 0;
         std::string msg;
 
-        virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+        virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
             ms.write(os, x);
             ms.write(os, y);
             ms.write(os, msg);
             return os;
         }
 
-        virtual std::istream& read(serialize& ms, std::istream& is) override {
+        virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
             ms.read(is, x);
             ms.read(is, y);
             ms.read(is, msg);
@@ -60,19 +60,20 @@ namespace Example
     class MockTransport : public ITransport
     {
     public:
-        int Send(xostringstream& os, const DmqHeader& header) override {
+        int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
             std::lock_guard<std::mutex> lk(m_mutex);
-            m_payload = os.str();
+            m_payload.assign(os.data(), os.size());
             m_header = header;
             m_hasData = true;
             return 0;
         }
 
-        int Receive(xstringstream& is, DmqHeader& header) override {
+        int Receive(dmq::ByteReader& is, DmqHeader& header) override {
             std::lock_guard<std::mutex> lk(m_mutex);
             if (!m_hasData)
                 return -1;
-            is.str(m_payload);
+            m_rxPayload = m_payload;    // the reader views this copy until the next Receive()
+            is.assign(m_rxPayload.data(), m_rxPayload.size());
             header = m_header;
             m_hasData = false;
             return 0;
@@ -81,6 +82,7 @@ namespace Example
     private:
         std::mutex m_mutex;
         xstring m_payload;
+        xstring m_rxPayload;
         DmqHeader m_header;
         bool m_hasData = false;
     };
@@ -189,7 +191,7 @@ namespace Example
         void Poll()
         {
             DmqHeader header;
-            xstringstream is(std::ios::in | std::ios::out | std::ios::binary);
+            dmq::ByteReader is;
             if (m_transport.Receive(is, header) == 0)
                 m_channel.GetEndpoint()->Invoke(is);
         }

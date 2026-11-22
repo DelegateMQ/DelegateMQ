@@ -57,10 +57,12 @@ void AllocatorTests()
         DMQ_ASSERT_TRUE(p1 != NULL);
         DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 1);
         DMQ_ASSERT_TRUE(allocator.GetAllocations() == 1);
+        DMQ_ASSERT_TRUE(allocator.GetBlockCount() == 1);    // pool blocks count too
 
         void* p2 = allocator.Allocate(requestSize);
         DMQ_ASSERT_TRUE(p2 != NULL);
         DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 2);
+        DMQ_ASSERT_TRUE(allocator.GetBlockCount() == 2);
 
         allocator.Deallocate(p1);
         DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 1);
@@ -80,6 +82,42 @@ void AllocatorTests()
         DMQ_ASSERT_TRUE(p1 != NULL);
         
         pool.Deallocate(p1);
+    }
+
+    // AllocatorPool of a type smaller than a pointer: every block, each at
+    // least pointer-sized, must lie inside the pool's own memory
+    {
+        AllocatorPool<uint16_t, 4> pool;
+        const char* begin = reinterpret_cast<const char*>(&pool);
+        const char* end = begin + sizeof(pool);
+        void* blocks[4];
+        for (int i = 0; i < 4; i++)
+        {
+            blocks[i] = pool.Allocate(sizeof(uint16_t));
+            DMQ_ASSERT_TRUE(blocks[i] != NULL);
+            const char* p = static_cast<const char*>(blocks[i]);
+            DMQ_ASSERT_TRUE(p >= begin && p + pool.GetBlockSize() <= end);
+            DMQ_ASSERT_TRUE(reinterpret_cast<uintptr_t>(blocks[i]) % alignof(void*) == 0);
+        }
+        for (int i = 0; i < 4; i++)
+            pool.Deallocate(blocks[i]);
+    }
+
+    // AllocatorPool of an odd-sized type: blocks are rounded up so each
+    // block's free-list pointer is aligned
+    {
+        struct Odd { char c[13]; };
+        AllocatorPool<Odd, 3> pool;
+        DMQ_ASSERT_TRUE(pool.GetBlockSize() % alignof(void*) == 0);
+        void* blocks[3];
+        for (int i = 0; i < 3; i++)
+        {
+            blocks[i] = pool.Allocate(sizeof(Odd));
+            DMQ_ASSERT_TRUE(blocks[i] != NULL);
+            DMQ_ASSERT_TRUE(reinterpret_cast<uintptr_t>(blocks[i]) % alignof(void*) == 0);
+        }
+        for (int i = 0; i < 3; i++)
+            pool.Deallocate(blocks[i]);
     }
 
     // Test DECLARE_ALLOCATOR/IMPLEMENT_ALLOCATOR macros

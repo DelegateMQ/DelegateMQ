@@ -16,6 +16,18 @@
 build
 build_win32
 build-*/
+# ESP-IDF's generated config when building os/freertos-esp32 by hand (sdkconfig.defaults is source)
+sdkconfig
+sdkconfig.old
+dependencies.lock
+# ESP-IDF component manager downloads
+managed_components/
+# PlatformIO's generated ESP-IDF config, one per environment
+sdkconfig.esp32s3
+# build_all.py's build tree: out/<platform>/<path of the project>/<variant>
+/out/
+# PlatformIO release tarballs (scripts/package_readme.py)
+/DelegateMQ-*.tar.gz
 lib
 [Dd]ebug/
 [Dd]ebugPublic/
@@ -376,3 +388,9 @@ dump_*.txt
 
 # Third-party repos fetched by 01_fetch_repos.py (see src/delegate-mq/DepsDir.cmake)
 /external/
+
+# Results of build_all.py --full (scripts/full_suite.py)
+/full-suite-results/
+
+# PlatformIO
+.pio/

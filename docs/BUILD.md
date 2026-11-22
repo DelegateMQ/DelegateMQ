@@ -11,6 +11,7 @@ DelegateMQ is mostly headers. The delegates themselves are header-only; the OS p
   - [Without CMake](#without-cmake)
 - [Example Ecosystem (Sandbox)](#example-ecosystem-sandbox)
   - [Automated Workspace Setup](#automated-workspace-sandbox-setup)
+  - [Full Test Suite (`--full`)](#full-test-suite---full)
   - [Manual Sample Build](#manual-sample-build)
 - [Configuration and Overrides](#configuration-and-overrides)
   - [CMake Options](#1-cmake-options)
@@ -116,22 +117,22 @@ target_include_directories(my_app PRIVATE ${DMQ_ROOT_DIR})
 1. **Include path:** add `src/delegate-mq`.
 2. **Options:** copy `src/delegate-mq/delegate/DelegateMQConfig_Template.h` into your project as `DelegateMQConfig.h`, on the include path, and select ports and options there (`#define DMQ_THREAD_FREERTOS`, `#define DMQ_ALLOCATOR`, ...). It's found automatically, so no `-D` flags are needed. Anything left undefined is auto-selected: stdlib threads, the built-in serializer and UDP on Windows/Linux, nothing on bare metal.
 3. **Sources:** add **one** of these, not both:
-   - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal-arm/Makefile`.
-   - **Every `.cpp` in `src/delegate-mq`.** Best for IDEs that compile a whole folder (STM32CubeIDE, PlatformIO). Files for ports you didn't select compile to nothing, so there's nothing to exclude. Example: the STM32CubeIDE project in `example/sample-projects/stm32-freertos/server`.
+   - **`src/DelegateMQ.cpp`**, a single file. Best when you list files yourself (Keil, IAR, Makefiles). It sits beside the `delegate-mq` folder, so copy it too if you copy only that folder. Example: `example/sample-projects/bare-metal/qemu/Makefile`.
+   - **Every `.cpp` in `src/delegate-mq`.** Best for IDEs that compile a whole folder (STM32CubeIDE, PlatformIO). Files for ports you didn't select compile to nothing, so there's nothing to exclude. Example: the STM32CubeIDE project in `example/sample-projects/boards/stm32-freertos/server`.
 
-   `example/sample-projects/no-cmake-integration` builds the single-file way on Windows and Linux, and `build_all.py` builds and runs it.
+   `example/sample-projects/integration/no-cmake` builds the single-file way on Windows and Linux, and `build_all.py` builds and runs it.
 4. **Third-party and RTOS code:** add the include paths and libraries your ports need, e.g. FreeRTOS's `include/` and `portable/<port>` plus your `FreeRTOSConfig.h`. The RTOS kernel itself is part of your application.
 
 Requirements:
 - **The same options everywhere.** Keep them in `DelegateMQConfig.h` (or identical `-D` flags for the whole project), not in per-file settings.
-- **C++17 with RTTI.** Exceptions are optional; `DMQ_ASSERTS` routes errors to `FaultHandler()`.
-- **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal-arm`.
+- **C++17.** Exceptions are optional (`DMQ_ASSERTS` routes errors to `FaultHandler()`), and so is RTTI: built with `-fno-rtti` or `/GR-`, DelegateMQ defines `DMQ_NO_RTTI` and uses no `dynamic_cast` or `typeid` (see [RTTI Is Optional](SAFETY.md#rtti-is-optional-dmq_no_rtti) for the one difference). Build the whole program the same way.
+- **Bare metal (`DMQ_THREAD_NONE`):** define `extern "C" volatile uint64_t g_ticks;` and increment it every millisecond, e.g. from `SysTick_Handler`. See `example/sample-projects/bare-metal/qemu` (`targets/*/bsp.cpp`).
 - **Your own fault handler (optional):** define `DMQ_CUSTOM_FAULT_HANDLER`, and the library's `port/fault/Fault.cpp` compiles to nothing. Your application then defines `dmq::util::FaultHandler()`, the C `FaultHandler()` and `WatchdogHandler()`, and `InstallCrashHandlers()` if you call it. See `example/pumptron/controller/platform/f4/Fault.cpp`.
 
 ---
 
 ### PlatformIO
-DelegateMQ is a PlatformIO library: `lib_deps = endurodave/DelegateMQ@^2.4.0`, with C++17 and RTTI enabled and `DelegateMQConfig.h` in the project's `include/` folder. PlatformIO compiles every `.cpp` in `src/delegate-mq`, so it follows the [Without CMake](#without-cmake) rules.
+DelegateMQ is a PlatformIO library: `lib_deps = endurodave/DelegateMQ@^3.0.0`, with C++17 enabled and `DelegateMQConfig.h` in the project's `include/` folder. PlatformIO compiles every `.cpp` in `src/delegate-mq`, so it follows the [Without CMake](#without-cmake) rules.
 
 See [PLATFORMIO.md](../example/platformio/PLATFORMIO.md) for supported boards, project setup, thread ports (ESP32, STM32 with FreeRTOS, bare metal), the example sketch and troubleshooting.
 
@@ -167,10 +168,51 @@ Most advanced examples (ZeroMQ, MQTT, MessagePack, etc.) depend on third-party l
 
 Older versions cloned the dependencies next to the repository (`<parent>/zeromq`, `<parent>/FreeRTOS`, ...). That layout is no longer used: rerun `01_fetch_repos.py` and `02_build_libs.py`, then delete the old folders.
 
+### Full Test Suite (`--full`)
+A plain `build_all.py` run skips whatever the machine lacks the tools for. `--full` runs everything the platform can run, and treats a missing tool or an unbuilt sample as a failure, so a clean run means it all ran:
+
+- every sample, as usual, plus the clang builds on Linux (`--full` implies `--clang` there)
+- the unit-test app in `test/`, in every build listed in `scripts/full_suite.py`: the default build, clang, AddressSanitizer, ThreadSanitizer and UndefinedBehaviorSanitizer (Linux), big-endian s390x, 32-bit Arm (armhf) and 64-bit Arm (aarch64) builds run under QEMU user mode (Linux), the `DMQ_ALLOCATOR`/`DMQ_ASSERTS` embedded configuration, and the stress tests
+- a cross-endian check (Linux): `system-architecture/no-deps` with one side native x86 (little-endian) and the other built for s390x (big-endian) under QEMU user mode, both ways round, checking each side decodes the other's IDs
+- real Cortex-M and RISC-V CPUs under QEMU, each with a real timer interrupt: the `bare-metal/qemu` targets (Cortex-M0, M3, M4, M33, RV32), FreeRTOS on a Cortex-M3 (`os/freertos-bare-metal`'s `arm-m3` target) and on a dual-core ESP32 under ESP-IDF (`os/freertos-esp32`, Espressif's QEMU, Linux), and Zephyr and CMSIS-RTOS2 on Zephyr's `mps2/an385` board (`os/zephyr`, `os/cmsis-rtos2`, Linux). The RTOS ones check `dmq::CriticalSection` from the interrupt
+
+Results are also written to `full-suite-results/<platform>.json` (gitignored).
+
+#### Where the Builds Go
+`build_all.py` builds outside the source tree, in `out/<platform>/<path of the project>/<variant>` (gitignored), the layout Zephyr's `twister` uses: for example `out/windows/example/sample-projects/databus/basic/client/default`, `out/linux/example/sample-projects/transport/serializer/udp-builtin-clang` or `out/linux/test/asan`. `<platform>` is `windows`, `linux`, or `linux-docker` for `docker/run.sh`. Moving or renaming a sample leaves no stale build behind it, and deleting `out/` removes every build. A sample built by hand, as its README shows, still uses its own `build/` directory. `interop/native`'s library is copied to `interop/python/` after it's built, where the Python and C# interop clients find it when there's no `interop/native/build`.
+
+```bash
+python3 build_all.py --full
+```
+
+`transport/serializer` is built and run once per transport/serializer combination in `full_suite.TRANSPORT_COMBOS`, each in its own `<transport>-<serializer>` build directory. Samples that need a broker, a serial port pair or an emulator are run with them: `transport/mqtt` against a mosquitto broker started for the run, `transport/serialport` over a `socat` pseudo-terminal pair (Linux), the `bare-metal` targets on QEMU, the Zephyr samples on `native_sim` (with `ZEPHYR_BASE` set) `os/nuttx` on NuttX's `sim` board (with `NUTTX_SRC` set) and `os/freertos-esp32` on Espressif's QEMU (with `IDF_PATH` set). Samples that need real hardware (`boards/stm32-freertos`) are listed in `full_suite.PENDING` and reported as skipped with the reason; `bare-metal/keil` needs Keil MDK and is never built. Windows-only samples are skipped on Linux and the reverse: a full run needs one run on each platform.
+
+#### In Docker (Linux)
+`docker/Dockerfile` has every Linux tool `--full` needs, and `docker/run.sh` runs `build_all.py` in it on the current checkout. It needs Docker, with your user in the `docker` group:
+
+```bash
+docker/run.sh --full               # builds the image on first use
+docker/run.sh --full --from 3      # resume at step 03
+```
+
+The third-party libraries go to `~/.cache/delegatemq/external` (override with `DMQ_DEPS_DIR`) and are kept between runs. Build directories land in the checkout under `out/linux-docker/`, apart from a native Linux run's `out/linux/`, since a container build records the container's `/work` paths.
+
+#### Both Platforms from One Command
+From Windows, `--linux-host` runs the Linux half on a Linux machine at the same time as the local run, and prints one combined table:
+
+```bash
+python build_all.py --linux-host user@linux-box
+python build_all.py --linux-host user@linux-box --from 3    # --from/--to/--clean apply to both
+```
+
+It copies the working tree, uncommitted changes included, to a checkout on that machine (`~/dmq-full/DelegateMQ` by default, cloned on first use; `--linux-dir` changes it) and runs `docker/run.sh --full` there. The copy is a temporary commit pushed to that checkout, so only changes travel and its build directories stay for incremental builds. The Linux output is saved to `full-suite-results/linux.log`; its step banners and failures are also shown with a `[linux]` prefix.
+
+The Linux machine needs git, Docker (with your user in the `docker` group) and key-based ssh login from this machine.
+
 ### Manual Sample Build
 If you want to build a specific sample without scripts, navigate to its directory (its third-party dependencies must already be built, e.g. by `02_build_libs.py`):
 ```bash
-cd example/sample-projects/zeromq-msgpack-cpp
+cd example/sample-projects/system-architecture/no-deps/server
 cmake -B build
 cmake --build build
 ```
@@ -209,7 +251,7 @@ For fine-tuning numeric constants without editing library files (and, without CM
 
 ### Embedded (ARM/Bare-Metal)
 - **Stack Usage & Code Bloat**: In unoptimized Debug mode (`-O0`), variadic templates generate deep call stacks and heavy flash usage. Either use Release mode (`-O2`/`-Os`), increase your RTOS task stack sizes (min 4-8KB recommended), or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON` to eliminate template bloat while keeping your application debuggable.
-- **Static Memory**: Use `-DDMQ_ALLOCATOR=ON` to ensure all internal library allocations use fixed-sized pools, avoiding heap fragmentation.
+- **Static Memory**: Use `-DDMQ_ALLOCATOR=ON` so the library's own allocations use fixed-size pools, avoiding heap fragmentation. It can be slower than the platform's heap on an RTOS (each allocation takes a kernel mutex); see [Fixed-Block Memory Allocator: Trade-offs](DETAILS.md#trade-offs).
 
 ### Windows / Linux
 - **Standard Library**: On PC platforms, the library defaults to using `std::thread`, `std::mutex`, and `std::chrono` via the `stdlib` port.

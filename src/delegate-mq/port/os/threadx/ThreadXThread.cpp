@@ -9,6 +9,7 @@
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
+#include <stdexcept>
 #include <cstring> // for memset
 #include <new> // for std::nothrow
 
@@ -21,6 +22,23 @@ namespace dmq::os {
 
 using namespace dmq;
 using namespace dmq::util;
+
+// The watchdog's times and timeout as 32-bit millisecond counts (see
+// m_lastAliveTime in ThreadXThread.h)
+static uint32_t WatchdogMs(dmq::TimePoint t)
+{
+    return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()).count());
+}
+static uint32_t WatchdogMs(dmq::Duration d)
+{
+    // A non-zero timeout under 1 ms stays non-zero: 0 means no watchdog
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+    return static_cast<uint32_t>(ms > 0 ? ms : (d.count() > 0 ? 1 : 0));
+}
+static dmq::Duration WatchdogDuration(uint32_t ms)
+{
+    return std::chrono::duration_cast<dmq::Duration>(std::chrono::milliseconds(ms));
+}
 
 //----------------------------------------------------------------------------
 // Thread Constructor
@@ -105,8 +123,8 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_startGate.OnCreate();
         // Set before the thread exists: its loop reads the timeout before its
         // first queue wait, and an idle thread waits forever with no timeout
-        m_lastAliveTime.store(Timer::GetNow());
-        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
+        m_watchdogTimeout.store(WatchdogMs(watchdogTimeout.value_or(dmq::Duration(0))));
         m_discard.store(false);
 
         // 0. Create Synchronization Semaphore (Critical for cleanup)
@@ -160,6 +178,17 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                 const dmq::LockGuard<dmq::RecursiveMutex> lock(GetInstanceRegistryLock());
                 GetInstanceRegistry()[&m_thread] = this;
             }
+
+            // The cores set by SetCoreAffinity(), before the thread first runs
+#if defined(TX_THREAD_SMP_MAX_CORES)
+            if (m_coreMask != 0) {
+                const ULONG allCores = (1ul << TX_THREAD_SMP_MAX_CORES) - 1ul;
+                DMQ_ASSERT_TRUE((m_coreMask & ~allCores) == 0);
+                tx_thread_smp_core_exclude(&m_thread, allCores & ~static_cast<ULONG>(m_coreMask));
+            }
+#else
+            DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+#endif
             tx_thread_resume(&m_thread);
 
             // Wait for the start handler to complete
@@ -169,7 +198,7 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 
         DMQ_ASSERT_TRUE(ret == TX_SUCCESS);
 
-        m_lastAliveTime.store(Timer::GetNow());
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
 
         if (watchdogTimeout.has_value())
         {
@@ -262,7 +291,7 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
             // Self-exit: this thread runs no more messages, and the object may be
             // destroyed once this handler returns. Stop watchdog checks now.
-            m_watchdogTimeout.store(dmq::Duration(0));
+            m_watchdogTimeout.store(0);
             return;
         }
 
@@ -282,6 +311,8 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
             if (msg)
             {
                 // Wait forever to ensure message is sent
@@ -303,7 +334,7 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         // The thread has finished (or, on a self-exit, is in its last handler):
         // stop watchdog checks. Not earlier, so a thread that hangs while
         // ExitThread() waits for it is still reported.
-        m_watchdogTimeout.store(dmq::Duration(0));
+        m_watchdogTimeout.store(0);
 
         tx_thread_terminate(&m_thread);
         tx_thread_delete(&m_thread);
@@ -371,10 +402,7 @@ bool ThreadXThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
     if (!threadMsg)
-    {
-        // OOM: drop the message
-        return false;
-    }
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -440,23 +468,31 @@ void ThreadXThread::Process(ULONG /*instance*/)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void ThreadXThread::WatchdogCheck()
+bool ThreadXThread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
-    auto now = Timer::GetNow();
-    auto lastAlive = m_lastAliveTime.load();
-    auto watchdogTimeout = m_watchdogTimeout.load();
+    // The heartbeat first, then the clock: the thread stamped its heartbeat
+    // before storing it, so a clock read after loading it is never older.
+    // Read the other way round, a heartbeat stored in between (the thread on
+    // another core, or preempting this task) can be a tick newer than "now",
+    // and the unsigned difference wraps to ~49 days: a false expiry.
+    const uint32_t lastAlive = m_lastAliveTime.load();
+    const uint32_t now = WatchdogMs(Timer::GetNow());
+    const uint32_t watchdogTimeout = m_watchdogTimeout.load();
 
-    if (watchdogTimeout.count() > 0)
+    if (watchdogTimeout > 0)
     {
-        auto delta = now - lastAlive;
-        if (delta > watchdogTimeout)
+        const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
+        // Wrap-safe; a negative difference (a heartbeat newer than now) is alive
+        if (static_cast<int32_t>(delta) > 0 && delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = std::chrono::duration_cast<dmq::Duration>(std::chrono::milliseconds(delta));
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -464,7 +500,7 @@ void ThreadXThread::WatchdogCheck()
 //----------------------------------------------------------------------------
 void ThreadXThread::ThreadCheck()
 {
-    m_lastAliveTime.store(Timer::GetNow());
+    m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
 }
 
 //----------------------------------------------------------------------------
@@ -473,12 +509,17 @@ void ThreadXThread::ThreadCheck()
 void ThreadXThread::WatchdogCheckAll()
 {
     const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     ThreadXThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------
@@ -495,7 +536,9 @@ dmq::xmap<TX_THREAD*, ThreadXThread*>& ThreadXThread::GetInstanceRegistry()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& ThreadXThread::GetInstanceRegistryLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 
@@ -513,7 +556,9 @@ ThreadXThread*& ThreadXThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& ThreadXThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 
@@ -553,7 +598,7 @@ void ThreadXThread::Run()
     if (m_startGate.Enabled())
     {
         const bool opened = m_startGate.Wait(m_exit);
-        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));   // before Passed(): no stale watchdog read
         m_startGate.Passed();
         // ExitThread() while held: run nothing. Cancel each queued message
         // (DISCARD) until the exit message. Consuming them also keeps
@@ -568,8 +613,8 @@ void ThreadXThread::Run()
     {
         dmq::Duration timeout;
         {
-            m_lastAliveTime.store(Timer::GetNow());
-            timeout = m_watchdogTimeout.load();
+            m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
+            timeout = WatchdogDuration(m_watchdogTimeout.load());
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 
@@ -645,15 +690,15 @@ void ThreadXThread::Run()
                 if (!selfExit) DMQ_ASSERT_TRUE(success);
             }
             catch (const std::bad_alloc& e) {
-                std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                fprintf(stderr, "[Thread:%s] Unhandled bad_alloc in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                 DMQ_ASSERT();
             }
             catch (const std::invalid_argument& e) {
-                std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                fprintf(stderr, "[Thread:%s] Unhandled invalid_argument in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                 DMQ_ASSERT();
             }
             catch (const std::runtime_error& e) {
-                std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                fprintf(stderr, "[Thread:%s] Unhandled runtime_error in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                 DMQ_ASSERT();
             }
             catch (const std::exception& e) {

@@ -18,11 +18,11 @@ namespace {
     class NeverAckTransport : public ITransport {
     public:
         int sendCount = 0;
-        int Send(xostringstream&, const DmqHeader&) override {
+        int Send(const dmq::ByteWriter&, const DmqHeader&) override {
             sendCount++;
             return 0;
         }
-        int Receive(xstringstream&, DmqHeader&) override { return -1; }
+        int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
     };
 
     // Transport whose Send() fails synchronously every time — simulates a
@@ -30,11 +30,11 @@ namespace {
     class AlwaysFailTransport : public ITransport {
     public:
         int sendCount = 0;
-        int Send(xostringstream&, const DmqHeader&) override {
+        int Send(const dmq::ByteWriter&, const DmqHeader&) override {
             sendCount++;
             return -1;
         }
-        int Receive(xstringstream&, DmqHeader&) override { return -1; }
+        int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
     };
 
     // Transport whose initial Send() succeeds but whose retry-resend fails
@@ -43,11 +43,11 @@ namespace {
     class FailOnRetryTransport : public ITransport {
     public:
         int sendCount = 0;
-        int Send(xostringstream&, const DmqHeader&) override {
+        int Send(const dmq::ByteWriter&, const DmqHeader&) override {
             sendCount++;
             return sendCount == 1 ? 0 : -1;
         }
-        int Receive(xstringstream&, DmqHeader&) override { return -1; }
+        int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
     };
 
     // Transport whose first Send() blocks until released, so a TIMEOUT can fire
@@ -58,7 +58,7 @@ namespace {
         std::atomic<int> sendCount{ 0 };
         std::atomic<bool> inSend{ false };
         std::atomic<bool> release{ false };
-        int Send(xostringstream&, const DmqHeader&) override {
+        int Send(const dmq::ByteWriter&, const DmqHeader&) override {
             if (sendCount.fetch_add(1) == 0) {
                 inSend.store(true);
                 while (!release.load())
@@ -67,7 +67,7 @@ namespace {
             }
             return 0;
         }
-        int Receive(xstringstream&, DmqHeader&) override { return -1; }
+        int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
     private:
         int m_firstResult;
     };
@@ -98,8 +98,8 @@ namespace {
 
         int err = 0;
         std::thread sender([&]() {
-            xostringstream os;
-            os << "payload";
+            dmq::ByteWriter os;
+            os.write("payload", 7);
             err = retry.SendWithRetry(os, header);
         });
 
@@ -116,8 +116,8 @@ namespace {
 
         // The entry is gone: the same key can be sent again.
         monitor.Cancel(header.GetSeqNum(), header.GetId());
-        xostringstream os2;
-        os2 << "payload";
+        dmq::ByteWriter os2;
+        os2.write("payload", 7);
         DMQ_ASSERT_TRUE(retry.SendWithRetry(os2, header) == 0);
         DMQ_ASSERT_TRUE(failedCount.load() == 1);
     }
@@ -142,8 +142,8 @@ void RetryMonitorTests()
                 failedSeq = seq;
             }));
 
-        xostringstream os;
-        os << "payload";
+        dmq::ByteWriter os;
+        os.write("payload", 7);
         DmqHeader header(/*id=*/42, /*seqNum=*/7);
 
         int err = retry.SendWithRetry(os, header);
@@ -187,8 +187,8 @@ void RetryMonitorTests()
         auto conn = retry.OnDeliveryFailed.Connect(dmq::MakeDelegate(
             [&](DelegateRemoteId, uint16_t) { failedCount++; }));
 
-        xostringstream os;
-        os << "payload";
+        dmq::ByteWriter os;
+        os.write("payload", 7);
         DmqHeader header(/*id=*/99, /*seqNum=*/3);
 
         DMQ_ASSERT_TRUE(retry.SendWithRetry(os, header) == 0);
@@ -219,8 +219,8 @@ void RetryMonitorTests()
                 failedSeq = seq;
             }));
 
-        xostringstream os;
-        os << "payload";
+        dmq::ByteWriter os;
+        os.write("payload", 7);
         DmqHeader header(/*id=*/55, /*seqNum=*/11);
 
         int err = retry.SendWithRetry(os, header);
@@ -264,8 +264,8 @@ void RetryMonitorTests()
                 failedSeq = seq;
             }));
 
-        xostringstream os;
-        os << "payload";
+        dmq::ByteWriter os;
+        os.write("payload", 7);
         DmqHeader header(/*id=*/77, /*seqNum=*/13);
 
         int err = retry.SendWithRetry(os, header);
@@ -305,12 +305,12 @@ void RetryMonitorTests()
             [&](DelegateRemoteId, uint16_t) { failedCount++; }));
 
         DmqHeader header(/*id=*/31, /*seqNum=*/9);
-        xostringstream os1;
-        os1 << "first";
+        dmq::ByteWriter os1;
+        os1.write("first", 5);
         DMQ_ASSERT_TRUE(retry.SendWithRetry(os1, header) == 0);
 
-        xostringstream os2;
-        os2 << "second";
+        dmq::ByteWriter os2;
+        os2.write("second", 6);
         DMQ_ASSERT_TRUE(retry.SendWithRetry(os2, header) != 0);
         DMQ_ASSERT_TRUE(transport.sendCount == 1);   // second never sent
         DMQ_ASSERT_TRUE(failedCount == 0);           // first not reported as failed

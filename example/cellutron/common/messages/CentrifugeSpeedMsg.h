@@ -14,12 +14,12 @@ struct CentrifugeSpeedMsg : public MessageBase
     CentrifugeSpeedMsg() = default;
     CentrifugeSpeedMsg(uint16_t val) : rpm(val) {}
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         return ms.read(is, rpm);
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         return ms.write(os, rpm);
     }

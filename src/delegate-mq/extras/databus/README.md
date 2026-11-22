@@ -29,8 +29,8 @@ Three steps to send data between components:
 // MessageBase to add sequence numbers)
 struct TemperatureMsg : public serialize::I {
     float celsius = 0.0f;
-    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, celsius); }
-    std::istream& read (serialize& ms, std::istream& is) override { return ms.read (is, celsius); }
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override { return ms.write(os, celsius); }
+    dmq::ByteReader& read (serialize& ms, dmq::ByteReader& is) override { return ms.read (is, celsius); }
 };
 ```
 

@@ -39,7 +39,6 @@
 #include <memory>
 #include <array>
 #include <functional>
-#include <typeindex>
 #include <atomic>
 #include <type_traits>
 #include <optional>
@@ -466,7 +465,7 @@ private:
                 m_topicQos[topic].lastValueCache = true;
             }
 
-            // 2. Get or create signal with type safety check (std::type_index)
+            // 2. Get or create signal with type safety check (dmq::TypeKey)
             signal = GetOrCreateSignal<T>(topic);
         }
 
@@ -560,7 +559,7 @@ private:
             // never been subscribed to or serializer-registered would let a later
             // Publish<U> with a different U reach the LVC reuse block below and
             // reinterpret a live T object as U.
-            typeMismatch = CheckOrEstablishType(topic, std::type_index(typeid(T)));
+            typeMismatch = CheckOrEstablishType(topic, dmq::TypeKeyOf<T>());
 
             if (!typeMismatch) {
                 // 2. Update LVC ONLY if enabled for this topic to save memory.
@@ -722,7 +721,7 @@ private:
         bool typeMismatch;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-            typeMismatch = CheckOrEstablishType(topic, std::type_index(typeid(T)));
+            typeMismatch = CheckOrEstablishType(topic, dmq::TypeKeyOf<T>());
             if (!typeMismatch) {
                 m_serializers[topic] = std::move(serializer);
             }
@@ -738,7 +737,7 @@ private:
         bool typeMismatch;
         {
             dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-            typeMismatch = CheckOrEstablishType(topic, std::type_index(typeid(T)));
+            typeMismatch = CheckOrEstablishType(topic, dmq::TypeKeyOf<T>());
             if (!typeMismatch) {
                 // Use shared_ptr with custom deleter and stl_allocator.
                 // Allocate function object from fixed-block pool using xnew.
@@ -788,7 +787,7 @@ private:
     template <typename T>
     SignalPtr<T> GetOrCreateSignal(const dmq::xstring& topic) {
         // Assume lock is held by caller
-        if (CheckOrEstablishType(topic, std::type_index(typeid(T))))
+        if (CheckOrEstablishType(topic, dmq::TypeKeyOf<T>()))
             return nullptr;
 
         if (auto sig = FindSignalLocked(topic)) {
@@ -823,7 +822,7 @@ private:
     // Look up topic's registered type; if none yet, establish it as `expected`.
     // Returns true if topic was already registered with a DIFFERENT type -- a
     // programming-error type mismatch the caller must report/DMQ_ASSERT on.
-    bool CheckOrEstablishType(const dmq::xstring& topic, std::type_index expected) {
+    bool CheckOrEstablishType(const dmq::xstring& topic, dmq::TypeKey expected) {
         auto it = m_typeIndices.find(topic);
         if (it != m_typeIndices.end())
             return it->second != expected;
@@ -884,7 +883,7 @@ private:
     dmq::RecursiveMutex m_mutex;
     dmq::xmap<dmq::xstring, uint16_t> m_reportedErrors;
     dmq::xmap<dmq::xstring, std::shared_ptr<void>> m_signals;
-    dmq::xmap<dmq::xstring, std::type_index> m_typeIndices;
+    dmq::xmap<dmq::xstring, dmq::TypeKey> m_typeIndices;
     std::array<std::shared_ptr<Participant>, dmq::MAX_PARTICIPANTS> m_participants{};
     size_t m_participantCount = 0;
     dmq::xmap<dmq::xstring, std::shared_ptr<void>> m_serializers;

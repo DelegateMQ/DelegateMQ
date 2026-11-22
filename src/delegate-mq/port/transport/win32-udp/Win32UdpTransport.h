@@ -34,8 +34,8 @@
 #include "port/transport/common/ITransportMonitor.h"
 #include "port/transport/common/DmqHeader.h"
 #include <windows.h>
-#include <sstream>
 #include <cstdio>
+#include <iostream>
 #include <mutex>
 
 namespace dmq::transport {
@@ -60,6 +60,13 @@ public:
         Close();
     }
 
+    /// @brief Open the socket. PUB sends to addr:port (and drains ACKs); SUB binds
+    /// port and receives.
+    /// @note Receive() blocks up to the receive timeout when nothing arrives:
+    /// DMQ_UDP_PUB_RECV_TIMEOUT_MS (2 ms) for PUB, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s)
+    /// for SUB. A thread that polls a SUB socket between other work (a timer, a
+    /// loop that also drains ACKs) stalls for the full 2 s each idle poll: call
+    /// SetRecvTimeout() with a short timeout after Create().
     int Create(Type type, LPCSTR addr, USHORT port)
     {
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -89,7 +96,9 @@ public:
                 return -1;
             }
 
-            DWORD timeout = 2;
+            // A short timeout (DMQ_UDP_PUB_RECV_TIMEOUT_MS) so polling for ACKs
+            // doesn't hold up the sender
+            DWORD timeout = static_cast<DWORD>(dmq::UDP_PUB_RECV_TIMEOUT.count());
             setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
         }
         else if (type == Type::SUB)
@@ -109,8 +118,9 @@ public:
                 return -1;
             }
 
-            // Set a 2-second receive timeout
-            DWORD timeout = 2000; // 2000 milliseconds = 2 seconds
+            // DMQ_UDP_SUB_RECV_TIMEOUT_MS: Receive() returns RECEIVE_NO_DATA after
+            // it, so the receiving thread can check for exit
+            DWORD timeout = static_cast<DWORD>(dmq::UDP_SUB_RECV_TIMEOUT.count());
             err = setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
             if (err == SOCKET_ERROR)
             {
@@ -147,11 +157,11 @@ public:
         }
     }
 
-    virtual int Send(dmq::xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-        if (os.bad() || os.fail()) {
-            std::cout << "Error: xostringstream is in a bad state!" << std::endl;
+        if (os.fail()) {
+            std::cout << "Error: the ByteWriter is in a failed state!" << std::endl;
             return -1;
         }
 
@@ -166,12 +176,12 @@ public:
         }
 
         // Get payload data without string copy if possible
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -194,8 +204,9 @@ public:
         return (err == SOCKET_ERROR) ? -1 : 0;
     }
 
-    virtual int Receive(dmq::xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB socket
         // that also drains its ACKs here) isn't held up for the receive timeout.
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -244,7 +255,7 @@ public:
         }
 
         if (payloadSize > 0) {
-            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+            is.assign(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
         }
 
         // 3. Handle Acknowledgment

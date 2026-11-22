@@ -163,6 +163,10 @@
     #define DMQ_THREAD_NONE
 #endif
 
+#if !defined(DMQ_THREAD_NONE)
+    #include "port/os/common/WatchdogHook.h"   // dmq::os::SetWatchdogHook()
+#endif
+
 #if defined(DMQ_SERIALIZE_MSGPACK)
     #include "port/serialize/msgpack/MsgpackSerializer.h"
 #elif defined(DMQ_SERIALIZE_CEREAL)
@@ -261,6 +265,9 @@
 // own doc comment). It has no dependency on dmq::os::Thread, so it's
 // available even under DMQ_THREAD_NONE.
 #include "extras/util/Timer.h"
+
+// IsrDelegate needs only dmq::CriticalSection too: every port, bare metal included
+#include "extras/util/IsrDelegate.h"
 
 // TimerDelegate/AsyncInvoke/TransportMonitor/ThreadMonitor/RetryMonitor/
 // ReliableTransport/RemoteDispatcher all take or operate on a dmq::IThread&

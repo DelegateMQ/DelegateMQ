@@ -36,8 +36,6 @@
 #include "port/transport/common/DmqHeader.h"
 #include "MQTTClient.h"
 
-#include <iostream>
-#include <sstream>
 #include <cstring>
 #include <string>
 #include <random>
@@ -175,18 +173,18 @@ public:
         m_queueCv.notify_all();
     }
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
-        if (os.bad() || os.fail() || !m_client)
+        if (os.fail() || !m_client)
             return -1;
 
         // Get payload data without string copy if possible
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -218,8 +216,9 @@ public:
         }
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         std::unique_lock<std::mutex> q_lock(m_queueMtx);
         
         // Wait for data or stop signal
@@ -230,8 +229,10 @@ public:
             if (m_rxQueue.empty()) return RECEIVE_NO_DATA;
 
             // Pop message
-            std::vector<char> msg = std::move(m_rxQueue.front());
+            // Kept in a member: the ByteReader views it until the next Receive()
+            m_rxMsg = std::move(m_rxQueue.front());
             m_rxQueue.pop();
+            const std::vector<char>& msg = m_rxMsg;
             q_lock.unlock(); // Release queue lock before processing
 
             if (msg.size() < DmqHeader::HEADER_SIZE) return -1;
@@ -249,9 +250,7 @@ public:
                 return -1;
 
             if (payloadSize > 0) {
-                is.clear();
-                is.str("");
-                is.write(msg.data() + DmqHeader::HEADER_SIZE, payloadSize);
+                is.assign(msg.data() + DmqHeader::HEADER_SIZE, payloadSize);
             }
 
             // 3. ACK Logic
@@ -260,7 +259,7 @@ public:
             }
             else if (m_transportMonitor) {
                 // Auto-ACK
-                xostringstream ss_ack;
+                dmq::ByteWriter ss_ack;
                 DmqHeader ack;
                 ack.SetId(dmq::ACK_REMOTE_ID);
                 ack.SetSeqNum(header.GetSeqNum());
@@ -336,6 +335,7 @@ private:
 
     // Thread-safe Queue for bridging Paho callback to ITransport::Receive
     std::queue<std::vector<char>> m_rxQueue;
+    std::vector<char> m_rxMsg;   ///< The message Receive() last returned (the reader views it)
     std::mutex m_queueMtx;
     std::condition_variable m_queueCv;
     bool m_stop = false;

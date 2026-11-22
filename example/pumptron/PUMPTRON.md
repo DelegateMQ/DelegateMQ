@@ -329,7 +329,7 @@ Any crash on the F4 stores a small core dump in RAM that survives reset, then re
 
 - a `DMQ_ASSERT` or `BAD_ALLOC` (file and line)
 - a hardware exception: HardFault, MemManage, BusFault or UsageFault
-- a thread watchdog timeout (names the thread that stopped responding)
+- a thread watchdog timeout (names the thread that stopped responding, with its own registers and call stack)
 - a FreeRTOS `configASSERT`, stack overflow (names the task) or heap exhaustion
 
 **What happens next**
@@ -345,15 +345,17 @@ Any crash on the F4 stores a small core dump in RAM that survives reset, then re
 | Field | Contents |
 |:---|:---|
 | Type | Assertion, hardware exception, thread watchdog or FreeRTOS fault |
-| File / Line, Exception, Unresponsive thread, Task | Depends on the type: where the fault was raised |
-| Active context | What was running at the time of the fault: a task name, `ISR <n>`, or `main` before the scheduler started |
+| File / Line, Exception, Unresponsive thread, Task | Depends on the type: where the fault was raised. A thread watchdog dump also gives how long the thread had not responded |
+| Active context | What was running at the time of the fault: a task name, `ISR <n>`, or `main` before the scheduler started. A thread watchdog dump shows a *captured context* instead: the unresponsive thread, where it was last switched out |
 | Uptime at crash, Crash number | Time since boot when the fault hit, and a count of crashes since power-up. They make every crash distinct, so the GUI can tell a resend of the same dump (skipped, with an Events entry) from a new crash that happens to be identical, such as the button test |
 | Build ID | GNU build ID of the firmware that crashed, so the dump can be matched to the exact `pumptron_f4.elf` |
-| R0–R3, R12, LR, PC, xPSR | Hardware exceptions only: the registers the CPU stacked on entry |
+| R0–R3, R12, LR, PC, xPSR | Hardware exceptions: the registers the CPU stacked on entry. Thread watchdog: the unresponsive thread's registers, as FreeRTOS saved them when it was switched out |
 | CFSR, HFSR, MMFAR, BFAR | Hardware exceptions only: fault status registers, with the set bits named (`UNDEFINSTR`, `PRECISERR`, …). MMFAR/BFAR are shown only when valid |
 | Call stack | Up to 12 addresses, innermost first: the faulting PC (if in flash), then return addresses found by scanning the active stack. A word counts as a return address only if it directly follows a `BL`/`BLX` instruction |
 
 **Try it:** hold the blue button for 5 s. `F4Board::IsLocalStopPressed()` executes an undefined instruction from the Pump thread, which raises a UsageFault.
+
+To try a thread watchdog dump instead, build the firmware with `-DPUMPTRON_TEST_HANG=ON`: the same button hold makes the Pump thread spin forever. About 10 s later (`WATCHDOG_TIMEOUT`) the thread watchdog catches it and the board resets. The dump names the Pump thread, gives how long it had not responded, and its PC and call stack decode to `TriggerTestFault()`, called from `F4Board::IsLocalStopPressed()` and `PumpController::OnControlTick()`, where the thread was stuck.
 
 **Sample dump** (from the button test):
 
@@ -442,7 +444,7 @@ The implementation is in `controller/platform/f4/CoreDump.cpp`/`CoreDumpReporter
 
 **Limitations**
 
-- For a thread watchdog timeout, the call stack is the watchdog checker's (the `Startup` task), not the stuck thread's. The dump does name the stuck thread.
+- For a thread watchdog timeout, the dump holds the stuck thread's own registers and call stack, read from the context FreeRTOS saved when the thread was switched out. DelegateMQ's watchdog hook (`dmq::os::SetWatchdogHook()`, set in `main.cpp`) stores it before `WatchdogHandler()` resets the board; the handler alone runs in the watchdog checker (the `Startup` task) and could only capture that task's stack. If several threads hang at once, the dump shows the first one reported.
 - Only the active thread's stack is captured, not every FreeRTOS task's.
 - The stack scan is heuristic. The `BL`/`BLX` check rejects nearly all non-addresses, but a stale return address left behind by an earlier call can still appear.
 - Only the first crash is kept until it has been delivered; a second crash before then is not recorded.
@@ -451,7 +453,7 @@ The implementation is in `controller/platform/f4/CoreDump.cpp`/`CoreDumpReporter
 
 **Future expansion: call stacks for all FreeRTOS tasks**
 
-Today only the active thread's stack is captured. Capturing every task would show the stuck thread's own stack in a thread watchdog dump, and where every other task was blocked at the time of a crash, which is what diagnosing a deadlock or starvation needs. The outline:
+Today only one thread's stack is captured: the active one, or for a thread watchdog dump the stuck one (step 2 below, already done for that case in `CoreDump_StoreHungTask()`). Capturing every task would also show where every other task was blocked at the time of a crash, which is what diagnosing a deadlock or starvation needs. The outline:
 
 1. **Enumerate the tasks from the fault handler.** `uxTaskGetSystemState()`/`vTaskGetInfo()` are not usable there: they suspend the scheduler and enter critical sections, which assert from handler mode on the CM4F port. Instead, set `configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H 1` and add a `freertos_tasks_c_additions.h`. FreeRTOS compiles that header into `tasks.c`, where it can walk the ready, delayed, pending-ready, suspended and waiting-termination lists and read TCB fields at their correct offsets. Set `configRECORD_STACK_HIGH_ADDRESS 1` too, so each TCB records `pxEndOfStack` and each stack scan can stop at that task's exact bounds.
 2. **Recover each blocked task's context.** `pxTopOfStack`, which FreeRTOS guarantees is the first TCB member, points at the context saved by PendSV (`GCC/ARM_CM4F/port.c`): r4–r11 and EXC_RETURN, then s16–s31 if EXC_RETURN bit 4 is clear, then the hardware frame (r0–r3, r12, LR, PC, xPSR, plus the FP words). That gives each task's PC (where it was switched out, usually inside a kernel call such as `xQueueReceive`) and its LR. The rest of its stack, up to `pxEndOfStack`, is scanned with the same `BL`/`BLX` filter.

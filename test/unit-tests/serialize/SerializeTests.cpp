@@ -14,7 +14,6 @@
 #include "port/serialize/serialize/msg_serialize.h"
 #include "port/serialize/serialize/DmqSerializer.h"
 
-#include <sstream>
 #include <cstring>
 #include <cstdint>
 #include <array>
@@ -33,12 +32,12 @@ struct SimpleMsg : public serialize::I
     int32_t id    = 0;
     float   value = 0.0f;
 
-    std::ostream& write(serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, id);
         return ms.write(os, value);
     }
-    std::istream& read(serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, id);
         return ms.read(is, value);
@@ -50,12 +49,12 @@ struct NestedMsg : public serialize::I
     SimpleMsg inner;
     int32_t   extra = 0;
 
-    std::ostream& write(serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, inner);
         return ms.write(os, extra);
     }
-    std::istream& read(serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, inner);
         return ms.read(is, extra);
@@ -69,8 +68,8 @@ struct DeepMsg : public serialize::I
 {
     DeepMsg<N - 1> inner;
 
-    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, inner); }
-    std::istream& read(serialize& ms, std::istream& is) override { return ms.read(is, inner); }
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override { return ms.write(os, inner); }
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override { return ms.read(is, inner); }
 };
 
 template <>
@@ -78,8 +77,8 @@ struct DeepMsg<0> : public serialize::I
 {
     int32_t val = 0;
 
-    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, val); }
-    std::istream& read(serialize& ms, std::istream& is) override { return ms.read(is, val); }
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override { return ms.write(os, val); }
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override { return ms.read(is, val); }
 };
 
 /// Version 1: one field.
@@ -87,11 +86,11 @@ struct MsgV1 : public serialize::I
 {
     int32_t field1 = 0;
 
-    std::ostream& write(serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         return ms.write(os, field1);
     }
-    std::istream& read(serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override
     {
         return ms.read(is, field1);
     }
@@ -103,12 +102,12 @@ struct MsgV2 : public serialize::I
     int32_t field1 = 0;
     int32_t field2 = 0;
 
-    std::ostream& write(serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, field1);
         return ms.write(os, field2);
     }
-    std::istream& read(serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, field1);
         return ms.read(is, field2);
@@ -129,7 +128,7 @@ struct AllPrimitivesMsg : public serialize::I
     float    f   = 0.0f;
     double   d   = 0.0;
 
-    std::ostream& write(serialize& ms, std::ostream& os) override
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override
     {
         ms.write(os, b);
         ms.write(os, i8);
@@ -143,7 +142,7 @@ struct AllPrimitivesMsg : public serialize::I
         ms.write(os, f);
         return ms.write(os, d);
     }
-    std::istream& read(serialize& ms, std::istream& is) override
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override
     {
         ms.read(is, b);
         ms.read(is, i8);
@@ -167,12 +166,12 @@ struct AllPrimitivesMsg : public serialize::I
 template<typename T>
 static bool RoundTrip(T& src, T& dst)
 {
-    std::ostringstream oss;
+    dmq::ByteWriter oss;
     serialize ser;
     ser.write(oss, src);
     if (!oss.good())
         return false;
-    std::istringstream iss(oss.str());
+    dmq::ByteReader iss(oss);
     ser.read(iss, dst);
     // eof is acceptable after consuming all bytes
     return !iss.fail();
@@ -182,12 +181,12 @@ static bool RoundTrip(T& src, T& dst)
 template<typename T>
 static bool RoundTripPrimitive(T val, T& out)
 {
-    std::ostringstream oss;
+    dmq::ByteWriter oss;
     serialize ser;
     ser.write(oss, val);
     if (!oss.good())
         return false;
-    std::istringstream iss(oss.str());
+    dmq::ByteReader iss(oss);
     ser.read(iss, out);
     return !iss.fail();
 }
@@ -289,10 +288,10 @@ static void StringTests()
     {
         std::string src = "Hello, World!";
         std::string dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -302,10 +301,10 @@ static void StringTests()
     {
         std::string src;
         std::string dst = "non-empty";
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         // empty string returns false from check_slength (size==0), dst unchanged
         DMQ_ASSERT_TRUE(dst.empty() || dst == "non-empty"); // implementation skips read
@@ -315,10 +314,10 @@ static void StringTests()
     {
         std::string src(1024, 'A');
         std::string dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -327,7 +326,7 @@ static void StringTests()
     // String longer than MAX_STRING_SIZE (1025 chars) — write sets failbit
     {
         std::string src(1025, 'B');
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.clearLastError();
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(!oss.good());
@@ -338,10 +337,10 @@ static void StringTests()
     {
         std::wstring src = L"Wide string test";
         std::wstring dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -360,10 +359,10 @@ static void CharArrayTests()
     {
         const char* src = "hello";
         char dst[32] = {};
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(std::strcmp(dst, src) == 0);
@@ -373,9 +372,9 @@ static void CharArrayTests()
     {
         const char* src = "abc";           // 4 bytes with null
         char dst[4] = {};
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(std::strcmp(dst, src) == 0);
@@ -385,9 +384,9 @@ static void CharArrayTests()
     {
         const char* src = "toolongstring";  // 14 bytes with null
         char dst[4] = {};
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.clearLastError();
         ser.read(iss, dst, sizeof(dst));  // maxLen = 4, string needs 14
         DMQ_ASSERT_TRUE(iss.fail());
@@ -399,9 +398,9 @@ static void CharArrayTests()
         std::string src = "hello";
         char dst[16];
         std::memset(dst, 'X', sizeof(dst));
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(std::strcmp(dst, "hello") == 0);
@@ -413,9 +412,9 @@ static void CharArrayTests()
         std::string src = "abcd";
         char dst[4];
         std::memset(dst, 'X', sizeof(dst));
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.clearLastError();
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(iss.fail());
@@ -427,24 +426,24 @@ static void CharArrayTests()
     // an empty string; now write fails before writing anything
     {
         std::string longStr(70000, 'L');
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.clearLastError();
         ser.write(oss, longStr.c_str());
         DMQ_ASSERT_TRUE(oss.fail());
         DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STRING_TOO_LONG);
-        DMQ_ASSERT_TRUE(oss.str().empty());
+        DMQ_ASSERT_TRUE(oss.size() == 0);
     }
 
     // const char* at the limit: written. One over: write fails
     {
         std::string at(dmq::SERIALIZE_MAX_STRING_SIZE, 'A');
-        std::ostringstream ok;
+        dmq::ByteWriter ok;
         ser.write(ok, at.c_str());
         DMQ_ASSERT_TRUE(ok.good());
     }
     {
         std::string over(dmq::SERIALIZE_MAX_STRING_SIZE + 1, 'O');
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.clearLastError();
         ser.write(oss, over.c_str());
         DMQ_ASSERT_TRUE(oss.fail());
@@ -455,9 +454,9 @@ static void CharArrayTests()
     // none is read back
     {
         std::string dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, "hello");
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == "hello" && dst.size() == 5);
@@ -467,9 +466,9 @@ static void CharArrayTests()
     {
         const std::string src("abc\0", 4);
         std::string dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src && dst.size() == 4);
@@ -479,10 +478,10 @@ static void CharArrayTests()
     // buffer: still read correctly
     {
         const char legacy[] = "hi";
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, std::string(legacy, sizeof(legacy)));   // "hi\0", 3 bytes
         char dst[3];
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(std::strcmp(dst, "hi") == 0);
@@ -495,11 +494,11 @@ static void CharArrayTests()
         std::string src = "abcd";
         char dst[4];
         std::memset(dst, 'X', sizeof(dst));
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::string wire = oss.str();
+        std::string wire(oss.data(), oss.size());
         wire.resize(wire.size() - 2);   // drop the last 2 payload bytes
-        std::istringstream iss(wire);
+        dmq::ByteReader iss(wire.data(), wire.size());
         ser.clearLastError();
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(iss.fail());
@@ -512,9 +511,9 @@ static void CharArrayTests()
         const char* src = "toolong";
         char dst[4];
         std::memset(dst, 'X', sizeof(dst));
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(iss.fail());
         DMQ_ASSERT_TRUE(dst[0] == '\0');
@@ -525,9 +524,9 @@ static void CharArrayTests()
         std::string src;
         char dst[8];
         std::memset(dst, 'X', sizeof(dst));
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst, sizeof(dst));
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst[0] == '\0');
@@ -546,11 +545,11 @@ template <typename C>
 static bool RoundTripConst(const C& src, C& dst)
 {
     serialize ser;
-    std::ostringstream oss;
+    dmq::ByteWriter oss;
     ser.write(oss, src);
     if (!oss.good())
         return false;
-    std::istringstream iss(oss.str());
+    dmq::ByteReader iss(oss);
     ser.read(iss, dst);
     return !iss.fail();
 }
@@ -622,14 +621,12 @@ static void ConstContainerTests()
     // A container as a remote delegate argument, through DmqSerializer
     {
         dmq::serialization::serializer::Serializer<void(std::vector<int32_t>, std::map<std::string, int32_t>)> s;
-        dmq::xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+        dmq::ByteWriter os;
         const std::vector<int32_t> v{ 7, 8 };
         const std::map<std::string, int32_t> m{ { "k", 9 } };
         s.Write(os, v, m);
         DMQ_ASSERT_TRUE(os.good());
-        // str() is an xstring under DMQ_ALLOCATOR; copy into a std::string
-        const auto wire = os.str();
-        std::istringstream is(std::string(wire.data(), wire.size()));
+        dmq::ByteReader is(os);
         std::vector<int32_t> v2;
         std::map<std::string, int32_t> m2;
         s.Read(is, v2, m2);
@@ -695,11 +692,11 @@ static void NestedContainerTests()
     {
         serialize ser;
         const std::vector<std::vector<int32_t>> src{ { 1, 2, 3 } };
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::string wire = oss.str();
+        std::string wire(oss.data(), oss.size());
         wire.resize(wire.size() - 3);
-        std::istringstream iss(wire);
+        dmq::ByteReader iss(wire.data(), wire.size());
         std::vector<std::vector<int32_t>> dst;
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(iss.fail());
@@ -721,9 +718,9 @@ static void ArrayTests()
         std::array<std::string, 2> src{ { "a", "bc" } };    // non-const write
         std::array<std::string, 2> dst{};
         serialize ser;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail() && dst == src);
     }
@@ -734,9 +731,9 @@ static void ArrayTests()
         const auto& csrc = src;
         std::array<SimpleMsg, 2> dst;
         serialize ser;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, csrc);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail() && dst[0].id == 1 && dst[1].id == 2);
     }
@@ -744,16 +741,16 @@ static void ArrayTests()
     {
         serialize ser;
         const std::vector<int32_t> v{ 4, 5 };
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, v);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         std::array<int32_t, 2> a{};
         ser.read(iss, a);
         DMQ_ASSERT_TRUE(!iss.fail() && a[0] == 4 && a[1] == 5);
 
-        std::ostringstream oss2;
+        dmq::ByteWriter oss2;
         ser.write(oss2, a);
-        std::istringstream iss2(oss2.str());
+        dmq::ByteReader iss2(oss2);
         std::vector<int32_t> v2;
         ser.read(iss2, v2);
         DMQ_ASSERT_TRUE(!iss2.fail() && v2 == v);
@@ -762,9 +759,9 @@ static void ArrayTests()
     {
         serialize ser;
         const std::vector<int32_t> v{ 1, 2, 3 };
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, v);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         std::array<int32_t, 2> a{ { 9, 9 } };
         ser.clearLastError();
         ser.read(iss, a);
@@ -811,10 +808,10 @@ static void ContainerStringTests()
     {
         std::vector<std::string> src{ "alpha", "", "gamma" };
         std::vector<std::string> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -822,9 +819,9 @@ static void ContainerStringTests()
     {
         std::list<std::string> src{ "one", "two" };
         std::list<std::string> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -832,9 +829,9 @@ static void ContainerStringTests()
     {
         std::set<std::string> src{ "x", "y", "z" };
         std::set<std::string> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -842,9 +839,9 @@ static void ContainerStringTests()
     {
         std::map<std::string, int32_t> src{ { "a", 1 }, { "bb", 2 } };
         std::map<std::string, int32_t> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -852,9 +849,9 @@ static void ContainerStringTests()
     {
         std::map<int32_t, std::string> src{ { 1, "one" }, { 2, "two" } };
         std::map<int32_t, std::string> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -862,9 +859,9 @@ static void ContainerStringTests()
     {
         std::vector<std::wstring> src{ L"wide", L"strings" };
         std::vector<std::wstring> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -875,9 +872,9 @@ static void ContainerStringTests()
         m->id = 7;
         std::map<std::string, SimpleMsg*> src{ { "k", m }, { "null", nullptr } };
         std::map<std::string, SimpleMsg*> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst.size() == 2);
@@ -894,9 +891,10 @@ static void ContainerStringTests()
         dmq::xlist<dmq::xstring> dst;
         dmq::xmap<int32_t, dmq::xstring> msrc{ { 1, "m" } };
         dmq::xmap<int32_t, dmq::xstring> mdst;
-        dmq::xstringstream ss(std::ios::in | std::ios::out | std::ios::binary);
-        ser.write(ss, src);
-        ser.write(ss, msrc);
+        dmq::ByteWriter ws;
+        ser.write(ws, src);
+        ser.write(ws, msrc);
+        dmq::ByteReader ss(ws);
         ser.read(ss, dst);
         ser.read(ss, mdst);
         DMQ_ASSERT_TRUE(!ss.fail());
@@ -991,12 +989,12 @@ static void VersioningTests()
         v2src.field1 = 111;
         v2src.field2 = 222;
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, v2src);
         DMQ_ASSERT_TRUE(oss.good());
 
         MsgV1 v1dst;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, v1dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(v1dst.field1 == 111);
@@ -1008,13 +1006,13 @@ static void VersioningTests()
         MsgV1 v1src;
         v1src.field1 = 333;
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, v1src);
         DMQ_ASSERT_TRUE(oss.good());
 
         MsgV2 v2dst;
         v2dst.field2 = 999;  // pre-set to detect if it is wrongly overwritten
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, v2dst);
         DMQ_ASSERT_TRUE(v2dst.field1 == 333);
         DMQ_ASSERT_TRUE(v2dst.field2 == 999);  // must be unchanged (not read)
@@ -1033,10 +1031,10 @@ static void ContainerValueTests()
     {
         std::vector<int> src = {1, 2, 3, 100, -50};
         std::vector<int> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -1046,9 +1044,9 @@ static void ContainerValueTests()
     {
         std::vector<int> src;
         std::vector<int> dst = {9, 8, 7};
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(dst.empty());
     }
@@ -1057,10 +1055,10 @@ static void ContainerValueTests()
     {
         std::vector<bool> src = {true, false, true, true, false};
         std::vector<bool> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -1070,9 +1068,9 @@ static void ContainerValueTests()
     {
         std::list<int> src = {10, 20, 30};
         std::list<int> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -1082,9 +1080,9 @@ static void ContainerValueTests()
     {
         std::set<int> src = {5, 3, 1, 4, 2};
         std::set<int> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -1094,9 +1092,9 @@ static void ContainerValueTests()
     {
         std::map<int, int> src = {{1, 10}, {2, 20}, {3, 30}};
         std::map<int, int> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst == src);
@@ -1109,10 +1107,10 @@ static void ContainerValueTests()
         src[1].id = 2; src[1].value = 2.2f;
         src[2].id = 3; src[2].value = 3.3f;
         std::vector<SimpleMsg> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst.size() == 3);
@@ -1127,9 +1125,9 @@ static void ContainerValueTests()
         src[1].id = 10; src[1].value = 0.1f;
         src[2].id = 20; src[2].value = 0.2f;
         std::map<int, SimpleMsg> dst;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst.size() == 2);
@@ -1153,12 +1151,12 @@ static void ContainerPointerTests()
         b.id = 2; b.value = 2.0f;
         std::vector<SimpleMsg*> src = {&a, &b};
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
 
         std::vector<SimpleMsg*> dst;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(dst.size() == 2);
@@ -1173,11 +1171,11 @@ static void ContainerPointerTests()
         a.id = 5; a.value = 5.0f;
         std::vector<SimpleMsg*> src = {&a, nullptr};
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
 
         std::vector<SimpleMsg*> dst;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(dst.size() == 2);
         DMQ_ASSERT_TRUE(dst[0] != nullptr && dst[0]->id == 5);
@@ -1191,11 +1189,11 @@ static void ContainerPointerTests()
         a.id = 7; a.value = 7.7f;
         std::list<SimpleMsg*> src = {&a};
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
 
         std::list<SimpleMsg*> dst;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(dst.size() == 1);
         DMQ_ASSERT_TRUE(dst.front() != nullptr && dst.front()->id == 7);
@@ -1210,11 +1208,11 @@ static void ContainerPointerTests()
         src[1] = &a;
         src[2] = nullptr;
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
 
         std::map<int, SimpleMsg*> dst;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(dst.size() == 2);
         DMQ_ASSERT_TRUE(dst[1] != nullptr && dst[1]->id == 11);
@@ -1228,11 +1226,11 @@ static void ContainerPointerTests()
         a.id = 99; a.value = 9.9f;
         std::set<SimpleMsg*> src = {&a};
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
 
         std::set<SimpleMsg*> dst;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(dst.size() == 1);
         DMQ_ASSERT_TRUE((*dst.begin()) != nullptr && (*dst.begin())->id == 99);
@@ -1250,12 +1248,12 @@ static void EndiannessTests()
 
     // writeEndian / readEndian round-trip
     {
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.writeEndian(oss);
         DMQ_ASSERT_TRUE(oss.good());
 
         bool le = !serialize::LE();  // start with opposite value
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.readEndian(iss, le);
         DMQ_ASSERT_TRUE(!iss.fail());
         DMQ_ASSERT_TRUE(le == serialize::LE());
@@ -1296,20 +1294,34 @@ static void ErrorTests()
     // — the tag byte differs so read_type must set failbit and report TYPE_MISMATCH.
     {
         std::string src = "hello";
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
 
         int32_t dst = 0;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.clearLastError();
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(iss.fail());
         DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::TYPE_MISMATCH);
     }
 
+    // A frame cut short inside an object's size field: a stream error, not an
+    // object read with size 0
+    {
+        SimpleMsg src;
+        dmq::ByteWriter oss;
+        ser.write(oss, src);
+        dmq::ByteReader iss(oss.data(), 2);   // the type tag and one byte of the size
+        SimpleMsg dst;
+        ser.clearLastError();
+        ser.read(iss, dst);
+        DMQ_ASSERT_TRUE(iss.fail());
+        DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::STREAM_ERROR);
+    }
+
     // Reading from empty stream — should fail gracefully
     {
-        std::istringstream iss("");
+        dmq::ByteReader iss;
         int32_t dst = 0;
         ser.clearLastError();
         ser.read(iss, dst);
@@ -1319,7 +1331,7 @@ static void ErrorTests()
     // Container exceeds MAX_CONTAINER_SIZE (200): write should fail
     {
         std::vector<int> big(201, 0);
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.clearLastError();
         ser.write(oss, big);
         DMQ_ASSERT_TRUE(!oss.good());
@@ -1333,13 +1345,13 @@ static void ErrorTests()
     // fails coming back on read.
     {
         DeepMsg<8> src;
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.clearLastError();
         ser.write(oss, src);
         DMQ_ASSERT_TRUE(oss.good());
 
         DeepMsg<8> dst;
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.clearLastError();
         ser.read(iss, dst);
         DMQ_ASSERT_TRUE(iss.fail());
@@ -1357,7 +1369,7 @@ static void ErrorTests()
             lastErr = err;
         });
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         std::string tooBig(1025, 'X');
         localSer.write(oss, tooBig);
 
@@ -1387,12 +1399,12 @@ static void MultiObjectStreamTests()
         a.id = 1; a.value = 1.1f;
         b.id = 2; b.value = 2.2f;
 
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, a);
         ser.write(oss, b);
         DMQ_ASSERT_TRUE(oss.good());
 
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         SimpleMsg ra, rb;
         ser.read(iss, ra);
         ser.read(iss, rb);
@@ -1403,7 +1415,7 @@ static void MultiObjectStreamTests()
 
     // Mix of primitives and user objects in one stream.
     {
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         int32_t n = 42;
         SimpleMsg msg;
         msg.id = 7; msg.value = 3.0f;
@@ -1414,7 +1426,7 @@ static void MultiObjectStreamTests()
         ser.write(oss, s);
         DMQ_ASSERT_TRUE(oss.good());
 
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         int32_t rn = 0;
         SimpleMsg rmsg;
         std::string rs;
@@ -1442,9 +1454,9 @@ static void EmptyStringBugFixTest()
         std::string src = "";
         std::string dst = "previous data";
         
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         
         DMQ_ASSERT_TRUE(dst.empty());
@@ -1455,36 +1467,13 @@ static void EmptyStringBugFixTest()
         std::wstring src = L"";
         std::wstring dst = L"previous data";
         
-        std::ostringstream oss;
+        dmq::ByteWriter oss;
         ser.write(oss, src);
-        std::istringstream iss(oss.str());
+        dmq::ByteReader iss(oss);
         ser.read(iss, dst);
         
         DMQ_ASSERT_TRUE(dst.empty());
     }
-}
-
-/// A custom stream buffer that forces tellp/tellg/seekp to return error (-1).
-class NonSeekableBuffer : public std::stringbuf
-{
-protected:
-    pos_type seekoff(off_type, std::ios_base::seekdir, std::ios_base::openmode) override { return pos_type(off_type(-1)); }
-    pos_type seekpos(pos_type, std::ios_base::openmode) override { return pos_type(off_type(-1)); }
-};
-
-/// Verify that serializing an object into a non-seekable stream triggers an error.
-static void NonSeekableStreamTest()
-{
-    serialize ser;
-    SimpleMsg msg;
-    NonSeekableBuffer buf;
-    std::iostream nss(&buf);
-    
-    ser.clearLastError();
-    ser.write(nss, msg);
-    
-    DMQ_ASSERT_TRUE(ser.getLastError() == serialize::ParsingError::NON_SEEKABLE_STREAM);
-    DMQ_ASSERT_TRUE(nss.fail());
 }
 
 // ---------------------------------------------------------------------------
@@ -1508,5 +1497,4 @@ void SerializeTests()
     ErrorTests();
     MultiObjectStreamTests();
     EmptyStringBugFixTest();
-    NonSeekableStreamTest();
 }

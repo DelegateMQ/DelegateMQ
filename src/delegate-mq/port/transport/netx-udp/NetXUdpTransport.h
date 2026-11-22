@@ -68,7 +68,13 @@ public:
         tx_mutex_delete(&m_mutex);
     }
 
-    /// @brief Initialize the UDP socket.
+    /// @brief Initialize the UDP socket. PUB sends to addr:port (and drains ACKs);
+    /// SUB binds port and receives.
+    /// @note Receive() blocks up to the receive timeout when nothing arrives:
+    /// DMQ_UDP_PUB_RECV_TIMEOUT_MS (2 ms) for PUB, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s)
+    /// for SUB. A thread that polls a SUB socket between other work (a timer, a
+    /// loop that also drains ACKs) stalls for the full 2 s each idle poll: call
+    /// SetRecvTimeout() with a short timeout after Create().
     int Create(Type type, const char* addr_str, uint16_t port)
     {
         Close();    // a second Create() replaces the socket instead of leaking it
@@ -146,11 +152,11 @@ public:
         tx_mutex_put(&m_mutex);
     }
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         tx_mutex_get(&m_mutex, TX_WAIT_FOREVER);
 
-        if (os.bad() || os.fail()) {
+        if (os.fail()) {
             tx_mutex_put(&m_mutex);
             return -1;
         }
@@ -166,9 +172,9 @@ public:
             return -1;
         }
 
-        auto payload = os.str();
+        const dmq::ByteWriter& payload = os;
         // The receiver's buffer (same DMQ_UDP_BUFFER_SIZE) must hold the datagram.
-        if (payload.length() > dmq::UDP_BUFFER_SIZE - DmqHeader::HEADER_SIZE) {
+        if (payload.size() > dmq::UDP_BUFFER_SIZE - DmqHeader::HEADER_SIZE) {
             tx_mutex_put(&m_mutex);
             return -1;
         }
@@ -183,7 +189,7 @@ public:
 
         // 2. Prepare Header (Network Byte Order)
         DmqHeader headerCopy = header;
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
+        headerCopy.SetLength(static_cast<uint16_t>(payload.size()));
 
         UCHAR headerBuf[DmqHeader::HEADER_SIZE];
         headerCopy.Encode(headerBuf);
@@ -193,7 +199,10 @@ public:
         if (nx_packet_data_append(packet_ptr, headerBuf, sizeof(headerBuf), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
             goto cleanup_and_fail;
 
-        if (nx_packet_data_append(packet_ptr, (VOID*)payload.data(), payload.size(), m_pool, NX_NO_WAIT) != NX_SUCCESS) 
+        // Only when there is a payload: an ACK has none, and NetX's checked API
+        // rejects a zero-byte append (NX_SIZE_ERROR), which would drop every ACK.
+        if (payload.size() > 0 &&
+            nx_packet_data_append(packet_ptr, (VOID*)payload.data(), payload.size(), m_pool, NX_NO_WAIT) != NX_SUCCESS)
             goto cleanup_and_fail;
 
         // 4. Send
@@ -218,8 +227,9 @@ public:
         return -1;
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // m_recvMutex, not m_mutex: a Send() on another thread isn't held up
         // for the receive timeout.
         tx_mutex_get(&m_recvMutex, TX_WAIT_FOREVER);
@@ -234,7 +244,7 @@ public:
 
 private:
     /// Receive() body; caller holds m_recvMutex.
-    int ReceiveLocked(xstringstream& is, DmqHeader& header)
+    int ReceiveLocked(dmq::ByteReader& is, DmqHeader& header)
     {
         if (m_recvTransport != this || m_socket.nx_udp_socket_id == 0) {
             return -1;
@@ -292,12 +302,8 @@ private:
             tx_mutex_put(&m_mutex);
         }
 
-        // Reset stream state before writing
-        is.clear();
-        is.str("");
-
-        // Write Payload to stream
-        is.write((char*)(m_recvBuffer + DmqHeader::HEADER_SIZE), header.GetLength());
+        // The payload, viewed in place in m_recvBuffer
+        is.assign((const char*)(m_recvBuffer + DmqHeader::HEADER_SIZE), header.GetLength());
 
         // --- ACK Logic ---
         if (header.GetId() == dmq::ACK_REMOTE_ID) {
@@ -307,7 +313,7 @@ private:
         // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
         // has no monitor but must still ACK the sender's RELIABLE messages.
         else if (m_sendTransport) {
-            xostringstream ss_ack;
+            dmq::ByteWriter ss_ack;
             DmqHeader ack;
             ack.SetId(dmq::ACK_REMOTE_ID);
             ack.SetSeqNum(header.GetSeqNum());

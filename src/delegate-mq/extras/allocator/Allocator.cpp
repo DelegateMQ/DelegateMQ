@@ -13,7 +13,7 @@ namespace dmq {
 // Constructor
 //------------------------------------------------------------------------------
 Allocator::Allocator(size_t size, uint32_t objects, char* memory, const char* name) :
-    m_blockSize(size < sizeof(long*) ? sizeof(long*):size),
+    m_blockSize(BlockSize(size)),
     m_objectSize(size),
     m_maxObjects(objects),
     m_pHead(NULL),
@@ -81,6 +81,7 @@ void* Allocator::Allocate([[maybe_unused]] size_t size)
             if(m_poolIndex < m_maxObjects)
             {
                 pBlock = (void*)(m_pPool + (m_poolIndex++ * m_blockSize));
+                m_blockCnt++;
             }
             else
             {
@@ -142,6 +143,25 @@ void Allocator::Deallocate(void* pBlock)
     Push(pBlock);
 	m_blocksInUse--;
 	m_deallocations++;
+}
+
+//------------------------------------------------------------------------------
+// TryAllocate
+//------------------------------------------------------------------------------
+void* Allocator::TryAllocate()
+{
+    void* pBlock = Pop();
+    if (!pBlock && m_maxObjects && m_poolIndex < m_maxObjects)
+    {
+        pBlock = (void*)(m_pPool + (m_poolIndex++ * m_blockSize));
+        m_blockCnt++;
+    }
+    if (pBlock)
+    {
+        m_blocksInUse++;
+        m_allocations++;
+    }
+    return pBlock;
 }
 
 //------------------------------------------------------------------------------

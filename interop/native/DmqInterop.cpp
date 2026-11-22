@@ -182,14 +182,14 @@ namespace {
     void InteropState::RecvLoop() {
         while (running) {
             try {
-                dmq::xstringstream is(std::ios::in | std::ios::out | std::ios::binary);
+                dmq::ByteReader is;
                 DmqHeader header;
 
                 // Receive blocks up to the transport's receive timeout
                 if (recvTransport->Receive(is, header) == 0) {
                     // ACKs are consumed by the transport (TransportMonitor::Remove)
                     if (header.GetId() != dmq::ACK_REMOTE_ID) {
-                        std::string payload = is.str();
+                        std::string payload(is.data(), is.size());
                         Registered<DmqMessageCallback> cb;
                         {
                             std::lock_guard<std::mutex> lock(g_cbMutex);
@@ -228,7 +228,7 @@ namespace {
                 // ZeroMQ PUB sockets can't receive; there ACKs arrive on the recv socket.
                 for (int i = 0; i < 16; ++i) {
                     DmqHeader ackHeader;
-                    dmq::xstringstream ackStream(std::ios::in | std::ios::out | std::ios::binary);
+                    dmq::ByteReader ackStream;
                     if (sendTransport->Receive(ackStream, ackHeader) != 0) break;
                 }
 #endif
@@ -417,7 +417,7 @@ extern "C" {
         if (!state || !state->running) return -1;
 
         try {
-            dmq::xostringstream os(std::ios::in | std::ios::out | std::ios::binary);
+            dmq::ByteWriter os;
             os.write((const char*)data, len);
 
             DmqHeader header;

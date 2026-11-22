@@ -122,6 +122,14 @@ The samples bind async delegates with a raw `this` (`MakeDelegate(this, &X::F, m
 - `DelegateAsync` (fire-and-forget) does not return the target function's return value. Use `DelegateAsyncWait` for blocking with return, or `Signal` for broadcast callbacks.
 - Out-parameters (pointer or reference arguments modified by the handler) are not reflected back to the caller for non-blocking async; deep-copying is one-way. Use blocking async if out-parameters are needed.
 - C-style array arguments decay to pointers per the C standard; pass `std::vector` or a struct instead.
+- A `char*`/`const char*` argument in a non-blocking async call doesn't compile (only the first character would be copied): use `std::string`. Async-wait calls may take `const char*`.
+- A queued async call to an object bound by raw `this` runs even after the object is destroyed: bind runtime objects with `std::shared_ptr`, and exit the thread before destroying what it calls.
+- A UDP SUB socket's `Receive()` waits up to 2 s (`DMQ_UDP_SUB_RECV_TIMEOUT_MS`) when idle; a thread that polls it between other work needs `SetRecvTimeout()` of a few ms.
+- `Participant` drops a sequence number it saw recently from the same sender (retries). A restarted sender reuses numbers: set `SetSeqHistoryExpiry()` to the sender's retry window and watch `OnDuplicateDropped`.
+- On ESP-IDF, FreeRTOS stack sizes (`DMQ_FREERTOS_STACK_WORDS`, `SetStackMem()`) are bytes, not words.
+- One `std::cout`/`std::stringstream` in MCU firmware links all of iostreams (~160-200 KB of flash); use `printf`/`snprintf`.
+- Remote messages over `DMQ_MAX_MESSAGE_SIZE` (65535; 4096 with `DMQ_ALLOCATOR`) fail with `ERR_MESSAGE_TOO_LARGE`.
+- More, with fixes: "Pitfalls" in `docs/APP-GUIDE.md`.
 - Passing a `std::shared_ptr` argument through an async delegate copies the smart pointer, not the pointed-to object — the pointed-to data is shared, not duplicated.
 - `Signal::Connect()` and every `Subscribe*()` return a `[[nodiscard]]` `dmq::ScopedConnection` that owns the subscription. Discarding it disconnects immediately: no callbacks, no error. Store it in a member variable or container.
 - Each DataBus topic has exactly one C++ type; a type mismatch between publisher and subscriber triggers a fault at runtime.
@@ -141,6 +149,8 @@ The samples bind async delegates with a raw `this` (`MakeDelegate(this, &X::F, m
 - `void Stop()` — stop the timer; removal from the list is deferred to the next `ProcessTimers()` call
 - `bool Enabled()` — returns whether the timer is currently active
 - `static dmq::TimePoint GetNow()` — current time from `dmq::Clock` (the port's monotonic clock)
+- `static dmq::Duration GetNextExpiry()` — time until the earliest running timer expires: `Duration(0)` if one is due, `Duration::max()` if none runs. Takes only `GetLock()`, so an idle hook or ISR may call it
+- `static void SetScheduleChangedHandler(void (*handler)())` — a plain function `Start()` calls after scheduling a timer (outside the lock, in the caller's context: make it ISR-safe if timers start from ISRs), so a driver sleeping on `GetNextExpiry()` wakes and recomputes; `nullptr` removes it
 
 ### ProcessTimers()
 
@@ -152,9 +162,11 @@ Must be called periodically, from a main loop or a high-priority task. The timer
 
 | Port | Call `ProcessTimers()` from a hardware ISR? |
 |---|---|
-| Bare metal / no RTOS (`DMQ_THREAD_NONE`), ARM or RISC-V | Yes (e.g. `SysTick_Handler`) |
+| Bare metal / no RTOS (`DMQ_THREAD_NONE`), ARM or RISC-V | Yes (e.g. `SysTick_Handler`), with the rules below |
 | Every RTOS port (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX) | No — call it from a task (OS mutexes can't be taken in an ISR) |
 | Desktop (stdlib/Win32/POSIX/Qt) | No — call it from a thread |
+
+On bare metal, a signal's subscriber list has no lock (`RecursiveMutex` is a no-op `NullMutex`). With `ProcessTimers()` in an ISR: connect and disconnect a timer's `OnExpired` only while that timer is stopped (connect before `Start()`, `Stop()` before disconnecting), or with interrupts masked; keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers, since copying more allocates inside the ISR; and keep synchronous callbacks ISR-safe (post work to the main loop through an `IsrDelegate`). If these don't fit, call `ProcessTimers()` from the main loop, with the ISR only advancing the clock and setting a flag. See "Bare Metal: ProcessTimers() in an ISR" in `Timer.h`.
 
 Implementation per port and how each was verified: see the ISR-Safe Locking section of [CLAUDE.md](CLAUDE.md).
 
@@ -184,6 +196,27 @@ void TimerTask(void*) {
 }
 ```
 
+### Event-driven processing (low power, precise timing)
+
+A fixed polling period wakes the CPU every period and fires a timer up to one period late. Instead, a driver can run `ProcessTimers()` only when a timer is due: it waits for `GetNextExpiry()`, or for a wake-up from the schedule-changed handler (a `Start()` may add a sooner deadline). Timers then fire on time, and between deadlines the CPU can sleep (FreeRTOS `configUSE_TICKLESS_IDLE`, other RTOSes' tickless modes, `WFI` on bare metal).
+
+```cpp
+static TaskHandle_t s_timerTask;
+static void WakeTimerTask() { xTaskNotifyGive(s_timerTask); }   // FromISR variant if Start() runs in ISRs
+
+void TimerTask(void*) {
+    for (;;) {
+        dmq::util::Timer::ProcessTimers();
+        const dmq::Duration next = dmq::util::Timer::GetNextExpiry();
+        ulTaskNotifyTake(pdTRUE, next == dmq::Duration::max() ? portMAX_DELAY
+                                                              : pdMS_TO_TICKS(next.count()));
+    }
+}
+// At startup: dmq::util::Timer::SetScheduleChangedHandler(&WakeTimerTask);
+```
+
+A `Start()` between `GetNextExpiry()` and the wait isn't missed: the notification stays pending. `Stop()` doesn't call the handler (a later deadline only means one early, harmless wake). Sleep is still bounded by the shortest periodic timer, and by other polled work (`Thread::WatchdogCheckAll()`, `IsrDelegates::ProcessAll()` unless woken by its post handler). On bare metal, `dmq::Clock` usually counts a 1 ms SysTick, which wakes the CPU every millisecond anyway: deep sleep needs the application to stop SysTick, sleep on a low-power timer, and add the slept time to the tick count afterwards (as FreeRTOS's `vTaskStepTick()` does). `os/freertos-bare-metal`'s Test 13 runs this driver (Win32 simulator and Cortex-M3 on QEMU).
+
 ### Configuration constants
 
 Defaults live in `delegate/DelegateMQConfig_Default.h`; override them in your own `DelegateMQConfig.h` (seed it from `DelegateMQConfig_Template.h`). Each is exposed in code as a `dmq::` constant (e.g. `DMQ_MAX_TIMER_EXPIRED` → `dmq::MAX_TIMER_EXPIRED`).
@@ -195,7 +228,7 @@ Defaults live in `delegate/DelegateMQConfig_Default.h`; override them in your ow
 
 For applications running on MCUs with limited RAM (e.g., 64KB–512KB), follow these guidelines to ensure deterministic performance and prevent heap exhaustion:
 
-1. **Enable `DMQ_ALLOCATOR`**: This is the most critical step. It replaces the standard `malloc`/`free` with DelegateMQ's fixed-block allocator for all internal library structures (DataBus topics, connections, async messages). This eliminates fragmentation and makes memory usage predictable.
+1. **Enable `DMQ_ALLOCATOR`**: This is the most critical step. It replaces the standard `malloc`/`free` with DelegateMQ's fixed-block allocator for all internal library structures (DataBus topics, connections, async messages). This eliminates fragmentation and makes memory usage predictable. To use no heap at all once running, add `DMQ_XALLOCATOR_STATIC_POOLS` with a block count per size (`DMQ_XALLOC_POOL_<size>`), sized from `xalloc_print_pool_config()` after a run under the heaviest load, plus headroom; a full pool faults. Allocations outside the allocator (a large lambda capture in `std::function`, application code) still use the heap: check with a wrapped `malloc` (see "No Heap After Startup" in `docs/SAFETY.md`).
 2. **Prefer Class Member Delegates**: Use `dmq::MakeDelegate(this, &Class::Method)` instead of capturing lambdas for internal plumbing or long-lived connections. Member function delegates are fixed-size and never allocate, whereas a lambda is stored in a `std::function` and a large capture can silently exceed its small-buffer optimization and allocate.
 3. **Be Mindful of Async Arguments**: When using `DelegateAsync`, every argument is copied: by-value arguments into the message, the data behind reference and pointer arguments to the heap. 
     - **Avoid**: Passing large structs or strings by value.
@@ -316,7 +349,7 @@ void vWatchdogTask(void*) {
     }
 }
 ```
-3. **Fault:** `WatchdogHandler` is an `extern "C"` stub the application provides. The default triggers a `FAULT` (assert/halt); a custom implementation can log the thread name and initiate system recovery.
+3. **Fault:** `WatchdogCheckAll()` first calls the watchdog hook (`dmq::os::SetWatchdogHook()`), if set, for every hung thread, then calls `WatchdogHandler(name)` once, which never returns. The default handler prints the name and halts (desktop: `FAULT`); a custom one (`DMQ_CUSTOM_FAULT_HANDLER`) must not return either.
 
 ### Long-running handlers
 
@@ -337,8 +370,14 @@ void MyClass::LongHandler() {
 |---|---|
 | `CreateThread(std::optional<dmq::Duration>)` | Pass a timeout to enable the watchdog and register the thread |
 | `static WatchdogCheckAll()` | Check every registered thread; call periodically from the application |
+| `dmq::os::SetWatchdogHook(fn)` | `void fn(const dmq::os::WatchdogInfo&)` (`thread`, `threadName`, `stalledFor`): called per hung thread before the fault, to capture it |
+| `dmq::util::SetFaultHook(fn)` | `void fn(const char* file, unsigned short line)`: called by the default `FaultHandler()` before it halts |
 | `ThreadCheck()` | Manually reset the alive timestamp inside a long handler |
 | `ExitThread()` | Stops watchdog checks once the thread has finished (a thread that hangs while `ExitThread()` waits is still reported); it stays registered until destroyed |
+
+### Capturing the failure (hooks)
+
+DelegateMQ captures nothing itself, but calls the application's hooks on the way down: `dmq::os::SetWatchdogHook()` for each hung thread (all of them, then one fault) and `dmq::util::SetFaultHook()` for `DMQ_ASSERT` faults. The watchdog hook runs in the checker task, not the hung thread: read the hung thread's saved context through `info.thread.GetThreadId()` (the OS handle), e.g. its saved PC on FreeRTOS Cortex-M (`os/freertos-bare-metal` Test 15). Hooks record only (`.noinit` RAM, flash, core dump): no allocation, locks, delegates or DataBus, no thread creation or waits (the watchdog list lock is held), and finish before a hardware watchdog fires. Details: "Capturing the Failure" in `docs/PORTING.md`.
 
 ### Priority requirement
 
@@ -346,7 +385,21 @@ The watchdog only catches a runaway thread if the `WatchdogCheckAll()` caller ru
 
 Do **not** call `WatchdogCheckAll()` from a hardware ISR: it takes the thread list's `dmq::RecursiveMutex`, an OS mutex that cannot be acquired from interrupt context on any RTOS port.
 
-For maximum reliability, pair the software watchdog with a hardware watchdog (e.g., STM32 IWDG) and kick it from the same loop, right after `WatchdogCheckAll()` returns — that way a stuck or starved watchdog task also triggers a hardware reset.
+### Hardware watchdog
+
+Feed the hardware watchdog (STM32 IWDG, ESP-IDF task watchdog, nRF WDT) right after `WatchdogCheckAll()` returns, in the same task, and nowhere else:
+
+```cpp
+void WatchdogTask(void*) {
+    for (;;) {
+        dmq::os::Thread::WatchdogCheckAll();   // a hung thread: WatchdogHandler() never returns
+        HAL_IWDG_Refresh(&hiwdg);              // reached only when every watched thread is alive
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+`WatchdogHandler()` is `[[noreturn]]` (the default prints the thread name and loops), so after a hang the feed is never reached and the hardware watchdog resets the MCU; a custom handler must not return either. This also catches the checker task stalling, a dead scheduler, or interrupts left off. Rules: never feed from an ISR, SysTick or the idle hook (they outlive dead tasks); hardware timeout > check period + jitter (≈3× is comfortable), worst-case reset ≈ thread timeout + check period + hardware timeout; freeze the IWDG under the debugger (`__HAL_DBGMCU_FREEZE_IWDG()`); the IWDG runs in Stop mode, so it bounds low-power sleep. ESP-IDF: `esp_task_wdt_add(nullptr)` in the task, `esp_task_wdt_reset()` as the feed, and `CONFIG_ESP_TASK_WDT_PANIC=y` (otherwise a timeout only prints). Bare metal has no `WatchdogCheckAll()`: feed at the end of each main-loop pass. Details, reset-cause flags and feed calls per platform: "Hardware Watchdog" in `docs/PORTING.md`.
 
 ## Platform and OS Support
 
@@ -366,8 +419,8 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 - CMake is the primary build system; it auto-detects the platform and selects defaults.
 - As a dependency (FetchContent or `add_subdirectory`): set `DMQ_*` options first, then `target_link_libraries(app PRIVATE DelegateMQ::DelegateMQ)`; the static library target carries the port sources, definitions and include paths.
 - For async delegates or DataBus, also compile the `DMQ_PORT_SOURCES` for the target OS/thread port. (`include(DelegateMQ.cmake)` path; `dmq_add_library(<name>)` turns those into a target).
-- Without CMake (Keil, IAR, STM32CubeIDE, Makefiles): add `src/delegate-mq` to the include path and compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq` (not both); select ports/options with `#define`s in a `DelegateMQConfig.h` on the include path (copy `delegate/DelegateMQConfig_Template.h`). See `example/sample-projects/no-cmake-integration`.
-- PlatformIO: `lib_deps = endurodave/DelegateMQ@^2.4.0`, C++17 and RTTI enabled, `DelegateMQConfig.h` in the project's `include/` folder (not `src/`). STM32 Arduino cores don't start FreeRTOS: add `stm32duino/STM32duino FreeRTOS` and call `vTaskStartScheduler()` from `setup()`. See [PLATFORMIO](example/platformio/PLATFORMIO.md) and `example/platformio/async-delegates`.
+- Without CMake (Keil, IAR, STM32CubeIDE, Makefiles): add `src/delegate-mq` to the include path and compile either `src/DelegateMQ.cpp` or every `.cpp` under `src/delegate-mq` (not both); select ports/options with `#define`s in a `DelegateMQConfig.h` on the include path (copy `delegate/DelegateMQConfig_Template.h`). See `example/sample-projects/integration/no-cmake`.
+- PlatformIO: `lib_deps = endurodave/DelegateMQ@^3.0.0`, C++17 and RTTI enabled, `DelegateMQConfig.h` in the project's `include/` folder (not `src/`). STM32 Arduino cores don't start FreeRTOS: add `stm32duino/STM32duino FreeRTOS` and call `vTaskStartScheduler()` from `setup()`. See [PLATFORMIO](example/platformio/PLATFORMIO.md) and `example/platformio/async-delegates`.
 - Key CMake options: `DMQ_THREAD` (e.g., `DMQ_THREAD_STDLIB`, `DMQ_THREAD_FREERTOS`, `DMQ_THREAD_WIN32`), `DMQ_ALLOCATOR` (fixed-block allocator), `DMQ_ASSERTS`, `DMQ_TOOLS`.
 
 ## Diagnostic Tools (DMQ_TOOLS=ON)

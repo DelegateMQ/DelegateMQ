@@ -137,6 +137,15 @@ public:
     /// @details Must be called while the thread is not running (before CreateThread(),
     /// or after ExitThread()); calling it on a running thread faults. It runs again
     /// on each CreateThread(). Messages dispatched meanwhile are queued, not lost.
+    /// Run the thread only on the cores in coreMask: bit 0 = CPU 0, bit 1 = CPU 1,
+    /// ... 0 (the default) = any CPU. Call before CreateThread().
+    /// - CONFIG_SCHED_CPU_MASK: the thread is created unstarted, given the mask
+    ///   (k_thread_cpu_mask_*()), then started.
+    /// - Otherwise: only a mask that includes CPU 0.
+    /// Any other mask faults (DMQ_ASSERT) in CreateThread().
+    void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(!m_stackMemory); m_coreMask = coreMask; }
+    uint32_t GetCoreAffinity() const { return m_coreMask; }
+
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(!m_stackMemory); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(!m_stackMemory); m_startHandler = std::move(handler); }
 
@@ -207,7 +216,8 @@ private:
     void Run();
 
     /// Check watchdog is expired. Called by WatchdogCheckAll().
-    void WatchdogCheck();
+    /// @return true if expired, with the time since the thread was last alive in stalledFor.
+    bool WatchdogExpired(dmq::Duration& stalledFor);
 
     /// Get registry head using the "Immortal" Pattern
     static ZephyrThread*& GetWatchdogHead();
@@ -231,6 +241,7 @@ private:
 
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
+    uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any CPU
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();
@@ -264,9 +275,14 @@ private:
     // Stack size in bytes
     static const size_t STACK_SIZE = dmq::ZEPHYR_STACK_BYTES; // DMQ_ZEPHYR_STACK_BYTES
 
-    // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
-    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
+    // Watchdog related members, as 32-bit millisecond counts rather than
+    // std::atomic<dmq::TimePoint>/<dmq::Duration>: those are 64-bit, and a
+    // 64-bit atomic on a 32-bit Cortex-M (no 64-bit LDREX/STREX) is a libatomic
+    // call that arm-none-eabi toolchains don't provide. Milliseconds whatever
+    // dmq::Clock's unit, so the count wraps only after 49 days; elapsed time is
+    // an unsigned 32-bit difference, so wrap-safe. Same as CmsisRtos2Thread.
+    std::atomic<uint32_t> m_lastAliveTime{0};
+    std::atomic<uint32_t> m_watchdogTimeout{0};
     ZephyrThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

@@ -27,7 +27,6 @@
 /// @note This class is specific to Linux and uses POSIX socket APIs.
 
 #include <iostream>
-#include <sstream>
 #include <cstring>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -154,7 +153,7 @@ public:
 
     /// @brief Send data over the TCP link.
     /// @details In SERVER mode, this broadcasts to all connected clients.
-    virtual int Send(xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         // m_mutex guards m_sendBuffer and keeps frames from different threads
         // (including ACKs written by Receive()) from interleaving on the stream.
@@ -171,8 +170,9 @@ public:
     }
 
     /// @brief Receive data from the TCP link.
-    virtual int Receive(xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         if (m_type == Type::SERVER) {
             return ReceiveServer(is, header);
         } else {
@@ -212,16 +212,16 @@ public:
 
 private:
     /// @brief Internal helper to send to a specific socket.
-    int SendToSocket(int fd, xostringstream& os, const DmqHeader& header) {
+    int SendToSocket(int fd, const dmq::ByteWriter& os, const DmqHeader& header) {
         if (fd < 0) return -1;
 
         // Get payload data without string copy if possible
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -239,7 +239,7 @@ private:
     }
 
     /// @brief Internal helper to handle server-side multiplexing.
-    int ReceiveServer(xstringstream& is, DmqHeader& header) {
+    int ReceiveServer(dmq::ByteReader& is, DmqHeader& header) {
         // 1. Lazy Accept: Check for new client connections
         fd_set fds;
         FD_ZERO(&fds);
@@ -292,7 +292,7 @@ private:
     }
 
     /// @brief Internal helper to read from a specific socket and parse DMQ protocol.
-    int ReceiveSocket(int fd, xstringstream& is, DmqHeader& header) {
+    int ReceiveSocket(int fd, dmq::ByteReader& is, DmqHeader& header) {
         if (fd < 0) return -1;
 
         fd_set readfds;
@@ -320,7 +320,7 @@ private:
         if (payloadSize > 0) {
             if (payloadSize > BUFFER_SIZE) return -2;
             if (!ReadExact(fd, m_recvBuffer, payloadSize)) return -2;
-            is.write(m_recvBuffer, payloadSize);
+            is.assign(m_recvBuffer, payloadSize);
         }
 
         // 3. Handle Acknowledgment

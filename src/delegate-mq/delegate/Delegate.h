@@ -102,6 +102,37 @@ namespace trait
     };
 }
 
+/// @brief In MakeDelegate(F&& func, ...): record F's type in the delegate
+/// under DMQ_NO_RTTI (DelegateFunction::SetCallableType()), unless F is a
+/// std::function, whose callable type is erased. Nothing with RTTI.
+#if defined(DMQ_NO_RTTI)
+    #define DMQ_SET_CALLABLE_TYPE(delegate, F, Sig) \
+        do { \
+            if constexpr (!std::is_same_v<std::decay_t<F>, std::function<Sig>>) \
+                (delegate).SetCallableType(dmq::TypeIdOf<std::decay_t<F>>()); \
+        } while (0)
+#else
+    #define DMQ_SET_CALLABLE_TYPE(delegate, F, Sig) do { } while (0)
+#endif
+
+#if defined(DMQ_NO_RTTI)
+namespace detail {
+    /// @brief A new nonzero ID for a DelegateFunction's bound target (see
+    /// DelegateFunction::Equal()). A critical section, not std::atomic, so it
+    /// also builds where atomic read-modify-write needs libatomic (Cortex-M0).
+    inline uint32_t NextFunctionBindId() {
+        // Static storage, not the heap: constructed on first use, never destroyed
+        alignas(dmq::CriticalSection) static char storage[sizeof(dmq::CriticalSection)];
+        static dmq::CriticalSection* lock = new (storage) dmq::CriticalSection();
+        static uint32_t next = 0;
+        dmq::LockGuard<dmq::CriticalSection> guard(*lock);
+        if (++next == 0)
+            ++next;     // 0 means empty
+        return next;
+    }
+}
+#endif
+
 /// @brief Non-template base class for all delegates.
 class DelegateBase {
 public:
@@ -138,6 +169,15 @@ public:
     /// @post The caller is responsible for deleting the clone instance. 
     virtual DelegateBase* Clone() const = 0;
 
+#if defined(DMQ_NO_RTTI)
+    /// @brief This delegate as the class whose TypeId is id, or nullptr: what
+    /// dynamic_cast answers, for DelegateCast() without RTTI (DelegateCast.h).
+    /// Each delegate class overrides it with DMQ_DELEGATE_CAST_TO().
+    virtual const void* CastTo(dmq::TypeId id) const noexcept {
+        return id == dmq::TypeIdOf<DelegateBase>() ? static_cast<const void*>(this) : nullptr;
+    }
+#endif
+
     // Optional fixed block allocator for delegates created on the heap 
     // using operator new(). See DMQ_ALLOCATOR in DelegateOpt.h and 
     // ENABLE_ALLOCATOR in CMakeLists.txt.
@@ -163,6 +203,8 @@ public:
     /// @return A new Delegate instance created on the heap. 
     /// @post The caller is responsible for deleting the instance.
     virtual Delegate* Clone() const override = 0;
+
+    DMQ_DELEGATE_CAST_TO(Delegate<RetType(Args...)>, DelegateBase)
 };
 
 template <class R>
@@ -176,6 +218,7 @@ class DelegateFree<RetType(Args...)> : public Delegate<RetType(Args...)> {
 public:
     typedef RetType(*FreeFunc)(Args...);
     using ClassType = DelegateFree<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, Delegate<RetType(Args...)>)
 
     /// @brief Constructor to create a class instance.
     /// @param[in] func The target free function to store.
@@ -271,7 +314,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_func == derivedRhs->m_func;
     }
@@ -337,6 +380,7 @@ public:
     typedef RetType(TClass::* MemberFunc)(Args...);
     typedef RetType(TClass::* ConstMemberFunc)(Args...) const;
     using ClassType = DelegateMember<TClass, RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, Delegate<RetType(Args...)>)
 
     /// @brief Constructor to create a class instance.
     /// @param[in] object The target object pointer to store.
@@ -493,7 +537,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_func == derivedRhs->m_func &&
             m_object == derivedRhs->m_object;
@@ -574,6 +618,7 @@ public:
     typedef RetType(TClass::* MemberFunc)(Args...);
     typedef RetType(TClass::* ConstMemberFunc)(Args...) const;
     using ClassType = DelegateMemberSp<TClass, RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, Delegate<RetType(Args...)>)
 
     /// @brief Constructor to create a class instance.
     /// @param[in] object The target object pointer to store.
@@ -665,7 +710,7 @@ public:
 
     /// @brief Compares two delegate objects for equality.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         if (!derivedRhs) return false;
 
         // Compare Weak Pointers by locking them first
@@ -729,6 +774,7 @@ class DelegateFunction<RetType(Args...)> : public Delegate<RetType(Args...)> {
 public:
     using FunctionType = std::function<RetType(Args...)>;
     using ClassType = DelegateFunction<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, Delegate<RetType(Args...)>)
 
     /// @brief Constructor to create a class instance.
     /// @param[in] func The target `std::function` to store.
@@ -743,7 +789,13 @@ public:
 
     /// @brief Move constructor that transfers ownership of resources.
     /// @param[in] rhs The object to move from.
-    DelegateFunction(ClassType&& rhs) noexcept : m_func(std::move(rhs.m_func)) { rhs.Clear(); }
+    DelegateFunction(ClassType&& rhs) noexcept : m_func(std::move(rhs.m_func)) {
+#if defined(DMQ_NO_RTTI)
+        m_bindId = rhs.m_bindId;
+        m_callableType = rhs.m_callableType;
+#endif
+        rhs.Clear();
+    }
 
     /// @brief Default constructor creates an empty delegate.
     DelegateFunction() = default;
@@ -771,6 +823,10 @@ public:
             BAD_ALLOC();
         }
 #endif
+#if defined(DMQ_NO_RTTI)
+        m_bindId = m_func ? detail::NextFunctionBindId() : 0;
+        m_callableType = nullptr;
+#endif
     }
 
     /// Compares two ClassType objects using the '<' operator.
@@ -797,6 +853,10 @@ public:
     /// @param[in] rhs The object whose state is to be copied.
     void Assign(const ClassType& rhs) {
         m_func = rhs.m_func;
+#if defined(DMQ_NO_RTTI)
+        m_bindId = rhs.m_bindId;
+        m_callableType = rhs.m_callableType;
+#endif
     }
 
     /// @brief Invoke the bound delegate function synchronously. Always safe to call.
@@ -825,6 +885,10 @@ public:
     ClassType& operator=(ClassType&& rhs) noexcept {
         if (&rhs != this) {
             m_func = std::move(rhs.m_func);
+#if defined(DMQ_NO_RTTI)
+            m_bindId = rhs.m_bindId;
+            m_callableType = rhs.m_callableType;
+#endif
             rhs.Clear();
         }
         return *this;
@@ -839,14 +903,26 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         if (derivedRhs) {
             // If both delegates are empty, they are equal
             if (Empty() && derivedRhs->Empty())
                 return true;
 
-            if (m_func && derivedRhs->m_func)
+            if (m_func && derivedRhs->m_func) {
+#if defined(DMQ_NO_RTTI)
+                // Equal if the callables are of the same type, as with RTTI,
+                // when both types are known (made from a lambda or callable
+                // object). A type-erased std::function has none: then equal
+                // only to a copy of the same bound delegate.
+                if (m_callableType && derivedRhs->m_callableType)
+                    return m_callableType == derivedRhs->m_callableType;
+                return m_bindId == derivedRhs->m_bindId;
+#else
+                // Equal if the callables are of the same type
                 return m_func.target_type() == derivedRhs->m_func.target_type();
+#endif
+            }
 
             return false;
         }
@@ -886,9 +962,22 @@ public:
     /// @return `true` if the delegate has a target function, `false` otherwise.
     bool Empty() const noexcept { return !m_func; }
 
+#if defined(DMQ_NO_RTTI)
+    /// @brief Record the bound callable's type for Equal(), in place of RTTI's
+    /// std::function::target_type(). MakeDelegate() calls it when it binds a
+    /// lambda or other callable object, whose type it knows.
+    void SetCallableType(dmq::TypeId type) noexcept { m_callableType = type; }
+#endif
+
     /// @brief Clear the target function.
     /// @post The delegate is empty.
-    void Clear() noexcept { m_func = nullptr; }
+    void Clear() noexcept {
+        m_func = nullptr;
+#if defined(DMQ_NO_RTTI)
+        m_bindId = 0;
+        m_callableType = nullptr;
+#endif
+    }
 
     /// @brief Implicit conversion operator to `bool`.
     /// @return `true` if the object is not empty, `false` if the object is empty.
@@ -897,6 +986,15 @@ public:
 private:
     /// A std::function instance, representing the bound target function.
     FunctionType m_func;
+
+#if defined(DMQ_NO_RTTI)
+    /// Identifies the Bind() that set m_func (0: empty); copies keep it. See Equal().
+    uint32_t m_bindId = 0;
+
+    /// The bound callable's type, when MakeDelegate() knew it (a lambda or
+    /// other callable object); nullptr for a type-erased std::function. See Equal().
+    dmq::TypeId m_callableType = nullptr;
+#endif
 };
 
 /// @brief Creates a delegate that binds to a free function.
@@ -987,7 +1085,9 @@ template <typename F, typename = std::enable_if_t<trait::is_callable<F>::value>>
 auto MakeDelegate(F&& func) {
     // Deduce the signature from the operator()
     using Sig = typename trait::function_traits<decltype(&std::remove_reference_t<F>::operator())>::function_type;
-    return DelegateFunction<Sig>(std::forward<F>(func));
+    DelegateFunction<Sig> delegate(std::forward<F>(func));
+    DMQ_SET_CALLABLE_TYPE(delegate, F, Sig);
+    return delegate;
 }
 
 }

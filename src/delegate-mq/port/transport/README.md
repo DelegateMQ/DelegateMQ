@@ -18,9 +18,9 @@ The subdirectories contain ready-to-use transport implementations for specific p
 * **`mqtt`**: Publish/Subscribe messaging using **Paho MQTT**.
 * **`linux-tcp` / `linux-udp`**: Standard BSD socket implementations for Linux.
 * **`win32-tcp` / `win32-udp`**: Winsock implementations for Windows.
-* **`arm-lwip-udp`**: Lightweight IP (lwIP) raw-API implementation for embedded ARM (FreeRTOS/Bare-metal).
-* **`arm-lwip-netconn-udp`**: lwIP netconn-API UDP implementation for RTOS targets (selected via `DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP`).
-* **`netx-udp`**: Azure RTOS **NetX / NetX Duo** implementation for ThreadX (selected via `DMQ_TRANSPORT_THREADX_UDP`).
+* **`arm-lwip-udp`**: Lightweight IP (lwIP) socket-API UDP implementation for embedded targets (needs `LWIP_SOCKET` and `LWIP_SO_RCVTIMEO`). Built and run on the host, over lwIP's Unix port and loopback interface, by `example/sample-projects/transport/serializer` (`-DSAMPLE_TRANSPORT=lwip`), and on an ESP32-S3 over Wi-Fi (ESP-IDF's network stack is lwIP) by `example/sensor-node`. Despite the name, nothing in it is ARM specific.
+* **`arm-lwip-netconn-udp`**: lwIP netconn-API UDP implementation for RTOS targets (selected via `DMQ_TRANSPORT_ARM_LWIP_NETCONN_UDP`). Built and run the same way (`-DSAMPLE_TRANSPORT=lwip-netconn`).
+* **`netx-udp`**: Azure RTOS **NetX / NetX Duo** implementation for ThreadX (selected via `DMQ_TRANSPORT_THREADX_UDP`). Built and run on ThreadX's Linux simulation port, over NetX Duo's loopback interface, by `example/sample-projects/transport/netx-udp`.
 * **`zephyr-udp`**: Native **Zephyr Networking** (BSD Socket API) implementation for Zephyr RTOS.
 
 ### IPC & Serial

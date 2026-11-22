@@ -6,7 +6,7 @@
 /// @see https://github.com/DelegateMQ/DelegateMQ
 /// David Lafreniere, 2025.
 
-#include <iostream>
+#include "DelegateOpt.h"
 
 namespace dmq {
 
@@ -18,7 +18,7 @@ namespace dmq {
     ///
     /// @details
     /// When using Remote Delegates, the library needs a way to turn arbitrary C++ function arguments
-    /// into a byte stream (for network transport) and back again. 
+    /// into bytes (for network transport) and back again. 
     ///
     /// Users must implement this interface for the specific function signatures they intend to call 
     /// remotely, OR use one of the pre-defined serializers provided in `port/serialize`
@@ -32,22 +32,23 @@ namespace dmq {
     public:
         virtual ~ISerializer() = default;
 
-        /// @brief Serializes function arguments into the output stream.
-        /// 
-        /// @details 
-        /// Called by the `DelegateRemote` when the user invokes a remote delegate. 
-        /// The implementation must write every argument in `args` into `os`.
-        /// 
-        /// @param[out] os The output stream (buffer) to write data to.
+        /// @brief Serializes function arguments into the byte buffer.
+        ///
+        /// @details
+        /// Called by the `DelegateRemote` when the user invokes a remote delegate.
+        /// The implementation must write every argument in `args` into `os`, and
+        /// call `os.setfail()` if it can't.
+        ///
+        /// @param[out] os The buffer to write the bytes to.
         /// @param[in] args The actual arguments passed to the delegate invocation.
-        /// @return Reference to the output stream.
-        virtual std::ostream& Write(std::ostream& os, const Args&... args) = 0;
+        /// @return Reference to the buffer.
+        virtual ByteWriter& Write(ByteWriter& os, const Args&... args) = 0;
 
         /// @brief Deserializes data from the input stream into function arguments.
         /// 
         /// @details
         /// Called by the receiving endpoint before invoking the target function.
-        /// The implementation must read data from `is` and populate the references in `args`.
+        /// The implementation must read the bytes from `is` and populate the references in `args`.
         /// 
         /// @note
         /// When deserializing pointer arguments like `const T*`, `args` will be a reference 
@@ -56,10 +57,11 @@ namespace dmq {
         /// must use `const_cast<T*>(arg)` to cast away constness and write to the underlying 
         /// mutable storage provided by the framework, or allocate a new object if preferred.
         /// 
-        /// @param[in] is The input stream (buffer) containing received data.
+        /// @param[in] is The received bytes. On bad or missing data, call `is.setfail()`
+        /// (reading past the end sets it already).
         /// @param[out] args References to the arguments where the data should be stored.
-        /// @return Reference to the input stream.
-        virtual std::istream& Read(std::istream& is, Args&... args) = 0;
+        /// @return Reference to the reader.
+        virtual ByteReader& Read(ByteReader& is, Args&... args) = 0;
     };
 }
 

@@ -29,12 +29,12 @@ class IDispatcher
 public:
     virtual ~IDispatcher() = default;
 
-    /// Dispatch a stream of bytes to a remote system. The implementer is responsible
-    /// for sending the bytes over a communication transport (UDP, TCP, shared memory, 
-    /// serial, ...). 
-    /// @param[in] os An outgoing stream to send to the remote destination.
+    /// Dispatch serialized bytes to a remote system. The implementer is responsible
+    /// for sending the bytes over a communication transport (UDP, TCP, shared memory,
+    /// serial, ...), and empties `os` afterwards (`reset()`) for the next message.
+    /// @param[in] os The outgoing bytes.
     /// @param[in] id The unique delegate identifier shared between sender and receiver.
-    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
+    virtual int Dispatch(ByteWriter& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
 };
 
 }

@@ -11,7 +11,7 @@ Description:
 Key Features:
     1. Platform Awareness: Skips Windows-only projects on Linux and vice versa.
     2. Client/Server Support: Builds client and server sub-projects independently
-       (and each node of a MULTI_NODE project, e.g. databus-relay).
+       (and each node of a MULTI_NODE project, e.g. databus/relay).
     3. Build Config: Builds Release configuration on both Windows (MSVC
        multi-config) and Linux (single-config generators).
     4. Summary Report: Prints a final pass/fail/skipped table.
@@ -21,28 +21,30 @@ Key Features:
     6. Pumptron: builds the desktop build (GUI + FreeRTOS-simulator
        controller) and, if 03_generate_samples.py configured it, the STM32F4
        firmware in example/pumptron/build/f4.
+    7. Full suite (--full): also builds the extra unit-test builds in test/
+       (full_suite.TEST_VARIANTS). A project that should have been configured
+       but wasn't is then a failure, not a skip; samples --full doesn't cover
+       yet (full_suite.PENDING) stay skipped.
+
+QEMU targets: builds each build-<target> of example/sample-projects/bare-metal/qemu
+and os/freertos-bare-metal (full_suite.QEMU_TARGET_SAMPLES) that
+03_generate_samples.py configured (targets whose toolchain is installed).
 
 Skip List (always excluded):
-    - atfe-armv7m-bare-metal  Embedded ARM target, requires ATfE toolchain + QEMU
-    - bare-metal-riscv        Embedded RISC-V target, requires xPack RISC-V GCC toolchain + QEMU (non-default -DRISCV_TOOLCHAIN_PATH)
-    - bare-metal-arm          Embedded ARM target, requires cross-compiler
-    - mqtt-rapidjson          Requires external MQTT broker (excluded from run)
-    - stm32-freertos          Embedded STM32 target, requires cross-compiler
-    - system-architecture-python  Python-only client, no C++ build
-    - zephyr-linux            Needs `west build` + a west workspace, not `cmake -B build`
-    - zephyr-udp-serializer   Needs `west build` + a west workspace, not `cmake -B build`
-    - databus-zephyr          Server needs `west build` + a west workspace, not `cmake -B build`
-    - cmsis-rtos2-linux       Needs `west build` + a west workspace, not `cmake -B build`
-    - qt-linux                Needs Qt 6 (qt6-base-dev); built and run by .github/workflows/qt.yml
+    - boards/stm32-freertos          Embedded STM32 target, requires cross-compiler
+    - boards/esp32s3-devkitc         ESP32-S3 board, built with PlatformIO or idf.py
+    - system-architecture/python  Python-only client, no C++ build
 
 Windows-only (skipped on Linux):
-    - databus-freertos        Server uses FreeRTOS Win32 simulator (32-bit)
-    - serialport-serializer   libserialport is built by 02_build_libs.py on Windows only
-                              (built here; not run, since it needs serial port hardware)
+    - databus/freertos        Server uses FreeRTOS Win32 simulator (32-bit)
+
+transport/serialport needs libserialport, which 02_build_libs.py builds (MSBuild
+on Windows, autotools on Linux); on Linux it is skipped if that build is missing.
 
 Usage:
     Run this script FOURTH, after generating project files with 03_generate_samples.py.
     > python scripts/04_build_samples.py
+    > python scripts/04_build_samples.py --full --clang
 """
 
 import argparse
@@ -52,51 +54,49 @@ import sys
 import platform
 import subprocess
 
+import full_suite
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 SKIP_ALWAYS = {
-    "atfe-armv7m-bare-metal",
-    "bare-metal-riscv",        # requires xPack RISC-V GCC toolchain, non-default -DRISCV_TOOLCHAIN_PATH; see its README.md
-    "bare-metal-arm",
-    "mqtt-rapidjson",
-    "stm32-freertos",
-    "system-architecture-python",
-    "zephyr-linux",            # needs `west build`, not a plain `cmake -B build`; see its README.md
-    "zephyr-udp-serializer",   # needs `west build`, not a plain `cmake -B build`; see its README.md
-    "cmsis-rtos2-linux",       # needs `west build`, not a plain `cmake -B build`; see its README.md
-    "databus-zephyr",          # server needs `west build`, not a plain `cmake -B build`; see its README.md
-    "qt-linux",                # needs Qt 6 installed; built and run by .github/workflows/qt.yml
+    "boards/stm32-freertos",
+    "boards/esp32s3-devkitc",
+    "system-architecture/python",
 }
 
 # Projects made of more than two node apps, each in its own sub-directory with
 # its own CMakeLists.txt (client/server projects need no entry).
 MULTI_NODE = {
-    "databus-relay": ["gateway", "monitor", "sensor"],
+    "databus/relay": ["gateway", "monitor", "sensor"],
+    "transport/mqtt": ["pub", "sub"],
 }
 
 WINDOWS_ONLY = {
-    "databus-freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
-    "freertos-bare-metal",
-    "serialport-serializer",   # libserialport is built by 02_build_libs.py on Windows only
-    "win32-pipe-serializer",
-    "win32-tcp-serializer",
-    "win32-udp-serializer",
+    "databus/freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
+    "os/freertos-bare-metal",
+    "os/win32",                # DMQ_THREAD_WIN32 port
 }
 
 LINUX_ONLY = {
-    "linux-tcp-serializer",
-    "linux-udp-serializer",
-    "threadx-linux",           # ThreadX Linux/GNU simulation port; scheduling requires POSIX threads/signals
-    "freertos-linux",          # FreeRTOS POSIX simulator port; each task is a real pthread
-    "posix-linux",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
+    "os/threadx",           # ThreadX Linux/GNU simulation port; scheduling requires POSIX threads/signals
+    "os/freertos",          # FreeRTOS POSIX simulator port; each task is a real pthread
+    "os/posix",             # DMQ_THREAD_POSIX port; raw pthread_create, no Windows equivalent
+    "os/qt",                # DMQ_THREAD_QT port; Qt 6 Core (qt6-base-dev)
+    "os/zephyr",            # Zephyr native_sim (host process), configured with -DBOARD
+    "os/freertos-esp32",    # ESP-IDF and Espressif's QEMU (Docker image)
+    "transport/zephyr-udp",
+    "transport/netx-udp",      # ThreadX Linux/GNU simulation port + NetX Duo
+    "os/cmsis-rtos2",
+    "databus/zephyr",          # Zephyr native_sim server + host client
+    "os/nuttx",               # NuttX sim board, built with NuttX's own make
 }
 
 # Projects that contain dotnet sub-projects requiring 'dotnet build' in addition
 # to any cmake targets.  Keys are project names; values are subdirectory names.
 DOTNET_BUILDS = {
-    "databus-interop": ["csharp-client"],
+    "databus/interop": ["csharp-client"],
     "sample-interop": ["csharp"],
 }
 
@@ -106,7 +106,9 @@ BUILD_CONFIG = "Release"
 # unlimited concurrent jobs, not one-per-core. Multi-subproject trees like
 # cellutron can then fire off enough concurrent, template-heavy compiles to
 # exhaust RAM+swap. Cap it explicitly, leaving one core free for the desktop.
-BUILD_JOBS = max(1, (os.cpu_count() or 1) - 1)
+# DMQ_BUILD_JOBS overrides it: on Windows each MSBuild job can also run several
+# compilers (/MP), so a machine short of memory may need far fewer jobs.
+BUILD_JOBS = max(1, int(os.environ.get('DMQ_BUILD_JOBS') or ((os.cpu_count() or 1) - 1)))
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -171,6 +173,31 @@ def build_project(build_dir, label):
         return False, str(exc)
 
 
+def build_transport(project_dir, use_clang, passed, failed, skipped):
+    """transport/serializer: build build-<transport>-<serializer> (and its
+    -clang variant with use_clang) for each combination this platform runs
+    (full_suite.transport_configs()); each is reported on its own."""
+    sample = full_suite.sample_name(project_dir)
+    suffixes = [""] + (["-clang"] if use_clang and not IS_WINDOWS else [])
+    for name, _, _ in full_suite.transport_configs():
+        for suffix in suffixes:
+            label = f"{sample}/{name}" + (" (clang)" if suffix else "")
+            build_dir = full_suite.build_dir(project_dir, f"build-{name}{suffix}")
+            if not os.path.isdir(build_dir):
+                skipped.append((label, "not configured — run 03_generate_samples.py first"))
+                continue
+            print(f"[BUILDING] {label}")
+            success, err = build_project(build_dir, label)
+            if success:
+                print("   ok")
+                passed.append(label)
+            else:
+                print("   FAILED")
+                for line in err.strip().splitlines()[-15:]:
+                    print(f"   {line}")
+                failed.append(label)
+
+
 def build_dotnet(project_subdir, label):
     """
     Run 'dotnet build' in a directory containing a .csproj file.
@@ -207,6 +234,56 @@ def pumptron_f4_toolchain_present(f4_build_dir):
     return False
 
 
+def build_nuttx(sample_dir, repo_root, passed, failed, skipped):
+    """Build os/nuttx's NuttX tree (build/nuttx, set up by 03_generate_samples.py)
+    with NuttX's make. -j1: building LLVM's libc++ in parallel has run out of
+    memory on an 8 GB machine (see the sample's README)."""
+    name = full_suite.NUTTX_SAMPLE
+    nuttx_dir = os.path.join(full_suite.build_dir(sample_dir), "nuttx")
+    if not os.path.isfile(os.path.join(nuttx_dir, ".config")):
+        skipped.append((name, "not configured — run 03_generate_samples.py first"))
+        return
+    print(f"[BUILDING] {name}  (NuttX make)")
+    env = dict(os.environ, DELEGATEMQ_ROOT=repo_root)
+    result = subprocess.run(["make", "-j1"], cwd=nuttx_dir, env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if result.returncode == 0:
+        print("   ok")
+        passed.append(name)
+    else:
+        print("   FAILED")
+        for line in result.stdout.strip().splitlines()[-15:]:
+            print(f"   {line}")
+        failed.append(name)
+
+
+def build_esp32(sample_dir, passed, failed, skipped):
+    """os/freertos-esp32: build in ESP-IDF's environment, then merge the
+    bootloader, partition table and app into the 4 MB flash image QEMU boots
+    (flash.bin)."""
+    name = full_suite.ESP32_SAMPLE
+    build_dir = full_suite.build_dir(sample_dir)
+    env = full_suite.esp_idf_env()
+    if env is None or not os.path.isfile(os.path.join(build_dir, "CMakeCache.txt")):
+        skipped.append((name, "not configured — run 03_generate_samples.py first"))
+        return
+    print(f"[BUILDING] {name}  (ESP-IDF)")
+    steps = [["cmake", "--build", build_dir, "--parallel", str(BUILD_JOBS)],
+             ["python", "-m", "esptool", "--chip", "esp32", "merge_bin", "--fill-flash-size", "4MB",
+              "-o", "flash.bin", "@flash_args"]]
+    for cmd in steps:
+        result = subprocess.run(cmd, cwd=build_dir, env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if result.returncode != 0:
+            print("   FAILED")
+            for line in result.stdout.strip().splitlines()[-15:]:
+                print(f"   {line}")
+            failed.append(name)
+            return
+    print("   ok")
+    passed.append(name)
+
+
 def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
     """
     Return a list of (label, build_dir) tuples for a project.
@@ -223,12 +300,12 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
         return "" if suffix == "build" else suffix.replace("build-", "", 1)
 
     # Node sub-projects: client/server by default, or a MULTI_NODE project's nodes.
-    roles = MULTI_NODE.get(os.path.basename(project_dir), ["client", "server"])
+    roles = MULTI_NODE.get(full_suite.sample_name(project_dir), ["client", "server"])
 
     targets = []
     for role in roles:
         for suffix in suffixes:
-            path = os.path.join(project_dir, role, suffix)
+            path = full_suite.build_dir(os.path.join(project_dir, role), suffix)
             if os.path.isdir(path):
                 variant = variant_label(suffix)
                 targets.append((f"{role} ({variant})" if variant else role, path))
@@ -237,7 +314,7 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
 
     targets = []
     for suffix in suffixes:
-        path = os.path.join(project_dir, suffix)
+        path = full_suite.build_dir(project_dir, suffix)
         if os.path.isdir(path):
             targets.append((variant_label(suffix), path))
     return targets
@@ -247,7 +324,7 @@ def collect_build_dirs(project_dir, use_clang=False, extra_suffixes=None):
 # Main
 # ---------------------------------------------------------------------------
 
-def build_samples(use_clang=False):
+def build_samples(use_clang=False, full=False):
     repo_root    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_dirs = [
         os.path.join(repo_root, "interop"),
@@ -255,6 +332,7 @@ def build_samples(use_clang=False):
         os.path.join(repo_root, "example", "sample-interop"),
         os.path.join(repo_root, "example", "cellutron"),
         os.path.join(repo_root, "example", "pumptron"),
+        os.path.join(repo_root, "example", "sensor-node"),
         os.path.join(repo_root, "test"),
         os.path.join(repo_root, "tools")
     ]
@@ -266,6 +344,9 @@ def build_samples(use_clang=False):
     elif use_clang and not clang_found:
         print("WARNING: --clang requested but clang++ not found in PATH. Clang builds skipped.\n")
         use_clang = False
+        clang_missing = full
+    else:
+        clang_missing = False
 
     os_label = "Windows" if IS_WINDOWS else "Linux"
 
@@ -290,6 +371,8 @@ def build_samples(use_clang=False):
     passed  = []
     failed  = []
     skipped = []
+    if clang_missing:
+        failed.append("clang builds (clang++ not found)")
 
     for target_dir in target_dirs:
         if not os.path.isdir(target_dir):
@@ -318,12 +401,23 @@ def build_samples(use_clang=False):
         # Cellutron's controller/safety nodes get an extra 'build-threadx'
         # variant (see 03_generate_samples.py) proving DelegateMQ isolates
         # app code from the RTOS choice.
-        extra_suffixes = ["build-threadx"] if project_name == "cellutron" else None
+        extra_suffixes = ["build-threadx"] if project_name in ("cellutron", "sensor-node") else None
+        # --full: test/ has extra unit-test builds (see full_suite.py).
+        if full and project_name == "test":
+            extra_suffixes = [v["suffix"] for v in full_suite.test_variants()]
+            for s in extra_suffixes:
+                if not os.path.isdir(full_suite.build_dir(target_dir, s)):
+                    skipped.append((f"test/{s}", "not configured — run 03_generate_samples.py --full first"))
         targets = collect_build_dirs(target_dir, use_clang=use_clang, extra_suffixes=extra_suffixes)
         # Pumptron's STM32F4 firmware is a separate cross-compiled build tree
         # nested under build/ (configured only when the ARM toolchain exists).
+        # sensor-node's Zephyr node is its own Zephyr app (node/platform/zephyr)
+        if project_name == "sensor-node":
+            zephyr_dir = full_suite.build_dir(os.path.join(target_dir, "node", "platform", "zephyr"))
+            if os.path.isdir(zephyr_dir):
+                targets.append(("zephyr", zephyr_dir))
         if project_name == "pumptron":
-            f4_dir = os.path.join(target_dir, "build", "f4")
+            f4_dir = full_suite.build_dir(target_dir, "f4")
             if os.path.isdir(f4_dir):
                 if pumptron_f4_toolchain_present(f4_dir):
                     targets.append(("f4", f4_dir))
@@ -357,10 +451,7 @@ def build_samples(use_clang=False):
             continue
 
         # 3. Iterate through subdirectories
-        for project_name in sorted(os.listdir(target_dir)):
-            project_dir = os.path.join(target_dir, project_name)
-            if not os.path.isdir(project_dir):
-                continue
+        for project_name, project_dir in full_suite.list_samples(target_dir):
 
             # Skip common folders within test/tools that are not projects
             # Also skip 'unit-tests' as it is built as part of the 'test' project.
@@ -371,14 +462,50 @@ def build_samples(use_clang=False):
             if project_name in SKIP_ALWAYS:
                 skipped.append((project_name, "excluded"))
                 continue
+            qemu_targets = full_suite.QEMU_TARGET_SAMPLES.get(project_name)
             if project_name in WINDOWS_ONLY and not IS_WINDOWS:
                 skipped.append((project_name, "Windows only"))
-                continue
+                if not qemu_targets:
+                    continue
             if project_name in LINUX_ONLY and IS_WINDOWS:
                 skipped.append((project_name, "Linux only"))
                 continue
+            if (project_name == full_suite.SERIAL_SAMPLE and not IS_WINDOWS
+                    and not full_suite.serialport_lib_built(repo_root)):
+                skipped.append((project_name, "libserialport not built (02_build_libs.py)"))
+                continue
 
-            targets = collect_build_dirs(project_dir, use_clang=use_clang)
+            if project_name == full_suite.ESP32_SAMPLE:
+                build_esp32(project_dir, passed, failed, skipped)
+                continue
+
+            if project_name == full_suite.NUTTX_SAMPLE:
+                build_nuttx(project_dir, repo_root, passed, failed, skipped)
+                continue
+
+            if project_name == full_suite.TRANSPORT_SAMPLE:
+                build_transport(project_dir, use_clang, passed, failed, skipped)
+                continue
+
+            bare_metal = qemu_targets is not None
+            # Only QEMU targets whose toolchain is installed: a build directory
+            # left from before a toolchain was removed would call a missing compiler
+            extra = ([f"build-{t}" for t in qemu_targets
+                      if not full_suite.bare_metal_missing(t, project_name)] if bare_metal else None)
+            if project_name == full_suite.CROSS_ENDIAN_SAMPLE and not IS_WINDOWS:
+                extra = [full_suite.CROSS_ENDIAN_BUILD]   # client/server for the big-endian CPU
+            if project_name in full_suite.ZEPHYR_QEMU_TARGETS and not IS_WINDOWS:
+                extra = [full_suite.ZEPHYR_QEMU_TARGETS[project_name]["build"]]   # Cortex-M board
+            targets = collect_build_dirs(project_dir, use_clang=use_clang and not bare_metal,
+                                         extra_suffixes=extra)
+            if bare_metal and project_name in WINDOWS_ONLY and not IS_WINDOWS:
+                # Only the QEMU targets here, not a stale Win32 build/
+                targets = [t for t in targets if t[0]]
+            if bare_metal and not targets:
+                if IS_WINDOWS:
+                    # No cross toolchain here; the Linux run builds them
+                    skipped.append((project_name, full_suite.LINUX_RUN_COVERS))
+                continue
             if not targets:
                 # If it's a directory but has no build dir, it might not be a cmake project
                 # or just hasn't been configured. 
@@ -425,6 +552,10 @@ def build_samples(use_clang=False):
                 passed.append(project_name)
 
     # --- Summary ---
+    if full:
+        skipped, not_built = full_suite.strict_split(skipped)
+        for name, reason in not_built:
+            failed.append(f"{name} ({reason})")
     total = len(passed) + len(failed)
     print("\n" + "=" * 60)
     print(f"RESULTS  {len(passed)}/{total} passed   {len(failed)} failed   {len(skipped)} skipped")
@@ -453,8 +584,12 @@ if __name__ == "__main__":
         "--clang", action="store_true",
         help="Also build build-clang/ directories configured by 03_generate_samples.py --clang (Linux only)."
     )
+    parser.add_argument(
+        "--full", action="store_true",
+        help="Also build the full-suite unit-test builds in test/; anything not configured fails (see full_suite.py)."
+    )
     args = parser.parse_args()
-    success = build_samples(use_clang=args.clang)
+    success = build_samples(use_clang=args.clang, full=args.full)
     sys.exit(0 if success else 1)
 
 # Post-Build Executable Locations (Windows Release):

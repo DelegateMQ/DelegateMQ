@@ -1,6 +1,7 @@
 #include "Timer.h"
 #include "Fault.h"
 #include <array>
+#include <stdexcept>
 #include <chrono>
 #include <algorithm>
 
@@ -8,6 +9,7 @@ namespace dmq::util {
 
 
 std::atomic<bool> Timer::m_timerStopped{false};
+std::atomic<void (*)()> Timer::m_scheduleChanged{nullptr};
 
 //------------------------------------------------------------------------------
 // Constructor
@@ -57,34 +59,40 @@ void Timer::Start(dmq::Duration timeout, bool once)
 #endif
     }
 
-    const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
-
-    m_timeout = timeout;
-    m_once = once;
-    m_expireTime = GetNow() + m_timeout;
-    m_enabled = true;
-
-    // Search for 'this' in the intrusive list
-    bool found = false;
-    Timer* p = GetTimersHead();
-    while (p != nullptr)
     {
-        if (p == this)
+        const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
+
+        m_timeout = timeout;
+        m_once = once;
+        m_expireTime = GetNow() + m_timeout;
+        m_enabled = true;
+
+        // Search for 'this' in the intrusive list
+        bool found = false;
+        Timer* p = GetTimersHead();
+        while (p != nullptr)
         {
-            found = true;
-            break;
+            if (p == this)
+            {
+                found = true;
+                break;
+            }
+            p = p->m_next;
         }
-        p = p->m_next;
+
+        // Only add if not already in the list. 
+        if (!found)
+        {
+            m_next = GetTimersHead();
+            GetTimersHead() = this;
+        }
+
+        LOG_INFO("Timer::Start timeout={}", m_timeout.count());
     }
 
-    // Only add if not already in the list. 
-    if (!found)
-    {
-        m_next = GetTimersHead();
-        GetTimersHead() = this;
-    }
-
-    LOG_INFO("Timer::Start timeout={}", m_timeout.count());
+    // Outside the lock: a driver sleeping on GetNextExpiry() recomputes its deadline
+    if (auto handler = m_scheduleChanged.load())
+        handler();
 }
 
 //------------------------------------------------------------------------------
@@ -237,6 +245,38 @@ void Timer::ProcessTimers()
         }
 
     } while (count == dmq::MAX_TIMER_EXPIRED);
+}
+
+//------------------------------------------------------------------------------
+// GetNextExpiry
+//------------------------------------------------------------------------------
+dmq::Duration Timer::GetNextExpiry()
+{
+    const dmq::LockGuard<dmq::CriticalSection> lock(GetLock());
+
+    bool found = false;
+    dmq::TimePoint earliest{};
+    for (const Timer* t = GetTimersHead(); t != nullptr; t = t->m_next)
+    {
+        if (t->m_enabled && (!found || t->m_expireTime < earliest))
+        {
+            earliest = t->m_expireTime;
+            found = true;
+        }
+    }
+    if (!found)
+        return dmq::Duration::max();
+
+    const dmq::TimePoint now = GetNow();
+    return earliest <= now ? dmq::Duration(0) : std::chrono::duration_cast<dmq::Duration>(earliest - now);
+}
+
+//------------------------------------------------------------------------------
+// SetScheduleChangedHandler
+//------------------------------------------------------------------------------
+void Timer::SetScheduleChangedHandler(void (*handler)()) noexcept
+{
+    m_scheduleChanged.store(handler);
 }
 
 //------------------------------------------------------------------------------

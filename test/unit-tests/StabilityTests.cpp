@@ -18,9 +18,9 @@ public:
     int sendCount = 0;
     ITransportMonitor* monitor = nullptr;
 
-    int Send(dmq::xostringstream& os, const DmqHeader& header) override {
+    int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
         sendCount++;
-        lastSentSize = (int)os.str().size();
+        lastSentSize = (int)os.size();
         if (monitor) {
             if (!monitor->Add(header.GetSeqNum(), header.GetId())) {
                 return -1; // Congestion
@@ -28,7 +28,7 @@ public:
         }
         return 0;
     }
-    int Receive(dmq::xstringstream&, DmqHeader&) override { return 0; }
+    int Receive(dmq::ByteReader&, DmqHeader&) override { return 0; }
     void SetTransportMonitor(ITransportMonitor* m) { monitor = m; }
 };
 
@@ -39,16 +39,16 @@ void Test_DispatcherStreamReset() {
     dmq::Dispatcher dispatcher;
     dispatcher.SetTransport(&transport);
 
-    dmq::xostringstream stream;
+    dmq::ByteWriter stream;
     
     // First dispatch: 10 bytes
-    stream << "0123456789"; 
+    stream.write("0123456789", 10); 
     dispatcher.Dispatch(stream, 1);
     assert(transport.lastSentSize == 10);
     assert(transport.sendCount == 1);
 
     // Second dispatch: should ONLY be the new 5 bytes, not 15!
-    stream << "abcde";
+    stream.write("abcde", 5);
     dispatcher.Dispatch(stream, 2);
     
     if (transport.lastSentSize != 5) {
@@ -68,17 +68,17 @@ void Test_TransportMonitorCongestion() {
     dmq::Dispatcher dispatcher;
     dispatcher.SetTransport(&transport);
 
-    dmq::xostringstream stream;
+    dmq::ByteWriter stream;
 
     // Fill up to the limit (100)
     for (int i = 0; i < (int)dmq::MAX_TRANSPORT_MONITOR_PENDING; ++i) {
-        stream << "test";
+        stream.write("test", 4);
         int err = dispatcher.Dispatch(stream, 100);
         assert(err == 0);
     }
 
     // The 101st message should fail synchronously
-    stream << "overflow";
+    stream.write("overflow", 8);
     int err = dispatcher.Dispatch(stream, 101);
 
     if (err != -1) {

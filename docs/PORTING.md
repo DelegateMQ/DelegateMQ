@@ -18,6 +18,7 @@ The OS ports (`src/delegate-mq/port/os`), transports (`port/transport`) and seri
   - [`dmq::IDispatcher`](#dmqidispatcher)
 - [Thread Implementations](#thread-implementations)
   - [Thread Priority and Latency](#thread-priority-and-latency)
+  - [Core Affinity](#core-affinity)
   - [Message Queueing](#message-queueing)
     - [dmq::FullPolicy (Back Pressure / Drop)](#dmqfullpolicy-back-pressure--drop)
     - [dmq::ExitPolicy (Shutdown)](#dmqexitpolicy-shutdown)
@@ -31,24 +32,37 @@ The OS ports (`src/delegate-mq/port/os`), transports (`port/transport`) and seri
 
 ## Porting Checklist
 
-1. **Search for `@TODO`** — marks the port-specific decisions in the source.
+1. **Search for `@TODO`** — marks the port-specific decisions in the source:
+
+   | Where | Decision |
+   | :--- | :--- |
+   | `delegate/DelegateOpt.h` | Clock aliases; fault handling (`DMQ_ASSERTS` or exceptions); heap allocation (`DMQ_ALLOCATOR`, static pools); logging; template optimization |
+   | `delegate/IThread.h`, `ISerializer.h`, `IDispatcher.h`, `port/transport/common/ITransport.h`, `ITransportMonitor.h` | Interfaces to implement for your own thread, serializer, dispatcher or transport |
+   | `extras/util/Timer.h` | Where and when `ProcessTimers()` runs (step 6) |
+   | `extras/allocator/xallocator.cpp` | `CHECK_ALIGNMENT`: turn on while porting to check block alignment |
+   | `port/os/threadx/ThreadXThisThread.h`, `cmsis-rtos2/CmsisRtos2ThisThread.h`, `freertos/FreeRTOSThisThread.h` | Interrupt detection for `ThisThread::GetCurrent()` on cores the port doesn't detect yet ([Current Thread](#current-thread)) |
+
 2. **Implement `dmq::IThread`** — needed for **asynchronous** delegates.
-3. **Implement `dmq::transport::ITransport`** — needed for **remote** delegates or a DataBus across processes/processors. `dmq::RemoteChannel` and DataBus `Participant` send through it; `dmq::Dispatcher` already implements `dmq::IDispatcher` on top of it.
+3. **A new OS or RTOS port** (only if none of `port/os/` fits): besides the thread, a port provides `Mutex`, `RecursiveMutex`, a semaphore (`dmq::Semaphore`: wrap the RTOS's own binary semaphore, as every RTOS port does, e.g. `FreeRTOSSemaphore.h`; each async-wait call creates and destroys one, so avoid the heap and extra locks there), a clock, the message queue its thread uses, a current-thread key ([Current Thread](#current-thread)) and `CriticalSection`. Copy the closest existing port under `port/os/<os>/` and add its `DMQ_THREAD_<OS>` selection to `DelegateOpt.h` and `Port.cmake`.
+   - `CriticalSection` must use the OS's interrupt-masking primitive, never its mutex: `Timer::Start()`/`Stop()` take it from interrupts, where an RTOS mutex can't be taken. `port/os/threadx/ThreadXCriticalSection.h` is the reference.
+4. **Implement `dmq::transport::ITransport`** — needed for **remote** delegates or a DataBus across processes/processors. `dmq::RemoteChannel` and DataBus `Participant` send through it; `dmq::Dispatcher` already implements `dmq::IDispatcher` on top of it.
    - Implement `dmq::ISerializer` only for a new serialization format, and `dmq::IDispatcher` only to bypass `ITransport`.
    - *Optional:* `dmq::util::TransportMonitor`, `RetryMonitor` and `ReliableTransport` add ACKs and retries over an unreliable transport.
    - See [Sample Projects](../example/sample-projects/README.md).
-4. **Provide a clock** — `DelegateOpt.h` selects `dmq::Clock` per port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`).
-5. **Call `dmq::util::Timer::ProcessTimers()` periodically** (main loop or a high-priority task), and `Thread::WatchdogCheckAll()` if you use [watchdogs](#watchdog-integration). On an RTOS call it from a task, not an ISR (it takes OS mutexes); only bare metal (`DMQ_THREAD_NONE`) may call it from a timer ISR.
-6. **Set build options** in `CMakeLists.txt`, e.g. `DMQ_ASSERTS`, `DMQ_ALLOCATOR` (fixed-block allocator instead of `new`/`delete`), `DMQ_FORCE_OPTIMIZE_DEBUG` (smaller debug templates). To tune constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`, ...), copy `DelegateMQConfig_Template.h` into your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`; defaults are in `delegate/DelegateMQConfig_Default.h`.
-7. **Route faults** — edit `port/fault/Fault.cpp` to call your logger or crash handler.
+5. **Provide a clock** — `DelegateOpt.h` selects `dmq::Clock` per port: `std::chrono::steady_clock` on desktop, the port's own clock on an RTOS (e.g. `port/os/freertos/FreeRTOSClock.h`).
+6. **Call `dmq::util::Timer::ProcessTimers()` periodically** (main loop or a high-priority task), and `Thread::WatchdogCheckAll()` if you use [watchdogs](#watchdog-integration), feeding the MCU's [hardware watchdog](#hardware-watchdog) right after it. On an RTOS call it from a task, not an ISR (it takes OS mutexes). Only bare metal (`DMQ_THREAD_NONE`) may call it from a timer ISR, and then: connect or disconnect a timer's `OnExpired` only while that timer is stopped (a signal's subscriber list has no lock on bare metal), keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers (more allocate inside the ISR), and keep synchronous callbacks ISR-safe; otherwise call it from the main loop (see "Bare Metal: ProcessTimers() in an ISR" in `Timer.h`). For low power, a task can instead wait for `Timer::GetNextExpiry()` and call it only when a timer is due (see "Event-driven processing" in [llms.txt](../llms.txt)).
+7. **Set build options** in `CMakeLists.txt`, e.g. `DMQ_ASSERTS`, `DMQ_ALLOCATOR` (fixed-block allocator instead of `new`/`delete`), `DMQ_FORCE_OPTIMIZE_DEBUG` (smaller debug templates). To tune constants (`DMQ_MAX_TIMER_EXPIRED`, `DMQ_DEFAULT_QUEUE_SIZE`, ...), copy `DelegateMQConfig_Template.h` into your project and set `-DDMQ_USER_CONFIG="DelegateMQConfig.h"`; defaults are in `delegate/DelegateMQConfig_Default.h`.
+8. **Route faults** — to record a failure (a log, a core dump, the hung thread's PC) before the default handler halts, set `dmq::util::SetFaultHook()` and `dmq::os::SetWatchdogHook()` ([Capturing the Failure](#capturing-the-failure-watchdog-and-fault-hooks)). To replace the handlers entirely, define `DMQ_CUSTOM_FAULT_HANDLER` and provide `FaultHandler()` and `WatchdogHandler()`; don't edit `port/fault/Fault.cpp`.
 
 ---
 
 ## Embedded Systems
 
 1. **Stack usage in debug builds.** At `-O0`, templates produce deep call stacks. Increase task stacks (e.g. 8 KB), build with `-O2`, or enable `-DDMQ_FORCE_OPTIMIZE_DEBUG=ON`.
-2. **Non-blocking transport receive.** Blocking UART calls (e.g. `HAL_UART_Receive`) starve other tasks. Use an interrupt-driven ring buffer and have the receive task wait on a semaphore. The `stm32-freertos` example shows this, plus static stacks and FreeRTOS configuration.
-3. **Transport buffer sizes.** Each transport defines its own `BUFFER_SIZE` in its header (NetX UDP uses a bare literal). Some are sized to the Ethernet MTU and can't grow without fragmentation; others can be lowered to save RAM or raised for larger messages. Check the header for the current value.
+2. **Non-blocking transport receive.** Blocking UART calls (e.g. `HAL_UART_Receive`) starve other tasks. Use an interrupt-driven ring buffer and have the receive task wait on a semaphore. The `boards/stm32-freertos` example shows this, plus static stacks and FreeRTOS configuration.
+3. **From an interrupt to a thread.** An async delegate can't be invoked from an ISR: it allocates its message and takes the thread's mutex. Post through a `dmq::util::IsrDelegate` instead: `Post()` copies the arguments into a fixed ring under `CriticalSection`, and `IsrDelegates::ProcessAll()`, called from a task or the main loop, calls the target there (see `extras/util/IsrDelegate.h`).
+4. **ESP-IDF.** Four things differ from mainline FreeRTOS: `StackType_t` is a byte, so `FreeRTOSThread` stack sizes (`DMQ_FREERTOS_STACK_WORDS`, `SetStackMem()`) are bytes (4096 = 4 KB, not 16 KB); `SetCoreAffinity()` takes one core or all of them (`xTaskCreatePinnedToCore()`); a task watchdog timeout only warns unless `CONFIG_ESP_TASK_WDT_PANIC=y` (see [Hardware Watchdog](#hardware-watchdog)); and include kernel headers through `port/os/freertos/FreeRTOSHeaders.h` (ESP-IDF puts them under `freertos/`). Use `lwIP` sockets through the `arm-lwip-udp` transport over Wi-Fi. On an ESP32-S3-DevKitC, flash through the native USB port if the CH343 UART port fails. See `example/sensor-node` and `boards/esp32s3-devkitc`.
+5. **Transport buffer sizes.** Each transport defines its own `BUFFER_SIZE` in its header (NetX UDP uses a bare literal). Some are sized to the Ethernet MTU and can't grow without fragmentation; others can be lowered to save RAM or raised for larger messages. Check the header for the current value.
 
 ---
 
@@ -190,7 +204,7 @@ void Thread::Process()
 
 ### `dmq::ISerializer`
 
-Serializes remote delegate arguments into a stream (`Write()`, sender) and back (`Read()`, receiver). Any format works, e.g. [MessagePack](https://msgpack.org/index.html); see `example/sample-projects`.
+Serializes remote delegate arguments into a `dmq::ByteWriter` (`Write()`, sender) and back from a `dmq::ByteReader` (`Read()`, receiver). On bad or missing data, call `os.setfail()` / `is.setfail()`; the remote delegate reports it as an error. Any format works, e.g. [MessagePack](https://msgpack.org/index.html); see `example/sample-projects`.
 
 ```cpp
 template <class R>
@@ -201,10 +215,10 @@ class ISerializer<RetType(Args...)>
 {
 public:
     /// Serialize args into os. Called by the sender.
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) = 0;
+    virtual ByteWriter& Write(ByteWriter& os, const Args&... args) = 0;
 
     /// Deserialize args from is. Called by the receiver.
-    virtual std::istream& Read(std::istream& is, Args&... args) = 0;
+    virtual ByteReader& Read(ByteReader& is, Args&... args) = 0;
 };
 ```
 
@@ -220,9 +234,10 @@ class IDispatcher
 public:
     virtual ~IDispatcher() = default;
 
-    /// Send os to the remote system over any transport (UDP, TCP, serial, shared memory, ...).
+    /// Send os.data() / os.size() to the remote system over any transport (UDP, TCP,
+    /// serial, shared memory, ...), then empty os (os.reset()) for the next message.
     /// @param[in] id The delegate identifier shared by sender and receiver.
-    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
+    virtual int Dispatch(ByteWriter& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
 };
 ```
 
@@ -235,6 +250,25 @@ Each OS port provides a `dmq::os::Thread` (`StdlibThread`, `Win32Thread`, `Posix
 ### Thread Priority and Latency
 
 A dispatched delegate waits in the target thread's queue, so dispatch latency depends mostly on that thread's OS priority and scheduler wake-up time. Give time-critical work (commands, emergency stops) high-priority threads, general logic medium, and telemetry or logging low.
+
+### Core Affinity
+
+On a multicore CPU, `SetCoreAffinity(coreMask)`, called before `CreateThread()`, restricts a thread to a set of cores: bit 0 = core 0, bit 1 = core 1, ...; 0 (the default) = any core. A typical split puts time-critical work on one core and networking on another. Calls between threads on different cores are ordinary async delegates: on an SMP system (one OS, shared memory, such as the ESP32's two cores under ESP-IDF) they need no transport.
+
+| Port | How |
+| :--- | :--- |
+| `StdlibThread`, `Win32Thread`, `PosixThread`, `QtThread` | The thread pins itself as it starts, before its start handler (`port/os/common/CoreAffinity.h`: `SetThreadAffinityMask()` on Windows, `pthread_setaffinity_np()` on Linux). macOS has no thread affinity: a non-zero mask faults there. |
+| `FreeRTOSThread` | Chosen when the task is created. ESP-IDF: `xTaskCreatePinnedToCore()`, so the mask must name one core or all of them. FreeRTOS SMP (`configNUMBER_OF_CORES > 1`, `configUSE_CORE_AFFINITY = 1`): `xTaskCreateAffinitySet()` with the mask as is. Single core: only a mask that includes core 0. |
+| `ThreadXThread` | ThreadX SMP (`TX_THREAD_SMP_MAX_CORES`): `tx_thread_smp_core_exclude()` with the other cores, before the thread first runs. Single core: only a mask that includes core 0. |
+| `ZephyrThread` | With `CONFIG_SCHED_CPU_MASK`: the thread is created unstarted, given the mask (`k_thread_cpu_mask_clear()`/`_enable()`), then started. Without it: only a mask that includes CPU 0. |
+| `CmsisRtos2Thread` | CMSIS-RTOS2 API 2.3 or later (`osThreadProcessor()` defined): `osThreadAttr_t::affinity_mask`, which a kernel without SMP may ignore. Older API: only a mask that includes core 0. |
+| `NuttXThread` | `CONFIG_SMP`: `pthread_attr_setaffinity_np()` on the new thread. Otherwise: only a mask that includes core 0. |
+
+Every thread port has it, so portable application code can call `SetCoreAffinity()` unconditionally: on a single core, 1 << 0 or 0 is always accepted.
+
+Tested: pinning on Windows and Linux (a unit test asks a pinned thread which core runs it) and on ESP32 (`os/freertos-esp32` Test 8 under QEMU, `sensor-node` on an ESP32-S3). The multi-core paths of FreeRTOS SMP, ThreadX SMP, Zephyr, CMSIS-RTOS2 and NuttX follow each kernel's documented API but haven't run on a multi-core build yet; their single-core paths run in the test suite.
+
+A mask the platform can't honor (a core that doesn't exist, a subset ESP-IDF can't express) faults (`DMQ_ASSERT`). `example/sensor-node` pins its threads and measures the cross-core round trip; `os/freertos-esp32`'s Test 8 checks pinning on both ESP32 cores.
 
 ### Message Queueing
 
@@ -342,9 +376,9 @@ On FreeRTOS, creating every thread before `vTaskStartScheduler()` gives the same
 - `CreateThread()`: call `OnCreate()` before creating the thread, `OnCreateFailed()` if creation fails.
 - Worker entry, after signalling `CreateThread()` and before the loop: if `Enabled()`, call `Wait(m_exit)`, refresh the watchdog heartbeat, then `Passed()`. `Wait()` returns `true` if opened (even with an exit pending, so `DRAIN` still runs), `false` if exiting while held; then return without running messages.
 - `ExitThread()`: call `Wake()` after setting the exit flag.
-- `WatchdogCheck()`: skip while `IsHeld()`.
+- `WatchdogExpired()`: return `false` while `IsHeld()`.
 
-References: `StdlibThread.cpp`; `FreeRTOSThread.cpp` for a port whose exit send can block on a full queue. Portable tests: `test/unit-tests/StartGatePortableTest.h`.
+References: `StdlibThread.cpp`; `FreeRTOSThread.cpp` for a port whose exit send can block on a full queue. Portable tests: `test/portable/` (`StartGatePortableTest.h`, and `PortableTests.h`, which every OS port sample runs).
 
 ### Watchdog Integration
 
@@ -362,14 +396,17 @@ The worker refreshes `m_lastAliveTime` at the top of each loop. With a watchdog 
 Application watchdog task (highest priority)
    │
    └─ Thread::WatchdogCheckAll() every ~100 ms
-        └─ WatchdogCheck() per registered thread — reads m_lastAliveTime atomically
-             └─ gap > timeout → WatchdogHandler() (fault/recovery)
+        └─ WatchdogExpired() per registered thread — reads m_lastAliveTime atomically
+             └─ gap > timeout → watchdog hook, if set (every expired thread)
+        └─ any expired → WatchdogHandler() once (never returns)
 
 worker loop
    top-of-loop: m_lastAliveTime = now           ← refreshed every iteration
    queue wait (finite when a watchdog is set)    ← loops even when idle
    process message (or wake on timeout, loop back)
 ```
+
+**Porting:** a thread port keeps a private `bool WatchdogExpired(dmq::Duration& stalledFor)` (false while held at its start gate), and its `WatchdogCheckAll()` feeds each expired thread to a `dmq::os::detail::WatchdogReport` (`port/os/common/WatchdogHook.h`), then calls its `Finish()`. That's what calls the watchdog hook for every expired thread and `WatchdogHandler()` once. Reference: `StdlibThread.cpp`; 32-bit clock counts: `FreeRTOSThread.cpp`.
 
 #### Priority Requirement — Critical on Single-Core RTOS
 
@@ -403,8 +440,98 @@ xTaskCreate(WatchdogTask, "Watchdog", 512, nullptr, configMAX_PRIORITIES - 1, nu
 #### Watchdog Limitations
 
 1. **Long handlers trip it.** A handler running longer than the timeout fires the watchdog (the thread really is unresponsive). For legitimately long work, call `ThreadCheck()` inside the handler or raise the timeout.
-2. **The checker must stay alive.** If the `WatchdogCheckAll()` task stalls, nothing is checked. Run it at highest priority, and kick a hardware watchdog (e.g. STM32 IWDG) right after it returns to catch a frozen system.
+2. **The checker must stay alive.** If the `WatchdogCheckAll()` task stalls, nothing is checked. Run it at highest priority, and feed a hardware watchdog right after it returns (see [Hardware Watchdog](#hardware-watchdog)).
 3. **Priority** — see the table above.
+
+#### Hardware Watchdog
+
+The software watchdog knows whether every watched thread is alive; a hardware watchdog (STM32 IWDG, the ESP-IDF task watchdog, nRF WDT) resets the MCU when it isn't fed in time. Feed the hardware watchdog right after `WatchdogCheckAll()` returns, and nowhere else:
+
+```cpp
+// FreeRTOS + STM32 HAL: the highest-priority task
+void WatchdogTask(void*)
+{
+    for (;;)
+    {
+        dmq::os::Thread::WatchdogCheckAll();   // a hung thread: WatchdogHandler() never returns
+        HAL_IWDG_Refresh(&hiwdg);              // reached only when every watched thread is alive
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+No helper is needed: `WatchdogHandler()` is `[[noreturn]]`. When a thread hangs, the default handler prints `WATCHDOG EXPIRED: <thread>` and loops forever, the feed is never reached again, and the hardware watchdog resets the MCU. A custom handler (`DMQ_CUSTOM_FAULT_HANDLER`) must not return either: record what it needs (the thread name, in RAM that survives a reset or in flash), then loop or reset. Leaving the reset to the hardware watchdog gives one reset path and a reset-cause flag that says "watchdog".
+
+The pair also catches what the software watchdog alone can't: the checker task itself stalling or starved, a dead scheduler, interrupts left disabled, a fault handler that spins.
+
+**Rules:**
+
+1. **Feed in one place only: after `WatchdogCheckAll()`.** Never from an ISR, SysTick, a timer callback or the idle hook: those keep running when every task is dead, and the hardware watchdog would then never fire.
+2. **Timing.** With a check period P (100 ms above), a hardware timeout H and a thread watchdog timeout T: H must exceed P plus its worst-case jitter (H ≥ 3P is a comfortable margin). T doesn't constrain H. A hung thread resets the MCU within about T + P + H.
+3. **Start it late, or keep startup short.** An IWDG can't be stopped once started. Start it once the watchdog task runs, or make sure everything before the first feed (flash erase, network bring-up) fits in H.
+4. **Freeze it in the debugger.** A breakpoint stops the feed task but not the IWDG, so the board resets under the debugger. On STM32: `__HAL_DBGMCU_FREEZE_IWDG()` at startup.
+5. **Low power.** The IWDG keeps counting in Stop mode and can't be turned off, so the CPU can't sleep longer than H without waking to feed it. The watchdog task wakes every P, and each watched thread loops every T / `DMQ_WATCHDOG_HEARTBEAT_DIVISOR` (4) even when idle; both bound how long tickless idle can sleep (see "Event-driven processing" in [llms.txt](../llms.txt)). For a battery device, choose long periods: an STM32 IWDG reaches about 32 s (LSI, prescaler 256).
+6. **Read the reset cause at boot**, to log or report that a watchdog reset happened: STM32 `__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)`, then `__HAL_RCC_CLEAR_RESET_FLAGS()`; ESP-IDF `esp_reset_reason()` (`ESP_RST_TASK_WDT`, `ESP_RST_INT_WDT`, `ESP_RST_WDT`).
+
+**The feed call per platform** (the application's, not DelegateMQ's: the library has no vendor HAL calls):
+
+| Platform | Feed after `WatchdogCheckAll()` |
+|---|---|
+| STM32 HAL / LL | `HAL_IWDG_Refresh(&hiwdg)` / `LL_IWDG_ReloadCounter(IWDG)` |
+| ESP-IDF | `esp_task_wdt_reset()`, after `esp_task_wdt_add(nullptr)` in the watchdog task. Set `CONFIG_ESP_TASK_WDT_PANIC=y`: without it, a task watchdog timeout only prints a warning. |
+| nRF5 | `NRF_WDT->RR[0] = WDT_RR_RR_Reload;` |
+| Zephyr | `wdt_feed(wdt_dev, channel_id)` |
+
+```cpp
+// ESP-IDF: the watchdog task feeds the task watchdog (TWDT)
+void WatchdogTask(void*)
+{
+    esp_task_wdt_add(nullptr);
+    for (;;)
+    {
+        dmq::os::Thread::WatchdogCheckAll();
+        esp_task_wdt_reset();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+**Bare metal** (`DMQ_THREAD_NONE`) has no `Thread` and no `WatchdogCheckAll()`. Feed once per pass of the main loop, at its end, after the loop's own work; never from SysTick.
+
+#### Capturing the Failure (Watchdog and Fault Hooks)
+
+DelegateMQ captures nothing itself, but it calls two application hooks on the way down, so the application can record what it needs (a core dump, a log in RAM that survives the reset, the hung thread's program counter):
+
+```cpp
+dmq::os::SetWatchdogHook(&OnHungThread);        // WatchdogCheckAll(): once per hung thread
+dmq::util::SetFaultHook(&OnFault);              // the default FaultHandler(): DMQ_ASSERT faults
+```
+
+**The watchdog hook** gets a `dmq::os::WatchdogInfo` for each hung thread: the `Thread` itself, its name, and how long it has been stalled (`stalledFor`). `WatchdogCheckAll()` reports every hung thread to the hook first, then calls `WatchdogHandler()` once, so a deadlock between two threads shows both. The hook runs in the task that calls `WatchdogCheckAll()`, not in the hung thread, so capturing the current context would only show the checker. Use the hung thread's OS handle, `info.thread.GetThreadId()` (`TaskHandle_t` on FreeRTOS, `TX_THREAD*` on ThreadX), to read its saved context instead. On a FreeRTOS Cortex-M3 or M0 port the program counter the task will resume at is in its stack frame:
+
+```cpp
+static void OnHungThread(const dmq::os::WatchdogInfo& info)
+{
+    // FreeRTOS ARM_CM3 port: the TCB starts with pxTopOfStack, where the context
+    // switch saved r4-r11 below the exception frame (r0-r3, r12, lr, pc, xPSR).
+    // (ARM_CM4F/CM7 ports also save EXC_RETURN, and the FPU registers when used.)
+    const uint32_t* sp = *reinterpret_cast<uint32_t* const*>(info.thread.GetThreadId());
+    g_noinit.hungPc = sp[8 + 6];     // addr2line -f -e firmware.elf <pc> gives the function
+    g_noinit.hungLr = sp[8 + 5];     // its caller
+    strncpy(g_noinit.hungName, info.threadName, sizeof(g_noinit.hungName) - 1);
+}
+```
+
+`os/freertos-bare-metal`'s Test 15 runs this on a Cortex-M3: one thread blocked forever on a semaphore and one spinning, both reported, and the saved PCs resolve to `xQueueSemaphoreTake` and the spinning function. On ESP-IDF, a hook can start a core dump of every task instead (`esp_core_dump`, configured in menuconfig).
+
+**The fault hook** gets the file and line of the failed `DMQ_ASSERT`. The default `FaultHandler()` calls it after printing and before halting. A watchdog expiry calls only the watchdog hook, not both (on desktop the default `WatchdogHandler()` ends through `DMQ_ASSERT()` for its stack traces, with the fault hook cleared first). A custom `FaultHandler()` (`DMQ_CUSTOM_FAULT_HANDLER`) owns the whole path; it can call `dmq::util::RunFaultHook(file, line)` to keep the hook.
+
+**What a hook may do.** The system is failing, so:
+- **Record, don't recover.** The fault that follows is the recovery (a reset). A hook can't cancel it.
+- **No allocation, locks, delegates, signals or DataBus.** Write to buffers set aside in advance: a `.noinit` RAM section (kept across a reset), backup registers, or raw flash writes.
+- **No creating, destroying or waiting on threads.** The watchdog hook runs while `WatchdogCheckAll()` holds the watchdog list lock, and the threads it would wait on may be the hung ones.
+- **Be quick.** A hardware watchdog keeps counting: the hook must finish before it fires, which limits how much a flash write can store.
+- A fault inside the fault hook doesn't call it again.
 
 ### Performance Monitoring
 
@@ -470,10 +597,10 @@ Each port's `ThisThread` (`port/os/<os>/<Os>ThisThread.h`) derives its storage f
 | Port | Storage | ISR behavior |
 |---|---|---|
 | stdlib, Win32, Qt, POSIX | `ThreadLocalCurrentThread` (C++ `thread_local`) | N/A |
-| FreeRTOS | `RegistryCurrentThread`, keyed by task handle | `nullptr` on ARM Cortex-M; see TODOs below |
+| FreeRTOS | `RegistryCurrentThread`, keyed by task handle | `nullptr` on ARM Cortex-M and ESP-IDF; other cores see TODOs below |
 | ThreadX | `RegistryCurrentThread`, keyed by `tx_thread_identify()` | See TODOs below |
 | Zephyr | `RegistryCurrentThread`, keyed by `k_current_get()` | `nullptr` (`k_is_in_isr()`) |
-| CMSIS-RTOS2 | `RegistryCurrentThread`, keyed by `osThreadGetId()` | See TODOs below |
+| CMSIS-RTOS2 | `RegistryCurrentThread`, keyed by `osThreadGetId()` | `nullptr` on ARM Cortex-M (IPSR); other cores see TODOs below |
 | NuttX | `RegistryCurrentThread`, keyed by `pthread_self()` | `nullptr` (`up_interrupt_context()`) |
 | Bare metal | `NoCurrentThread` (always `nullptr`) | N/A |
 
@@ -484,5 +611,5 @@ A new RTOS port supplies a key function (nonzero and unique per thread, 0 in an 
 **Porting TODOs** (tagged `@TODO`):
 
 - **ThreadX** (`ThreadXThisThread.h`): in an ISR `tx_thread_identify()` returns the interrupted thread, so `GetCurrent()` returns its `IThread`. Return 0 from `ThreadXCurrentThreadKey()` in an ISR if you can detect it (e.g. IPSR on Cortex-M).
-- **CMSIS-RTOS2** (`CmsisRtos2ThisThread.h`): same issue. Return 0 from `CmsisRtos2CurrentThreadKey()` in an ISR (e.g. `__get_IPSR() != 0`).
-- **FreeRTOS on non-ARM** (`FreeRTOSThisThread.h`): ISR detection uses `xPortIsInsideInterrupt()` (Cortex-M only). Extend `detail::IsInsideFreeRTOSInterrupt()` in `FreeRTOSCriticalSection.h` for RISC-V, Xtensa, etc.
+- **CMSIS-RTOS2 on a core other than Cortex-M** (`CmsisRtos2ThisThread.h`): on Cortex-M the key is 0 in an ISR (`__get_IPSR() != 0`, through CMSIS-Core). On another core (e.g. Cortex-A), extend `detail::IsInsideCmsisRtos2Interrupt()` in `CmsisRtos2CriticalSection.h`.
+- **FreeRTOS on another non-ARM core** (`FreeRTOSThisThread.h`): ISR detection uses `xPortIsInsideInterrupt()` on Cortex-M and `xPortInIsrContext()` on ESP-IDF (ESP32 Xtensa and RISC-V). For another core (e.g. a non-ESP-IDF RISC-V port), extend `detail::IsInsideFreeRTOSInterrupt()` in `FreeRTOSCriticalSection.h`.

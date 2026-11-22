@@ -10,11 +10,14 @@ Rules and patterns for writing an application **with** DelegateMQ. It's short on
 - [Threads](#threads)
 - [Connections Must Be Stored](#connections-must-be-stored)
 - [Timers](#timers)
+- [Interrupts](#interrupts)
+- [Failure Capture](#failure-capture)
 - [Shutdown and Object Lifetime](#shutdown-and-object-lifetime)
 - [DataBus](#databus)
 - [Remote DataBus](#remote-databus)
 - [Remote RPC](#remote-rpc)
 - [Diagnostics and Interop](#diagnostics-and-interop)
+- [Pitfalls](#pitfalls)
 - [Library Rules That Don't Apply to Application Code](#library-rules-that-dont-apply-to-application-code)
 - [Checklist](#checklist)
 
@@ -25,18 +28,18 @@ Most applications are a small step from an existing sample. Copy its structure, 
 | You want | Start from |
 |---|---|
 | Async delegates and signals between threads, one process | `example/sample-code/` (`ActiveObject.cpp`, `SysDataNoLock.cpp`), `delegate_app` |
-| DataBus pub/sub between threads and processes on a PC | `example/sample-projects/databus` |
-| Two DelegateMQ apps over a specific transport and serializer | `example/sample-projects/<transport>-<serializer>` (e.g. `zeromq-msgpack-cpp`, `linux-udp-serializer`) |
-| Client/server with managers, alarms and point-to-point RPC (`RemoteDispatcher`) | `example/sample-projects/system-architecture` (or `-no-deps`) |
-| DataBus gateway relaying between two different links | `example/sample-projects/databus-relay` |
-| One publisher to many subscribers over UDP multicast | `example/sample-projects/databus-multicast` |
-| DataBus topics exposed to MQTT tools as JSON | `example/sample-projects/databus-mqtt-gateway` |
-| FreeRTOS, runnable on a PC | `example/sample-projects/freertos-linux`, `databus-freertos` |
-| Zephyr, ThreadX, NuttX, CMSIS-RTOS2, runnable on a PC | `zephyr-linux`, `threadx-linux`, `nuttx-sim`, `cmsis-rtos2-linux` |
-| Bare metal, runnable in QEMU | `bare-metal-arm`, `bare-metal-riscv` |
+| DataBus pub/sub between threads and processes on a PC | `example/sample-projects/databus/basic` |
+| Two DelegateMQ apps over a specific transport and serializer | `example/sample-projects/transport/serializer`, built for the transport and serializer you choose (`-DSAMPLE_TRANSPORT=zeromq -DSAMPLE_SERIALIZER=msgpack`) |
+| Client/server with managers, alarms and point-to-point RPC (`RemoteDispatcher`) | `example/sample-projects/system-architecture/full` (or `no-deps`, without external libraries) |
+| DataBus gateway relaying between two different links | `example/sample-projects/databus/relay` |
+| One publisher to many subscribers over UDP multicast | `example/sample-projects/databus/multicast` |
+| DataBus topics exposed to MQTT tools as JSON | `example/sample-projects/databus/mqtt-gateway` |
+| FreeRTOS, runnable on a PC | `example/sample-projects/os/freertos`, `databus/freertos` |
+| Zephyr, ThreadX, NuttX, CMSIS-RTOS2, runnable on a PC | `os/zephyr`, `os/threadx`, `os/nuttx`, `os/cmsis-rtos2` |
+| Bare metal, runnable in QEMU | `bare-metal/qemu` (Cortex-M4, Cortex-M0, Cortex-M3/ATfE and RISC-V targets) |
 | MCU firmware plus a PC GUI over serial | `example/pumptron` (STM32F4 + FTXUI; also runs on a FreeRTOS simulator) |
 | Several nodes (GUI, controller, safety) on one DataBus | `example/cellutron` |
-| Python or C# peers | `example/sample-interop`, `example/sample-projects/databus-interop` |
+| Python or C# peers | `example/sample-interop`, `example/sample-projects/databus/interop` |
 
 The RTOS and bare-metal samples run on a desktop (POSIX/Win32 simulators, `native_sim`, NuttX `sim`, QEMU), so you can build, run and fix code before it reaches a board.
 
@@ -47,7 +50,8 @@ The RTOS and bare-metal samples run on a desktop (POSIX/Win32 simulators, `nativ
 - Include `"DelegateMQ.h"`.
 - Pick one OS port (`DMQ_THREAD_*`), and a serializer and transport only if you go remote. Third-party ports need `DMQ_DEPS_DIR`.
 - Use the same options in every file. Keep them in `DelegateMQConfig.h` or project-wide `-D` flags.
-- On RTOS and bare metal, set `DMQ_ALLOCATOR` and `DMQ_ASSERTS`, and build with `-Os`/`-O2` or `DMQ_FORCE_OPTIMIZE_DEBUG` (unoptimized templates use a lot of stack and flash).
+- RTTI is optional (`-fno-rtti` defines `DMQ_NO_RTTI`), but every file that includes DelegateMQ must use the same setting: the two builds lay out classes differently. Without RTTI, a delegate made from a `std::function` object equals only its own copies; keep it to remove it.
+- On RTOS and bare metal, set `DMQ_ALLOCATOR` and `DMQ_ASSERTS`, and build with `-Os`/`-O2` or `DMQ_FORCE_OPTIMIZE_DEBUG` (unoptimized templates use a lot of stack and flash). If nothing may use the heap once running, add static pools (`DMQ_XALLOCATOR_STATIC_POOLS`); see [No Heap After Startup](SAFETY.md#no-heap-after-startup-static-pools).
 
 Details: [BUILD](BUILD.md).
 
@@ -71,7 +75,7 @@ int v = w();                                        // blocks for the return val
 - **Exit:** `ExitThread()` runs everything queued by default (`ExitPolicy::DRAIN`). `ExitPolicy::DISCARD` drops the queue and cancels blocked senders instead.
 - **Synchronized start:** to hold several threads until the whole system is wired, give each a `dmq::os::StartGate` with `SetStartGate(&gate)` before `CreateThread()`, then `gate.Open()`. Not available on bare metal.
 - **Handlers must return.** A handler that loops forever (`while (true) { ...; Sleep(); }`) blocks `ExitThread()`, and a `Thread`'s destructor calls `ExitThread()`, so the program hangs at exit. Loop on a stop flag that shutdown clears, or use a `Timer`.
-- **Watchdog:** if a thread has a watchdog timeout, something must call `dmq::os::Thread::WatchdogCheckAll()` periodically, from a task, never from an ISR.
+- **Watchdog:** if a thread has a watchdog timeout, something must call `dmq::os::Thread::WatchdogCheckAll()` periodically, from a task, never from an ISR. On hardware, feed the MCU's watchdog right after it returns, in the same task and nowhere else; see [Hardware Watchdog](PORTING.md#hardware-watchdog).
 - **Don't delete a `Thread` from one of its own handlers.**
 
 ## Connections Must Be Stored
@@ -96,9 +100,38 @@ m_timer.Start(std::chrono::milliseconds(100));
 ```
 
 - Connect timers with `MakeTimerDelegate`, not `MakeDelegate`. It allows at most one tick in flight, so a slow handler can't flood the queue.
-- Call `ProcessTimers()` from a dedicated loop or task on desktop and RTOS ports. Only on bare metal may it run in a hardware ISR. It must never block, so never connect a `DelegateAsyncWait` to `OnExpired`.
+- Call `ProcessTimers()` from a dedicated loop or task on desktop and RTOS ports. Only on bare metal may it run in a hardware ISR, and then: connect or disconnect a timer's `OnExpired` only while that timer is stopped (the subscriber list has no lock on bare metal), keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers (more allocate inside the ISR), and keep synchronous callbacks ISR-safe. If that doesn't fit, call it from the main loop instead. See "Bare Metal: ProcessTimers() in an ISR" in `Timer.h`. It must never block, so never connect a `DelegateAsyncWait` to `OnExpired`.
+- **Low power or precise timing:** instead of a fixed period, the loop can wait for `Timer::GetNextExpiry()`, woken early by `Timer::SetScheduleChangedHandler()` when a `Start()` adds a sooner deadline. Timers then fire on time and the CPU can sleep in between (tickless idle, `WFI`). See "Event-driven processing" in [llms.txt](../llms.txt).
 
 Details: the Timer and MakeTimerDelegate sections of [llms.txt](../llms.txt).
+
+## Interrupts
+
+An ISR must not call an async delegate, a `Signal` or the DataBus: they allocate and take mutexes. Post through `dmq::util::IsrDelegate` instead. `Post()` in the ISR only copies the arguments into a fixed ring; `IsrDelegates::ProcessAll()`, from a task or the main loop, makes the call, which can be async to any thread:
+
+```cpp
+dmq::util::IsrDelegate<void(uint32_t)> onButton(dmq::MakeDelegate(&ButtonHandler, m_thread));
+
+extern "C" void EXTI0_IRQHandler() { onButton.Post(ReadPins()); }   // ISR: copy only
+dmq::util::IsrDelegates::ProcessAll();                              // task or main loop
+```
+
+- Give the target thread `FullPolicy::DROP`: a full queue must not fault from a burst of interrupts.
+- A full ring drops the post and counts it (`GetDroppedCount()`); size it for the worst burst between `ProcessAll()` calls.
+- To call `ProcessAll()` as soon as something is posted, set a post handler (`IsrDelegates::SetPostHandler()`) that wakes the task, e.g. with `xSemaphoreGiveFromISR()`.
+
+Details: the IsrDelegate section of [llms.txt](../llms.txt).
+
+## Failure Capture
+
+The default fault and watchdog handlers print and halt. To record a failure first (a log in RAM that survives the reset, a core dump, which thread hung and where), set hooks at startup:
+
+```cpp
+dmq::util::SetFaultHook(&OnFault);          // a failed DMQ_ASSERT: file and line
+dmq::os::SetWatchdogHook(&OnHungThread);    // each hung thread, before the watchdog fault
+```
+
+Hooks only record: no allocation, locks, delegates, signals or DataBus, and no waiting on threads. A hardware watchdog keeps counting while they run. The watchdog hook runs in the checker task, so it reads the hung thread's saved context through `info.thread.GetThreadId()`. Details and a FreeRTOS example: [Capturing the Failure](PORTING.md#capturing-the-failure-watchdog-and-fault-hooks).
 
 ## Shutdown and Object Lifetime
 
@@ -257,7 +290,7 @@ m_dispatcher.Start();
 bool acked = m_dispatcher.RemoteInvokeWait(*m_cmdChannel, cmd); // blocks until ACK or timeout
 ```
 
-- **Receive handlers run on the dispatcher's network thread.** Keep them short and pass the message on to your own thread or a `Signal`, as `system-architecture`'s `NetworkMgr` does. The lifetime rules above apply: stop the dispatcher before destroying anything its handlers reach.
+- **Receive handlers run on the dispatcher's network thread.** Keep them short and pass the message on to your own thread or a `Signal`, as `system-architecture/full`'s `NetworkMgr` does. The lifetime rules above apply: stop the dispatcher before destroying anything its handlers reach.
 - **`RemoteInvokeWait` blocks the caller** until the remote ACKs or the wait limit passes (about 9.4 s with the defaults, covering all retries). `false` means it wasn't acknowledged. Use `RemoteInvokeWaitFor(channel, timeout, args...)` for a shorter limit; then `false` can also mean "not ACKed yet". Don't call it from a thread that must stay responsive (UI, timers, a watchdogged thread with a short timeout).
 - **Message IDs, argument types and serializers must match** on both ends. Keep the IDs in one shared header.
 - **Reliability is per connection.** For UDP or serial, wrap the transport in `ReliableTransport` with a `RetryMonitor` and call `AttachRetryMonitor()` after `Attach()`. Skip it for transports that are already reliable (TCP, ZeroMQ).
@@ -270,10 +303,24 @@ Details: [extras/rpc](../src/delegate-mq/extras/rpc/README.md), [DETAILS: Remote
 ## Diagnostics and Interop
 
 - **Watch the bus:** link `SpyBridge` (`tools/bridge/spy`) and register a stringifier per topic with `DataBus::RegisterStringifier<T>(topic, func)`, then run `dmq-spy` (build with `DMQ_TOOLS=ON`). `NodeBridge` feeds `dmq-monitor` and `dmq-thread`. These are desktop tools; the bridges send UDP from the node.
-- **MQTT and JSON:** declare topics once with `JsonTopics::Expose<T>()` / `Accept<T>()` and link `MqttBridge`. Don't write per-topic bridge code. See `databus-mqtt-gateway`.
+- **MQTT and JSON:** declare topics once with `JsonTopics::Expose<T>()` / `Accept<T>()` and link `MqttBridge`. Don't write per-topic bridge code. See `databus/mqtt-gateway`.
 - **Python and C#:** peers use `interop/python` or `interop/csharp` over the `DmqInterop` C API. Messages crossing languages use MessagePack (`MSGPACK_DEFINE` on the C++ type), with the same topic names and remote IDs on both sides.
 
 Details: [TOOLS](../tools/TOOLS.md), [INTEROP](INTEROP.md).
+
+## Pitfalls
+
+Mistakes that compile (or used to) and then misbehave quietly. Each was hit while building a real application.
+
+- **`char*` arguments in async calls.** A non-blocking async call copies its arguments for the target thread, and a pointer argument's *pointee* is copied: one object. For a `const char*` that's the first character, not the string, so the target reads garbage. This no longer compiles (a `static_assert` says so); take `std::string` (or `dmq::xstring`). An async-wait call passes the pointer itself while the caller waits, so `const char*` is fine there. If one character by pointer is really what you mean, define `DMQ_ALLOW_ASYNC_CHAR_PTR`.
+- **Arguments are copied, one way.** Pointer and reference arguments of a non-blocking async call point at the copy, so a handler's changes don't reach the caller: use async-wait for out-parameters. A `std::shared_ptr` argument copies the pointer, so the object is shared. C arrays decay to pointers: pass a `std::array`, `std::vector` or struct.
+- **An async call can outlive its target.** A queued call to an object bound by raw `this` runs even if the object was destroyed meanwhile. Bind objects created and destroyed at runtime with `std::shared_ptr` (the call is skipped once the object is gone), and follow the [shutdown order](#shutdown-order): stop the emitters, then exit the thread, then destroy the object.
+- **Polling a UDP SUB socket stalls the thread.** `Receive()` waits up to the socket's receive timeout when nothing arrives: 2 s for a SUB socket (`DMQ_UDP_SUB_RECV_TIMEOUT_MS`), so its thread can check for exit. A thread that also does other work (a timer, a loop draining ACKs, `Participant::ProcessIncoming()` from a tick) stalls 2 s on every idle poll. Call the transport's `SetRecvTimeout()` with a few milliseconds after `Create()`.
+- **A restarted sender's messages are dropped as duplicates.** A `Participant` drops a message whose sequence number it saw from the same sender recently: that's how retries are filtered. A sender that restarts numbers from the start again, so for the history window its new messages look like retries. Set `SetSeqHistoryExpiry()` to the sender's retry window (ACK timeout times retries), no longer; subscribe to `OnDuplicateDropped` (or read `DuplicatesDropped()`) to see drops; and give messages that must survive a restart their own session or sequence field (`example/sensor-node`'s `MessageBase`, checked with `MonotonicGuard`).
+- **Stack sizes on ESP-IDF are bytes.** `FreeRTOSThread`'s stack size (`DMQ_FREERTOS_STACK_WORDS`, `SetStackMem()`) counts `StackType_t` units: words on mainline FreeRTOS, bytes on ESP-IDF. 4096 is a 16 KB stack on an STM32 and 4 KB on an ESP32.
+- **One `std::cout` brings back all of iostreams.** DelegateMQ's library code uses no iostreams, but a single `std::cout`, `std::stringstream` or `<<` to a stream anywhere in the firmware links them all in, with their locale code: about 160 KB on an STM32F407 and 200 KB on an ESP32-S3. On an MCU, print with `printf` and format with `snprintf`.
+- **Messages have a size cap.** A remote message larger than `DMQ_MAX_MESSAGE_SIZE` (65535; 4096 under `DMQ_ALLOCATOR`) isn't sent: the error handler gets `ERR_MESSAGE_TOO_LARGE`. Raise the cap in your config if you need to (at most 8181 under `DMQ_ALLOCATOR`), or split the data.
+- **A discarded connection disconnects at once.** See [Connections Must Be Stored](#connections-must-be-stored).
 
 ## Library Rules That Don't Apply to Application Code
 
@@ -287,7 +334,7 @@ These [CLAUDE.md](../CLAUDE.md) rules exist because the library must build on ev
 | `dmq::Mutex` and `dmq::os::Thread` instead of `std::mutex` and `std::thread` | On desktop, `std::` types are fine. On RTOS targets, the `dmq::` types are the portable option |
 | Tunables as `DMQ_*` macros, self-guarding `.cpp` files, `DelegateOpt.h` | Not applicable |
 
-Library *behaviour* does still apply: store connections, follow the shutdown order, keep `ProcessTimers()` out of ISRs on RTOS ports, and never use `dmq::CriticalSection` as a general lock.
+Library *behaviour* does still apply: store connections, follow the shutdown order, keep `ProcessTimers()` out of ISRs on RTOS ports, reach threads from ISRs only through `IsrDelegate`, and never use `dmq::CriticalSection` as a general lock.
 
 ## Checklist
 
@@ -297,6 +344,11 @@ Library *behaviour* does still apply: store connections, follow the shutdown ord
 - [ ] Objects bound with `shared_ptr` dispatch to a thread that outlives them.
 - [ ] No handler loops forever without a stop flag.
 - [ ] Something calls `Timer::ProcessTimers()` (and `Thread::WatchdogCheckAll()` if watchdogs are on), from a task, not an RTOS ISR.
+- [ ] A hardware watchdog, if used, is fed only right after `WatchdogCheckAll()` returns, never from an ISR or timer.
+- [ ] Fault and watchdog hooks, if set, only record (no allocation, locks, delegates or waits) and finish before the hardware watchdog fires.
+- [ ] ISRs reach threads only through `IsrDelegate::Post()`, never an async delegate, `Signal` or DataBus call.
+- [ ] Every file that includes DelegateMQ uses the same RTTI setting (and the same `DMQ_*` options).
+- [ ] A timer loop that sleeps on `Timer::GetNextExpiry()` sets `Timer::SetScheduleChangedHandler()`, so a sooner timer started meanwhile wakes it.
 - [ ] Timers are connected with `MakeTimerDelegate`.
 - [ ] Shutdown stops the emitters (network, timer loop, producers) before destroying subscribers.
 - [ ] Objects created and destroyed at runtime are bound with `shared_ptr`.
@@ -307,3 +359,7 @@ Library *behaviour* does still apply: store connections, follow the shutdown ord
 - [ ] RPC receive handlers hand work off to an application thread; `RemoteInvokeWait` isn't called from a thread that must stay responsive.
 - [ ] `NetworkNode::Stop()` / `RemoteDispatcher::Stop()` run before the subscribers they feed are destroyed.
 - [ ] Blocking calls with a timeout check `IsSuccess()` (or use `AsyncInvoke()`'s `std::optional`).
+- [ ] Non-blocking async calls take `std::string`, not `const char*`; out-parameters use async-wait.
+- [ ] A thread that polls a UDP SUB socket between other work sets a short `SetRecvTimeout()`.
+- [ ] `SetSeqHistoryExpiry()` matches the sender's retry window, and `OnDuplicateDropped` is watched.
+- [ ] MCU firmware prints with `printf`, not `std::cout` (see [Pitfalls](#pitfalls)).

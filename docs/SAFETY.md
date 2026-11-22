@@ -12,8 +12,8 @@ This document is an informational self-assessment — a snapshot of how the libr
 - [Scope](#scope)
 - [What's Already Handled Well](#whats-already-handled-well)
 - [Areas of Concern](#areas-of-concern)
-  - [RTTI Dependency](#rtti-dependency)
-    - [Eliminating `dynamic_cast` (If `-fno-rtti` Is Required)](#eliminating-dynamic_cast-if--fno-rtti-is-required)
+  - [RTTI Is Optional (`DMQ_NO_RTTI`)](#rtti-is-optional-dmq_no_rtti)
+  - [No Heap After Startup (Static Pools)](#no-heap-after-startup-static-pools)
   - [C-Style Casts](#c-style-casts)
   - [Dynamic Memory Details](#dynamic-memory-details)
   - [Global State](#global-state)
@@ -43,56 +43,47 @@ This assessment covers `src/delegate-mq/**` — the library itself, not `example
 
 ## Areas of Concern
 
-### RTTI Dependency
+### RTTI Is Optional (`DMQ_NO_RTTI`)
 
-The delegate-equality mechanism (`Equal()`, used by `Signal::Disconnect()` and delegate comparison generally) relies on `dynamic_cast` at roughly 16 call sites across `delegate/Delegate.h`, `delegate/DelegateAsync.h`, `delegate/DelegateAsyncWait.h`, `delegate/DelegateRemote.h`, and `extras/util/TimerDelegate.h`. This is architectural, not incidental — every delegate family's equality check is built on it.
+Many embedded and safety-critical toolchains build with `-fno-rtti`, for code size and determinism. DelegateMQ builds that way too: when the compiler has RTTI off (`-fno-rtti` on GCC and Clang, `/GR-` on MSVC), `delegate/DelegateSelect.h` defines `DMQ_NO_RTTI` and the library uses no `dynamic_cast` and no `typeid` (`delegate/DelegateCast.h`):
 
-The bundled serializer ports (`port/serialize/*/*Serializer.h`) also use `dynamic_cast` to detect a `dmq::xostringstream` output stream.
+| RTTI use | Without RTTI |
+|---|---|
+| `dynamic_cast` in every delegate's `Equal()` | `DelegateCast<T>()`: each delegate class's `CastTo()` matches its own type ID or asks its base class, the same answers `dynamic_cast` gives along the delegate hierarchy |
+| `std::dynamic_pointer_cast` of the message in an async `Invoke()` | `MsgCast<T>()`: each message class reports its type ID |
+| `std::function::target_type()` in `DelegateFunction::Equal()` | the callable's type ID, recorded by `MakeDelegate()` from a lambda or other callable (see the limit below) |
+| `std::type_index` for DataBus and Participant topic type checks | `dmq::TypeKey`, a type ID |
+| `typeid` in MessageSerialize's parse handler | the parse handler gets a `dmq::TypeId` |
 
-Separately, `dmq::databus::DataBus` uses `typeid`/`std::type_index` to catch a topic being used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer` calls (`extras/databus/DataBus.h`). This is a narrower, well-motivated use (a compile-time-adjacent programmer-error check, not polymorphic dispatch), but it's a second, independent place RTTI is load-bearing.
+A type ID is the address of a static variable that exists once per type (`TypeIdOf<T>()`, an inline variable since C++17). With RTTI on, the helpers are plain `dynamic_cast`, `std::dynamic_pointer_cast` and `std::type_index`, so nothing changes.
 
-**Why it matters:** many embedded/safety-critical toolchains build with `-fno-rtti` by default, for code-size and determinism reasons. DelegateMQ does not compile under `-fno-rtti` today.
+**Limits without RTTI:**
+1. **Delegates made from a `std::function` object.** Its callable's type is erased, so such a delegate equals only its own copies. Removing it by making a new delegate from the same `std::function` (`signal -= MakeDelegate(stdFunction)`) doesn't match: keep the delegate you added and remove that. Delegates made from a lambda or other callable object directly (`MakeDelegate([](int) {...})`, or an `auto` variable) compare as with RTTI.
+2. **Build the whole program one way.** `DMQ_NO_RTTI` changes class layouts (`DelegateBase` and `DelegateMsg` gain a virtual function), so every file that includes DelegateMQ must agree, as `-fno-rtti` normally requires anyway.
+3. **Shared libraries.** A type ID is an address, so two binaries (an executable and a DLL) can disagree about one type. Within one binary, which is the embedded case, it's exact.
 
-#### Eliminating `dynamic_cast` (If `-fno-rtti` Is Required)
+**Measured** (`-Os`, `--gc-sections`): bare metal on a Cortex-M4, 29,780 → 28,108 bytes of code (−5.6%); FreeRTOS on a Cortex-M3 with async delegates, 211,748 → 209,364 bytes (−1.1%). Tested: the whole unit-test app with RTTI off (CI: GCC and MSVC), and `bare-metal/qemu`'s Cortex-M0 target, which builds with `-fno-rtti`.
 
-Not a fundamental blocker — RTTI-free polymorphic type identification is a solved problem (it's how LLVM's `isa<>`/`cast<>`/`dyn_cast<>` work, for example). Every `Equal()` override follows the identical pattern:
+### No Heap After Startup (Static Pools)
 
-```cpp
-// Delegate.h, and the same shape at ~16 sites total across
-// Delegate.h, DelegateAsync.h, DelegateAsyncWait.h, DelegateRemote.h, TimerDelegate.h
-virtual bool Equal(const DelegateBase& rhs) const override {
-    auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
-    return derivedRhs && m_func == derivedRhs->m_func;
-}
-```
+Many safety standards and coding rules (MISRA C++, DO-178C and IEC 61508 practice) forbid dynamic allocation once the system is running: everything is allocated during startup, so a long-running system can't fragment or exhaust the heap. DelegateMQ supports this with its fixed-block allocator in static pools.
 
-`dynamic_cast` here answers one narrow question — "is `rhs` provably the same concrete template instantiation as `this`?" — before it's safe to compare `m_func`. A manual type tag answers the same question without RTTI:
+**Workflow:**
+1. Build with `DMQ_ALLOCATOR`. By default the pools grow on demand from the heap and never shrink (heap-blocks mode): convenient for development.
+2. Run the application under its heaviest load: stress tests, error and reconnect paths, the longest bursts. Then call `xalloc_print_pool_config()`. It prints, for each block size used, the most blocks in use at once, as config lines:
+   ```
+   #define DMQ_XALLOCATOR_STATIC_POOLS
+   #define DMQ_XALLOC_POOL_32     37
+   #define DMQ_XALLOC_POOL_64     7
+   ```
+3. Add headroom and put the lines in `DelegateMQConfig.h`. Every DelegateMQ block now comes from static memory (visible in the linker map); the heap is never used. A size set to 0 takes no memory. A full pool, or a size with no pool, faults through `BAD_ALLOC()`, so an undersized pool fails loudly rather than corrupting memory (the [fault hook](PORTING.md#capturing-the-failure-watchdog-and-fault-hooks) can record it).
+4. For a certification argument, the peak can also be bounded by calculation rather than only measured: with a bounded queue (`maxQueueSize`, `FullPolicy`), each thread holds at most that many messages in flight, each a fixed number of blocks.
 
-```cpp
-// DelegateBase: one new pure virtual
-virtual const void* TypeTag() const noexcept = 0;
+**What static pools don't cover:** allocations that don't go through DelegateMQ's allocator. A lambda whose captures exceed `std::function`'s small inline buffer allocates from the global heap (member-function delegates never do), and so does any application or third-party code. Check it rather than assume it: link with `-Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc`, count the calls in the wrappers (C++ `new` calls `malloc`), and check the count doesn't change once the system runs. `os/freertos-bare-metal` (`targets/arm-m3/main.c`, Test 14) does exactly that.
 
-// each concrete ClassType: two new lines
-inline static const char s_tag = 0;
-const void* TypeTag() const noexcept override { return &s_tag; }
+**Verified:** `os/freertos-bare-metal` on a Cortex-M3 (QEMU) runs all its tests with static pools: 8 × 16 B, 48 × 32 B, 12 × 64 B, 4 × 128 B and 2 × 512 B blocks, 3,968 bytes. In its Test 14, async calls, signal emits, async-wait calls, `IsrDelegate` posts and timer ticks make zero heap calls. That check found one: `AsyncWaitResultLock()` created its mutex with `new` on the first async-wait call. The library's immortal locks are now all constructed in static storage instead.
 
-// Equal() becomes:
-bool Equal(const DelegateBase& rhs) const override {
-    if (TypeTag() != rhs.TypeTag()) return false;
-    auto& d = static_cast<const ClassType&>(rhs); // safe: tag match proves same type
-    return m_func == d.m_func;
-}
-```
-
-An `inline static` (C++17, already the library's minimum) gets exactly one ODR-merged definition per template instantiation, so its address is a unique-per-type identifier without touching the RTTI subsystem — and it's cheaper than `dynamic_cast` too (one pointer compare vs. a runtime type-hierarchy walk).
-
-**Scope:** mechanical, not architectural — all ~16 sites are the same three-line pattern across the same 5 files.
-
-**Two caveats to weigh before doing this:**
-1. **Discipline requirement.** The scheme depends on every tag genuinely being `inline` (or defined out-of-line exactly once). Get that wrong and, unlike `dynamic_cast`'s clean "wrong type → `nullptr`" failure, you get a silent `Equal()` false negative instead — two genuinely-equal delegates built in different translation units comparing unequal.
-2. **DLL/shared-library boundaries.** If DelegateMQ is consumed as a DLL from multiple binaries each instantiating the same template, whether they land on the same tag address depends on export/import behavior. `typeid`/`dynamic_cast` have their own well-known cross-DLL RTTI quirks, so this isn't obviously worse — just a different set of things to verify.
-
-`DataBus.h`'s `typeid`/`type_index` use would also need addressing for a fully RTTI-free build (`-fno-rtti` is normally all-or-nothing per target), but it's the easier of the two — it's comparing an app-supplied type per topic and could be replaced with a manually-assigned tag the same way.
+Startup still allocates: OS objects (thread stacks and queues, through the RTOS's own allocator), DataBus registrations, and the delegates the application creates. That's the "allocate during startup" part of the rule.
 
 ### C-Style Casts
 
@@ -105,8 +96,8 @@ MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whe
 
 ### Dynamic Memory Details
 
-- Two heap allocations are deliberately never freed, to dodge static-initialization/destruction-order undefined behavior for process-lifetime singletons (`extras/util/Timer.h`, `extras/allocator/xallocator.cpp`) — both are commented as intentional, not leaks.
-- `xallocator`'s default configuration backs its fixed-block pools with a one-time `new char[]` (`HEAP_POOL` mode), even though the underlying `Allocator` class already supports a fully static `STATIC_POOL` mode fed by caller-provided memory (`extras/allocator/Allocator.cpp`). A genuinely zero-heap build is possible with this library, but it isn't the default path.
+- The library's process-lifetime locks (`Timer.h`, `xallocator.cpp`, `DelegateAsyncWait.h`, `IsrDelegate.h` and the RTOS thread ports' watchdog registries) are deliberately never destroyed, to avoid static destruction-order undefined behavior. They are constructed in static storage on first use, not with `new`, so they use no heap.
+- `xallocator`'s default configuration takes its fixed blocks from the heap as needed and recycles them (heap-blocks mode). `DMQ_XALLOCATOR_STATIC_POOLS` takes every block from static memory instead; see [No Heap After Startup](#no-heap-after-startup-static-pools).
 - Placement-new followed by a manual destructor call appears in the allocator internals and in `DataBus`'s last-value-cache in-place reconstruction (`extras/databus/DataBus.h`) — the latter's exception-safety was reviewed earlier in this project's own development history and has explicit handling for a throwing move/copy constructor.
 
 ### Global State
@@ -119,14 +110,13 @@ MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whe
 
 | Category | Finding | Severity | Where |
 |---|---|---|---|
-| RTTI | `dynamic_cast` in every delegate family's `Equal()` | Notable | `Delegate.h`, `DelegateAsync.h`, `DelegateAsyncWait.h`, `DelegateRemote.h`, `TimerDelegate.h` |
-| RTTI | `typeid`/`type_index` for DataBus topic type-checking | Minor | `DataBus.h` |
+| RTTI | Optional: builds with `-fno-rtti`/`/GR-` (`DMQ_NO_RTTI`) | Positive | `DelegateCast.h` |
 | Casts | C-style casts in allocator core pointer arithmetic | Moderate | `Allocator.cpp`, `xallocator.cpp` |
 | Casts | C-style casts in in-scope embedded ports | Moderate | `ZephyrDelegateQueue.h`, `ZephyrThread.cpp`, `NetXUdpTransport.h` |
 | Casts | `reinterpret_cast` used sparingly, only where warranted | Positive | 11 files |
 | Dynamic memory | Allocator gating verified correct via inheritance | Positive | `Delegate.h`, `Signal.h`, `TimerDelegate.h` |
-| Dynamic memory | Two intentional "immortal singleton" allocations | Minor | `Timer.h`, `xallocator.cpp` |
-| Dynamic memory | Default pool mode uses heap `new[]` despite a static-pool alternative existing | Moderate | `Allocator.cpp`, `xallocator.cpp` |
+| Dynamic memory | Immortal locks constructed in static storage, no heap | Positive | `Timer.h`, `xallocator.cpp`, `DelegateAsyncWait.h`, RTOS ports |
+| Dynamic memory | Static pools (`DMQ_XALLOCATOR_STATIC_POOLS`): no heap after startup, verified by counting heap calls | Positive | `xallocator.cpp` |
 | Global state | Singleton `DataBus`, but consistently mutex-guarded | Minor | `DataBus.h` |
 | Banned CRT | None found (`sprintf`/`strcpy`/`strcat`/`atoi`/`gets`/`rand`) | Positive | library-wide |
 | UB-prone patterns | Placement-new + manual destructor, confined and reviewed | Minor | allocator internals, `DataBus.h` |
@@ -138,7 +128,7 @@ MISRA C++ treats C-style casts (`(T)x`) as a blanket violation regardless of whe
 
 ## Notes for Safety-Conscious Integrators
 
-- If your target requires `-fno-rtti`, the `dynamic_cast`-based delegate equality mechanism would need to be reworked first — this is the single largest structural item above. See [Eliminating `dynamic_cast`](#eliminating-dynamic_cast-if--fno-rtti-is-required) for a concrete, low-risk approach.
+- If your target requires `-fno-rtti`, DelegateMQ builds that way (`DMQ_NO_RTTI`, automatic). See [RTTI Is Optional](#rtti-is-optional-dmq_no_rtti) for the one behavior difference.
 - If your certification process requires every cast to be typed as to intent (no C-style casts), the allocator core and the Zephyr/NetX embedded ports are where that work would concentrate.
-- If your build must be provably zero-heap, use `Allocator`'s `STATIC_POOL` mode with caller-provided memory rather than the default `HEAP_POOL` configuration. For `xallocator`, define `STATIC_POOLS` in `extras/allocator/xallocator.cpp` and size its pools there.
+- If your build must not use the heap once running, build with `DMQ_ALLOCATOR` and `DMQ_XALLOCATOR_STATIC_POOLS`, size the pools from `xalloc_print_pool_config()`, and check the rest of the program with a wrapped `malloc`. See [No Heap After Startup](#no-heap-after-startup-static-pools).
 - None of the above are defects in the ordinary correctness sense — see [Test coverage is extensive](#whats-already-handled-well) above, plus the sample-project builds referenced throughout `CLAUDE.md`: this code is exercised and it works. These are gaps specifically against *safety-standard style conventions*, which are a stricter and different bar than "does it work."

@@ -38,7 +38,7 @@ struct AlarmMsg : public MessageBase
     AlarmMsg() = default;
     AlarmMsg(AlarmCode c, AlarmSeverity s, bool a) : code(c), severity(s), active(a) {}
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         uint8_t c = 0, s = 0;
         ms.read(is, c);
@@ -48,7 +48,7 @@ struct AlarmMsg : public MessageBase
         return ms.read(is, active);
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         uint8_t c = static_cast<uint8_t>(code);
         uint8_t s = static_cast<uint8_t>(severity);

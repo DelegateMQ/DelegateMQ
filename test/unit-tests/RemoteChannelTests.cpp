@@ -130,12 +130,22 @@ namespace RemoteChannelTest
     template<class RetType, class... Args>
     class RCSerializer<RetType(Args...)> : public ISerializer<RetType(Args...)> {
     public:
-        std::ostream& Write(std::ostream& os, const Args&... args) override {
-            serialize_args(os, args...);
+        // Text format through operator<< / operator>>: formatted in a
+        // stringstream (test code), then copied into the ByteWriter
+        dmq::ByteWriter& Write(dmq::ByteWriter& os, const Args&... args) override {
+            std::stringstream ss;
+            serialize_args(ss, args...);
+            const std::string text = ss.str();
+            os.write(text.data(), text.size());
             return os;
         }
-        std::istream& Read(std::istream& is, Args&... args) override {
-            deserialize_args(is, args...);
+        dmq::ByteReader& Read(dmq::ByteReader& is, Args&... args) override {
+            std::istringstream ss(std::string(is.data() + is.tellg(), is.remaining()));
+            deserialize_args(ss, args...);
+            if (ss.fail())
+                is.setfail();
+            else
+                is.skip(is.remaining());
             return is;
         }
     };
@@ -146,19 +156,19 @@ namespace RemoteChannelTest
     /// tests can feed it into a receiver delegate's Invoke().
     class MockTransport : public ITransport {
     public:
-        int Send(xostringstream& os, const DmqHeader& header) override {
-            m_payload = os.str();
+        int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
+            m_payload.assign(os.data(), os.size());
             m_lastId  = header.GetId();
             m_sendCount++;
             return m_sendReturnValue;
         }
 
-        int Receive(xstringstream&, DmqHeader&) override { return 0; }
+        int Receive(dmq::ByteReader&, DmqHeader&) override { return 0; }
 
-        /// Returns a fresh stringstream containing the last captured payload,
-        /// positioned at the start for reading.
-        std::stringstream GetPayloadStream() const {
-            return std::stringstream(m_payload, std::ios::in | std::ios::out | std::ios::binary);
+        /// Returns a fresh reader over the last captured payload, positioned at
+        /// the start. It views m_payload: valid until the next Send().
+        dmq::ByteReader GetPayloadStream() const {
+            return dmq::ByteReader(m_payload.data(), m_payload.size());
         }
 
         std::string    m_payload;
@@ -479,7 +489,7 @@ static void RemoteChannel_MakeDelegate_MatchesManualWiring()
     auto channelDelegate = MakeDelegate(&FreeFuncInt, REMOTE_ID, channel);
 
     // Manual wiring path (old API) using its own dispatcher
-    xostringstream manualStream(ios::in | ios::out | ios::binary);
+    dmq::ByteWriter manualStream;
     DelegateFreeRemote<void(int)> manualDelegate(FreeFuncInt, REMOTE_ID);
     Dispatcher manualDispatcher;
     manualDispatcher.SetTransport(&transport);
@@ -595,15 +605,15 @@ namespace RemoteChannelTest
     /// Checks every payload is exactly one serialized int (no interleaving).
     class PayloadCheckTransport : public ITransport {
     public:
-        int Send(xostringstream& os, const DmqHeader&) override {
-            const xstring payload = os.str();
+        int Send(const dmq::ByteWriter& os, const DmqHeader&) override {
+            const xstring payload(os.data(), os.size());
             std::this_thread::yield();   // widen the window for another writer
             if (payload != "1111\n" && payload != "2222\n" && payload != "3333\n")
                 m_bad.fetch_add(1);
             m_sendCount.fetch_add(1);
             return 0;
         }
-        int Receive(xstringstream&, DmqHeader&) override { return 0; }
+        int Receive(dmq::ByteReader&, DmqHeader&) override { return 0; }
 
         std::atomic<int> m_bad{ 0 };
         std::atomic<int> m_sendCount{ 0 };

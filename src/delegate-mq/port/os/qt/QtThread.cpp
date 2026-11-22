@@ -6,7 +6,10 @@
 #include "DelegateMQ.h"
 #include "QtThread.h"
 #include <QCoreApplication>
+#include <stdexcept>
 #include "extras/util/Fault.h"
+#include "port/os/common/CoreAffinity.h"
+#include <new>
 #include <QDebug>
 #include <limits>
 
@@ -222,8 +225,9 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         connect(m_thread, &QThread::started, m_worker,
             [worker, self, qt, startSem, startHandler = m_startHandler,
              idleHandler = m_idleHandler, idleInterval = m_idleInterval,
-             watchdog = m_watchdogTimeout.load()]() {
+             watchdog = m_watchdogTimeout.load(), coreMask = m_coreMask]() {
                 worker->BeginCurrentScope(self);
+                DMQ_ASSERT_TRUE(dmq::os::detail::SetCurrentThreadCoreAffinity(coreMask));
                 if (startHandler)
                     startHandler();
                 if (idleHandler)
@@ -304,10 +308,10 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void QtThread::WatchdogCheck()
+bool QtThread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -318,9 +322,11 @@ void QtThread::WatchdogCheck()
         auto delta = now - lastAlive;
         if (delta > watchdogTimeout)
         {
-            WatchdogHandler(m_threadName.c_str());
+            stalledFor = std::chrono::duration_cast<dmq::Duration>(delta);
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -337,12 +343,17 @@ void QtThread::ThreadCheck()
 void QtThread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     QtThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->m_threadName.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------
@@ -359,7 +370,9 @@ QtThread*& QtThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& QtThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 

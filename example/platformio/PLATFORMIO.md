@@ -6,7 +6,7 @@ DelegateMQ is a [PlatformIO](https://platformio.org/) library: add one line to `
 - [Quick Start](#quick-start)
 - [Project Setup](#project-setup)
   - [platformio.ini](#platformioini)
-  - [C++17 and RTTI](#c17-and-rtti)
+  - [C++17](#c17)
   - [Configuration Header](#configuration-header)
 - [Thread Ports](#thread-ports)
   - [ESP32 (FreeRTOS)](#esp32-freertos)
@@ -19,12 +19,13 @@ DelegateMQ is a [PlatformIO](https://platformio.org/) library: add one line to `
 
 ## Supported Boards
 
-The example sketch, [`example/platformio/async-delegates`](async-delegates/), is built for each board below by the [PlatformIO CI workflow](../../.github/workflows/platformio.yml).
+The example sketch, [`example/platformio/async-delegates`](async-delegates/src/main.cpp), is built for each board below by the [PlatformIO CI workflow](../../.github/workflows/platformio.yml).
 
 | Board | `env` | Thread port | Async delegates | Verified |
 | :--- | :--- | :--- | :--- | :--- |
 | ESP32 DevKit | `esp32dev` | FreeRTOS (Arduino-ESP32) | Yes | CI build |
 | ESP32-C3 DevKitM-1 | `esp32-c3` | FreeRTOS (Arduino-ESP32) | Yes | CI build |
+| ESP32-S3 DevKitC-1 | `esp32-s3` | FreeRTOS (Arduino-ESP32) | Yes | CI build |
 | STM32F4 Discovery | `disco_f407vg` | FreeRTOS (STM32duino FreeRTOS) | Yes | CI build; run on the board |
 | STM32 Nucleo-F401RE | `nucleo_f401re` | None (bare metal) | No | CI build |
 | Raspberry Pi Pico (RP2040) | `pico` | None (bare metal) | No | CI build |
@@ -88,21 +89,19 @@ A minimal ESP32 project:
 platform  = espressif32
 board     = esp32dev
 framework = arduino
-lib_deps  = endurodave/DelegateMQ@^2.4.0
-; DelegateMQ needs C++17 and RTTI; Arduino cores default to C++11 and -fno-rtti
-build_unflags = -std=gnu++11 -std=gnu++14 -fno-rtti
+lib_deps  = endurodave/DelegateMQ@^3.0.0
+; DelegateMQ needs C++17; Arduino cores default to C++11 or C++14
+build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
-extra_scripts = pre:cxx_flags.py   ; adds -frtti to C++ files only
 ```
 
 PlatformIO compiles every `.cpp` under the library's `src/delegate-mq`. Each file compiles to nothing unless the selected options need it, so there's no file list to maintain (see [Without CMake](../../docs/BUILD.md#without-cmake)).
 
-### C++17 and RTTI
+### C++17
 
-DelegateMQ needs C++17 and RTTI. Most Arduino cores compile C++ as `gnu++11` or `gnu++14` with `-fno-rtti`, so:
+DelegateMQ needs C++17. Most Arduino cores compile C++ as `gnu++11` or `gnu++14`, so remove the core's standard with `build_unflags` and add `-std=gnu++17` to `build_flags`.
 
-- **C++17:** remove the core's standard with `build_unflags` and add `-std=gnu++17` to `build_flags`.
-- **RTTI:** remove `-fno-rtti` with `build_unflags`, then add `-frtti` with [`cxx_flags.py`](async-delegates/cxx_flags.py) (copy it into your project folder). Putting `-frtti` in `build_flags` also works, but `build_flags` reaches C files too, and GCC warns on every one that `-frtti` is for C++ only. The script adds it to C++ compiles only.
+RTTI is optional. Most cores compile with `-fno-rtti`, and DelegateMQ then builds without it (`DMQ_NO_RTTI`, automatic). If your project turns RTTI on, turn it on for every C++ file, DelegateMQ's included: the library builds with the project's flags, and mixing the two is undefined. Without RTTI, a delegate made from a `std::function` object equals only its own copies; see [RTTI Is Optional](../../docs/SAFETY.md#rtti-is-optional-dmq_no_rtti).
 
 ### Configuration Header
 
@@ -140,11 +139,10 @@ The STM32 Arduino core (STM32duino) has no RTOS. Add the STM32duino FreeRTOS lib
 platform  = ststm32
 board     = disco_f407vg
 framework = arduino
-lib_deps  = endurodave/DelegateMQ@^2.4.0
+lib_deps  = endurodave/DelegateMQ@^3.0.0
             stm32duino/STM32duino FreeRTOS@^10.3.2
-build_unflags = -std=gnu++11 -std=gnu++14 -fno-rtti
+build_unflags = -std=gnu++11 -std=gnu++14 -std=c++11 -std=c++14
 build_flags   = -std=gnu++17 -DDMQ_THREAD_FREERTOS
-extra_scripts = pre:cxx_flags.py
 ```
 
 ```cpp
@@ -200,15 +198,15 @@ void loop()
 
 Its `platformio.ini` is the board matrix: `pio run` builds them all, `pio run -e <env>` builds one.
 
-To start your own project from it, copy the folder and change `lib_deps = symlink://../../..` to `lib_deps = endurodave/DelegateMQ@^2.4.0` (the symlink points at this repository so that CI tests every commit).
+To start your own project from it, copy the folder and change `lib_deps = symlink://../../..` to `lib_deps = endurodave/DelegateMQ@^3.0.0` (the symlink points at this repository so that CI tests every commit).
 
 ## Troubleshooting
 
 | Error | Cause and fix |
 | :--- | :--- |
 | `functional: No such file or directory` (or `chrono`, `cstdio`) | 8-bit AVR board (Uno, Mega). Not supported: no C++ standard library. |
-| `'dynamic_cast' not permitted with '-fno-rtti'`, `typeid` errors | RTTI off. Add `-fno-rtti` to `build_unflags` and `-frtti` (or `cxx_flags.py`). |
-| `if constexpr`, `std::optional`, structured-binding errors | Not C++17. Add the core's `-std=gnu++11`/`gnu++14` to `build_unflags` and `-std=gnu++17` to `build_flags`. |
+| Crashes or wrong results in delegate calls, with RTTI on for some files only | Mixed RTTI settings: DelegateMQ's classes differ with and without it. Use one setting for every C++ file. |
+| `if constexpr`, `std::optional`, structured-binding errors | Not C++17. Add the core's `-std=gnu++11`/`gnu++14` (some cores use `-std=c++11`/`c++14`) to `build_unflags` and `-std=gnu++17` to `build_flags`. |
 | Link errors for `FreeRTOSThread` or other port symbols | `DelegateMQConfig.h` is in `src/`, so the library was built with different options. Move it to `include/`. |
 | `FreeRTOS.h: No such file or directory` | `DMQ_THREAD_FREERTOS` on a core without FreeRTOS. Add an RTOS library (STM32duino FreeRTOS) or use `DMQ_THREAD_NONE`. |
 | `macro "abs" passed 2 arguments` (Raspberry Pi Pico) | PlatformIO's default Pico core (Arduino mbed) breaks under C++17. Use the arduino-pico core: `platform = https://github.com/maxgerhardt/platform-raspberrypi.git` and `board_build.core = earlephilhower`. |
@@ -219,4 +217,4 @@ To start your own project from it, copy the folder and change `lib_deps = symlin
 
 When the example links DelegateMQ from the repository (`lib_deps = symlink://../../..`), PlatformIO's dependency finder searches the whole repository. Several sample projects carry their own FreeRTOS headers, so it concludes DelegateMQ provides `FreeRTOS.h` and doesn't give the library the STM32duino FreeRTOS include path. The `disco_f407vg` environment adds that path with [`freertos_path.py`](async-delegates/freertos_path.py). The registry package has no FreeRTOS copies, so projects using `lib_deps = endurodave/DelegateMQ` don't need it.
 
-The package is described by [`library.json`](../../library.json) at the repository root: what is exported to the registry, the source and include directories, and the example's file list. Publish from the repository root with `pio pkg publish` on a clean working tree.
+The package is described by [`library.json`](../../library.json) at the repository root: what is exported to the registry, the source and include directories, and the example's file list. To publish, tag the release, then pack from the repository root on a clean working tree with `python scripts/package_readme.py` and publish the tarball it makes: `pio pkg publish DelegateMQ-<version>.tar.gz --type library --no-interactive`. The registry shows the packaged README.md without the repository, so the script packs a copy whose relative links and images point to the release tag on GitHub; the README.md in the repository keeps its relative links.

@@ -403,7 +403,10 @@ static void TimerDelegate_Move_TransfersQueuedTick()
 // TimerDelegate::Equal() / Empty() / nullptr comparisons
 // =============================================================================
 
-static void FreeFuncForEqualityTests() {}
+// Distinct bodies: an optimizing linker folds identical functions into one
+// address (MSVC Release /OPT:ICF), and then they really are equal
+static volatile int s_equalityFuncCalls = 0;
+static void FreeFuncForEqualityTests() { s_equalityFuncCalls = s_equalityFuncCalls + 1; }
 
 static void TimerDelegate_Equal_SameUnderlyingAndThread()
 {
@@ -437,6 +440,27 @@ static void TimerDelegate_Equal_DifferentThread()
 
     otherThread.ExitThread();
     std::cout << "TimerDelegate_Equal_DifferentThread() complete!" << std::endl;
+}
+
+static void OtherFreeFuncForEqualityTests() { s_equalityFuncCalls = s_equalityFuncCalls + 2; }
+
+static void TimerDelegate_Equal_RawCallables()
+{
+    // Free functions compare by address, lambdas by type (RTTI on or off)
+    auto f1 = MakeTimerDelegate(&FreeFuncForEqualityTests, s_thread);
+    auto f2 = MakeTimerDelegate(&FreeFuncForEqualityTests, s_thread);
+    auto f3 = MakeTimerDelegate(&OtherFreeFuncForEqualityTests, s_thread);
+    DMQ_ASSERT_TRUE(f1.Equal(f2));
+    DMQ_ASSERT_TRUE(!f1.Equal(f3));
+
+    auto lambda = []() {};
+    auto l1 = MakeTimerDelegate(lambda, s_thread);
+    auto l2 = MakeTimerDelegate(lambda, s_thread);
+    auto l3 = MakeTimerDelegate([]() {}, s_thread);
+    DMQ_ASSERT_TRUE(l1.Equal(l2));
+    DMQ_ASSERT_TRUE(!l1.Equal(l3));
+    DMQ_ASSERT_TRUE(!l1.Equal(f1));
+    std::cout << "TimerDelegate_Equal_RawCallables() complete!" << std::endl;
 }
 
 static void TimerDelegate_Equal_DifferentDelegateType()
@@ -698,6 +722,51 @@ static void Timer_FallenBehind_DoesNotFireBackToBack()
 }
 
 // =============================================================================
+// Timer::GetNextExpiry() / SetScheduleChangedHandler()
+// =============================================================================
+// The test app keeps other timers running (main.cpp's 1 s timer) and a thread
+// calling ProcessTimers() every 5 ms, so these check bounds, not exact values.
+// The FreeRTOS sample (os/freertos-bare-metal, Test 13) checks exact values
+// and an event-driven driver with no other timers running.
+
+static std::atomic<int> s_scheduleChanged{0};
+static void OnScheduleChanged() { s_scheduleChanged++; }
+
+static void Timer_GetNextExpiry_BoundedByEarliestTimer()
+{
+    Timer later;
+    Timer sooner;
+    later.Start(std::chrono::minutes(10));
+    DMQ_ASSERT_TRUE(Timer::GetNextExpiry() <= dmq::Duration(std::chrono::minutes(10)));
+    sooner.Start(std::chrono::milliseconds(300), true);
+    const dmq::Duration next = Timer::GetNextExpiry();
+    DMQ_ASSERT_TRUE(next >= dmq::Duration(0));
+    DMQ_ASSERT_TRUE(next <= dmq::Duration(std::chrono::milliseconds(300)));
+    sooner.Stop();
+    later.Stop();
+    std::cout << "Timer_GetNextExpiry_BoundedByEarliestTimer() complete!" << std::endl;
+}
+
+static void Timer_ScheduleChangedHandler_CalledByStart()
+{
+    Timer t;
+    Timer::SetScheduleChangedHandler(&OnScheduleChanged);
+    const int before = s_scheduleChanged.load();
+    t.Start(std::chrono::minutes(1));
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 1);
+    t.Start(std::chrono::minutes(2));                   // a restart reschedules too
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 2);
+    t.Stop();                                           // a stop only delays the next deadline
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 2);
+
+    Timer::SetScheduleChangedHandler(nullptr);
+    t.Start(std::chrono::minutes(1));
+    DMQ_ASSERT_TRUE(s_scheduleChanged.load() == before + 2);
+    t.Stop();
+    std::cout << "Timer_ScheduleChangedHandler_CalledByStart() complete!" << std::endl;
+}
+
+// =============================================================================
 // Test runner
 // =============================================================================
 
@@ -725,6 +794,7 @@ void TimerDelegateTests()
     TimerDelegate_Move_TransfersQueuedTick();
 
     TimerDelegate_Equal_SameUnderlyingAndThread();
+    TimerDelegate_Equal_RawCallables();
     TimerDelegate_Equal_DifferentTargetObject();
     TimerDelegate_Equal_DifferentThread();
     TimerDelegate_Equal_DifferentDelegateType();
@@ -736,6 +806,8 @@ void TimerDelegateTests()
     Timer_DestroyedDuringProcessTimers();
     Timer_CallbackWaitsForOtherThreadToDestroyTimer();
     Timer_FallenBehind_DoesNotFireBackToBack();
+    Timer_GetNextExpiry_BoundedByEarliestTimer();
+    Timer_ScheduleChangedHandler_CalledByStart();
 
     std::cout << "TimerDelegateTests() complete!" << std::endl;
 }

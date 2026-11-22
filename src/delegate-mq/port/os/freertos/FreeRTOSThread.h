@@ -49,6 +49,7 @@
 #include <string>
 #include <memory>
 #include <atomic>
+#include <new>
 #include <optional>
 
 namespace dmq::os {
@@ -146,8 +147,11 @@ public:
     void SetThreadPriority(int priority);
 
     /// Optional: Provide a static buffer for the task stack to avoid Heap usage.
-    /// @param stackBuffer Pointer to a buffer of type StackType_t. 
-    /// @param stackSizeInWords Size of the buffer in WORDS (not bytes).
+    /// @param stackBuffer Pointer to a buffer of type StackType_t.
+    /// @param stackSizeInWords Size of the buffer in StackType_t units: words on
+    /// mainline FreeRTOS (4 bytes on a 32-bit MCU), but BYTES on ESP-IDF, where
+    /// StackType_t is uint8_t. 4096 is a 16 KB stack on an STM32 and 4 KB on an
+    /// ESP32. The same holds for DMQ_FREERTOS_STACK_WORDS.
     void SetStackMem(StackType_t* stackBuffer, uint32_t stackSizeInWords);
 
     // IThread Interface Implementation
@@ -160,6 +164,18 @@ public:
     /// thread, with the queue depth at the time of the drop.
     void SetDroppedHandler(const dmq::UnicastDelegate<void(size_t)>& handler) { m_droppedHandler = handler; }
     void SetDroppedHandler(dmq::UnicastDelegate<void(size_t)>&& handler) { m_droppedHandler = std::move(handler); }
+    /// Run the task only on the cores in coreMask: bit 0 = core 0, bit 1 = core 1,
+    /// ... 0 (the default) = any core. Call before CreateThread(); the core is
+    /// chosen when the task is created and can't change after.
+    /// - ESP-IDF: xTaskCreatePinnedToCore(). It pins to one core or allows any, so
+    ///   coreMask must name one core, or all of them.
+    /// - FreeRTOS SMP (configNUMBER_OF_CORES > 1, configUSE_CORE_AFFINITY = 1):
+    ///   xTaskCreateAffinitySet() with the mask as is.
+    /// - Single core: only a mask that includes core 0.
+    /// Any other mask faults (DMQ_ASSERT) in CreateThread().
+    void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(!IsThreadCreated()); m_coreMask = coreMask; }
+    uint32_t GetCoreAffinity() const { return m_coreMask; }
+
 
     /// @brief Register a handler invoked on the worker thread before it processes
     /// any message. Use it for per-thread setup (COM, a language runtime attach,
@@ -240,7 +256,8 @@ private:
     void Run();
 
     /// Check watchdog is expired for this instance. 
-    void WatchdogCheck();
+    /// @return true if expired, with the time since the thread was last alive in stalledFor.
+    bool WatchdogExpired(dmq::Duration& stalledFor);
 
     /// Get registry head using the "Immortal" Pattern
     static FreeRTOSThread*& GetWatchdogHead()
@@ -252,7 +269,9 @@ private:
     /// Get registry lock using the "Immortal" Pattern
     static dmq::RecursiveMutex& GetWatchdogLock()
     {
-        static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+        // Static storage, not the heap: constructed on first use, never destroyed
+        alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+        static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
         return *lock;
     }
 
@@ -271,6 +290,7 @@ private:
 
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
+    uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any core
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();

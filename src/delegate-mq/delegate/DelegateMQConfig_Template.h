@@ -39,6 +39,10 @@
 /// Max timers processed in one tick without heap allocation.
 #define DMQ_MAX_TIMER_EXPIRED           16
 
+/// dmq::util::IsrDelegate: default number of posts it holds until
+/// IsrDelegates::ProcessAll() takes them; a post to a full one is dropped.
+#define DMQ_ISR_DELEGATE_QUEUE_SIZE     8
+
 /// Signal Small-Buffer Optimization count.
 /// Signals with <= this many subscribers are invoked without heap allocation.
 #define DMQ_SIGNAL_SBO_COUNT            8
@@ -49,7 +53,9 @@
 #define DMQ_DEFAULT_QUEUE_SIZE          20
 
 /// Stack size of each dmq::os::Thread on the RTOS ports, in each port's native
-/// unit. FreeRTOS counts words and applies to dynamically allocated stacks
+/// unit. FreeRTOS counts StackType_t units (words on mainline FreeRTOS, but bytes
+/// on ESP-IDF, where StackType_t is uint8_t: 4096 is 16 KB on an STM32 and 4 KB on
+/// an ESP32) and applies to dynamically allocated stacks
 /// (FreeRTOSThread::SetStackMem() supplies a static stack instead); the others
 /// count bytes.
 #define DMQ_FREERTOS_STACK_WORDS        4096
@@ -71,6 +77,16 @@
 /// unbounded growth if the destination thread is dead/stuck -- large enough to
 /// never interfere with normal desktop bursts.
 #define DMQ_THREAD_DESKTOP_QUEUE_SIZE   1000
+
+/// DMQ_ALLOCATOR: static pools instead of heap blocks. Every block comes from
+/// static memory and the heap is never used; a full pool faults. Set the
+/// number of blocks of each size (header included, a power of two; 0 = none).
+/// Get the numbers from xalloc_print_pool_config() after running the
+/// application under its heaviest load, and add headroom.
+// #define DMQ_XALLOCATOR_STATIC_POOLS
+// #define DMQ_XALLOC_POOL_32     16
+// #define DMQ_XALLOC_POOL_64     8
+// #define DMQ_XALLOC_POOL_128    4
 
 /// Max number of threads that can be registered with the watchdog.
 #define DMQ_MAX_WATCHDOG_THREADS        16
@@ -121,12 +137,19 @@
 /// Default per-message ACK timeout (seconds) for TransportMonitor.
 #define DMQ_TRANSPORT_MONITOR_TIMEOUT_SEC 2
 
-/// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
-/// (header + payload, keep within the link MTU), the PUB socket's ACK-poll
-/// receive timeout, and the SUB socket's receive timeout (how often its thread
-/// can check for exit).
+/// Largest serialized message (payload bytes) a remote delegate can send; a
+/// larger one fails with ERR_MESSAGE_TOO_LARGE before anything is allocated.
+/// At most 65535. Default 65535, or 4096 under DMQ_ALLOCATOR (at most 8181
+/// there: the buffer's block must fit the allocator's largest, 16 KB).
+#define DMQ_MAX_MESSAGE_SIZE            65535
+
+/// UDP transports: datagram buffer size (header + payload, keep within the link
+/// MTU; embedded transports: lwIP, netconn, Zephyr, NetX), the PUB socket's
+/// ACK-poll receive timeout and the SUB socket's receive timeout (how often its
+/// thread can check for exit), for every UDP transport. Keep the PUB timeout
+/// short: NetworkNode drains each peer's ACKs in turn and waits it out per peer.
 #define DMQ_UDP_BUFFER_SIZE             1500
-#define DMQ_UDP_PUB_RECV_TIMEOUT_MS     50
+#define DMQ_UDP_PUB_RECV_TIMEOUT_MS     2
 #define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
 
 /// STM32 UART transport: RX ring buffer bytes (absorbs bursts between reads),

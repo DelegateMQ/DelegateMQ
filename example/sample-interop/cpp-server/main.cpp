@@ -6,6 +6,8 @@
 /// 
 /// @details This application sends sensor data to and receives commands 
 /// from C# and Python clients using the DelegateMQ DataBus.
+///
+/// Usage: cpp_server [seconds]. With no argument it runs until stopped.
 
 #include "extras/databus/DataBus.h"
 #include "port/serialize/msgpack/MsgpackSerializer.h"
@@ -13,6 +15,9 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <atomic>
+#include <cstdlib>
+#include <vector>
 
 // SensorData is published over multicast so the C# and Python clients can both
 // receive it concurrently; Command stays unicast since the server is its only recipient.
@@ -54,7 +59,10 @@ enum RemoteId : dmq::DelegateRemoteId {
     CommandId = 101
 };
 
-int main() {
+static std::atomic<bool> g_running{ true };
+
+int main(int argc, char* argv[]) {
+    const int duration = (argc > 1) ? std::atoi(argv[1]) : 0;   // seconds; 0 = until stopped
     dmq::util::NetworkContext netContext;
     std::cout << "Starting C++ Interop Server..." << std::endl;
 
@@ -105,25 +113,36 @@ int main() {
         std::cout << "[ERROR] DataBus topic=" << topic << " error=" << static_cast<int>(err) << std::endl;
     });
 
-    // Start a thread per client to process incoming messages from its subTransport
+    // Start a thread per client to process incoming messages from its subTransport.
+    // ProcessIncoming() returns after the transport's receive timeout, so the
+    // threads see g_running go false and can be joined.
+    std::vector<std::thread> recvThreads;
     for (auto* subParticipant : { csharpSubParticipant.get(), pythonSubParticipant.get() }) {
-        std::thread recvThread([subParticipant]() {
-            while (true) {
+        recvThreads.emplace_back([subParticipant]() {
+            while (g_running) {
                 subParticipant->ProcessIncoming();
             }
         });
-        recvThread.detach();
     }
 
     // 6. Main Loop: Publish sensor data
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(duration);
     int id = 0;
-    while (true) {
+    while (g_running) {
         SensorData data{ ++id, 25.5f + (float)(id % 10) };
         std::cout << "[SEND] SensorData id=" << data.id << " val=" << data.value << " (Rate: " << pollingRateMs << "ms)" << std::endl;
         DataBus::Publish<SensorData>("SensorTopic", data);
         
         std::this_thread::sleep_for(std::chrono::milliseconds(pollingRateMs.load()));
+        if (duration > 0 && std::chrono::steady_clock::now() >= deadline)
+            g_running = false;
     }
 
+    for (auto& t : recvThreads)
+        t.join();
+    pubTransport->Close();
+    csharpSubTransport->Close();
+    pythonSubTransport->Close();
+    std::cout << "Server stopped" << std::endl;
     return 0;
 }

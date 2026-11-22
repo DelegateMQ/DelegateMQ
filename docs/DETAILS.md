@@ -627,16 +627,16 @@ class ISerializer<RetType(Args...)>
 {
 public:
     /// Serialize data for transport.
-    /// @param[out] os The output stream
-    /// @param[in] args The target function arguments 
-    /// @return The output stream
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) = 0;
+    /// @param[out] os The buffer to write the bytes to
+    /// @param[in] args The target function arguments
+    /// @return The buffer
+    virtual ByteWriter& Write(ByteWriter& os, const Args&... args) = 0;
 
-    /// Deserialize data from transport. 
-    /// @param[in] is The input stream
-    /// @param[out] args The target function arguments 
-    /// @return The input stream
-    virtual std::istream& Read(std::istream& is, Args&... args) = 0;
+    /// Deserialize data from transport.
+    /// @param[in] is The received bytes
+    /// @param[out] args The target function arguments
+    /// @return The reader
+    virtual ByteReader& Read(ByteReader& is, Args&... args) = 0;
 };
 
 /// @brief Delegate interface class to dispatch serialized function argument data
@@ -646,12 +646,14 @@ class IDispatcher
 public:
     virtual ~IDispatcher() = default;
 
-    /// Dispatch a stream of bytes to a remote system. 
-    /// @param[in] os An outgoing stream to send to the remote destination.
+    /// Dispatch serialized bytes to a remote system.
+    /// @param[in] os The outgoing bytes.
     /// @param[in] id The unique delegate identifier shared between sender and receiver.
-    virtual int Dispatch(dmq::xostringstream& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
+    virtual int Dispatch(ByteWriter& os, DelegateRemoteId id, uint16_t* outSeqNum = nullptr) = 0;
 };
 ```
+
+`dmq::ByteWriter` is a growable byte buffer the serializer writes into; `dmq::ByteReader` is a read cursor over received bytes, which it views without copying. Both work like a minimal binary stream (`write()`/`read()`, `tellp()`/`seekp()`, `good()`/`fail()`, `setfail()`) without the cost of iostreams: on an ESP32-S3 node, dropping iostreams from the remote path saved about 205 KB of flash.
 
 The sender sends the remote delegate. All function argument data is serialized and sent using the dispatcher.
 
@@ -661,10 +663,14 @@ dmq::Dispatcher dispatcher;
 dispatcher.SetTransport(&transport);  // any dmq::transport::ITransport
 dmq::serialization::serializer::Serializer<void(int)> serializer;
 
-// Send delegate and registers dispatcher and serializer
+// The buffer each call is serialized into
+dmq::ByteWriter buffer;
+
+// Send delegate and registers dispatcher, serializer and buffer
 dmq::DelegateFreeRemote<void(int)> delegateRemote(REMOTE_ID);
 delegateRemote.SetDispatcher(&dispatcher);
 delegateRemote.SetSerializer(&serializer);
+delegateRemote.SetStream(&buffer);
 
 // Send invokes the remote function using the serializer and dispatcher interfaces
 delegateRemote(123);
@@ -683,12 +689,12 @@ dmq::serialization::serializer::Serializer<void(int)> serializer;
 dmq::DelegateFreeRemote<void(int)> delegateRemote(FreeFuncInt, REMOTE_ID);
 delegateRemote.SetSerializer(&serializer);
 
-// TODO: Receiver code obtains the serializers incoming argument data
-// from your application-specific reception code and stored within a stream.
-std::istream& recv_stream = GetReceivedStream();  // your reception code
+// TODO: Receiver code obtains the incoming argument bytes from your
+// application-specific reception code (a transport's Receive() fills a reader)
+dmq::ByteReader received(data, size);  // your reception code's bytes
 
 // Receiver invokes the remote target function
-delegateRemote.Invoke(recv_stream);
+delegateRemote.Invoke(received);
 ```
 ## Error Handling
 
@@ -889,9 +895,24 @@ The `DelegateMQ` library external dependencies are based upon on the intended us
 
 ## Fixed-Block Memory Allocator
 
-The `DelegateMQ` library includes an optional fixed-block memory allocator designed to improve performance and reduce heap fragmentation in mission-critical systems. This feature is enabled by defining `DMQ_ALLOCATOR`. See `DelegateOpt.h` for configuration details and `DelegateMQConfig_Default.h` for tunable constants. The underlying allocator implementation is based on the [stl_allocator](https://github.com/endurodave/stl_allocator) repository.
+The `DelegateMQ` library includes an optional fixed-block memory allocator that keeps its allocations from fragmenting the heap, for systems that run for a long time or must not fail on a fragmented heap. This feature is enabled by defining `DMQ_ALLOCATOR`. See `DelegateOpt.h` for configuration details and `DelegateMQConfig_Default.h` for tunable constants. The underlying allocator implementation is based on the [stl_allocator](https://github.com/endurodave/stl_allocator) repository.
 
 When `DMQ_ALLOCATOR` is defined, the `XALLOCATOR` macro is used to override `new` and `delete` operators for internal library objects.
+
+### Trade-offs
+
+What it gives:
+
+- **No fragmentation from DelegateMQ's allocations.** Blocks come in fixed sizes, one free list per size. By default (dynamic mode) a block is taken from the heap the first time and recycled after that, never returned, so in steady state messages and argument copies don't churn the heap. With `DMQ_XALLOCATOR_STATIC_POOLS` there's no heap at all: fixed memory, sized at build time, and a fault when a pool runs out (see [No Heap After Startup](SAFETY.md#no-heap-after-startup-static-pools)).
+- **Simple and predictable.** Taking or returning a block is a free-list pop or push, the same cost every time.
+
+What it costs:
+
+- **Speed, on some platforms.** Every allocation and free takes a global `dmq::Mutex`: three lock/unlock pairs per allocate-and-free (the size lookup, the pop, the push). On an RTOS that mutex is a kernel object, and on ESP-IDF's dual-core FreeRTOS each pair costs about 6 us at 160 MHz, so an allocate-and-free is about 18 us against about 9.5 us for ESP-IDF's own heap. Measured on an ESP32-S3: an async-wait round trip took 437 us with `DMQ_ALLOCATOR` and 200 us without, and a non-blocking async call 329 us against 39 us. On desktop OSes and single-core RTOSes the lock is much cheaper and the difference small.
+- **Memory.** Block sizes are powers of two, so a 70-byte request takes a 128-byte block (up to about half wasted). In dynamic mode the pools keep their peak size, since freed blocks go back to the pool, not the heap.
+- **Coverage.** Only what goes through it is covered: library objects with `XALLOCATOR`, `xmake_shared`, and the `x` containers (`xlist`, `xmap`, `xstring`, ...). A plain `std::make_shared` control block, a `std::function` capture larger than its small-buffer storage, or an RTOS kernel object still uses the heap. `test/AllocTrack.cpp` lists what still does (see [BUILD.md](BUILD.md)).
+
+For most systems the speed cost doesn't matter, and the allocator is the simple, robust answer to fragmentation. If one path allocates often enough that it does (many async calls per millisecond, say), fix that path, rather than give up the allocator: reuse the objects it allocates, or pass a `std::shared_ptr`, which an async call doesn't copy (see [Bypassing Argument Heap Copy](#bypassing-argument-heap-copy)).
 
 ## Function Argument Copy
 

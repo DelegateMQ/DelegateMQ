@@ -1,0 +1,5 @@
+# ESP-IDF component manager: downloaded into managed_components/ at build time
+dependencies:
+  idf: ">=5.4"
+  # The board's RGB LED is one WS2812, driven through the RMT peripheral
+  espressif/led_strip: "^3.0.0"

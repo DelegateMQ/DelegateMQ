@@ -17,7 +17,7 @@ struct TelemetryMsg : public MessageBase
     float ambientTempC = 0.0f;  ///< F4: MCU die temperature sensor. Sim: modelled.
     float vibrationG = 0.0f;    ///< F4: LIS3DSH accelerometer + model. Sim: modelled.
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         ms.read(is, rpm);
         ms.read(is, flowLpm);
@@ -27,7 +27,7 @@ struct TelemetryMsg : public MessageBase
         return ms.read(is, vibrationG);
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         ms.write(os, rpm);
         ms.write(os, flowLpm);

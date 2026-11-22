@@ -16,6 +16,8 @@ on:
 # macros, and compiler warnings (-Wdangling-pointer, etc.) that a desktop
 # build with DMQ_THREAD_STDLIB can never exercise, since none of these
 # ports are otherwise compiled by any other workflow in this repo.
+# Each job then checks the object file calls no libatomic function, which a
+# link would need and arm-none-eabi toolchains don't have.
 # Least privilege for GITHUB_TOKEN: these jobs only check out code.
 permissions:
   contents: read
@@ -38,7 +40,7 @@ jobs:
         release: '14.2.Rel1'
 
     # FreeRTOS-Kernel source and a working FreeRTOSConfig.h are already
-    # vendored under the stm32-freertos sample project -- reuse them
+    # vendored under the boards/stm32-freertos sample project -- reuse them
     # instead of fetching a second copy.
     - name: Compile port/os/freertos/FreeRTOSThread.cpp
       run: |
@@ -48,10 +50,20 @@ jobs:
           -std=gnu++17 -DDMQ_THREAD_FREERTOS -DDMQ_MAX_TIMER_EXPIRED=8 \
           -c -O0 --specs=nano.specs -fno-exceptions -fno-use-cxa-atexit -Wall \
           -I src/delegate-mq \
-          -I example/sample-projects/stm32-freertos/server/Inc \
-          -I example/sample-projects/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/include \
-          -I example/sample-projects/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/portable \
+          -I example/sample-projects/boards/stm32-freertos/server/Inc \
+          -I example/sample-projects/boards/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/include \
+          -I example/sample-projects/boards/stm32-freertos/server/STM32CubeIDE/Middlewares/FreeRTOS/Source/portable \
           -o /tmp/freertos_thread.o
+
+    # -c can't catch a missing libatomic: a 64-bit std::atomic compiles to
+    # an __atomic_*_8 call, which arm-none-eabi toolchains can't link (see
+    # CLAUDE.md, "No 64-bit std::atomic in embedded ports")
+    - name: Check for libatomic calls
+      run: |
+        if arm-none-eabi-nm -u /tmp/freertos_thread.o | grep __atomic_; then
+          echo "::error::freertos_thread.o calls libatomic (a 64-bit std::atomic?): it won't link on a Cortex-M"
+          exit 1
+        fi
 
   threadx:
     name: ThreadX (Cortex-M4)
@@ -92,6 +104,16 @@ jobs:
           -I /tmp/threadx/common/inc \
           -I /tmp/threadx/ports/cortex_m4/gnu/inc \
           -o /tmp/threadx_thread.o
+
+    # -c can't catch a missing libatomic: a 64-bit std::atomic compiles to
+    # an __atomic_*_8 call, which arm-none-eabi toolchains can't link (see
+    # CLAUDE.md, "No 64-bit std::atomic in embedded ports")
+    - name: Check for libatomic calls
+      run: |
+        if arm-none-eabi-nm -u /tmp/threadx_thread.o | grep __atomic_; then
+          echo "::error::threadx_thread.o calls libatomic (a 64-bit std::atomic?): it won't link on a Cortex-M"
+          exit 1
+        fi
 
   cmsis-rtos2:
     name: CMSIS-RTOS2 (Cortex-M4)
@@ -146,3 +168,13 @@ jobs:
           -I /tmp/cmsis/RTOS2/Include \
           -I /tmp/cmsis/Core/Include \
           -o /tmp/cmsis_thread.o
+
+    # -c can't catch a missing libatomic: a 64-bit std::atomic compiles to
+    # an __atomic_*_8 call, which arm-none-eabi toolchains can't link (see
+    # CLAUDE.md, "No 64-bit std::atomic in embedded ports")
+    - name: Check for libatomic calls
+      run: |
+        if arm-none-eabi-nm -u /tmp/cmsis_thread.o | grep __atomic_; then
+          echo "::error::cmsis_thread.o calls libatomic (a 64-bit std::atomic?): it won't link on a Cortex-M"
+          exit 1
+        fi

@@ -1,0 +1,19 @@
+# ESP32, both cores (ESP-IDF's FreeRTOS SMP)
+CONFIG_IDF_TARGET="esp32"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# RTTI on here; DelegateMQ also builds without it (DMQ_NO_RTTI). No C++
+# exceptions: DelegateMQ then faults through DMQ_ASSERT instead of throwing.
+CONFIG_COMPILER_CXX_RTTI=y
+
+# Timer::ProcessTimers() runs in the FreeRTOS timer service task, which calls
+# the timers' subscribers: above the test task (priority 5), with a larger stack
+CONFIG_FREERTOS_TIMER_TASK_PRIORITY=10
+CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=4096
+CONFIG_FREERTOS_HZ=1000
+
+# A failed check aborts: print the panic and halt, rather than reboot and rerun
+CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT=y
+
+# esp_timer callbacks dispatched from the timer interrupt (main.cpp's Test 6)
+CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD=y

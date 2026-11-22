@@ -441,7 +441,7 @@ private:
             if (!m_peers[i].active) continue;
             for (int k = 0; k < MAX_WORK; ++k) {
                 dmq::transport::DmqHeader ackHeader;
-                dmq::xstringstream ackStream(std::ios::in | std::ios::out | std::ios::binary);
+                dmq::ByteReader ackStream;
                 if (m_peers[i].rawTransport.Receive(ackStream, ackHeader) != 0) break;
             }
         }

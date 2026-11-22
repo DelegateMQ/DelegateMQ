@@ -56,6 +56,13 @@ public:
         Close();
     }
 
+    /// @brief Open the socket. PUB sends to addr:port (and drains ACKs); SUB binds
+    /// port and receives.
+    /// @note Receive() blocks up to the receive timeout when nothing arrives:
+    /// DMQ_UDP_PUB_RECV_TIMEOUT_MS (2 ms) for PUB, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s)
+    /// for SUB. A thread that polls a SUB socket between other work (a timer, a
+    /// loop that also drains ACKs) stalls for the full 2 s each idle poll: call
+    /// SetRecvTimeout() with a short timeout after Create().
     int Create(Type type, const char* addr, uint16_t port)
     {
         const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -129,10 +136,23 @@ public:
         }
     }
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override
+    /// Change how long Receive() waits for a datagram (after Create(); Create()
+    /// sets DMQ_UDP_PUB_RECV_TIMEOUT_MS or DMQ_UDP_SUB_RECV_TIMEOUT_MS). A thread
+    /// that polls this socket between other work wants a short one.
+    void SetRecvTimeout(std::chrono::milliseconds timeout)
     {
         const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
-        if (os.bad() || os.fail() || m_socket < 0) {
+        if (m_socket >= 0)
+        {
+            struct timeval tv = ToTimeval(timeout);
+            lwip_setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        }
+    }
+
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
+    {
+        const dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        if (os.fail() || m_socket < 0) {
             return -1;
         }
 
@@ -146,11 +166,11 @@ public:
         }
 
         // Get payload and set length on the copy
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Convert header fields to Network Byte Order (Big Endian) 
         DmqHeader wireHeader = header;
@@ -171,8 +191,9 @@ public:
         return 0;
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB socket
         // that also drains its ACKs here) isn't held up for the receive timeout.
         const dmq::LockGuard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -224,9 +245,7 @@ public:
         }
 
         if (payloadSize > 0) {
-            is.clear();
-            is.str("");
-            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+            is.assign(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
         }
 
         if (header.GetId() == dmq::ACK_REMOTE_ID)
@@ -240,7 +259,7 @@ public:
         else if (m_sendTransport)
         {
             // Send ACK back using Send logic (recursive mutex handles it)
-            xostringstream ss_ack;
+            dmq::ByteWriter ss_ack;
             DmqHeader ack;
             ack.SetId(dmq::ACK_REMOTE_ID);
             ack.SetSeqNum(header.GetSeqNum());

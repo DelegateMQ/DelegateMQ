@@ -17,14 +17,14 @@ namespace {
         size_t lastPayloadSize = 0;
         int sendCount = 0;
 
-        int Send(xostringstream& os, const DmqHeader& header) override {
+        int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
             lastId = header.GetId();
             lastSeq = header.GetSeqNum();
-            lastPayloadSize = os.str().size();
+            lastPayloadSize = os.size();
             sendCount++;
             return 0;
         }
-        int Receive(xstringstream& is, DmqHeader& header) override { return 0; }
+        int Receive(dmq::ByteReader& is, DmqHeader& header) override { return 0; }
     };
 
     void FreeFunc(int i) {}
@@ -38,8 +38,8 @@ void DispatcherTests()
         Dispatcher dispatcher;
         dispatcher.SetTransport(&transport);
 
-        xostringstream os;
-        os << "test data";
+        dmq::ByteWriter os;
+        os.write("test data", 9);
         DelegateRemoteId id(100);
 
         // Sequence numbers come from a process-wide counter, so the absolute
@@ -53,7 +53,7 @@ void DispatcherTests()
         DMQ_ASSERT_TRUE(transport.lastId == 100);
         DMQ_ASSERT_TRUE(transport.lastSeq == seq1);
 
-        os << "test data";
+        os.write("test data", 9);
         uint16_t seq2 = 0;
         err = dispatcher.Dispatch(os, id, &seq2);
 
@@ -83,7 +83,7 @@ void DispatcherTests()
         DMQ_ASSERT_TRUE(transport.lastId == 200);
         
         // Test manual Receive (mirroring transport reception)
-        xstringstream is;
+        dmq::ByteReader is;
         // The transport would normally fill 'is'. Since we're testing the channel's 
         // internal invoker, we can call Invoke() directly if we had the serialized data.
         // For this unit test, verifying the binding and dispatch is sufficient as 

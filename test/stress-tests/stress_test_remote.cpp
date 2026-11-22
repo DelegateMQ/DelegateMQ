@@ -72,14 +72,14 @@ struct Payload
         snprintf(data, sizeof(data), "RemoteMsg-%d", i);
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const Payload& p) {
+    friend dmq::ByteWriter& operator<<(dmq::ByteWriter& os, const Payload& p) {
         os.write(reinterpret_cast<const char*>(&p.id), sizeof(p.id));
         os.write(reinterpret_cast<const char*>(&p.clientId), sizeof(p.clientId));
         os.write(p.data, sizeof(p.data));
         return os;
     }
 
-    friend std::istream& operator>>(std::istream& is, Payload& p) {
+    friend dmq::ByteReader& operator>>(dmq::ByteReader& is, Payload& p) {
         is.read(reinterpret_cast<char*>(&p.id), sizeof(p.id));
         is.read(reinterpret_cast<char*>(&p.clientId), sizeof(p.clientId));
         is.read(p.data, sizeof(p.data));
@@ -95,11 +95,11 @@ class TestSerializer;
 template<typename Ret, typename... Args>
 class TestSerializer<Ret(Args...)> : public dmq::ISerializer<Ret(Args...)> {
 public:
-    virtual std::ostream& Write(std::ostream& os, const Args&... args) override {
+    virtual dmq::ByteWriter& Write(dmq::ByteWriter& os, const Args&... args) override {
         (void)std::initializer_list<int>{ (os << args, 0)... };
         return os;
     }
-    virtual std::istream& Read(std::istream& is, Args&... args) override {
+    virtual dmq::ByteReader& Read(dmq::ByteReader& is, Args&... args) override {
         (void)std::initializer_list<int>{ (is >> args, 0)... };
         return is;
     }
@@ -107,11 +107,11 @@ public:
 
 class TestDispatcher : public dmq::IDispatcher {
 public:
-    using SendFunc = std::function<void(dmq::xostringstream&)>;
+    using SendFunc = std::function<void(dmq::ByteWriter&)>;
 
     TestDispatcher(SendFunc func) : m_func(func) {}
 
-    virtual int Dispatch(dmq::xostringstream& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
+    virtual int Dispatch(dmq::ByteWriter& os, dmq::DelegateRemoteId id, uint16_t* outSeqNum = nullptr) override {
         if (m_func) {
             m_func(os);
             return 0; // Success
@@ -128,14 +128,14 @@ class VirtualTransport
 public:
     using Packet = dmq::xstring;
 
-    void Send(const dmq::xostringstream& ss)
+    void Send(const dmq::ByteWriter& ss)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_queue.push(ss.str());
+        m_queue.push(Packet(ss.data(), ss.size()));
         m_cv.notify_one();
     }
 
-    bool Receive(dmq::xstringstream& out_ss)
+    bool Receive(dmq::ByteReader& out_ss)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         // Server keeps waiting as long as g_running is true OR queue has data
@@ -144,13 +144,15 @@ public:
         // If queue is empty here, it implies g_running == false
         if (m_queue.empty()) return false;
 
-        out_ss.str(m_queue.front());
+        m_current = std::move(m_queue.front());   // the reader views it until the next Receive()
         m_queue.pop();
+        out_ss.assign(m_current.data(), m_current.size());
         return true;
     }
 
 private:
     std::queue<Packet> m_queue;
+    Packet m_current;
     std::mutex m_mutex;
     std::condition_variable m_cv;
 };
@@ -173,7 +175,7 @@ public:
 
     void Start() {
         m_thread = std::thread([this]() {
-            dmq::xstringstream incoming;
+            dmq::ByteReader incoming;
             try {
                 // Drain loop: continue until Receive returns false (queue empty & stopped)
                 while (g_transport.Receive(incoming)) {
@@ -202,7 +204,7 @@ public:
 
 private:
     std::thread m_thread;
-    dmq::xostringstream m_stream{ std::ios::out | std::ios::binary };
+    dmq::ByteWriter m_stream;
     TestSerializer<void(Payload)> m_serializer;
     dmq::DelegateMemberRemote<ServerNode, void(Payload)> m_remoteDelegate;
 };
@@ -216,7 +218,7 @@ public:
     ClientNode(int id)
         : m_id(id)
         , m_remote(REMOTE_ID)
-        , m_dispatcher([this](dmq::xostringstream& ss) { this->TransportSend(ss); })
+        , m_dispatcher([this](dmq::ByteWriter& ss) { this->TransportSend(ss); })
     {
         m_remote.SetStream(&m_stream);
         m_remote.SetSerializer(&m_serializer);
@@ -253,15 +255,14 @@ public:
     }
 
 private:
-    void TransportSend(dmq::xostringstream& ss) {
+    void TransportSend(dmq::ByteWriter& ss) {
         g_transport.Send(ss);
-        ss.str("");
-        ss.clear();
+        ss.reset();
     }
 
     int m_id;
     std::thread m_thread;
-    dmq::xostringstream m_stream{ std::ios::out | std::ios::binary };
+    dmq::ByteWriter m_stream;
     TestSerializer<void(Payload)> m_serializer;
     TestDispatcher m_dispatcher;
     dmq::DelegateFreeRemote<void(Payload)> m_remote;
@@ -322,7 +323,7 @@ int stress_test_remote()
     g_running = false;
 
     // 4. Wake server if it's idle
-    g_transport.Send(dmq::xostringstream());
+    g_transport.Send(dmq::ByteWriter());
 
     std::cout << "Draining pipe (3s)..." << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(3));

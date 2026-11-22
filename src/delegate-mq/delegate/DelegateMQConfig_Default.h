@@ -21,6 +21,11 @@
     #define DMQ_MAX_TIMER_EXPIRED           16
 #endif
 
+// dmq::util::IsrDelegate: posts it holds until IsrDelegates::ProcessAll()
+#ifndef DMQ_ISR_DELEGATE_QUEUE_SIZE
+    #define DMQ_ISR_DELEGATE_QUEUE_SIZE     8
+#endif
+
 #ifndef DMQ_SIGNAL_SBO_COUNT
     #define DMQ_SIGNAL_SBO_COUNT            8
 #endif
@@ -31,7 +36,7 @@
 
 // Stack size of each dmq::os::Thread on the RTOS ports, in each port's native unit.
 #ifndef DMQ_FREERTOS_STACK_WORDS
-    #define DMQ_FREERTOS_STACK_WORDS        4096    // words; dynamic stacks (SetStackMem() overrides)
+    #define DMQ_FREERTOS_STACK_WORDS        4096    // StackType_t units: words, but bytes on ESP-IDF; dynamic stacks (SetStackMem() overrides)
 #endif
 #ifndef DMQ_THREADX_STACK_BYTES
     #define DMQ_THREADX_STACK_BYTES         2048
@@ -112,15 +117,30 @@
     #define DMQ_TRANSPORT_MONITOR_MAX_PENDING 100
 #endif
 
-// Embedded UDP transports (lwIP, netconn, Zephyr, NetX): datagram buffer size
-// (header + payload), and receive timeouts. A PUB socket polls briefly for ACKs;
-// a SUB socket waits longer, returning RECEIVE_NO_DATA so its thread can check
-// for exit.
+// Largest serialized message (payload bytes, no header) a remote delegate can
+// send: a ByteWriter fails (ERR_MESSAGE_TOO_LARGE) instead of growing past it.
+// At most 65535 (the header's 16-bit length). Under DMQ_ALLOCATOR the buffer's
+// block must fit the fixed-block allocator's largest (16 KB), so the default is
+// smaller there.
+#ifndef DMQ_MAX_MESSAGE_SIZE
+    #ifdef DMQ_ALLOCATOR
+        #define DMQ_MAX_MESSAGE_SIZE        4096
+    #else
+        #define DMQ_MAX_MESSAGE_SIZE        65535
+    #endif
+#endif
+
+// UDP transports: datagram buffer size (header + payload; the embedded ones:
+// lwIP, netconn, Zephyr, NetX) and receive timeouts (every UDP transport,
+// desktop too). A PUB socket polls briefly for ACKs, so a node that drains
+// several peers' ACKs in turn (NetworkNode) isn't held up; a SUB socket waits
+// longer, returning RECEIVE_NO_DATA so its thread can check for exit. A thread
+// that polls a SUB socket between other work needs SetRecvTimeout() shorter.
 #ifndef DMQ_UDP_BUFFER_SIZE
     #define DMQ_UDP_BUFFER_SIZE             1500
 #endif
 #ifndef DMQ_UDP_PUB_RECV_TIMEOUT_MS
-    #define DMQ_UDP_PUB_RECV_TIMEOUT_MS     50
+    #define DMQ_UDP_PUB_RECV_TIMEOUT_MS     2
 #endif
 #ifndef DMQ_UDP_SUB_RECV_TIMEOUT_MS
     #define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
@@ -147,6 +167,44 @@
 // 8-12 distinct sizes; raise this only if xallocator's ASSERT fires at runtime.
 #ifndef DMQ_XALLOCATOR_MAX_ALLOCATORS
     #define DMQ_XALLOCATOR_MAX_ALLOCATORS   15
+#endif
+
+// Static pools (DMQ_ALLOCATOR with DMQ_XALLOCATOR_STATIC_POOLS defined): blocks of
+// each size (header included, a power of two) in static memory; the heap is never
+// used. 0: no pool for that size, and an allocation of it faults. Size them with
+// xalloc_print_pool_config() after running under the heaviest load.
+#ifndef DMQ_XALLOC_POOL_16
+    #define DMQ_XALLOC_POOL_16     0
+#endif
+#ifndef DMQ_XALLOC_POOL_32
+    #define DMQ_XALLOC_POOL_32     0
+#endif
+#ifndef DMQ_XALLOC_POOL_64
+    #define DMQ_XALLOC_POOL_64     0
+#endif
+#ifndef DMQ_XALLOC_POOL_128
+    #define DMQ_XALLOC_POOL_128    0
+#endif
+#ifndef DMQ_XALLOC_POOL_256
+    #define DMQ_XALLOC_POOL_256    0
+#endif
+#ifndef DMQ_XALLOC_POOL_512
+    #define DMQ_XALLOC_POOL_512    0
+#endif
+#ifndef DMQ_XALLOC_POOL_1024
+    #define DMQ_XALLOC_POOL_1024   0
+#endif
+#ifndef DMQ_XALLOC_POOL_2048
+    #define DMQ_XALLOC_POOL_2048   0
+#endif
+#ifndef DMQ_XALLOC_POOL_4096
+    #define DMQ_XALLOC_POOL_4096   0
+#endif
+#ifndef DMQ_XALLOC_POOL_8192
+    #define DMQ_XALLOC_POOL_8192   0
+#endif
+#ifndef DMQ_XALLOC_POOL_16384
+    #define DMQ_XALLOC_POOL_16384  0
 #endif
 
 // Default max remote peers per NetworkNode instance (fixed allocation).

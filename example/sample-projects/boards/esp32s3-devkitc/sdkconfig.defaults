@@ -1,0 +1,21 @@
+# ESP32-S3-DevKitC-1 N8R8: dual-core Xtensa LX7, ESP-IDF's FreeRTOS SMP
+CONFIG_IDF_TARGET="esp32s3"
+
+# 8 MB quad-I/O flash
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+# 8 MB octal PSRAM (it uses GPIO 35-37), added to the heap
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# RTTI on; DelegateMQ also builds without it (DMQ_NO_RTTI). No C++ exceptions:
+# DelegateMQ then faults through DMQ_ASSERT instead of throwing.
+CONFIG_COMPILER_CXX_RTTI=y
+
+# Timer::ProcessTimers() runs in the FreeRTOS timer service task: above the
+# app's tasks, with a larger stack
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_TIMER_TASK_PRIORITY=10
+CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=4096

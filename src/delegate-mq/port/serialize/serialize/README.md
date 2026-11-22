@@ -57,15 +57,15 @@ struct MyData : public serialize::I {
     int id = 0;
     std::string name;
 
-    // Serialize object to stream
-    std::ostream& write(serialize& ms, std::ostream& os) const override {
+    // Serialize object into the byte buffer
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, id);
         ms.write(os, name);
         return os;
     }
 
-    // Deserialize object from stream
-    std::istream& read(serialize& ms, std::istream& is) override {
+    // Deserialize object from the received bytes
+    dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         ms.read(is, id);
         ms.read(is, name);
         return is;

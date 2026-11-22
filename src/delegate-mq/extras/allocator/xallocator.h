@@ -98,6 +98,15 @@ void *xrealloc(void *ptr, size_t size);
 /// Output allocator statistics to the standard output
 void xalloc_stats();
 
+/// Print (printf), for each block size used so far, the most blocks in use at
+/// once, as DelegateMQConfig.h lines for static pools:
+///   #define DMQ_XALLOCATOR_STATIC_POOLS
+///   #define DMQ_XALLOC_POOL_64     12
+/// Run the application under its heaviest load, call this, then add headroom
+/// to the numbers and build with them: every block then comes from static
+/// memory, and the heap is never used. A full pool faults.
+void xalloc_print_pool_config();
+
 #ifdef DMQ_ALLOCATOR
     // Macro to overload new/delete with xalloc/xfree. Add macro to any class to enable
     // fixed-block memory allocation. Add to a base class provides fixed-block memory

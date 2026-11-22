@@ -10,6 +10,7 @@
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
+#include <stdexcept>
 #include <new>
 
 // Define DMQ_ASSERT_TRUE if not already defined
@@ -21,6 +22,11 @@ namespace dmq::os {
 
 using namespace dmq;
 using namespace dmq::util;
+
+// The watchdog's 32-bit form of a time or duration, in dmq::Clock units (see
+// m_lastAliveTime in CmsisRtos2Thread.h)
+static uint32_t ClockCount(dmq::TimePoint t) { return static_cast<uint32_t>(t.time_since_epoch().count()); }
+static uint32_t ClockCount(dmq::Duration d) { return static_cast<uint32_t>(d.count()); }
 
 //----------------------------------------------------------------------------
 // Thread Constructor
@@ -94,8 +100,8 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         m_startGate.OnCreate();
         // Set before the thread exists: its loop reads the timeout before its
         // first queue wait, and an idle thread waits forever with no timeout
-        m_lastAliveTime.store(Timer::GetNow());
-        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
+        m_lastAliveTime.store(ClockCount(Timer::GetNow()));
+        m_watchdogTimeout.store(ClockCount(watchdogTimeout.value_or(dmq::Duration(0))));
         m_discard.store(false);
 
         // 1. Create Exit Semaphore (Max 1, Initial 0)
@@ -115,6 +121,12 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         attr.name = THREAD_NAME.c_str();
         attr.stack_size = STACK_SIZE;
         attr.priority = m_priority;
+        // The cores set by SetCoreAffinity()
+#if defined(osThreadProcessor)
+        attr.affinity_mask = m_coreMask;
+#else
+        DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+#endif
 
         // If the kernel is running, CreateThread() waits for the start handler.
         // Before osKernelStart() it cannot block; the start handler then runs
@@ -123,7 +135,7 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
         // Zephyr's CMSIS-RTOS2 compatibility layer (subsys/portability/cmsis_rtos_v2/)
         // never implements osKernelGetState() -- calling it is a link error -- but on
         // Zephyr the kernel is already scheduling before main() runs (there is no
-        // separate osKernelStart() call on this backend; see cmsis-rtos2-linux's
+        // separate osKernelStart() call on this backend; see os/cmsis-rtos2's
         // main_delegate.cpp), so it would always report osKernelRunning anyway.
         // __ZEPHYR__ is defined by Zephyr's own build system on every compile.
 #if defined(__ZEPHYR__)
@@ -146,7 +158,7 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
             osSemaphoreAcquire(m_startSem, osWaitForever);
         }
 
-        m_lastAliveTime.store(Timer::GetNow());
+        m_lastAliveTime.store(ClockCount(Timer::GetNow()));
 
         if (watchdogTimeout.has_value())
         {
@@ -227,6 +239,8 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
             if (msg)
             {
                 // Send pointer, wait forever to ensure it gets in.
@@ -246,7 +260,7 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         // The thread has finished (or, on a self-exit, is in its last handler):
         // stop watchdog checks. Not earlier, so a thread that hangs while
         // ExitThread() waits for it is still reported.
-        m_watchdogTimeout.store(dmq::Duration(0));
+        m_watchdogTimeout.store(0);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -298,7 +312,8 @@ bool CmsisRtos2Thread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
-    if (!threadMsg) return false;
+    if (!threadMsg)
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -360,23 +375,31 @@ void CmsisRtos2Thread::Process(void* argument)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void CmsisRtos2Thread::WatchdogCheck()
+bool CmsisRtos2Thread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
-    auto now = Timer::GetNow();
-    auto lastAlive = m_lastAliveTime.load();
-    auto watchdogTimeout = m_watchdogTimeout.load();
+    // The heartbeat first, then the clock: the thread stamped its heartbeat
+    // before storing it, so a clock read after loading it is never older.
+    // Read the other way round, a heartbeat stored in between (the thread on
+    // another core, or preempting this task) can be a tick newer than "now",
+    // and the unsigned difference wraps to ~49 days: a false expiry.
+    const uint32_t lastAlive = m_lastAliveTime.load();
+    const uint32_t now = ClockCount(Timer::GetNow());
+    const uint32_t watchdogTimeout = m_watchdogTimeout.load();
 
-    if (watchdogTimeout.count() > 0)
+    if (watchdogTimeout > 0)
     {
-        auto delta = now - lastAlive;
-        if (delta > watchdogTimeout)
+        const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
+        // Wrap-safe; a negative difference (a heartbeat newer than now) is alive
+        if (static_cast<int32_t>(delta) > 0 && delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = dmq::Duration(delta);
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -384,7 +407,7 @@ void CmsisRtos2Thread::WatchdogCheck()
 //----------------------------------------------------------------------------
 void CmsisRtos2Thread::ThreadCheck()
 {
-    m_lastAliveTime.store(Timer::GetNow());
+    m_lastAliveTime.store(ClockCount(Timer::GetNow()));
 }
 
 //----------------------------------------------------------------------------
@@ -393,12 +416,17 @@ void CmsisRtos2Thread::ThreadCheck()
 void CmsisRtos2Thread::WatchdogCheckAll()
 {
     const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     CmsisRtos2Thread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------
@@ -415,7 +443,9 @@ CmsisRtos2Thread*& CmsisRtos2Thread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& CmsisRtos2Thread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 
@@ -458,7 +488,7 @@ void CmsisRtos2Thread::Run()
     if (m_startGate.Enabled())
     {
         const bool opened = m_startGate.Wait(m_exit);
-        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_lastAliveTime.store(ClockCount(Timer::GetNow()));   // before Passed(): no stale watchdog read
         m_startGate.Passed();
         // ExitThread() while held: run nothing. Cancel each queued message
         // (DISCARD) until the exit message. Consuming them also keeps
@@ -474,8 +504,8 @@ void CmsisRtos2Thread::Run()
     {
         dmq::Duration watchdogTimeout;
         {
-            m_lastAliveTime.store(Timer::GetNow());
-            watchdogTimeout = m_watchdogTimeout.load();
+            m_lastAliveTime.store(ClockCount(Timer::GetNow()));
+            watchdogTimeout = dmq::Duration(m_watchdogTimeout.load());
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 
@@ -552,15 +582,15 @@ void CmsisRtos2Thread::Run()
                     if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled bad_alloc in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::invalid_argument& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled invalid_argument in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::runtime_error& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled runtime_error in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::exception& e) {

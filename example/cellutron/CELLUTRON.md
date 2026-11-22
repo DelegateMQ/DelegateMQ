@@ -89,7 +89,7 @@ The one place this isolation isn't perfectly seamless is thread priority: FreeRT
 
 ### Known Limitation: ThreadX Build May Deadlock on the Linux Simulator
 
-The vendored **ThreadX Linux/GNU simulation port** (the desktop dev/test scaffolding used for `CELLUTRON_RTOS=THREADX` here — not real ThreadX kernel scheduling) has a genuine, root-caused kernel deadlock triggered whenever **two or more ThreadX application threads are concurrently alive**: thread startup hangs forever inside ThreadX's own `_tx_thread_interrupt_control()` on a global `_tx_linux_mutex`. This is documented in detail in `example/sample-projects/threadx-linux/DelegateThreadsTests.cpp`, whose own test suite has to keep 4 of its 10 tests disabled for exactly this reason.
+The vendored **ThreadX Linux/GNU simulation port** (the desktop dev/test scaffolding used for `CELLUTRON_RTOS=THREADX` here — not real ThreadX kernel scheduling) has a genuine, root-caused kernel deadlock triggered whenever **two or more ThreadX application threads are concurrently alive**: thread startup hangs forever inside ThreadX's own `_tx_thread_interrupt_control()` on a global `_tx_linux_mutex`. This is documented in detail in `TestOptions()` in `example/sample-projects/os/threadx/main_delegate.cpp`, whose own test suite has to keep 4 of its 10 tests disabled for exactly this reason.
 
 The Controller node alone runs 7 concurrent ThreadX threads (Controller Task, Watchdog Task, `Controller_SystemThread`, `Controller_NetworkThread`, `ProcessThread`, `ActuatorsThread`, `SensorsThread`), so the ThreadX build of Cellutron **will typically hang** partway through a run — symptomatically, as repeated `Queue post timed out ... possible deadlock` warnings on one of the worker threads (e.g. `ActuatorsThread`) once enough threads are active together, most often during the centrifuge spin-up sequence.
 
@@ -184,6 +184,8 @@ Cellutron uses a "DDS-Lite" approach where data is exchanged via named **Topics*
 ## Controller State Machines
 
 The Controller CPU orchestration is driven by nested state machines. The high-level process manages the overall sequence, while sub-processes handle atomic hardware actions.
+
+The state machines are built on [active-fsm](https://github.com/DelegateMQ/active-fsm) (v1.1.0), which `scripts/01_fetch_repos.py` clones into `external/active-fsm`; the Controller compiles its `state-machine/` folder. `Centrifuge` and `CellProcess` override `SetThread()` to connect their timers and signals to the same thread the state machine runs on.
 
 ### CellProcess State Machine
 The `CellProcess` state machine (Active Object) manages the high-level instrument sequence. It coordinates with the `PumpProcess` and the `Centrifuge` actuator to move fluid and process cells.

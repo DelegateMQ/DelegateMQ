@@ -14,7 +14,7 @@
 ///   Dispatcher dispatcher;
 ///   dispatcher.SetTransport(&transport);
 ///   Serializer<void(int)> serializer;
-///   dmq::xostringstream stream(std::ios::in | std::ios::out | std::ios::binary);
+///   dmq::ByteWriter stream;
 ///
 ///   DelegateFreeRemote<void(int)> remote(REMOTE_ID);
 ///   remote.SetSerializer(&serializer);
@@ -103,8 +103,7 @@ public:
     /// Optional for receive channels where `Bind()` supplies the ID.
     RemoteChannel(transport::ITransport& transport, dmq::ISerializer<RetType(Args...)>& serializer,
         DelegateRemoteId id = INVALID_REMOTE_ID)
-        : m_stream(std::ios::in | std::ios::out | std::ios::binary)
-        , m_serializer(&serializer)
+        : m_serializer(&serializer)
     {
         m_dispatcher.SetTransport(&transport);
         m_delegate.SetRemoteId(id);
@@ -157,6 +156,7 @@ public:
     template <typename F, typename = std::enable_if_t<dmq::trait::is_callable<F>::value>>
     void Bind(F&& func, DelegateRemoteId id) {
         m_delegate.Bind(std::forward<F>(func), id);
+        DMQ_SET_CALLABLE_TYPE(m_delegate, F, RetType(Args...));
         ReconnectDelegate();
     }
 
@@ -222,7 +222,7 @@ private:
     dmq::ISerializer<RetType(Args...)>* GetSerializer() noexcept { return m_serializer; }
 
     /// @internal Used by MakeDelegate overloads. Prefer Bind() in application code.
-    dmq::xostringstream& GetStream() noexcept { return m_stream; }
+    dmq::ByteWriter& GetStream() noexcept { return m_stream; }
 
     /// @internal Used by MakeDelegate overloads. Every delegate sharing `m_stream`
     /// must hold this mutex while it sends.
@@ -240,7 +240,7 @@ private:
     /// every delegate made from it by MakeDelegate().
     dmq::Mutex m_sendMutex;
     Dispatcher m_dispatcher;
-    dmq::xostringstream m_stream;
+    dmq::ByteWriter m_stream;
     dmq::ISerializer<RetType(Args...)>* m_serializer = nullptr;
     DelegateFunctionRemote<RetType(Args...)> m_delegate;
 };
@@ -379,6 +379,7 @@ template <typename F, typename Sig, typename = std::enable_if_t<dmq::trait::is_c
 auto MakeDelegate(F&& func, DelegateRemoteId id, RemoteChannel<Sig>& channel)
 {
     DelegateFunctionRemote<Sig> d(std::forward<F>(func), id);
+    DMQ_SET_CALLABLE_TYPE(d, F, Sig);
     d.SetDispatcher(channel.GetDispatcher());
     d.SetSerializer(channel.GetSerializer());
     d.SetStream(&channel.GetStream());

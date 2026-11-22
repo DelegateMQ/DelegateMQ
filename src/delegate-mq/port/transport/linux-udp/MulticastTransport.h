@@ -5,8 +5,6 @@
 #include "port/transport/common/ITransport.h"
 #include "port/transport/common/DmqHeader.h"
 
-#include <iostream>
-#include <sstream>
 #include <cstring>
 #include <cstdlib>
 #include <unistd.h>
@@ -82,26 +80,26 @@ public:
         }
     }
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override {
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::PUB) return -1;
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) return -1;
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) return -1;
         DmqHeader headerCopy = header;
-        headerCopy.SetLength(static_cast<uint16_t>(payload.length()));
+        headerCopy.SetLength(static_cast<uint16_t>(payload.size()));
 
-        xostringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+        dmq::ByteWriter ss;
         char headerBuf[DmqHeader::HEADER_SIZE];
         headerCopy.Encode(headerBuf);
         ss.write(headerBuf, DmqHeader::HEADER_SIZE);
         ss.write(payload.data(), payload.size());
 
-        auto data = ss.str();
-        sendto(m_socket, data.c_str(), data.size(), 0, (struct sockaddr*)&m_addr, sizeof(m_addr));
+        sendto(m_socket, ss.data(), ss.size(), 0, (struct sockaddr*)&m_addr, sizeof(m_addr));
         return 0;
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override {
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (m_type != Type::SUB) return -1;
         // MSG_TRUNC: return the datagram's real length, so one larger than the
@@ -123,7 +121,7 @@ public:
         // One datagram is one message: the header length must match exactly.
         int payloadSize = static_cast<int>(size) - static_cast<int>(DmqHeader::HEADER_SIZE);
         if (header.GetLength() != payloadSize) return -1;
-        is.write(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
+        is.assign(m_buffer + DmqHeader::HEADER_SIZE, header.GetLength());
         return 0;
     }
 

@@ -1,6 +1,6 @@
 name: Qt
 
-# Builds and runs example/sample-projects/qt-linux: the DMQ_THREAD_QT port
+# Builds and runs example/sample-projects/os/qt: the DMQ_THREAD_QT port
 # against the same test suite as the other thread ports.
 
 on:
@@ -21,7 +21,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: example/sample-projects/qt-linux
+        working-directory: example/sample-projects/os/qt
 
     steps:
     - name: Checkout code

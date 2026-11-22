@@ -179,6 +179,17 @@ static void BlinkCrashLed()
     BSP_LED_Off(LED5);
 }
 
+/// Thread watchdog hook: WatchdogCheckAll() calls it, in the Startup task, for
+/// each unresponsive thread before WatchdogHandler() (Fault.cpp) resets the
+/// board. Stores the thread's own registers and call stack in the core dump;
+/// the first record wins, so with several hung threads the dump shows the first.
+static void OnHungThread(const dmq::os::WatchdogInfo& info)
+{
+    const auto stalled = std::chrono::duration_cast<std::chrono::milliseconds>(info.stalledFor);
+    CoreDump_StoreHungTask(info.threadName, info.thread.GetThreadId(),
+                           static_cast<uint32_t>(stalled.count()));
+}
+
 static void SysTimerCallback(TimerHandle_t)
 {
     dmq::util::Timer::ProcessTimers();
@@ -190,6 +201,7 @@ static void SysTimerCallback(TimerHandle_t)
 int main()
 {
     CoreDump_EnableFaultHandlers();
+    dmq::os::SetWatchdogHook(&OnHungThread);
     HAL_Init();
     SystemClock_Config();
     HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);

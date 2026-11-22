@@ -25,6 +25,7 @@
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
+#include <cstdlib>
 
 using namespace ftxui;
 
@@ -63,8 +64,7 @@ static void ReceiverThread(UdpSocket& socket) {
             }
 
             dmq::util::ThreadStatsPacket packet;
-            std::string data(reinterpret_cast<char*>(buffer.data() + 1), received - 1);
-            std::istringstream iss(data, std::ios::binary);
+            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data() + 1), static_cast<size_t>(received - 1));
             serializer.Read(iss, packet);
 
             if (!packet.thread_name.empty()) {
@@ -79,8 +79,38 @@ static void ReceiverThread(UdpSocket& socket) {
     }
 }
 
+/// --once: every thread heard from, as plain text, sorted by CPU then thread.
+static void PrintThreadTable() {
+    std::vector<ThreadRecord> records;
+    {
+        std::lock_guard<std::mutex> lock(g_threadsMutex);
+        for (auto& pair : g_threads) records.push_back(pair.second);
+    }
+    std::sort(records.begin(), records.end(), [](const ThreadRecord& a, const ThreadRecord& b) {
+        if (a.packet.cpu_name != b.packet.cpu_name) return a.packet.cpu_name < b.packet.cpu_name;
+        return a.packet.thread_name < b.packet.thread_name;
+    });
+
+    std::cout << std::left << std::setw(12) << "CPU" << std::setw(20) << "Thread" << std::setw(16) << "IP"
+              << std::right << std::setw(6) << "QCur" << std::setw(6) << "QWin" << std::setw(6) << "QMax"
+              << std::setw(10) << "LatAvg" << std::setw(10) << "LatMax" << std::setw(10) << "InvAvg"
+              << std::setw(10) << "InvMax" << std::setw(10) << "Dispatch" << "\n";
+    for (const auto& r : records) {
+        const auto& p = r.packet;
+        std::cout << std::left << std::setw(12) << (std::string)p.cpu_name << std::setw(20) << (std::string)p.thread_name
+                  << std::setw(16) << r.ip << std::right << std::setw(6) << p.queue_depth
+                  << std::setw(6) << p.queue_depth_max_window << std::setw(6) << p.queue_depth_max_all
+                  << std::fixed << std::setprecision(2)
+                  << std::setw(10) << p.latency_avg_ms << std::setw(10) << p.latency_max_all_ms
+                  << std::setw(10) << p.invoke_avg_ms << std::setw(10) << p.invoke_max_all_ms
+                  << std::setw(10) << p.dispatch_count << "\n";
+    }
+    std::cout << records.size() << " thread(s), " << g_packetCount.load() << " packet(s) received" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     uint16_t port = 9998; // Default DataBus UDP port
+    int onceSeconds = 0;
     std::string multicastGroup;
     std::string localInterface;
 
@@ -91,11 +121,14 @@ int main(int argc, char* argv[]) {
             multicastGroup = argv[++i];
         } else if (arg == "--interface" && i + 1 < argc) {
             localInterface = argv[++i];
+        } else if (arg == "--once" && i + 1 < argc) {
+            onceSeconds = (std::max)(1, std::atoi(argv[++i]));
         } else if (std::isdigit(arg[0])) {
             port = (uint16_t)std::stoi(arg);
         } else {
             std::cerr << "Unknown argument: " << arg << std::endl;
-            std::cout << "Usage: dmq-thread [port] [--multicast <group_addr>] [--interface <addr>]" << std::endl;
+            std::cout << "Usage: dmq-thread [port] [--multicast <group_addr>] [--interface <addr>] [--once <sec>]" << std::endl;
+            std::cout << "  --once <sec>: Listen for <sec> seconds, print the thread table as plain text, and exit" << std::endl;
             return 1;
         }
     }
@@ -110,8 +143,18 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    auto screen = ScreenInteractive::Fullscreen();
     std::thread receiver(ReceiverThread, std::ref(socket));
+
+    // --- Non-interactive: collect, print the table once, exit ---
+    if (onceSeconds > 0) {
+        std::this_thread::sleep_for(std::chrono::seconds(onceSeconds));
+        g_running = false;
+        receiver.join();
+        PrintThreadTable();
+        return 0;
+    }
+
+    auto screen = ScreenInteractive::Fullscreen();
 
     auto renderer = Renderer([&] {
         std::vector<ThreadRecord> records;

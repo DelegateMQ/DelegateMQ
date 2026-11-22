@@ -142,32 +142,25 @@ void RemoteDispatcher::RecvThread()
     // Timeout for enqueuing the message to the main thread.
     static const std::chrono::milliseconds INVOKE_TIMEOUT(1000);
 
-    std::shared_ptr<dmq::xstringstream> arg_data;
-
     while (!m_recvThreadExit)
     {
         DmqHeader header;
 
-        // Only allocate a new stream if we dispatched the previous one
-        if (!arg_data) {
-            arg_data = dmq::xmake_shared<dmq::xstringstream>(std::ios::in | std::ios::out | std::ios::binary);
-        } else {
-            // Reuse the existing stream: clear error flags and empty its contents
-            arg_data->clear();
-            arg_data->str(dmq::xstring());
-        }
+        // A fresh (empty) reader each time: a transport that returns 0 with no
+        // data and doesn't assign it must not replay the previous message
+        dmq::ByteReader received;
 
         // Block reading from the physical transport
-        int error = m_rxTransport->Receive(*arg_data, header);
+        int error = m_rxTransport->Receive(received, header);
 
-        if (!error && !arg_data->str().empty() && !m_recvThreadExit)
+        if (!error && received.size() > 0 && !m_recvThreadExit)
         {
-            // Dispatch processing to the main RemoteDispatcher thread.
-            // Passes ownership of the data stream via shared_ptr (no deep copy).
+            // The bytes are in the transport's receive buffer, valid only until its
+            // next Receive(): copy them for the RemoteDispatcher thread, which
+            // gets them through a shared_ptr (no further copy)
+            auto arg_data = dmq::xmake_shared<dmq::ByteWriter>();
+            arg_data->write(received.data(), received.size());
             dmq::MakeDelegate(this, &RemoteDispatcher::Incoming, m_thread, INVOKE_TIMEOUT).AsyncInvoke(header, arg_data);
-
-            // Release our local reference so a new one is allocated next iteration
-            arg_data.reset();
         }
         else if (error < 0 && !m_recvThreadExit)
         {
@@ -184,7 +177,7 @@ void RemoteDispatcher::RecvThread()
 // Incoming
 //------------------------------------------------------------------------------
 /// @brief Handles incoming messages on the main Network Thread.
-void RemoteDispatcher::Incoming(DmqHeader& header, std::shared_ptr<dmq::xstringstream> arg_data)
+void RemoteDispatcher::Incoming(DmqHeader& header, std::shared_ptr<dmq::ByteWriter> arg_data)
 {
     // Filter out ACKs; we only dispatch application data here.
     if (header.GetId() != dmq::ACK_REMOTE_ID) {
@@ -193,7 +186,8 @@ void RemoteDispatcher::Incoming(DmqHeader& header, std::shared_ptr<dmq::xstrings
 
         // If found and valid, let the endpoint handle deserialization and execution
         if (it != m_receiveIdMap.end() && it->second) {
-            it->second->Invoke(*arg_data);
+            dmq::ByteReader reader(*arg_data);
+            it->second->Invoke(reader);
         }
     }
 }

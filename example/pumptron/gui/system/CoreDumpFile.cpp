@@ -53,6 +53,10 @@ std::string FormatCoreDump(const CoreDumpMsg& msg)
 {
     std::ostringstream os;
     const bool hardFault = msg.source == CoreDumpSource::HARD_FAULT;
+    // A thread watchdog dump has registers too when the firmware's watchdog
+    // hook stored the unresponsive thread's saved context (older firmware: none)
+    const bool hungContext = msg.source == CoreDumpSource::WATCHDOG && msg.regs[CoreDumpMsg::PC] != 0;
+    const bool hasRegs = hardFault || hungContext;
 
     os << "Type: " << ToString(msg.source);
     if (msg.source == CoreDumpSource::RTOS)
@@ -69,6 +73,8 @@ std::string FormatCoreDump(const CoreDumpMsg& msg)
             break;
         case CoreDumpSource::WATCHDOG:
             os << "Unresponsive thread: " << msg.where << "\n";
+            if (msg.auxCode != 0)
+                os << "Unresponsive for: " << msg.auxCode << " ms\n";
             break;
         case CoreDumpSource::RTOS:
             if (static_cast<RtosFault>(msg.auxCode) == RtosFault::STACK_OVERFLOW)
@@ -80,18 +86,20 @@ std::string FormatCoreDump(const CoreDumpMsg& msg)
     char uptime[32];
     snprintf(uptime, sizeof(uptime), "%u.%03u s",
              static_cast<unsigned>(msg.uptimeMs / 1000), static_cast<unsigned>(msg.uptimeMs % 1000));
-    os << "Active context: " << msg.task << "\n"
+    os << (hungContext ? "Captured context: " : "Active context: ") << msg.task
+       << (hungContext ? " (the unresponsive thread, where it was last switched out)" : "") << "\n"
        << "Uptime at crash: " << uptime << "\n"
        << "Crash number: " << msg.crashSeq << " since power-up\n"
        << "Build ID: " << msg.buildId << "\n";
 
-    if (hardFault) {
+    if (hasRegs) {
         static const char* const REG_NAMES[CoreDumpMsg::REG_COUNT] =
             { "R0", "R1", "R2", "R3", "R12", "LR", "PC", "xPSR" };
         os << "\n";
         for (size_t i = 0; i < CoreDumpMsg::REG_COUNT; ++i)
             os << REG_NAMES[i] << ": " << Hex(msg.regs[i]) << "\n";
-
+    }
+    if (hardFault) {
         const uint32_t cfsr = msg.faultRegs[CoreDumpMsg::CFSR];
         const uint32_t hfsr = msg.faultRegs[CoreDumpMsg::HFSR];
         os << "CFSR: " << Hex(cfsr) << "  "
@@ -113,7 +121,7 @@ std::string FormatCoreDump(const CoreDumpMsg& msg)
     std::string decodeArgs;
     for (uint8_t i = 0; i < msg.callStackCount; ++i) {
         const uint32_t addr = msg.callStack[i];
-        const bool isPc = hardFault && i == 0 && addr == (msg.regs[CoreDumpMsg::PC] | 1u);
+        const bool isPc = hasRegs && i == 0 && addr == (msg.regs[CoreDumpMsg::PC] | 1u);
         os << "  " << static_cast<int>(i) << ": " << Hex(addr) << (isPc ? "  (PC)" : "") << "\n";
         decodeArgs += " " + Hex(isPc ? (addr & ~1u) : ((addr & ~1u) - 1));
     }

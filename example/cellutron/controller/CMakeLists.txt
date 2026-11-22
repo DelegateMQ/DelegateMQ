@@ -32,6 +32,16 @@ set(DMQ_ALLOCATOR "ON")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../../../src/delegate-mq/DelegateMQ.cmake")
 get_filename_component(DMQ_SRC_DIR "${DMQ_INCLUDE_DIR}" DIRECTORY)
 
+# State machines: active-fsm, fetched by scripts/01_fetch_repos.py into
+# ${DMQ_DEPS_DIR}/active-fsm. Only its state-machine/ folder is used. Point
+# -DACTIVE_FSM_DIR=<path> at another checkout to use that instead.
+set(ACTIVE_FSM_DIR "${DMQ_DEPS_DIR}/active-fsm" CACHE PATH "active-fsm checkout")
+if(NOT EXISTS "${ACTIVE_FSM_DIR}/state-machine/StateMachine.h")
+    message(FATAL_ERROR "active-fsm not found at ${ACTIVE_FSM_DIR}. "
+        "Run scripts/01_fetch_repos.py, or set -DACTIVE_FSM_DIR=<path>.")
+endif()
+file(GLOB FSM_SOURCES "${ACTIVE_FSM_DIR}/state-machine/*.cpp" "${ACTIVE_FSM_DIR}/state-machine/*.h")
+
 set(TOOLS_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/bridge")
 set(TOOLS_SRC_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/net")
 
@@ -96,6 +106,7 @@ add_executable(cellutron_controller
     ${SENSOR_FILES}
     ${SYSTEM_FILES}
     ${COMMON_SOURCES}
+    ${FSM_SOURCES}
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
     ${FREERTOS_SOURCES}
@@ -124,6 +135,7 @@ source_group("Actuator Files" FILES ${ACTUATOR_FILES})
 source_group("Sensor Files" FILES ${SENSOR_FILES})
 source_group("System Files" FILES ${SYSTEM_FILES})
 source_group("Common Files" FILES ${COMMON_SOURCES})
+source_group("active-fsm" FILES ${FSM_SOURCES})
 source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
 source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})
 source_group("DelegateMQ/Extras Files" FILES ${DMQ_EXTRAS_SOURCES})
@@ -134,6 +146,7 @@ target_include_directories(cellutron_controller PRIVATE
     ${CELLUTRON_COMMON_DIR}
     ${CELLUTRON_COMMON_DIR}/util
     ${CELLUTRON_COMMON_DIR}/messages
+    ${ACTIVE_FSM_DIR}/state-machine
     ${DMQ_INCLUDE_DIR}
     ${DMQ_SRC_DIR}
     ${SPDLOG_INCLUDE_DIR}

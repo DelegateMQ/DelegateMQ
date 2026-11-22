@@ -65,7 +65,7 @@ endif()
 # --- DataBus Defaults ---
 # Keyed off DMQ_THREAD (the actual target), not WIN32/UNIX (the host doing
 # the compiling) -- DMQ_THREAD is already resolved above, and every RTOS
-# simulator sample (freertos-linux, threadx-linux, zephyr-linux) compiles
+# simulator sample (os/freertos, os/threadx, os/zephyr) compiles
 # with a host GCC on a UNIX box despite targeting an embedded thread port,
 # which used to default DMQ_DATABUS on for them too. DataBus's
 # NetworkConnect.h reaches for the host's own BSD socket headers
@@ -73,7 +73,7 @@ endif()
 # embedded build and can conflict outright with a target's own native
 # network stack headers (e.g. Zephyr's <zephyr/net/socket.h> redefining
 # sockaddr_in et al.) if a sample also pulls those in directly. RTOS/bare-
-# metal targets that genuinely want DataBus (e.g. databus-freertos/server)
+# metal targets that genuinely want DataBus (e.g. databus/freertos/server)
 # already opt in explicitly by setting DMQ_DATABUS "ON" themselves.
 #
 # This exclusion list must stay in sync with DelegateSelect.h's

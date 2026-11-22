@@ -462,7 +462,7 @@ private:
     }
 
     void RecvThread();
-    void Incoming(dmq::transport::DmqHeader& header, std::shared_ptr<dmq::xstringstream> arg_data);
+    void Incoming(dmq::transport::DmqHeader& header, std::shared_ptr<dmq::ByteWriter> arg_data);
     void Timeout();
     void InternalErrorHandler(dmq::DelegateRemoteId id, dmq::DelegateError error, dmq::DelegateErrorAux aux);
     void InternalStatusHandler(dmq::DelegateRemoteId id, uint16_t seq, TransportMonitor::Status status);

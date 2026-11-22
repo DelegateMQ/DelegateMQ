@@ -9,6 +9,8 @@
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
+#include <stdexcept>
+#include <new>
 #include <cstring> // for memset
 
 // Define DMQ_ASSERT_TRUE if not already defined
@@ -19,6 +21,23 @@
 namespace dmq::os {
 
 using namespace dmq::util;
+
+// The watchdog's times and timeout as 32-bit millisecond counts (see
+// m_lastAliveTime in ZephyrThread.h)
+static uint32_t WatchdogMs(dmq::TimePoint t)
+{
+    return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()).count());
+}
+static uint32_t WatchdogMs(dmq::Duration d)
+{
+    // A non-zero timeout under 1 ms stays non-zero: 0 means no watchdog
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+    return static_cast<uint32_t>(ms > 0 ? ms : (d.count() > 0 ? 1 : 0));
+}
+static dmq::Duration WatchdogDuration(uint32_t ms)
+{
+    return std::chrono::duration_cast<dmq::Duration>(std::chrono::milliseconds(ms));
+}
 
 //----------------------------------------------------------------------------
 // Thread Constructor
@@ -92,8 +111,8 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         m_startGate.OnCreate();
         // Set before the thread exists: its loop reads the timeout before its
         // first queue wait, and an idle thread waits forever with no timeout
-        m_lastAliveTime.store(Timer::GetNow());
-        m_watchdogTimeout.store(watchdogTimeout.value_or(dmq::Duration(0)));
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
+        m_watchdogTimeout.store(WatchdogMs(watchdogTimeout.value_or(dmq::Duration(0))));
         m_discard.store(false);
 
         // 1. Create Message Queues
@@ -115,25 +134,46 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // when the thread is first scheduled, still before any message.
         m_startSync = !k_is_pre_kernel() && !k_is_in_isr();
 
+        // The CPUs set by SetCoreAffinity(): with CONFIG_SCHED_CPU_MASK the thread
+        // is created unstarted, given its mask, then started
+#if defined(CONFIG_SCHED_CPU_MASK)
+        const bool pinned = (m_coreMask != 0);
+#else
+        DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+        const bool pinned = false;
+#endif
+
         k_tid_t tid = k_thread_create(&m_thread,
                                       (k_thread_stack_t*)m_stackMemory.get(),
                                       STACK_SIZE,
                                       (k_thread_entry_t)ZephyrThread::Process,
                                       this, NULL, NULL,
                                       m_priority,
-                                      0, 
-                                      K_NO_WAIT);
-        
+                                      0,
+                                      pinned ? K_FOREVER : K_NO_WAIT);
+
         DMQ_ASSERT_TRUE(tid != nullptr);
-        
+
         // Optional: Set thread name for debug
         k_thread_name_set(tid, THREAD_NAME.c_str());
+
+#if defined(CONFIG_SCHED_CPU_MASK)
+        if (pinned) {
+            DMQ_ASSERT_TRUE((m_coreMask >> CONFIG_MP_MAX_NUM_CPUS) == 0);
+            DMQ_ASSERT_TRUE(k_thread_cpu_mask_clear(tid) == 0);
+            for (unsigned cpu = 0; cpu < CONFIG_MP_MAX_NUM_CPUS; cpu++) {
+                if (m_coreMask & (1u << cpu))
+                    DMQ_ASSERT_TRUE(k_thread_cpu_mask_enable(tid, static_cast<int>(cpu)) == 0);
+            }
+            k_thread_start(tid);
+        }
+#endif
 
         // Wait for the start handler to complete
         if (m_startSync)
             k_sem_take(&m_startSem, K_FOREVER);
 
-        m_lastAliveTime.store(Timer::GetNow());
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
 
         if (watchdogTimeout.has_value())
         {
@@ -205,7 +245,7 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
             // Self-exit: this thread runs no more messages, and the object may be
             // destroyed once this handler returns. Stop watchdog checks now.
-            m_watchdogTimeout.store(dmq::Duration(0));
+            m_watchdogTimeout.store(0);
             return;
         }
 
@@ -213,6 +253,8 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
             if (msg)
             {
                 // Wait forever to ensure message is sent
@@ -246,7 +288,7 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         // The thread has finished (or, on a self-exit, is in its last handler):
         // stop watchdog checks. Not earlier, so a thread that hangs while
         // ExitThread() waits for it is still reported.
-        m_watchdogTimeout.store(dmq::Duration(0));
+        m_watchdogTimeout.store(0);
 
         m_queue.DrainAndDelete();
         m_queue.Destroy();
@@ -320,7 +362,8 @@ bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 
     // 1. Allocate message container
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
-    if (!threadMsg) return false;
+    if (!threadMsg)
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -385,23 +428,31 @@ void ZephyrThread::Process(void* p1, void* p2, void* p3)
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void ZephyrThread::WatchdogCheck()
+bool ZephyrThread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
-    auto now = Timer::GetNow();
-    auto lastAlive = m_lastAliveTime.load();
-    auto watchdogTimeout = m_watchdogTimeout.load();
+    // The heartbeat first, then the clock: the thread stamped its heartbeat
+    // before storing it, so a clock read after loading it is never older.
+    // Read the other way round, a heartbeat stored in between (the thread on
+    // another core, or preempting this task) can be a tick newer than "now",
+    // and the unsigned difference wraps to ~49 days: a false expiry.
+    const uint32_t lastAlive = m_lastAliveTime.load();
+    const uint32_t now = WatchdogMs(Timer::GetNow());
+    const uint32_t watchdogTimeout = m_watchdogTimeout.load();
 
-    if (watchdogTimeout.count() > 0)
+    if (watchdogTimeout > 0)
     {
-        auto delta = now - lastAlive;
-        if (delta > watchdogTimeout)
+        const uint32_t delta = now - lastAlive;     // unsigned: wrap-safe
+        // Wrap-safe; a negative difference (a heartbeat newer than now) is alive
+        if (static_cast<int32_t>(delta) > 0 && delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = std::chrono::duration_cast<dmq::Duration>(std::chrono::milliseconds(delta));
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -409,7 +460,7 @@ void ZephyrThread::WatchdogCheck()
 //----------------------------------------------------------------------------
 void ZephyrThread::ThreadCheck()
 {
-    m_lastAliveTime.store(Timer::GetNow());
+    m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
 }
 
 //----------------------------------------------------------------------------
@@ -418,12 +469,17 @@ void ZephyrThread::ThreadCheck()
 void ZephyrThread::WatchdogCheckAll()
 {
     const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     ZephyrThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------
@@ -440,7 +496,9 @@ ZephyrThread*& ZephyrThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& ZephyrThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 
@@ -480,7 +538,7 @@ void ZephyrThread::Run()
     if (m_startGate.Enabled())
     {
         const bool opened = m_startGate.Wait(m_exit);
-        m_lastAliveTime.store(Timer::GetNow());   // before Passed(): no stale watchdog read
+        m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));   // before Passed(): no stale watchdog read
         m_startGate.Passed();
         // ExitThread() while held: run nothing. Cancel each queued message
         // (DISCARD) until the exit message. Consuming them also keeps
@@ -495,8 +553,8 @@ void ZephyrThread::Run()
     {
         dmq::Duration watchdogTimeout;
         {
-            m_lastAliveTime.store(Timer::GetNow());
-            watchdogTimeout = m_watchdogTimeout.load();
+            m_lastAliveTime.store(WatchdogMs(Timer::GetNow()));
+            watchdogTimeout = WatchdogDuration(m_watchdogTimeout.load());
         }
 
         // If watchdog active, use a finite timeout so we can periodically update 
@@ -567,15 +625,15 @@ void ZephyrThread::Run()
                     if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled bad_alloc in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::invalid_argument& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled invalid_argument in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::runtime_error& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled runtime_error in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::exception& e) {

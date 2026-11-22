@@ -29,6 +29,7 @@
 /// See DETAILS.md for Porting Guides and Design Documentation.
 
 #include "DelegateMQ.h"
+#include <iostream>
 #include "SafeTimer.h"
 #include "AsyncCallback.h"
 #include "ReplyToCaller.h"
@@ -255,14 +256,14 @@ void RunSimpleExamples()
     class MockTransport : public dmq::transport::ITransport
     {
     public:
-        int Send(dmq::xostringstream& os, const dmq::transport::DmqHeader& header) override {
+        int Send(const dmq::ByteWriter& os, const dmq::transport::DmqHeader& header) override {
             // @TODO: Send serialized data to the remote endpoint.
-            // See example\sample-projects\system-architecture-no-deps
+            // See example\sample-projects\system-architecture/no-deps
             // for a complete working remote delegate client/server example.
             cout << "Transport Send DelegateRemoteId=" << header.GetId() << endl;
             return 0;
         }
-        int Receive(dmq::xstringstream& is, dmq::transport::DmqHeader& header) override { return 0; }
+        int Receive(dmq::ByteReader& is, dmq::transport::DmqHeader& header) override { return 0; }
     };
 
     // 1. Synchronous Invocation
@@ -305,15 +306,15 @@ class LoopbackTransport : public dmq::transport::ITransport
 public:
     void SetReceiver(dmq::IRemoteInvoker* recv) { m_receiver = recv; }
 
-    int Send(dmq::xostringstream& os, const dmq::transport::DmqHeader& header) override {
+    int Send(const dmq::ByteWriter& os, const dmq::transport::DmqHeader& header) override {
         cout << "LoopbackTransport Send DelegateRemoteId=" << header.GetId() << endl;
         if (m_receiver) {
-            dmq::xstringstream is(os.str());
+            dmq::ByteReader is(os);
             m_receiver->Invoke(is);
         }
         return 0;
     }
-    int Receive(dmq::xstringstream& is, dmq::transport::DmqHeader& header) override { return 0; }
+    int Receive(dmq::ByteReader& is, dmq::transport::DmqHeader& header) override { return 0; }
 
 private:
     dmq::IRemoteInvoker* m_receiver = nullptr;

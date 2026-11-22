@@ -141,17 +141,17 @@ if(DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ARM_LWIP_UDP" OR DMQ_TRANSPORT STREQUAL
     # Adjust this path if your lwIP root is different
     set(LWIP_ROOT "${DMQ_DEPS_DIR}/lwip")
 
-    # lwIP requires 3 main include directories for the socket API
+    # lwIP 2.x headers (lwIP 1.4's separate src/include/ipv4 is gone)
     set_and_check(LWIP_INCLUDE_DIR_1 "${LWIP_ROOT}/src/include")
-    set_and_check(LWIP_INCLUDE_DIR_2 "${LWIP_ROOT}/src/include/ipv4")
-    
-    # Often required for lwipopts.h or arch/cc.h.
-    # NOTE: You may need to customize this depending on where your project keeps 'lwipopts.h'
+
+    # arch/cc.h and sys_arch.h. This is lwIP's Unix (host) port, used by
+    # example/sample-projects/transport/serializer's lwip build; a board build
+    # uses its own port's include directory instead, and every build supplies
+    # its own lwipopts.h.
     set(LWIP_INCLUDE_DIR_3 "${LWIP_ROOT}/contrib/ports/unix/port/include")
 
-    set(LWIP_INCLUDE_DIRS 
+    set(LWIP_INCLUDE_DIRS
         "${LWIP_INCLUDE_DIR_1}"
-        "${LWIP_INCLUDE_DIR_2}"
         "${LWIP_INCLUDE_DIR_3}"
     )
     
@@ -213,6 +213,15 @@ if(DMQ_SERIALIZE STREQUAL "DMQ_SERIALIZE_RAPIDJSON")
     # Globally silence C++17 std::iterator warnings on RapidJSON library
     if(MSVC)
         dmq_compile_definitions(_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
+    endif()
+
+    # RapidJSON v1.1.0 assigns a const member in GenericStringRef::operator=
+    # (document.h), which GCC 14+ rejects even uninstantiated (-Wtemplate-body)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+        list(APPEND DMQ_COMPILE_OPTIONS "-Wno-template-body")
+        if(NOT DMQ_NO_GLOBAL_DEFINITIONS)
+            add_compile_options("-Wno-template-body")
+        endif()
     endif()
 endif()
 
@@ -304,8 +313,8 @@ if(DMQ_THREAD STREQUAL "DMQ_THREAD_THREADX")
         # than patching the vendored ThreadX source, so 01_fetch_repos.py can
         # still pull a clean, unmodified ThreadX tree.
         #
-        # Not a fix for the threadx-linux two-worker-thread deadlock (see
-        # example/sample-projects/threadx-linux/DelegateThreadsTests.cpp) --
+        # Not a fix for the os/threadx two-worker-thread deadlock (see
+        # TestOptions() in example/sample-projects/os/threadx/main_delegate.cpp) --
         # that hang reproduces identically with this macro stripped, still
         # blocked on _tx_linux_mutex via plain _tx_thread_interrupt_control().
         # ThreadX's CMakeLists.txt passes both defines as one combined string

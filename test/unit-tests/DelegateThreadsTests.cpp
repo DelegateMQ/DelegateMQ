@@ -1,6 +1,7 @@
 #include "DelegateMQ.h"
 #include "UnitTestCommon.h"
 #include "StartGatePortableTest.h"
+#include "port/os/common/CoreAffinity.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -1020,7 +1021,144 @@ static void Watchdog_RecreatedWithoutTimeoutNotReported()
     thread.ExitThread();
     std::cout << "Watchdog_RecreatedWithoutTimeoutNotReported() complete!" << std::endl;
 }
+
+// The watchdog hook (dmq::os::SetWatchdogHook()). A real expiry ends the process
+// in WatchdogHandler(), so these check the hook isn't called for live threads,
+// and what WatchdogCheckAll()'s report passes it. os/freertos-bare-metal's
+// Test 15 checks a real expiry: two hung threads, both reported, then the fault.
+static std::atomic<int> s_watchdogHookCalls{0};
+static const Thread* s_watchdogHookThread = nullptr;
+static std::string s_watchdogHookName;
+static dmq::Duration s_watchdogHookStalled{};
+
+static void RecordWatchdogHook(const WatchdogInfo& info)
+{
+    s_watchdogHookThread = &info.thread;
+    s_watchdogHookName = info.threadName;
+    s_watchdogHookStalled = info.stalledFor;
+    s_watchdogHookCalls++;
+}
+
+static void Watchdog_HookNotCalledForLiveThreads()
+{
+    Thread thread("WatchdogHookLiveThread");
+    thread.CreateThread(std::chrono::milliseconds(100));
+    s_watchdogHookCalls = 0;
+    SetWatchdogHook(&RecordWatchdogHook);
+    WatchdogCheckFor(400);
+    SetWatchdogHook(nullptr);
+    thread.ExitThread();
+    DMQ_ASSERT_TRUE(s_watchdogHookCalls == 0);
+    std::cout << "Watchdog_HookNotCalledForLiveThreads() complete!" << std::endl;
+}
+
+static void Watchdog_ReportPassesThreadAndStall()
+{
+    Thread thread("WatchdogHookReportThread");
+    s_watchdogHookCalls = 0;
+    SetWatchdogHook(&RecordWatchdogHook);
+    {
+        // What WatchdogCheckAll() does for each expired thread; Finish() would fault
+        dmq::os::detail::WatchdogReport report;
+        report.Expired(thread, "WatchdogHookReportThread", std::chrono::milliseconds(250));
+    }
+    SetWatchdogHook(nullptr);
+    {
+        dmq::os::detail::WatchdogReport report;     // no hook: nothing called
+        report.Expired(thread, "WatchdogHookReportThread", std::chrono::milliseconds(250));
+    }
+    DMQ_ASSERT_TRUE(s_watchdogHookCalls == 1);
+    DMQ_ASSERT_TRUE(s_watchdogHookThread == &thread);
+    DMQ_ASSERT_TRUE(s_watchdogHookName == "WatchdogHookReportThread");
+    DMQ_ASSERT_TRUE(s_watchdogHookStalled == dmq::Duration(std::chrono::milliseconds(250)));
+    std::cout << "Watchdog_ReportPassesThreadAndStall() complete!" << std::endl;
+}
 #endif // StartGate ports
+
+// The fault hook (dmq::util::SetFaultHook()). FaultHandler() itself ends the
+// process, so this calls RunFaultHook(), which the default FaultHandler() calls.
+static int s_faultHookCalls = 0;
+static std::string s_faultHookFile;
+static unsigned short s_faultHookLine = 0;
+
+static void RecordFaultHook(const char* file, unsigned short line)
+{
+    s_faultHookCalls++;
+    s_faultHookFile = file;
+    s_faultHookLine = line;
+    dmq::util::RunFaultHook("inner.cpp", 2);    // a fault inside the hook: not called again
+}
+
+static void FaultHook_CalledOnceWithFileAndLine()
+{
+    s_faultHookCalls = 0;                       // the test app runs each suite 3 times
+    dmq::util::RunFaultHook("none.cpp", 1);     // no hook set: nothing happens
+    dmq::util::SetFaultHook(&RecordFaultHook);
+    dmq::util::RunFaultHook("fault.cpp", 42);
+    DMQ_ASSERT_TRUE(s_faultHookCalls == 1);
+    DMQ_ASSERT_TRUE(s_faultHookFile == "fault.cpp" && s_faultHookLine == 42);
+    dmq::util::RunFaultHook("again.cpp", 7);    // runs again once the first call returned
+    DMQ_ASSERT_TRUE(s_faultHookCalls == 2 && s_faultHookLine == 7);
+    dmq::util::SetFaultHook(nullptr);
+    dmq::util::RunFaultHook("none.cpp", 1);
+    DMQ_ASSERT_TRUE(s_faultHookCalls == 2);
+    std::cout << "FaultHook_CalledOnceWithFileAndLine() complete!" << std::endl;
+}
+
+#if (defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_POSIX)) && (defined(_WIN32) || defined(__linux__))
+// SetCoreAffinity(): a pinned thread runs only on its core
+static int CurrentCoreOnThread() { return dmq::os::detail::GetCurrentCore(); }
+
+// The cores this process may use (bit n = core n, cores 0-31)
+static uint32_t AllowedCores()
+{
+#if defined(_WIN32)
+    DWORD_PTR process = 0, system = 0;
+    if (!GetProcessAffinityMask(GetCurrentProcess(), &process, &system))
+        return 1;
+    return static_cast<uint32_t>(process & 0xFFFFFFFFu);
+#else
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    if (sched_getaffinity(0, sizeof(set), &set) != 0)
+        return 1;
+    uint32_t mask = 0;
+    for (int core = 0; core < 32; core++)
+        if (CPU_ISSET(core, &set))
+            mask |= 1u << core;
+    return mask;
+#endif
+}
+
+static void CoreAffinity_PinnedThreadRunsOnItsCore()
+{
+    const uint32_t allowed = AllowedCores();
+    DMQ_ASSERT_TRUE(allowed != 0);
+    int first = 0, last = 31;
+    while (!(allowed & (1u << first))) first++;
+    while (!(allowed & (1u << last))) last--;
+
+    for (int core : { first, last }) {
+        Thread t("CoreAffinityThread");
+        t.SetCoreAffinity(1u << core);
+        DMQ_ASSERT_TRUE(t.GetCoreAffinity() == (1u << core));
+        t.CreateThread();
+        // Ask several times: an unpinned thread would be moved between cores
+        for (int i = 0; i < 20; i++) {
+            DMQ_ASSERT_TRUE(MakeDelegate(&CurrentCoreOnThread, t, WAIT_INFINITE)() == core);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        t.ExitThread();
+    }
+
+    // 0, the default: any core, no change
+    Thread any("AnyCoreThread");
+    DMQ_ASSERT_TRUE(any.GetCoreAffinity() == 0);
+    any.CreateThread();
+    DMQ_ASSERT_TRUE(MakeDelegate(&CurrentCoreOnThread, any, WAIT_INFINITE)() >= 0);
+    any.ExitThread();
+}
+#endif
 
 void DelegateThreadsTests()
 {
@@ -1061,6 +1199,12 @@ void DelegateThreadsTests()
     Watchdog_IdleThreadNotReported();
     Watchdog_ExitedThreadNotReported();
     Watchdog_RecreatedWithoutTimeoutNotReported();
+    Watchdog_HookNotCalledForLiveThreads();
+    Watchdog_ReportPassesThreadAndStall();
+#endif
+    FaultHook_CalledOnceWithFileAndLine();
+#if (defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_POSIX)) && (defined(_WIN32) || defined(__linux__))
+    CoreAffinity_PinnedThreadRunsOnItsCore();
 #endif
 #if defined(DMQ_HAS_START_GATE)
     StartGatePortableTest::Run();

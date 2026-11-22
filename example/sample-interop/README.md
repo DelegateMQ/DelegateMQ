@@ -43,6 +43,8 @@ For architecture details and synchronization strategies, see:
     python main.py
     ```
 
+Each app runs until stopped (Ctrl+C), or for a set time when given one in seconds: `InteropServer 14`, `dotnet run -- 10`, `python main.py 10`. A timed client prints how many sensor messages it received and how many commands the server acknowledged, and exits with status 1 unless both are above zero. `build_all.py` runs the server with the Python client and, on Windows, the C# client this way.
+
 ## Delivery Status
 
 Both clients send their commands reliably: each is tracked until the server ACKs it and resent on timeout. The console shows the outcome of each command by sequence number:

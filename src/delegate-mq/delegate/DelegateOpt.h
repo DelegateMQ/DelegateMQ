@@ -32,7 +32,7 @@
 //
 // _WIN32/__linux__/__APPLE__/__unix__ reflect the compiler/host doing the
 // building, not the actual target. A genuine embedded cross-compile (e.g.
-// arm-none-eabi-gcc for stm32-freertos) never defines these host-platform
+// arm-none-eabi-gcc for boards/stm32-freertos) never defines these host-platform
 // macros in the first place, so this guard is only ever live for a target
 // that is ALSO built with a host compiler -- i.e. a simulator/native sample.
 // DMQ_THREAD_HAS_NATIVE_NETWORK_STACK (above) captures exactly which
@@ -59,6 +59,7 @@
 #endif
 
 #include <chrono>
+#include "DelegateCast.h"       // dynamic_cast, or its replacement under DMQ_NO_RTTI
 #if defined(DMQ_HAS_THREADING)
     #include <mutex>
     #if !defined(__cpp_lib_scoped_lock)
@@ -67,10 +68,8 @@
     #endif
 #endif
 
-// RTTI Detection Check
-#if !defined(__cpp_rtti) && !defined(__GXX_RTTI) && !defined(_CPPRTTI)
-    #error "RTTI compiler option is disabled but required by the DelegateMQ library."
-#endif
+// Without RTTI, DMQ_NO_RTTI (DelegateSelect.h) replaces the library's
+// dynamic_cast; see DelegateCast.h
 
 // Some OS port headers below (e.g. ThreadXMutex.h, ThreadXConditionVariable.h) use
 // DMQ_ASSERT_TRUE in constructors. Include Fault.h here, ahead of those port headers,
@@ -89,12 +88,14 @@
     #include "port/os/freertos/FreeRTOSClock.h"
     #include "port/os/freertos/FreeRTOSMutex.h"
     #include "port/os/freertos/FreeRTOSConditionVariable.h"
+    #include "port/os/freertos/FreeRTOSSemaphore.h"
     #include "port/os/freertos/FreeRTOSCriticalSection.h"
     #include "port/os/freertos/FreeRTOSThisThread.h"
 #elif defined(DMQ_THREAD_THREADX)
     #include "port/os/threadx/ThreadXClock.h"
     #include "port/os/threadx/ThreadXMutex.h"
     #include "port/os/threadx/ThreadXConditionVariable.h"
+    #include "port/os/threadx/ThreadXSemaphore.h"
     #include "port/os/threadx/ThreadXCriticalSection.h"
     #include "port/os/threadx/ThreadXThisThread.h"
 #elif defined(DMQ_THREAD_ZEPHYR)
@@ -277,6 +278,11 @@ namespace dmq
     /// Override via DMQ_MAX_TIMER_EXPIRED in delegatemqconfig.h.
     inline constexpr size_t MAX_TIMER_EXPIRED = DMQ_MAX_TIMER_EXPIRED;
 
+    /// @brief Default number of posts a dmq::util::IsrDelegate holds until
+    /// IsrDelegates::ProcessAll() takes them. Override via DMQ_ISR_DELEGATE_QUEUE_SIZE
+    /// in DelegateMQConfig.h.
+    inline constexpr size_t ISR_DELEGATE_QUEUE_SIZE = DMQ_ISR_DELEGATE_QUEUE_SIZE;
+
     /// @brief Signal Small-Buffer Optimization (SBO) count.
     /// Signals with <= this many subscribers are invoked heap-free.
     /// Override via DMQ_SIGNAL_SBO_COUNT in delegatemqconfig.h.
@@ -384,7 +390,15 @@ namespace dmq
     /// Override via DMQ_TRANSPORT_MONITOR_MAX_PENDING in delegatemqconfig.h.
     inline constexpr size_t MAX_TRANSPORT_MONITOR_PENDING = DMQ_TRANSPORT_MONITOR_MAX_PENDING;
 
-    /// @brief Embedded UDP transports: datagram buffer size and receive timeouts.
+    /// @brief Largest serialized message (payload bytes) a dmq::ByteWriter holds;
+    /// writing past it fails (ERR_MESSAGE_TOO_LARGE). Override via
+    /// DMQ_MAX_MESSAGE_SIZE in delegatemqconfig.h.
+    inline constexpr size_t MAX_MESSAGE_SIZE = DMQ_MAX_MESSAGE_SIZE;
+    static_assert(MAX_MESSAGE_SIZE > 0 && MAX_MESSAGE_SIZE <= 65535,
+        "DMQ_MAX_MESSAGE_SIZE: 1 to 65535 (the message header's length is 16 bits)");
+
+    /// @brief UDP transports: datagram buffer size (embedded ones) and receive
+    /// timeouts (all).
     /// Override via DMQ_UDP_BUFFER_SIZE / DMQ_UDP_PUB_RECV_TIMEOUT_MS /
     /// DMQ_UDP_SUB_RECV_TIMEOUT_MS in delegatemqconfig.h.
     inline constexpr size_t UDP_BUFFER_SIZE = DMQ_UDP_BUFFER_SIZE;
@@ -431,7 +445,13 @@ namespace dmq
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
     #define DMQ_HAS_CV
-    #define DMQ_HAS_SEMAPHORE  // generic dmq::Semaphore (delegate/Semaphore.h) needs a real ConditionVariable
+    // dmq::Semaphore: FreeRTOS's own binary semaphore (FreeRTOSSemaphore.h),
+    // not the generic ConditionVariable + Mutex class in delegate/Semaphore.h.
+    // Every async-wait call creates one: one kernel object in static storage
+    // instead of two from the heap, and no mutex locking in Wait()/Signal().
+    using Semaphore = dmq::os::FreeRTOSSemaphore;
+    #define DMQ_HAS_SEMAPHORE
+    #define DMQ_HAS_NATIVE_SEMAPHORE   // delegate/Semaphore.h: don't define the generic class
 
 #elif defined(DMQ_THREAD_THREADX)
     // Use the custom ThreadX wrapper
@@ -445,7 +465,13 @@ namespace dmq
     template<typename T> using LockGuard = PortableLockGuard<T>;
     template<typename T> using UniqueLock = std::unique_lock<T>;
     #define DMQ_HAS_CV
-    #define DMQ_HAS_SEMAPHORE  // generic dmq::Semaphore (delegate/Semaphore.h) needs a real ConditionVariable
+    // dmq::Semaphore: one native TX_SEMAPHORE (ThreadXSemaphore.h), not the
+    // generic ConditionVariable + Mutex class in delegate/Semaphore.h. Every
+    // async-wait call creates one: one kernel object instead of two, and no
+    // mutex locking in Wait()/Signal().
+    using Semaphore = dmq::os::ThreadXSemaphore;
+    #define DMQ_HAS_SEMAPHORE
+    #define DMQ_HAS_NATIVE_SEMAPHORE   // delegate/Semaphore.h: don't define the generic class
 
 #elif defined(DMQ_THREAD_ZEPHYR)
     // Use the custom Zephyr wrapper
@@ -467,10 +493,9 @@ namespace dmq
     using Mutex = dmq::os::CmsisRtos2Mutex;
     using RecursiveMutex = dmq::os::CmsisRtos2RecursiveMutex;
     // ISR-safe (__disable_irq()/__enable_irq() via CMSIS-Core, bypassing
-    // osMutex entirely) -- see CmsisRtos2CriticalSection.h. UNVERIFIED: no
-    // CMSIS-RTOS2 SDK or Cortex-M hardware/QEMU target is available in this
-    // development environment to build and run it; review before relying
-    // on it in production.
+    // osMutex entirely) -- see CmsisRtos2CriticalSection.h. Verified on a
+    // Cortex-M3 under QEMU (os/cmsis-rtos2, Zephyr mps2/an385), from
+    // thread and ISR context.
     using CriticalSection = dmq::os::CmsisRtos2CriticalSection;
     // No dmq::ConditionVariable port for CMSIS-RTOS2 (no DMQ_HAS_CV, and no
     // native condvar primitive to build one from), but dmq::Semaphore is
@@ -531,11 +556,14 @@ namespace dmq
     #endif
 #endif
 
-// @TODO: Select the desired software fault handling (see Port.cmake).
+// @TODO: Select the desired software fault handling: DMQ_ASSERTS (faults through
+// FaultHandler()) or exceptions (see Port.cmake). Don't edit these macros: to
+// record a fault before the default handler halts, set dmq::util::SetFaultHook();
+// to replace the handler, define DMQ_CUSTOM_FAULT_HANDLER and provide
+// FaultHandler(). See "Capturing the Failure" in docs/PORTING.md.
 #ifdef DMQ_ASSERTS
     #include "extras/util/Fault.h"
-    // Use assert error handling. Change assert to a different error 
-    // handler as required by the target application.
+    // Use assert error handling (FaultHandler())
     #define BAD_ALLOC() DMQ_ASSERT()
 #else
     #include "extras/util/Fault.h"
@@ -545,10 +573,12 @@ namespace dmq
 #endif
 
 // @TODO: Select the desired heap allocation (see Port.cmake).
-// If DMQ_ASSERTS defined above, consider defining DMQ_ALLOCATOR to prevent 
-// std::list usage within delegate library from throwing a std::bad_alloc 
-// exception. The std_allocator calls assert if out of memory. 
-// See master CMakeLists.txt for info on enabling the fixed-block allocator.
+// If DMQ_ASSERTS defined above, consider defining DMQ_ALLOCATOR to prevent
+// std::list usage within delegate library from throwing a std::bad_alloc
+// exception. The std_allocator calls assert if out of memory.
+// DMQ_ALLOCATOR selects the fixed-block allocator (docs/BUILD.md). For no heap
+// use after startup, also define DMQ_XALLOCATOR_STATIC_POOLS and size the
+// pools (DMQ_XALLOC_POOL_<size>): see "No Heap After Startup" in docs/SAFETY.md.
 #ifdef DMQ_ALLOCATOR
     // Use stl_allocator fixed-block allocator for dynamic storage allocation
     #include "extras/allocator/xstring.h"
@@ -556,7 +586,6 @@ namespace dmq
     #include "extras/allocator/xmap.h"
     #include "extras/allocator/xset.h"
     #include "extras/allocator/xqueue.h"
-    #include "extras/allocator/xsstream.h"
     #include "extras/allocator/stl_allocator.h"
     #include "extras/allocator/xnew.h"
     #include "extras/allocator/xmake_shared.h"
@@ -567,7 +596,6 @@ namespace dmq
     #include <set>
     #include <queue>
     #include <deque>
-    #include <sstream>
     #include <memory>
     #include <utility>
 
@@ -584,10 +612,6 @@ namespace dmq
         // overloaded on std::list (e.g. msg_serialize.h) accepts it in both builds.
         template <typename T, typename Alloc = stl_allocator<T>>
         using xlist = std::list<T, Alloc>;
-
-        // stl_allocator is std::allocator here, so these are the standard types
-        typedef std::ostringstream xostringstream;
-        typedef std::stringstream xstringstream;
 
         typedef std::string xstring;
 
@@ -668,5 +692,11 @@ namespace dmq
     #define DMQ_OPTIMIZE_ON
     #define DMQ_OPTIMIZE_OFF
 #endif
+
+// dmq::ByteWriter / dmq::ByteReader: the byte buffers serializers write into and
+// read from, and transports send and receive. Included last: they store an
+// xstring (above). Library code gets them here, not from their own headers.
+#include "ByteWriter.h"
+#include "ByteReader.h"
 
 #endif // _DELEGATE_OPT_H

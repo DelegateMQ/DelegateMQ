@@ -6,8 +6,8 @@
 #include "Allocator.h"
 #include "xallocator.h"
 #include "delegate/DelegateOpt.h"
+#include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <mutex>
 #include <new>
 
@@ -18,7 +18,8 @@
 
 namespace dmq {
 
-// @TODO: Comment out to disable alignment check if desired after porting
+// @TODO: Uncomment while porting to check that each block's address is
+// suitably aligned for the target (off by default)
 //#define CHECK_ALIGNMENT
 
 // Logic:
@@ -45,33 +46,72 @@ struct BlockHeader {
 #endif
 };
 
-// Define STATIC_POOLS to switch from heap blocks mode to static pools mode
-//#define STATIC_POOLS 
-#ifdef STATIC_POOLS
-	// Update this section as necessary if you want to use static memory pools.
-	// See also xalloc_init() and xalloc_destroy() for additional updates required.
-	#define MAX_ALLOCATORS	10
-	#define MAX_BLOCKS		32
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+	// Static pools (DMQ_XALLOCATOR_STATIC_POOLS): one pool per block size, each
+	// with a fixed number of blocks, DMQ_XALLOC_POOL_<size> (DelegateMQConfig.h),
+	// in static memory. No heap at all: a block size without a pool, or a full
+	// pool, faults. Size them with xalloc_print_pool_config() (see xallocator.h).
+	template <size_t Size, size_t Count>
+	struct StaticPool
+	{
+		alignas(std::max_align_t) char storage[sizeof(AllocatorPool<char[Size], Count>)];
+		Allocator* Construct() { return new (storage) AllocatorPool<char[Size], Count>(); }
+	};
 
-	// Create static storage for each static allocator instance
-	static alignas(std::max_align_t) char _allocator8 [sizeof(AllocatorPool<char[8], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator16 [sizeof(AllocatorPool<char[16], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator32 [sizeof(AllocatorPool<char[32], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator64 [sizeof(AllocatorPool<char[64], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator128 [sizeof(AllocatorPool<char[128], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator256 [sizeof(AllocatorPool<char[256], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator512 [sizeof(AllocatorPool<char[512], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator1024 [sizeof(AllocatorPool<char[1024], MAX_BLOCKS>)];
-	static alignas(std::max_align_t) char _allocator2048 [sizeof(AllocatorPool<char[2048], MAX_BLOCKS>)];	
-	static alignas(std::max_align_t) char _allocator4096 [sizeof(AllocatorPool<char[4096], MAX_BLOCKS>)];
+	// A size with no blocks takes no memory
+	template <size_t Size>
+	struct StaticPool<Size, 0>
+	{
+		Allocator* Construct() { return nullptr; }
+	};
 
-	// Array of pointers to all allocator instances
+	static StaticPool<16, DMQ_XALLOC_POOL_16> _pool16;
+	static StaticPool<32, DMQ_XALLOC_POOL_32> _pool32;
+	static StaticPool<64, DMQ_XALLOC_POOL_64> _pool64;
+	static StaticPool<128, DMQ_XALLOC_POOL_128> _pool128;
+	static StaticPool<256, DMQ_XALLOC_POOL_256> _pool256;
+	static StaticPool<512, DMQ_XALLOC_POOL_512> _pool512;
+	static StaticPool<1024, DMQ_XALLOC_POOL_1024> _pool1024;
+	static StaticPool<2048, DMQ_XALLOC_POOL_2048> _pool2048;
+	static StaticPool<4096, DMQ_XALLOC_POOL_4096> _pool4096;
+	static StaticPool<8192, DMQ_XALLOC_POOL_8192> _pool8192;
+	static StaticPool<16384, DMQ_XALLOC_POOL_16384> _pool16384;
+
+	#define MAX_ALLOCATORS	11
 	static Allocator* _allocators[MAX_ALLOCATORS];
+	static bool _staticPoolsReady = false;
 
+	/// Construct the pools in their static storage, once. Caller must hold get_mutex(),
+	/// or be xalloc_init() (single-threaded static init).
+	static void init_static_pools()
+	{
+		if (_staticPoolsReady)
+			return;
+		Allocator* const pools[MAX_ALLOCATORS] = {
+			_pool16.Construct(),
+			_pool32.Construct(),
+			_pool64.Construct(),
+			_pool128.Construct(),
+			_pool256.Construct(),
+			_pool512.Construct(),
+			_pool1024.Construct(),
+			_pool2048.Construct(),
+			_pool4096.Construct(),
+			_pool8192.Construct(),
+			_pool16384.Construct()
+		};
+		int n = 0;
+		for (Allocator* pool : pools)
+		{
+			if (pool)
+				_allocators[n++] = pool;
+		}
+		_staticPoolsReady = true;
+	}
 #else
 	#define MAX_ALLOCATORS  DMQ_XALLOCATOR_MAX_ALLOCATORS
 	static Allocator* _allocators[MAX_ALLOCATORS];
-#endif	// STATIC_POOLS
+#endif	// DMQ_XALLOCATOR_STATIC_POOLS
 
 // For C++ applications, must define AUTOMATIC_XALLOCATOR_INIT_DESTROY to 
 // correctly ensure allocators are initialized before any static user C++ 
@@ -80,7 +120,7 @@ struct BlockHeader {
 // can be disabled only under the following circumstances:
 // 
 // 1) The xallocator is only used within C files. 
-// 2) STATIC_POOLS is undefined and the application never exits main (e.g. 
+// 2) DMQ_XALLOCATOR_STATIC_POOLS is undefined and the application never exits main (e.g. 
 // an embedded system). 
 //
 // In either of the two cases above, call xalloc_init() in main at startup, 
@@ -118,12 +158,13 @@ T nexthigher(T k)
 
 static dmq::Mutex& get_mutex()
 {
-	// Intentional immortal singleton: heap-allocate and never delete.
-	// A Meyers static would be destroyed during the static shutdown sequence;
-	// any static destructor that runs afterward and calls xalloc_* would then
-	// use-after-free the mutex. The heap pointer is never freed — the OS
-	// reclaims it at process exit, after all destructors have run.
-	static dmq::Mutex* _mutex = new dmq::Mutex();
+	// Intentional immortal singleton: constructed in static storage and never
+	// destroyed. A Meyers static would be destroyed during the static shutdown
+	// sequence; any static destructor that runs afterward and calls xalloc_*
+	// would then use a destroyed mutex. Static storage rather than new: the
+	// allocator itself must not need the heap (DMQ_XALLOCATOR_STATIC_POOLS).
+	alignas(dmq::Mutex) static char storage[sizeof(dmq::Mutex)];
+	static dmq::Mutex* _mutex = new (storage) dmq::Mutex();
 	return *_mutex;
 }
 
@@ -229,36 +270,13 @@ static inline bool insert_allocator(Allocator* allocator)
 /// API is called. XallocInitDestroy constructor calls this function automatically. 
 extern "C" void xalloc_init()
 {
-#ifdef STATIC_POOLS
-	dmq::get_mutex().lock();
-
-	// For STATIC_POOLS mode, the allocators must be initialized before any other
-	// static user class constructor is run. Therefore, use placement new to initialize
-	// each allocator into the previously reserved static memory locations.
-	new (&dmq::_allocator8) dmq::AllocatorPool<char[8], MAX_BLOCKS>();
-	new (&dmq::_allocator16) dmq::AllocatorPool<char[16], MAX_BLOCKS>();
-	new (&dmq::_allocator32) dmq::AllocatorPool<char[32], MAX_BLOCKS>();
-	new (&dmq::_allocator64) dmq::AllocatorPool<char[64], MAX_BLOCKS>();
-	new (&dmq::_allocator128) dmq::AllocatorPool<char[128], MAX_BLOCKS>();
-	new (&dmq::_allocator256) dmq::AllocatorPool<char[256], MAX_BLOCKS>();
-	new (&dmq::_allocator512) dmq::AllocatorPool<char[512], MAX_BLOCKS>();
-	new (&dmq::_allocator1024) dmq::AllocatorPool<char[1024], MAX_BLOCKS>();
-	new (&dmq::_allocator2048) dmq::AllocatorPool<char[2048], MAX_BLOCKS>();
-	new (&dmq::_allocator4096) dmq::AllocatorPool<char[4096], MAX_BLOCKS>();
-
-	// Populate allocator array with all instances
-	dmq::_allocators[0] = (dmq::Allocator*)&dmq::_allocator8;
-	dmq::_allocators[1] = (dmq::Allocator*)&dmq::_allocator16;
-	dmq::_allocators[2] = (dmq::Allocator*)&dmq::_allocator32;
-	dmq::_allocators[3] = (dmq::Allocator*)&dmq::_allocator64;
-	dmq::_allocators[4] = (dmq::Allocator*)&dmq::_allocator128;
-	dmq::_allocators[5] = (dmq::Allocator*)&dmq::_allocator256;
-	dmq::_allocators[6] = (dmq::Allocator*)&dmq::_allocator512;
-	dmq::_allocators[7] = (dmq::Allocator*)&dmq::_allocator1024;
-	dmq::_allocators[8] = (dmq::Allocator*)&dmq::_allocator2048;
-	dmq::_allocators[9] = (dmq::Allocator*)&dmq::_allocator4096;
-
-	dmq::get_mutex().unlock();
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+	// Construct the pools before any other static constructor can allocate.
+	// xallocator_get_allocator() also does, under the lock, if called first.
+	// No lock here: xalloc_init() runs single-threaded during static init,
+	// before main(), where an RTOS mutex can't be created yet (CMSIS-RTOS2
+	// before osKernelInitialize(), ThreadX before tx_kernel_enter()).
+	dmq::init_static_pools();
 #endif
 }
 
@@ -268,13 +286,14 @@ extern "C" void xalloc_destroy()
 {
 	dmq::get_mutex().lock();
 
-#ifdef STATIC_POOLS
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
 	for (int i=0; i<MAX_ALLOCATORS; i++)
 	{
 		if (dmq::_allocators[i])
 			dmq::_allocators[i]->~Allocator();
 		dmq::_allocators[i] = 0;
 	}
+	dmq::_staticPoolsReady = false;
 #else
 	for (int i=0; i<MAX_ALLOCATORS; i++)
 	{
@@ -308,11 +327,16 @@ extern "C" dmq::Allocator* xallocator_get_allocator(size_t size)
 	blockSize = dmq::nexthigher<size_t>(blockSize);
 
 	dmq::get_mutex().lock();
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+	dmq::init_static_pools();
+#endif
 	dmq::Allocator* allocator = dmq::find_allocator(blockSize);
 	dmq::get_mutex().unlock();
 
-#ifdef STATIC_POOLS
-	DMQ_ASSERT_TRUE(allocator != NULL);
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+	// NULL: no static pool for this block size. The caller reports it with
+	// BAD_ALLOC(). Add DMQ_XALLOC_POOL_<blockSize> to DelegateMQConfig.h;
+	// xalloc_print_pool_config() lists the sizes used.
 #else
 	// If there is not an allocator already created to handle this block size
 	if (allocator == NULL)  
@@ -364,11 +388,11 @@ extern "C" void *xmalloc(size_t size)
 
 	void* blockMemoryPtr = NULL;
 
-#ifdef STATIC_POOLS
-	// STATIC_POOLS: Allocate() handles pool slot distribution, exhaustion detection,
-	// and stat tracking. Must be called under the lock.
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+	// Static pools: a free block or an unused pool block; NULL when the pool is
+	// full, which the caller reports with BAD_ALLOC(). Never the heap.
 	dmq::get_mutex().lock();
-	blockMemoryPtr = allocator->Allocate(blockSize);
+	blockMemoryPtr = allocator->TryAllocate();
 	dmq::get_mutex().unlock();
 #else
 	// 2. Fast Path: pop a recycled block from the free-list under the lock.
@@ -469,6 +493,32 @@ extern "C" void *xrealloc(void *oldMem, size_t size)
 	}
 }
 
+/// Print, for each block size used, the most blocks in use at once so far, as
+/// DelegateMQConfig.h lines for static pools. See xallocator.h.
+extern "C" void xalloc_print_pool_config()
+{
+	dmq::get_mutex().lock();
+	printf("// xallocator: peak blocks in use per block size, measured. Add headroom.\n");
+	printf("#define DMQ_XALLOCATOR_STATIC_POOLS\n");
+	// Smallest block size first (heap-blocks mode creates them in first-use order)
+	size_t largest = 0;
+	for (int i=0; i<MAX_ALLOCATORS && dmq::_allocators[i]; i++)
+	{
+		if (dmq::_allocators[i]->GetBlockSize() > largest)
+			largest = dmq::_allocators[i]->GetBlockSize();
+	}
+	for (size_t size = 1; size != 0 && size <= largest; size <<= 1)
+	{
+		dmq::Allocator* allocator = dmq::find_allocator(size);
+		if (allocator)
+		{
+			printf("#define DMQ_XALLOC_POOL_%-6u %u\n",
+				static_cast<unsigned>(size), static_cast<unsigned>(allocator->GetBlockCount()));
+		}
+	}
+	dmq::get_mutex().unlock();
+}
+
 /// Output xallocator usage statistics
 extern "C" void xalloc_stats()
 {
@@ -479,12 +529,12 @@ extern "C" void xalloc_stats()
 		if (dmq::_allocators[i] == 0)
 			break;
 
-		if (dmq::_allocators[i]->GetName() != NULL)
-			std::cout << dmq::_allocators[i]->GetName();
-		std::cout << " Block Size: " << dmq::_allocators[i]->GetBlockSize();
-		std::cout << " Block Count: " << dmq::_allocators[i]->GetBlockCount();
-		std::cout << " Blocks In Use: " << dmq::_allocators[i]->GetBlocksInUse();
-		std::cout << std::endl;
+		const char* name = dmq::_allocators[i]->GetName();
+		printf("%s Block Size: %u Block Count: %u Blocks In Use: %u\n",
+			name != NULL ? name : "",
+			static_cast<unsigned>(dmq::_allocators[i]->GetBlockSize()),
+			static_cast<unsigned>(dmq::_allocators[i]->GetBlockCount()),
+			static_cast<unsigned>(dmq::_allocators[i]->GetBlocksInUse()));
 	}
 
 	dmq::get_mutex().unlock();

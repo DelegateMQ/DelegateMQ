@@ -46,7 +46,7 @@ public:
     /// DelegateOpt.h's DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS block --
     /// and always returns "127.0.0.1" there.
     /// FreeRTOS is not in that list: its Win32/POSIX simulator samples
-    /// (databus-freertos, freertos-linux) use real host sockets on purpose.
+    /// (databus/freertos, os/freertos) use real host sockets on purpose.
     static std::string GetLocalAddress()
     {
 #if !defined(DMQ_NETWORK_CONNECT_DESKTOP_HOST_HEADERS)

@@ -3,14 +3,14 @@
 
 #include "ThreadMonitor.h"
 #include "port/serialize/serialize/msg_serialize.h"
-#include <iomanip>
+#include <cstdio>
 
 namespace dmq::util {
 
 /// @brief Serializer for ThreadStatsPacket.
 class ThreadStatsPacketSerializer : public dmq::ISerializer<void(ThreadStatsPacket)> {
 public:
-    virtual std::ostream& Write(std::ostream& os, const ThreadStatsPacket& data) override {
+    virtual dmq::ByteWriter& Write(dmq::ByteWriter& os, const ThreadStatsPacket& data) override {
         serialize s;
         s.write(os, data.cpu_name);
         s.write(os, data.thread_name);
@@ -28,7 +28,7 @@ public:
         return os;
     }
 
-    virtual std::istream& Read(std::istream& is, ThreadStatsPacket& data) override {
+    virtual dmq::ByteReader& Read(dmq::ByteReader& is, ThreadStatsPacket& data) override {
         serialize s;
         s.read(is, data.cpu_name);
         s.read(is, data.thread_name);
@@ -47,14 +47,17 @@ public:
     }
 };
 
-/// @brief Stringifier for ThreadStatsPacket (for DataSpy).
+/// @brief Stringifier for ThreadStatsPacket (for DataSpy). snprintf, not a
+/// stringstream: no iostreams in the library.
 inline dmq::xstring ThreadStatsPacketToString(const ThreadStatsPacket& p) {
-    dmq::xstringstream ss;
-    ss << "CPU:" << p.cpu_name << " Thread:" << p.thread_name 
-       << " Q:" << p.queue_depth << "/" << p.queue_depth_max_window << "/" << p.queue_depth_max_all
-       << " Latency(ms):" << std::fixed << std::setprecision(2) << p.latency_avg_ms << "/" << p.latency_max_window_ms
-       << " Invoke(ms):" << std::fixed << std::setprecision(2) << p.invoke_avg_ms << "/" << p.invoke_max_window_ms;
-    return ss.str();
+    char text[192];
+    snprintf(text, sizeof(text), "CPU:%s Thread:%s Q:%u/%u/%u Latency(ms):%.2f/%.2f Invoke(ms):%.2f/%.2f",
+             p.cpu_name.c_str(), p.thread_name.c_str(),
+             static_cast<unsigned>(p.queue_depth), static_cast<unsigned>(p.queue_depth_max_window),
+             static_cast<unsigned>(p.queue_depth_max_all),
+             static_cast<double>(p.latency_avg_ms), static_cast<double>(p.latency_max_window_ms),
+             static_cast<double>(p.invoke_avg_ms), static_cast<double>(p.invoke_max_window_ms));
+    return text;
 }
 
 } // namespace dmq::util

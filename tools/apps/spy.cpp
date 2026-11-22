@@ -248,7 +248,7 @@ void ReceiverThread(UdpSocket& socket) {
             std::string senderIp = socket.GetRemoteAddress();
             g_packetCount++;
             dmq::databus::SpyPacket packet;
-            std::istringstream iss(std::string(reinterpret_cast<char*>(buffer.data()), received), std::ios::binary);
+            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data()), static_cast<size_t>(received));
             ms_decoder.read(iss, packet);
             if (iss.good()) {
                 LogPacket(senderIp, packet);
@@ -362,7 +362,8 @@ void PrintBwReport(const std::map<std::pair<std::string, std::string>, TopicStat
 
 void OnSigInt(int) { g_running = false; }
 
-int RunCli(UdpSocket& socket, CliMode mode, const std::string& topicFilter, bool json, size_t window, uint16_t port) {
+int RunCli(UdpSocket& socket, CliMode mode, const std::string& topicFilter, bool json, size_t window, uint16_t port,
+           int durationSec) {
     socket.SetReceiveTimeout(100);
     std::signal(SIGINT, OnSigInt);
 
@@ -374,13 +375,15 @@ int RunCli(UdpSocket& socket, CliMode mode, const std::string& topicFilter, bool
     serialize ms_decoder;
     std::map<std::pair<std::string, std::string>, TopicStats> stats;
     uint64_t nextReport = SteadyNowUs() + 1000000;
+    // --duration: stop after that many seconds (0: until Ctrl-C)
+    const uint64_t endTime = durationSec > 0 ? SteadyNowUs() + static_cast<uint64_t>(durationSec) * 1000000 : 0;
 
-    while (g_running) {
+    while (g_running && (endTime == 0 || SteadyNowUs() < endTime)) {
         int received = socket.Receive(buffer.data(), (int)buffer.size());
         if (received > 0) {
             std::string senderIp = socket.GetRemoteAddress();
             dmq::databus::SpyPacket packet;
-            std::istringstream iss(std::string(reinterpret_cast<char*>(buffer.data()), received), std::ios::binary);
+            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data()), static_cast<size_t>(received));
             ms_decoder.read(iss, packet);
             if (iss.good()) {
                 LogPacket(senderIp, packet);
@@ -441,6 +444,7 @@ void PrintUsage() {
         "  --bw <topic>            Report per-topic bandwidth every second (spy-feed bytes)\n"
         "  --json                  With --echo: print JSON Lines\n"
         "  --window <n>            With --hz/--bw: samples per topic (default 100)\n"
+        "  --duration <sec>        Stop after <sec> seconds (default: until Ctrl-C)\n"
         "\n"
         "Options:\n"
         "  --log <file>            Also log all traffic to a file\n"
@@ -458,6 +462,7 @@ int main(int argc, char* argv[]) {
     std::string cliTopic;
     bool cliJson = false;
     size_t cliWindow = 100;
+    int cliDuration = 0;
     std::string logFile;
     std::string multicastGroup;
     std::string localInterface;
@@ -493,6 +498,7 @@ int main(int argc, char* argv[]) {
             }
             cliWindow = static_cast<size_t>(n);
         }
+        else if (arg == "--duration" && i + 1 < argc) cliDuration = (std::max)(1, std::atoi(argv[++i]));
         else if (arg == "--multicast" && i + 1 < argc) multicastGroup = argv[++i];
         else if (arg == "--interface" && i + 1 < argc) localInterface = argv[++i];
         else if (arg == "--help" || arg == "-h") { PrintUsage(); return 0; }
@@ -539,7 +545,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (cliMode != CliMode::NONE) {
-        int rc = RunCli(socket, cliMode, cliTopic, cliJson, cliWindow, port);
+        int rc = RunCli(socket, cliMode, cliTopic, cliJson, cliWindow, port, cliDuration);
         spdlog::shutdown();     // flush the log file before exit
         return rc;
     }

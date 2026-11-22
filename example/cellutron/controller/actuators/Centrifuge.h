@@ -2,7 +2,7 @@
 #define _CENTRIFUGE_H
 
 #include "DelegateMQ.h"
-#include "state-machine/StateMachine.h"
+#include "StateMachine.h"   // active-fsm
 #include "extras/util/Timer.h"
 
 namespace cellutron {

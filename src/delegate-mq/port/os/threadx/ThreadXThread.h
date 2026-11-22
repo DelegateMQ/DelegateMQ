@@ -161,6 +161,15 @@ public:
     /// @details Must be called while the thread is not running (before CreateThread(),
     /// or after ExitThread()); calling it on a running thread faults. It runs again
     /// on each CreateThread(). Messages dispatched meanwhile are queued, not lost.
+    /// Run the thread only on the cores in coreMask: bit 0 = core 0, bit 1 = core 1,
+    /// ... 0 (the default) = any core. Call before CreateThread().
+    /// - ThreadX SMP (TX_THREAD_SMP_MAX_CORES): tx_thread_smp_core_exclude() with
+    ///   the other cores, before the thread first runs.
+    /// - Single core: only a mask that includes core 0.
+    /// Any other mask faults (DMQ_ASSERT) in CreateThread().
+    void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(m_thread.tx_thread_id == 0); m_coreMask = coreMask; }
+    uint32_t GetCoreAffinity() const { return m_coreMask; }
+
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(m_thread.tx_thread_id == 0); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(m_thread.tx_thread_id == 0); m_startHandler = std::move(handler); }
 
@@ -245,7 +254,8 @@ private:
     static dmq::RecursiveMutex& GetInstanceRegistryLock();
 
     /// Check watchdog is expired. Called by WatchdogCheckAll().
-    void WatchdogCheck();
+    /// @return true if expired, with the time since the thread was last alive in stalledFor.
+    bool WatchdogExpired(dmq::Duration& stalledFor);
 
     /// Get registry head using the "Immortal" Pattern
     static ThreadXThread*& GetWatchdogHead();
@@ -269,6 +279,7 @@ private:
 
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
+    uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any core
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();
@@ -294,9 +305,14 @@ private:
     // Configurable stack size (bytes)
     static const ULONG STACK_SIZE = static_cast<ULONG>(dmq::THREADX_STACK_BYTES); // DMQ_THREADX_STACK_BYTES
 
-    // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
-    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
+    // Watchdog related members, as 32-bit millisecond counts rather than
+    // std::atomic<dmq::TimePoint>/<dmq::Duration>: those are 64-bit, and a
+    // 64-bit atomic on a 32-bit Cortex-M (no 64-bit LDREX/STREX) is a libatomic
+    // call that arm-none-eabi toolchains don't provide. Milliseconds whatever
+    // dmq::Clock's unit, so the count wraps only after 49 days; elapsed time is
+    // an unsigned 32-bit difference, so wrap-safe. Same as CmsisRtos2Thread.
+    std::atomic<uint32_t> m_lastAliveTime{0};
+    std::atomic<uint32_t> m_watchdogTimeout{0};
     ThreadXThread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

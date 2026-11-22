@@ -49,8 +49,8 @@ Three steps to send data between components:
 ```cpp
 struct TemperatureMsg : public serialize::I {
     float celsius = 0.0f;
-    std::ostream& write(serialize& ms, std::ostream& os) override { return ms.write(os, celsius); }
-    std::istream& read (serialize& ms, std::istream& is) override { return ms.read (is, celsius); }
+    dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override { return ms.write(os, celsius); }
+    dmq::ByteReader& read (serialize& ms, dmq::ByteReader& is) override { return ms.read (is, celsius); }
 };
 ```
 
@@ -183,16 +183,16 @@ m_mcu.Send<PumpCmd>(topics::PUMP_CMD, RID_PUMP_CMD, serCmd, Reliability::RELIABL
 - **Participants are shared.** Every link's participants count against one `dmq::MAX_PARTICIPANTS` (`DMQ_MAX_PARTICIPANTS`, default 8). `NetworkNode` and `SerialLink` use two per peer (reliable and unreliable), so two Ethernet peers and two serial MCUs already use all 8. Raise it in the gateway's config; exceeding it reports `ERR_CAPACITY_EXCEEDED` and calls `FaultHandler`.
 - **One `NetworkNode` is one inbound link.** All of its peers arrive on a single receive participant. A topic relayed in from one of its peers and also `Send()` on the same `NetworkNode` goes back to every peer, including the sender. It isn't a loop (the sender receives it with `Delivery::LOCAL`), but the sender gets its own data back. Relay between different links.
 
-[`databus-relay`](../example/sample-projects/databus-relay/) is a worked example: a gateway relaying one topic each way between UDP and a named pipe (Windows) or Unix socket (Linux), and logging both.
+[`databus/relay`](../example/sample-projects/databus/relay/README.md) is a worked example: a gateway relaying one topic each way between UDP and a named pipe (Windows) or Unix socket (Linux), and logging both.
 
 ### Relay Loop Hazard
 A relay loop occurs when a node re-broadcasts a message back to its originator.
 - **Prevention**: Use `AddIncomingTopic` / `Delivery::LOCAL` (local dispatch only, the default) for standard nodes. Use `AddRelayTopic` / `Delivery::RELAY` only on dedicated bridge/relay nodes that have no return path to the originator.
-- `AddRelayTopic` forwards to the participants that list the topic as outgoing (`AddRemoteTopic`); it never makes the inbound participant outgoing for that topic, so relayed data is not echoed back out a duplex link it arrived on. Wire each relayed topic one way: inbound on one link, outgoing on the other(s). [`databus-relay`](../example/sample-projects/databus-relay/) is a worked example.
+- `AddRelayTopic` forwards to the participants that list the topic as outgoing (`AddRemoteTopic`); it never makes the inbound participant outgoing for that topic, so relayed data is not echoed back out a duplex link it arrived on. Wire each relayed topic one way: inbound on one link, outgoing on the other(s). [`databus/relay`](../example/sample-projects/databus/relay/README.md) is a worked example.
 
 ## Topologies
 
-`NetworkNode` doesn't impose a shape: a topology is just which nodes `AddPeer()` which other nodes, over any `ITransport`. Point-to-point, star, mesh, broadcast/multicast, bridging between different transports (e.g. UART ↔ Ethernet), same-box IPC, and broker-mediated setups are all just different `AddPeer()` wiring and transport choices, not distinct library features — including mixed reliability, since `Reliability::RELIABLE`/`UNRELIABLE` is a per-`Send()`-call choice, not a per-topology one. `example/cellutron`'s three-node mesh (see [`CELLUTRON.md`](../example/cellutron/CELLUTRON.md#hardware-topology)) is one concrete instance. Bridging between transports is explicit: a node that receives a topic delivers it locally only, unless it receives that topic with `Delivery::RELAY` (`NetworkNode`) or `AddRelayTopic` (bare `Participant`); see [Relay Nodes](#relay-nodes) and [Relay Loop Hazard](#relay-loop-hazard). [`databus-relay`](../example/sample-projects/databus-relay/) is a three-node UDP ↔ local IPC example.
+`NetworkNode` doesn't impose a shape: a topology is just which nodes `AddPeer()` which other nodes, over any `ITransport`. Point-to-point, star, mesh, broadcast/multicast, bridging between different transports (e.g. UART ↔ Ethernet), same-box IPC, and broker-mediated setups are all just different `AddPeer()` wiring and transport choices, not distinct library features — including mixed reliability, since `Reliability::RELIABLE`/`UNRELIABLE` is a per-`Send()`-call choice, not a per-topology one. `example/cellutron`'s three-node mesh (see [`CELLUTRON.md`](../example/cellutron/CELLUTRON.md#hardware-topology)) is one concrete instance. Bridging between transports is explicit: a node that receives a topic delivers it locally only, unless it receives that topic with `Delivery::RELAY` (`NetworkNode`) or `AddRelayTopic` (bare `Participant`); see [Relay Nodes](#relay-nodes) and [Relay Loop Hazard](#relay-loop-hazard). [`databus/relay`](../example/sample-projects/databus/relay/README.md) is a three-node UDP ↔ local IPC example.
 
 `NetworkNode::AddPeer()` takes an address and port, so it fits UDP-style transports: one listen socket plus one socket per peer. A serial port carries both directions to a single peer and needs a different wrapper. The library doesn't ship one yet; Pumptron's [`SerialLink`](../example/pumptron/common/util/SerialLink.h) has the same `Send()`/`Receive()` API and status signals as `NetworkNode` and can be copied into an application.
 
@@ -214,6 +214,8 @@ auto conn = dmq::databus::DataBus::SubscribeError(
 Fires for (non-exhaustive):
 - `ERR_TYPE_MISMATCH` — the same topic string used with two different C++ types across `Publish`/`Subscribe`/`RegisterSerializer`/`RegisterStringifier` calls. A **local programmer-error detector**: `T` is a compile-time template parameter, so this can never be triggered by a remote peer's wire bytes, only by your own process's source code.
 - `ERR_NO_SERIALIZER` / `ERR_SERIALIZE` / `ERR_DESERIALIZE` — a topic has remote interest but no serializer registered, or serialization/deserialization itself failed.
+- `ERR_BUFFER` — the message's `ByteWriter` or `ByteReader` was left failed (bad or truncated data).
+- `ERR_MESSAGE_TOO_LARGE` — the serialized message is larger than `dmq::MAX_MESSAGE_SIZE` (`DMQ_MAX_MESSAGE_SIZE`). Nothing is sent.
 - `ERR_NO_DISPATCHER` — a message arrived with a remote ID that has no incoming topic registered on that participant.
 - `ERR_TRANSPORT_RECEIVE` — a `Participant` received bytes but the `DmqHeader` framing was corrupt (bad marker or version). Distinct from a plain non-zero `Receive()` result during normal polling, which is *not* reported here — see the note under NetworkNode below.
 - `ERR_CAPACITY_EXCEEDED` — a fixed-size capacity limit was reached (e.g. `dmq::MAX_PARTICIPANTS`).

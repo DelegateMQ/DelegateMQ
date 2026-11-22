@@ -151,6 +151,15 @@ public:
     /// @details Must be called while the thread is not running (before CreateThread(),
     /// or after ExitThread()); calling it on a running thread faults. It runs again
     /// on each CreateThread(). Messages dispatched meanwhile are queued, not lost.
+    /// Run the thread only on the cores in coreMask: bit 0 = core 0, bit 1 = core 1,
+    /// ... 0 (the default) = any core. Call before CreateThread().
+    /// - CMSIS-RTOS2 API 2.3 or later (osThreadProcessor() defined): passed in
+    ///   osThreadAttr_t::affinity_mask; a kernel without SMP may ignore it.
+    /// - Older API: only a mask that includes core 0.
+    /// Any other mask faults (DMQ_ASSERT) in CreateThread().
+    void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(m_thread == NULL); m_coreMask = coreMask; }
+    uint32_t GetCoreAffinity() const { return m_coreMask; }
+
     void SetStartHandler(const dmq::UnicastDelegate<void()>& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = handler; }
     void SetStartHandler(dmq::UnicastDelegate<void()>&& handler) { DMQ_ASSERT_TRUE(m_thread == NULL); m_startHandler = std::move(handler); }
 
@@ -221,7 +230,8 @@ private:
     void Run();
 
     /// Check watchdog is expired. Called by WatchdogCheckAll().
-    void WatchdogCheck();
+    /// @return true if expired, with the time since the thread was last alive in stalledFor.
+    bool WatchdogExpired(dmq::Duration& stalledFor);
 
     /// Get registry head using the "Immortal" Pattern
     static CmsisRtos2Thread*& GetWatchdogHead();
@@ -244,6 +254,7 @@ private:
 
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
+    uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any core
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();
@@ -262,9 +273,13 @@ private:
     static const uint32_t STACK_SIZE = static_cast<uint32_t>(dmq::CMSIS_RTOS2_STACK_BYTES); // Bytes, DMQ_CMSIS_RTOS2_STACK_BYTES
     static const uint32_t START_FLAG = 0x1U; // Thread flag: CreateThread() has stored m_thread
 
-    // Watchdog related members
-    std::atomic<dmq::TimePoint> m_lastAliveTime{dmq::TimePoint()};
-    std::atomic<dmq::Duration> m_watchdogTimeout{dmq::Duration(0)};
+    // Watchdog related members, as 32-bit dmq::Clock counts rather than
+    // std::atomic<dmq::TimePoint>/<dmq::Duration>: those are 64-bit, and a
+    // 64-bit atomic on a 32-bit Cortex-M (no 64-bit LDREX/STREX) is a libatomic
+    // call that arm-none-eabi toolchains don't provide. Wrap-safe: elapsed time
+    // is an unsigned 32-bit difference. Same as FreeRTOSThread.
+    std::atomic<uint32_t> m_lastAliveTime{0};
+    std::atomic<uint32_t> m_watchdogTimeout{0};
     CmsisRtos2Thread* m_watchdogNext = nullptr;
 
 #if defined(DMQ_DATABUS_TOOLS)

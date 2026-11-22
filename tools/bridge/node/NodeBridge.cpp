@@ -111,15 +111,14 @@ void NodeBridge::OnMonitorPacket(const dmq::databus::SpyPacket& packet) {
 
 void NodeBridge::OnThreadStats(const dmq::util::ThreadStatsPacket& packet) {
     auto& inst = GetInstance();
-    dmq::xostringstream oss(std::ios::binary);
+    dmq::ByteWriter oss;
     static dmq::util::ThreadStatsPacketSerializer ser;
     ser.Write(oss, packet);
     if (oss.good()) {
-        const dmq::xstring& body = oss.str();
         dmq::xstring buf;
-        buf.reserve(1 + body.size());
+        buf.reserve(1 + oss.size());
         buf.push_back(static_cast<char>(dmq::PacketType::ThreadStats));
-        buf.append(body);
+        buf.append(oss.data(), oss.size());
         inst.telemetrySocket.Send(buf.data(), buf.size());
     }
 }
@@ -148,15 +147,14 @@ void NodeBridge::SendHeartbeat() {
     packet.topicsStr = joined.c_str();
 
     serialize ms;
-    dmq::xostringstream oss(std::ios::binary);
+    dmq::ByteWriter oss;
     ms.write(oss, packet);
 
     if (oss.good()) {
-        const dmq::xstring& body = oss.str();
         dmq::xstring buf;
-        buf.reserve(1 + body.size());
+        buf.reserve(1 + oss.size());
         buf.push_back(static_cast<char>(dmq::PacketType::NodeInfo));
-        buf.append(body);
+        buf.append(oss.data(), oss.size());
         instance.telemetrySocket.Send(buf.data(), buf.size());
     }
 
@@ -181,15 +179,14 @@ void NodeBridge::SendHealth() {
     }
 
     serialize ms;
-    dmq::xostringstream oss(std::ios::binary);
+    dmq::ByteWriter oss;
     ms.write(oss, packet);
 
     if (oss.good()) {
-        const dmq::xstring& body = oss.str();
         dmq::xstring buf;
-        buf.reserve(1 + body.size());
+        buf.reserve(1 + oss.size());
         buf.push_back(static_cast<char>(dmq::PacketType::Health));
-        buf.append(body);
+        buf.append(oss.data(), oss.size());
         instance.telemetrySocket.Send(buf.data(), buf.size());
     }
 }

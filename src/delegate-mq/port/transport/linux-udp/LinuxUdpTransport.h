@@ -30,7 +30,6 @@
 #include "port/transport/common/ITransportMonitor.h"
 
 #include <iostream>
-#include <sstream>
 #include <cstring>
 #include <cstdlib>
 #include <unistd.h>
@@ -62,6 +61,13 @@ public:
         Close();
     }
 
+    /// @brief Open the socket. PUB sends to addr:port (and drains ACKs); SUB binds
+    /// port and receives.
+    /// @note Receive() blocks up to the receive timeout when nothing arrives:
+    /// DMQ_UDP_PUB_RECV_TIMEOUT_MS (2 ms) for PUB, DMQ_UDP_SUB_RECV_TIMEOUT_MS (2 s)
+    /// for SUB. A thread that polls a SUB socket between other work (a timer, a
+    /// loop that also drains ACKs) stalls for the full 2 s each idle poll: call
+    /// SetRecvTimeout() with a short timeout after Create().
     int Create(Type type, const char* addr, uint16_t port)
     {
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -96,11 +102,9 @@ public:
                 return -1;
             }
 
-            // Set a short timeout (e.g. 2ms) so Sender::Send() doesn't hang
-            // while polling for ACKs.
-            struct timeval timeout;
-            timeout.tv_sec = 0;
-            timeout.tv_usec = 2000; // 2ms
+            // A short timeout (DMQ_UDP_PUB_RECV_TIMEOUT_MS) so polling for ACKs
+            // doesn't hold up the sender
+            struct timeval timeout = ToTimeval(dmq::UDP_PUB_RECV_TIMEOUT);
 
             if (setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
@@ -123,9 +127,9 @@ public:
                 return -1;
             }
 
-            struct timeval timeout;
-            timeout.tv_sec = 2;
-            timeout.tv_usec = 0;
+            // DMQ_UDP_SUB_RECV_TIMEOUT_MS: Receive() returns RECEIVE_NO_DATA after
+            // it, so the receiving thread can check for exit
+            struct timeval timeout = ToTimeval(dmq::UDP_SUB_RECV_TIMEOUT);
 
             if (setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
             {
@@ -159,13 +163,12 @@ public:
         if (m_socket != -1)
         {
             struct timeval tv;
-            tv.tv_sec = timeout.count() / 1000;
-            tv.tv_usec = (timeout.count() % 1000) * 1000;
+            tv = ToTimeval(timeout);
             setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         }
     }
 
-    virtual int Send(xostringstream& os, const DmqHeader& header) override
+    virtual int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);
         // Allow ACKs on SUB sockets. Block only regular data.
@@ -179,15 +182,12 @@ public:
             return -1;
         }
 
-        // Get payload data without string copy if possible
-        // Note: os.str() still creates a copy. In a full zero-copy version,
-        // we would use a custom streambuf that points to m_sendBuffer.
-        auto payload = os.str();
-        if (payload.length() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
+        const dmq::ByteWriter& payload = os;
+        if (payload.size() > (BUFFER_SIZE - DmqHeader::HEADER_SIZE)) {
             std::cerr << "Error: Payload too large for static buffer." << std::endl;
             return -1;
         }
-        uint16_t payloadLen = static_cast<uint16_t>(payload.length());
+        uint16_t payloadLen = static_cast<uint16_t>(payload.size());
 
         // Prepare header values in Network Byte Order
         DmqHeader wireHeader = header;
@@ -209,8 +209,9 @@ public:
         return 0;
     }
 
-    virtual int Receive(xstringstream& is, DmqHeader& header) override
+    virtual int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
+        is.assign(nullptr, 0);   // nothing until a message arrives
         // m_recvMutex, not m_mutex: a Send() on another thread (e.g. a PUB socket
         // that also drains its ACKs here) isn't held up for the receive timeout.
         const std::lock_guard<dmq::RecursiveMutex> recvLock(m_recvMutex);
@@ -256,7 +257,7 @@ public:
             return -1;
 
         if (payloadSize > 0) {
-            is.write(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
+            is.assign(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
         }
 
         // 3. Handle ACKs and Metadata
@@ -298,6 +299,13 @@ public:
     }
 
 private:
+    static struct timeval ToTimeval(std::chrono::milliseconds ms)
+    {
+        struct timeval tv;
+        tv.tv_sec = static_cast<time_t>(ms.count() / 1000);
+        tv.tv_usec = static_cast<suseconds_t>((ms.count() % 1000) * 1000);
+        return tv;
+    }
     int m_socket = -1;
     sockaddr_in m_addr{};
     Type m_type = Type::PUB;

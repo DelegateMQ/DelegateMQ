@@ -1,4 +1,5 @@
 #include "DelegateMQ.h"
+#include <iostream>
 #include "UnitTestCommon.h"
 #include "extras/rpc/RemoteDispatcher.h"
 #include "extras/util/RetryMonitor.h"
@@ -29,19 +30,20 @@ public:
     std::string lastSendPayload;
     std::atomic<int> errorOnce{ 0 }; // next N Receive() calls report a transport error
 
-    int Send(xostringstream& os, const DmqHeader& header) override {
-        lastSendPayload = os.str();
+    int Send(const dmq::ByteWriter& os, const DmqHeader& header) override {
+        lastSendPayload.assign(os.data(), os.size());
         lastSendId = header.GetId();
         sendCount++;
         return 0;
     }
 
-    int Receive(xstringstream& is, DmqHeader& header) override {
+    int Receive(dmq::ByteReader& is, DmqHeader& header) override {
+        is.assign(nullptr, 0);   // nothing until a message arrives (ITransport contract)
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             if (m_injectPending) {
                 m_injectPending = false;
-                is << m_injectPayload;
+                is.assign(m_injectPayload.data(), m_injectPayload.size());
                 header = DmqHeader(m_injectId, 1);
                 return 0;
             }
@@ -92,7 +94,7 @@ public:
     bool addOnSend = false;
     TransportMonitor* monitor = nullptr;
 
-    int Send(xostringstream&, const DmqHeader& header) override {
+    int Send(const dmq::ByteWriter&, const DmqHeader& header) override {
         const int n = ++sendCount;
         if (addOnSend && monitor)
             monitor->Add(header.GetSeqNum(), header.GetId());
@@ -100,7 +102,7 @@ public:
             monitor->Remove(header.GetSeqNum(), header.GetId());
         return 0;
     }
-    int Receive(xstringstream&, DmqHeader&) override {
+    int Receive(dmq::ByteReader&, DmqHeader&) override {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
         return 0;
     }
@@ -219,8 +221,8 @@ static void RemoteDispatcher_AttachRetryMonitor_ForwardsDeliveryFailed()
     auto conn = dispatcher.OnDeliveryFailed.Connect(dmq::MakeDelegate(
         [&](dmq::DelegateRemoteId, uint16_t) { failedCount++; }));
 
-    xostringstream os;
-    os << "payload";
+    dmq::ByteWriter os;
+    os.write("payload", 7);
     DmqHeader header(/*id=*/5, /*seqNum=*/9);
     retry.SendWithRetry(os, header); // never ACKed -> eventually exhausts its retry budget
 

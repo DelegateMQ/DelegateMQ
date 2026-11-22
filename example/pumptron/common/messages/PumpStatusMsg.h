@@ -20,7 +20,7 @@ struct PumpStatusMsg : public MessageBase
     PumpStatusMsg() = default;
     PumpStatusMsg(PumpState s, AlarmCode f, uint16_t sp) : state(s), faultCode(f), setpointRpm(sp) {}
 
-    virtual std::istream& read(serialize& ms, std::istream& is) override {
+    virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
         MessageBase::read(ms, is);
         uint8_t s = 0, f = 0;
         ms.read(is, s);
@@ -30,7 +30,7 @@ struct PumpStatusMsg : public MessageBase
         return ms.read(is, setpointRpm);
     }
 
-    virtual std::ostream& write(serialize& ms, std::ostream& os) override {
+    virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         MessageBase::write(ms, os);
         uint8_t s = static_cast<uint8_t>(state);
         uint8_t f = static_cast<uint8_t>(faultCode);

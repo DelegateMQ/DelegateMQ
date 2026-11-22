@@ -43,6 +43,18 @@ if(TEST_COVERAGE)
   set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -fprofile-update=atomic")
 endif()
 
+# Without RTTI: DelegateMQ defines DMQ_NO_RTTI itself when the compiler has it off
+option(NO_RTTI "Build without RTTI (-fno-rtti, /GR-)" OFF)
+if(NO_RTTI)
+  message(STATUS "RTTI off (DMQ_NO_RTTI)")
+  if(MSVC)
+    string(REPLACE "/GR" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    add_compile_options(/GR-)
+  else()
+    add_compile_options(-fno-rtti)
+  endif()
+endif()
+
 # Sanitizer support — ASan and TSan are mutually exclusive
 set(SANITIZE "" CACHE STRING "Sanitizer to enable: address, thread, or undefined")
 if(SANITIZE STREQUAL "address")
@@ -66,6 +78,7 @@ include_directories(
     ${DMQ_INCLUDE_DIR}
     ${SPDLOG_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/unit-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/portable
 )
 
 # Add subdirectories for unit tests, stress tests, and sample code

@@ -19,17 +19,32 @@ public:
 	///		created off the heap as necessary.
 	/// @param[in]	memory - pointer to a block of static memory for allocator or NULL 
 	///		to obtain memory from global heap. If not NULL, the objects argument 
-	///		defines the size of the memory block (size x objects = memory size in bytes).
+	///		defines the size of the memory block: BlockSize(size) x objects bytes.
 	///	@param[in]	name - optional allocator name string.
     Allocator(size_t size, uint32_t objects=0, char* memory = NULL, const char* name=NULL);
 
     /// Destructor
     ~Allocator();
 
+    /// The block size used for objects of 'size' bytes: room for the free-list
+    /// pointer that a free block holds, rounded up to the pointer's alignment.
+    static constexpr size_t BlockSize(size_t size)
+    {
+        return ((size < sizeof(long*) ? sizeof(long*) : size) + alignof(long*) - 1)
+            / alignof(long*) * alignof(long*);
+    }
+
     /// Get a pointer to a memory block. 
     /// @param[in]  size - size of the block to allocate
     /// @return     Returns pointer to the block. Otherwise NULL if unsuccessful.
     void* Allocate(size_t size);
+
+    /// Get a block without faulting or using the heap: a free block, else an
+    /// unused pool block. For xmalloc()'s static pools, which report a full
+    /// pool by returning NULL (an extern "C" function must not throw).
+    /// @return     A block, or NULL if the pool is full (or this allocator has
+    ///             no pool and no free block).
+    void* TryAllocate();
 
     /// Return a pointer to the memory pool.
     /// @param[in]  pBlock - block of memory deallocate (i.e push onto free-list)
@@ -103,7 +118,11 @@ public:
 	{
 	}
 private:
-	alignas(std::max_align_t) char m_memory[sizeof(T) * Objects];
+	// One block per object, sized like the allocator's blocks (at least a
+	// pointer, pointer-aligned), so a T smaller than a pointer can't overflow
+	// the pool. Blocks are a multiple of the pointer alignment, so every block
+	// stays aligned.
+	alignas(std::max_align_t) char m_memory[Allocator::BlockSize(sizeof(T)) * Objects];
 };
 
 } // namespace dmq

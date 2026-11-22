@@ -23,7 +23,7 @@
 /// Use `SetErrorHandler()` to catch invoke errors. Clone() may throw `std::bad_alloc` unless 
 /// `DMQ_ASSERTS`. All other delegate class functions do not throw exceptions.
 /// 
-/// `void Invoke(std::istream& is)` - called by the receiver to invoke the target function. 
+/// `bool Invoke(ByteReader& is)` - called by the receiver to invoke the target function.
 /// 
 /// Limitations:
 /// 
@@ -53,7 +53,6 @@
 #include "IInvoker.h"
 #include <tuple>
 #include "DelegateOpt.h"
-#include <iostream>
 #include <stdexcept>
 
 DMQ_OPTIMIZE_ON
@@ -62,7 +61,7 @@ namespace dmq {
 
 enum class DelegateError {
     SUCCESS = 0,
-    ERR_STREAM_NOT_GOOD = 1,
+    ERR_BUFFER = 1,             // The ByteWriter / ByteReader failed (bad or truncated data)
     ERR_NO_SERIALIZER = 2,
     ERR_SERIALIZE = 3,
     ERR_DESERIALIZE = 4,
@@ -71,7 +70,8 @@ enum class DelegateError {
     ERR_DISPATCH = 7,
     ERR_TYPE_MISMATCH = 8,
     ERR_TRANSPORT_RECEIVE = 9,  // Transport-level receive failure (bad frame, socket error)
-    ERR_CAPACITY_EXCEEDED = 10  // A fixed-size capacity limit was reached (e.g. MAX_PARTICIPANTS)
+    ERR_CAPACITY_EXCEEDED = 10, // A fixed-size capacity limit was reached (e.g. MAX_PARTICIPANTS)
+    ERR_MESSAGE_TOO_LARGE = 11  // The serialized arguments exceed MAX_MESSAGE_SIZE (DMQ_MAX_MESSAGE_SIZE)
 };
 
 typedef int DelegateErrorAux;
@@ -227,8 +227,8 @@ public:
     IDispatcher* GetDispatcher() const noexcept { return m_dispatcher; }
     void SetDispatcher(IDispatcher* dispatcher) noexcept { m_dispatcher = dispatcher; }
 
-    dmq::xostringstream* GetStream() const noexcept { return m_stream; }
-    void SetStream(dmq::xostringstream* stream) noexcept { m_stream = stream; }
+    dmq::ByteWriter* GetStream() const noexcept { return m_stream; }
+    void SetStream(dmq::ByteWriter* stream) noexcept { m_stream = stream; }
 
     dmq::Mutex* GetSendMutex() const noexcept { return m_sendMutex; }
     void SetSendMutex(dmq::Mutex* mutex) noexcept { m_sendMutex = mutex; }
@@ -290,7 +290,8 @@ public:
             return;
 
         if (!m_stream || !m_stream->good()) {
-            RaiseError(DelegateError::ERR_STREAM_NOT_GOOD);
+            RaiseError(m_stream && m_stream->overflowed() ? DelegateError::ERR_MESSAGE_TOO_LARGE
+                                                          : DelegateError::ERR_BUFFER);
             return;
         }
 
@@ -330,7 +331,7 @@ private:
     UnicastDelegate<void(DelegateRemoteId, DelegateError, DelegateErrorAux)> m_errorHandler;
     IDispatcher* m_dispatcher = nullptr;
     DelegateError m_error = DelegateError::SUCCESS;
-    dmq::xostringstream* m_stream = nullptr;
+    dmq::ByteWriter* m_stream = nullptr;
     dmq::Mutex* m_sendMutex = nullptr;
 };
 
@@ -368,6 +369,7 @@ public:
     typedef RetType(*FreeFunc)(Args...);
     using ClassType = DelegateFreeRemote<RetType(Args...)>;
     using BaseType = DelegateFree<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
@@ -473,7 +475,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -532,6 +534,9 @@ public:
             // Remote delegates may share one stream (e.g. every delegate made from
             // one RemoteChannel); the send mutex keeps their sends from interleaving.
             detail::RemoteSendLock sendLock(m_state.GetSendMutex());
+            // Start from an empty stream: a shorter message then carries no
+            // tail of the previous one (no RTTI needed for the serializer to check)
+            m_state.GetStream()->reset();
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -547,7 +552,10 @@ public:
             }
             catch (std::exception&) {
                 writeFailed = true;
-                m_state.RaiseError(DelegateError::ERR_SERIALIZE);
+                // A serializer that writes through a stream (Cereal) throws when
+                // the ByteWriter refuses a write: report why
+                m_state.RaiseError(m_state.GetStream()->overflowed() ? DelegateError::ERR_MESSAGE_TOO_LARGE
+                                                                     : DelegateError::ERR_SERIALIZE);
             }
 #endif
             // Stream-good check, dispatch, and error/success reporting are identical
@@ -577,14 +585,14 @@ public:
     /// @param[in] is The delegate argument stream created and sent within 
     /// `operator()(Args... args)`.
     /// @return `true` if target function invoked; `false` if error. 
-    virtual bool Invoke(std::istream& is) override {
+    virtual bool Invoke(ByteReader& is) override {
         if (!m_serializer) {
             m_state.RaiseError(DelegateError::ERR_NO_SERIALIZER);
             return false;
         }
 
         if (!is.good()) {
-            m_state.RaiseError(DelegateError::ERR_STREAM_NOT_GOOD);
+            m_state.RaiseError(DelegateError::ERR_BUFFER);
             return false;
         }
 
@@ -603,7 +611,7 @@ public:
                 // rArgs.Get() returns the reference/pointer to the internal storage
                 m_serializer->Read(is, rArgs.Get()...);
 
-                if (!is.bad() && !is.fail()) {
+                if (!is.fail()) {
                     // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                     this->BaseType::operator()(rArgs.Get()...);
                 }
@@ -645,7 +653,7 @@ public:
                 }
 
                 if (deserializeOk) {
-                    if (!is.bad() && !is.fail()) {
+                    if (!is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                         this->BaseType::operator()(rArgs.Get()...);
                     }
@@ -685,7 +693,7 @@ public:
     /// @brief Set the serialization stream used to store serialized function
     /// argument data.
     /// @param[in] stream An output stream.
-    void SetStream(dmq::xostringstream* stream) {
+    void SetStream(dmq::ByteWriter* stream) {
         m_state.SetStream(stream);
     }
 
@@ -758,6 +766,7 @@ public:
     typedef RetType(TClass::* ConstMemberFunc)(Args...) const;
     using ClassType = DelegateMemberRemote<TClass, RetType(Args...)>;
     using BaseType = DelegateMember<TClass, RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
@@ -924,7 +933,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -983,6 +992,9 @@ public:
             // Remote delegates may share one stream (e.g. every delegate made from
             // one RemoteChannel); the send mutex keeps their sends from interleaving.
             detail::RemoteSendLock sendLock(m_state.GetSendMutex());
+            // Start from an empty stream: a shorter message then carries no
+            // tail of the previous one (no RTTI needed for the serializer to check)
+            m_state.GetStream()->reset();
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -998,7 +1010,10 @@ public:
             }
             catch (std::exception&) {
                 writeFailed = true;
-                m_state.RaiseError(DelegateError::ERR_SERIALIZE);
+                // A serializer that writes through a stream (Cereal) throws when
+                // the ByteWriter refuses a write: report why
+                m_state.RaiseError(m_state.GetStream()->overflowed() ? DelegateError::ERR_MESSAGE_TOO_LARGE
+                                                                     : DelegateError::ERR_SERIALIZE);
             }
 #endif
             // Stream-good check, dispatch, and error/success reporting are identical
@@ -1028,14 +1043,14 @@ public:
     /// @param[in] is The delegate argument stream created and sent within 
     /// `operator()(Args... args)`.
     /// @return `true` if target function invoked; `false` if error. 
-    virtual bool Invoke(std::istream& is) override {
+    virtual bool Invoke(ByteReader& is) override {
         if (!m_serializer) {
             m_state.RaiseError(DelegateError::ERR_NO_SERIALIZER);
             return false;
         }
 
         if (!is.good()) {
-            m_state.RaiseError(DelegateError::ERR_STREAM_NOT_GOOD);
+            m_state.RaiseError(DelegateError::ERR_BUFFER);
             return false;
         }
 
@@ -1054,7 +1069,7 @@ public:
                 // rArgs.Get() returns the reference/pointer to the internal storage
                 m_serializer->Read(is, rArgs.Get()...);
 
-                if (!is.bad() && !is.fail()) {
+                if (!is.fail()) {
                     // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                     this->BaseType::operator()(rArgs.Get()...);
                 }
@@ -1096,7 +1111,7 @@ public:
                 }
 
                 if (deserializeOk) {
-                    if (!is.bad() && !is.fail()) {
+                    if (!is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                         this->BaseType::operator()(rArgs.Get()...);
                     }
@@ -1136,7 +1151,7 @@ public:
     /// @brief Set the serialization stream used to store serialized function
     /// argument data.
     /// @param[in] stream An output stream.
-    void SetStream(dmq::xostringstream* stream) {
+    void SetStream(dmq::ByteWriter* stream) {
         m_state.SetStream(stream);
     }
 
@@ -1210,6 +1225,7 @@ public:
     using FunctionType = std::function<RetType(Args...)>;
     using ClassType = DelegateFunctionRemote<RetType(Args...)>;
     using BaseType = DelegateFunction<RetType(Args...)>;
+    DMQ_DELEGATE_CAST_TO(ClassType, BaseType)
 
     static_assert(!(std::disjunction_v<trait::is_shared_ptr_reference<Args>...>),
         "std::shared_ptr arguments must be passed by value on remote delegates; reference and pointer forms are not allowed");
@@ -1315,7 +1331,7 @@ public:
     /// @param[in] rhs The `DelegateBase` object to compare with the current object.
     /// @return `true` if the two delegate objects are equal, `false` otherwise.
     virtual bool Equal(const DelegateBase& rhs) const override {
-        auto derivedRhs = dynamic_cast<const ClassType*>(&rhs);
+        auto derivedRhs = dmq::DelegateCast<ClassType>(rhs);
         return derivedRhs &&
             m_state.Equal(derivedRhs->m_state) &&
             BaseType::Equal(rhs);
@@ -1374,6 +1390,9 @@ public:
             // Remote delegates may share one stream (e.g. every delegate made from
             // one RemoteChannel); the send mutex keeps their sends from interleaving.
             detail::RemoteSendLock sendLock(m_state.GetSendMutex());
+            // Start from an empty stream: a shorter message then carries no
+            // tail of the previous one (no RTTI needed for the serializer to check)
+            m_state.GetStream()->reset();
             // Only true once the whole send succeeds (write + stream check + dispatch).
             // RaiseSuccess() is deferred to that single point so a write/dispatch failure
             // is never preceded by a spurious success callback, and a failure is never
@@ -1389,7 +1408,10 @@ public:
             }
             catch (std::exception&) {
                 writeFailed = true;
-                m_state.RaiseError(DelegateError::ERR_SERIALIZE);
+                // A serializer that writes through a stream (Cereal) throws when
+                // the ByteWriter refuses a write: report why
+                m_state.RaiseError(m_state.GetStream()->overflowed() ? DelegateError::ERR_MESSAGE_TOO_LARGE
+                                                                     : DelegateError::ERR_SERIALIZE);
             }
 #endif
             // Stream-good check, dispatch, and error/success reporting are identical
@@ -1419,14 +1441,14 @@ public:
     /// @param[in] is The delegate argument stream created and sent within 
     /// `operator()(Args... args)`.
     /// @return `true` if target function invoked; `false` if error. 
-    virtual bool Invoke(std::istream& is) override {
+    virtual bool Invoke(ByteReader& is) override {
         if (!m_serializer) {
             m_state.RaiseError(DelegateError::ERR_NO_SERIALIZER);
             return false;
         }
 
         if (!is.good()) {
-            m_state.RaiseError(DelegateError::ERR_STREAM_NOT_GOOD);
+            m_state.RaiseError(DelegateError::ERR_BUFFER);
             return false;
         }
 
@@ -1445,7 +1467,7 @@ public:
                 // rArgs.Get() returns the reference/pointer to the internal storage
                 m_serializer->Read(is, rArgs.Get()...);
 
-                if (!is.bad() && !is.fail()) {
+                if (!is.fail()) {
                     // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                     this->BaseType::operator()(rArgs.Get()...);
                 }
@@ -1487,7 +1509,7 @@ public:
                 }
 
                 if (deserializeOk) {
-                    if (!is.bad() && !is.fail()) {
+                    if (!is.fail()) {
                         // 4. Invoke: Expand the pack to call operator()(arg1, arg2...)
                         this->BaseType::operator()(rArgs.Get()...);
                     }
@@ -1527,7 +1549,7 @@ public:
     /// @brief Set the serialization stream used to store serialized function
     /// argument data.
     /// @param[in] stream An output stream.
-    void SetStream(dmq::xostringstream* stream) {
+    void SetStream(dmq::ByteWriter* stream) {
         m_state.SetStream(stream);
     }
 
@@ -1678,7 +1700,9 @@ auto MakeDelegate(std::function<RetType(Args...)> func, DelegateRemoteId id) {
 template <typename F, typename = std::enable_if_t<trait::is_callable<F>::value>>
 auto MakeDelegate(F&& func, DelegateRemoteId id) {
     using Sig = typename trait::function_traits<decltype(&std::remove_reference_t<F>::operator())>::function_type;
-    return DelegateFunctionRemote<Sig>(std::forward<F>(func), id);
+    DelegateFunctionRemote<Sig> delegate(std::forward<F>(func), id);
+    DMQ_SET_CALLABLE_TYPE(delegate, F, Sig);
+    return delegate;
 }
 
 }

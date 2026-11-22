@@ -1,6 +1,6 @@
 /*
  * FreeRTOS V202212.00
- * FreeRTOS Windows simulator configuration for the databus-freertos server.
+ * FreeRTOS Windows simulator configuration for the databus/freertos server.
  * Derived from the standard FreeRTOS Win32/MSVC demo configuration.
  */
 

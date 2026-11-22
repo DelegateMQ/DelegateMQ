@@ -194,8 +194,17 @@ static void MulticastDelegateTests()
     src.Broadcast(TEST_INT);
 
     TClass testClass;
+#if defined(DMQ_NO_RTTI)
+    // No RTTI: a std::function's callable type is erased, so removing one by
+    // making a new delegate from it can't work. A lambda keeps its type.
+    auto lambda1 = [](int i) { lambda1Int = i; };
+    auto lambda2 = [](int i) { lambda2Int = i; };
+#else
+    // With RTTI, delegates made from std::function objects compare by the
+    // callable's type (std::function::target_type())
     std::function lambda1 = [](int i) { lambda1Int = i; };
     std::function lambda2 = [](int i) { lambda2Int = i; };
+#endif
 
     funcInt = 0, classInt = 0, lambda1Int = 0, lambda2Int = 0;
     src.Clear();
@@ -429,7 +438,9 @@ static void MulticastReentrantTests()
             }
             };
 
-        del += MakeDelegate(recursiveFunc);
+        // Kept to remove it later: equal to its own copies with or without RTTI
+        auto recursiveDelegate = MakeDelegate(recursiveFunc);
+        del += recursiveDelegate;
 
         // Invoke with depth 2: 
         // Call(2) -> Count=1 -> Call(1) -> Count=2 -> Call(0) -> Count=3
@@ -438,7 +449,7 @@ static void MulticastReentrantTests()
         DMQ_ASSERT_TRUE(recursiveCount == 3);
 
         // Ensure RAII guard released the lock count correctly
-        del.Remove(MakeDelegate(recursiveFunc));
+        del.Remove(recursiveDelegate);
         DMQ_ASSERT_TRUE(del.Empty());
     }
 }

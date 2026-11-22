@@ -195,8 +195,7 @@ static void ResetHealthBaselines() {
 template <typename Packet>
 static bool Decode(const std::vector<uint8_t>& buffer, int received, Packet& packet) {
     serialize ms;
-    std::string data(reinterpret_cast<const char*>(buffer.data() + 1), received - 1);
-    std::istringstream iss(data, std::ios::binary);
+    dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data() + 1), static_cast<size_t>(received - 1));
     ms.read(iss, packet);
     return iss.good() && !packet.nodeId.empty();
 }

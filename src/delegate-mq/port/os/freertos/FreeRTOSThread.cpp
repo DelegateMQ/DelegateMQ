@@ -9,6 +9,7 @@
 #include "port/os/common/ThreadHooks.h"
 #include "extras/util/Fault.h"
 #include <cstdio>
+#include <stdexcept>
 
 #ifndef DMQ_ASSERT_TRUE
 #define DMQ_ASSERT_TRUE(x) configASSERT(x)
@@ -159,11 +160,36 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         DMQ_ASSERT_TRUE(m_startSem != nullptr);
     }
 
-    // 3. Create Task
+    // 3. Create Task, on the cores set by SetCoreAffinity()
+#if defined(ESP_PLATFORM)
+    // ESP-IDF pins to one core or allows any (tskNO_AFFINITY)
+    const uint32_t allCores = (1u << portNUM_PROCESSORS) - 1;
+    BaseType_t coreId = tskNO_AFFINITY;
+    if (m_coreMask != 0 && (m_coreMask & allCores) != allCores) {
+        DMQ_ASSERT_TRUE((m_coreMask & ~allCores) == 0 && (m_coreMask & (m_coreMask - 1)) == 0);
+        coreId = 0;
+        while (!(m_coreMask & (1u << coreId)))
+            coreId++;
+    }
+#elif defined(configNUMBER_OF_CORES) && (configNUMBER_OF_CORES > 1) && defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
+    const UBaseType_t affinity = (m_coreMask == 0) ? tskNO_AFFINITY : static_cast<UBaseType_t>(m_coreMask);
+#else
+    // One core: only a mask that includes it
+    DMQ_ASSERT_TRUE(m_coreMask == 0 || (m_coreMask & 1u) != 0);
+#endif
 #if (configSUPPORT_STATIC_ALLOCATION == 1)
     if (m_stackBuffer != nullptr)
     {
         // --- STATIC ALLOCATION ---
+#if defined(ESP_PLATFORM)
+        m_thread = xTaskCreateStaticPinnedToCore(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, m_stackBuffer, &m_tcb, coreId);
+#elif defined(configNUMBER_OF_CORES) && (configNUMBER_OF_CORES > 1) && defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
+        m_thread = xTaskCreateStaticAffinitySet(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, m_stackBuffer, &m_tcb, affinity);
+#else
         m_thread = xTaskCreateStatic(
             (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
@@ -173,6 +199,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             m_stackBuffer,
             &m_tcb
         );
+#endif
     }
     else
 #endif  // configSUPPORT_STATIC_ALLOCATION; otherwise SetStackMem() faults, so always heap
@@ -180,6 +207,15 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
         // --- DYNAMIC ALLOCATION (Heap) ---
         // m_stackSize is the DMQ_FREERTOS_STACK_WORDS default here: SetStackMem()
         // changes it only together with a static buffer (the branch above).
+#if defined(ESP_PLATFORM)
+        BaseType_t xReturn = xTaskCreatePinnedToCore(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, &m_thread, coreId);
+#elif defined(configNUMBER_OF_CORES) && (configNUMBER_OF_CORES > 1) && defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
+        BaseType_t xReturn = xTaskCreateAffinitySet(
+            (TaskFunction_t)&FreeRTOSThread::Process, THREAD_NAME.c_str(), m_stackSize,
+            this, m_priority, affinity, &m_thread);
+#else
         BaseType_t xReturn = xTaskCreate(
             (TaskFunction_t)&FreeRTOSThread::Process,
             THREAD_NAME.c_str(),
@@ -187,6 +223,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
             this,
             m_priority,
             &m_thread);
+#endif
 
         if (xReturn != pdPASS) {
             printf("Error: Failed to create task '%s'. OOM?\n", THREAD_NAME.c_str());
@@ -235,6 +272,8 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
         } else {
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
+            if (!msg)
+                BAD_ALLOC();   // never skip the exit message: ExitThread() would wait forever
 
             if (msg) {
                 // Block until message is sent. This ensures the thread WILL receive it.
@@ -303,10 +342,8 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // If using XALLOCATOR explicit operator new required. See xallocator.h.
     ThreadMsg* threadMsg = new (std::nothrow) ThreadMsg(MSG_DISPATCH_DELEGATE, msg);
 
-    if (threadMsg == nullptr) {
-        printf("[Thread] CRITICAL: 'new ThreadMsg' returned NULL! System Heap full? (%s)\n", THREAD_NAME.c_str());
-        return false;
-    }
+    if (threadMsg == nullptr)
+        BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
     threadMsg->SetEnqueueTime(Timer::GetNow());
 #endif
@@ -369,34 +406,47 @@ void FreeRTOSThread::Process(void* instance)
 void FreeRTOSThread::WatchdogCheckAll()
 {
     const dmq::LockGuard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     FreeRTOSThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void FreeRTOSThread::WatchdogCheck()
+bool FreeRTOSThread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
-    auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
+    // The heartbeat first, then the clock: the thread stamped its heartbeat
+    // before storing it, so a clock read after loading it is never older.
+    // Read the other way round, a heartbeat stored in between (the thread on
+    // another core, or preempting this task) can be a tick newer than "now",
+    // and the unsigned difference wraps to ~49 days: a false expiry.
     auto lastAlive = m_lastAliveTime.load();
+    auto now = static_cast<uint32_t>(Timer::GetNow().time_since_epoch().count());
     auto watchdogTimeout = m_watchdogTimeout.load();
 
     if (watchdogTimeout > 0)
     {
         auto delta = now - lastAlive;
-        if (delta > watchdogTimeout)
+        // Wrap-safe; a negative difference (a heartbeat newer than now) is alive
+        if (static_cast<int32_t>(delta) > 0 && delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = dmq::Duration(delta);
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -538,15 +588,15 @@ void FreeRTOSThread::Run()
                     if (!selfExit) DMQ_ASSERT_TRUE(success);
                 }
                 catch (const std::bad_alloc& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled bad_alloc in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::invalid_argument& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled invalid_argument in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::runtime_error& e) {
-                    std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                    fprintf(stderr, "[Thread:%s] Unhandled runtime_error in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                     DMQ_ASSERT();
                 }
                 catch (const std::exception& e) {

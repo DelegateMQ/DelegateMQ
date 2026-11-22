@@ -14,6 +14,8 @@
 #endif
 
 #ifdef __cplusplus
+#include <atomic>
+
 namespace dmq::util {
 	/// Handles all software assertions in the system.
 	/// @param[in] file - the file name that the software assertion occurred on
@@ -22,6 +24,40 @@ namespace dmq::util {
 
     /// Install OS-specific crash handlers to capture and report critical errors.
     void InstallCrashHandlers();
+
+    /// @brief A fault hook: an application function the default FaultHandler()
+    /// calls (after printing) before it halts, to capture the failure: write a log
+    /// to RAM that survives the reset or to flash, start a core dump. DelegateMQ
+    /// captures nothing itself. A plain function, not a delegate: the system is
+    /// failing, so the hook must not allocate, lock, or use delegates or the
+    /// DataBus, and shouldn't try to recover. A fault inside the hook doesn't call
+    /// it again. For a watchdog expiry, see dmq::os::SetWatchdogHook().
+    using FaultHook = void (*)(const char* file, unsigned short line);
+
+    namespace detail {
+        inline std::atomic<FaultHook> g_faultHook{nullptr};
+    }
+
+    /// @brief Set the fault hook; nullptr removes it.
+    inline void SetFaultHook(FaultHook hook) noexcept { detail::g_faultHook.store(hook); }
+
+    /// @brief Call the fault hook, if one is set and it isn't already running.
+    /// The default FaultHandler() calls it; a custom one (DMQ_CUSTOM_FAULT_HANDLER)
+    /// may call it too.
+    inline void RunFaultHook(const char* file, unsigned short line) noexcept
+    {
+        // A fault inside the hook doesn't call it again. Plain loads and stores
+        // (no exchange): no libatomic call on cores without atomic instructions.
+        static std::atomic<bool> running{false};
+        if (running.load())
+            return;
+        if (FaultHook hook = detail::g_faultHook.load())
+        {
+            running.store(true);
+            hook(file, line);
+            running.store(false);
+        }
+    }
 }
 #endif
 

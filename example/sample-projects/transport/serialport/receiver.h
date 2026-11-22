@@ -1,0 +1,134 @@
+#ifndef RECEIVER_H
+#define RECEIVER_H
+
+/// @file main.cpp
+/// @see https://github.com/DelegateMQ/DelegateMQ
+/// David Lafreniere, 2025.
+/// 
+/// @brief Serial port with remote delegates examples. 
+
+#include "DelegateMQ.h"
+#include <iostream>
+#include "data.h"
+#include <atomic>
+
+using namespace dmq;
+using namespace dmq::os;
+using namespace dmq::util;
+using namespace dmq::transport;
+using namespace dmq::serialization::serializer;
+using namespace std;
+
+/// @brief Receiver receives data from the Sender.
+class Receiver
+{
+public:
+    Receiver(DelegateRemoteId id, const char* port) :
+        m_id(id),
+        m_thread("Receiver"),
+        m_transportMonitor(std::chrono::milliseconds(500))
+    {
+        // Link Monitor (For ACK management)
+        m_transport.SetTransportMonitor(&m_transportMonitor);
+
+        // Set the delegate interfaces
+        m_recvDelegate = MakeDelegate(this, &Receiver::DataUpdate, id);
+        m_recvDelegate.SetStream(&m_argStream);
+        m_recvDelegate.SetSerializer(&m_serializer);
+
+        // Set the transport
+        if (m_transport.Create(port, 115200) != 0) {
+            std::cout << "Error: Failed to open " << port << std::endl;
+        }
+
+        // Crucial for ACKs: The receiver's transport must know how to send
+        // Since it uses the same COM port for both, link them.
+        m_transport.SetSendTransport(&m_transport);
+        m_transport.SetRecvTransport(&m_transport);
+
+        // Create the receiver thread
+        m_thread.CreateThread();
+    }
+
+    ~Receiver()
+    {
+        Stop();
+        m_recvDelegate = nullptr;
+    }
+
+    void Start()
+    {
+        // Start a timer to poll data
+        m_recvTimerConn = m_recvTimer.OnExpired.Connect(MakeDelegate(this, &Receiver::Poll, m_thread));
+        m_recvTimer.Start(std::chrono::milliseconds(50));
+    }
+
+    /// Number of messages received so far
+    int GetReceivedCount() const { return m_received.load(); }
+
+    void Stop()
+    {
+        m_recvTimerConn.Disconnect();
+        m_recvTimer.Stop();
+        m_thread.ExitThread();
+        m_recvTimer.Stop();
+        m_transport.Close();
+    }
+
+private:
+    // Poll called periodically on m_thread context
+    void Poll()
+    {
+        // Get incoming data
+        dmq::ByteReader arg_data;
+        DmqHeader header;
+        int error = m_transport.Receive(arg_data, header);
+
+        if (header.GetSeqNum() == m_lastSeqNum) {
+            // We already did this! The ACK must have been lost.
+            // The SerialTransport already sent a new ACK in Receive(), 
+            // so we just skip the duplicate invocation.
+            return;
+        }
+
+        // Incoming remote delegate data arrived?
+        if (!error && arg_data.size() > 0)
+        {
+            // Invoke the receiver target function with the sender's argument data
+            m_lastSeqNum = header.GetSeqNum();
+            m_recvDelegate.Invoke(arg_data);
+        }
+
+        // Process monitor (Optional on receiver unless sending responses)
+        m_transportMonitor.Process();
+    }
+
+    // Receiver target function called when sender remote delegate is invoked
+    void DataUpdate(Data& data, DataAux& dataAux)
+    {
+        if (data.dataPoints.size() > 0) {
+            cout << data.msg << " " << data.dataPoints[0].y << " " << data.dataPoints[0].y << " " << dataAux.auxMsg << endl;
+            m_received++;
+        }
+        else
+            cout << "DataUpdate incoming data error!" << endl;
+    }
+
+    DelegateRemoteId m_id = INVALID_REMOTE_ID;
+    Thread m_thread;
+    Timer m_recvTimer;
+    dmq::ScopedConnection m_recvTimerConn;
+
+    dmq::ByteWriter m_argStream;
+    SerialTransport m_transport;
+    Serializer<void(Data&, DataAux&)> m_serializer;
+    TransportMonitor m_transportMonitor; // Tracks sequence numbers
+
+    // Receiver remote delegate
+    DelegateMemberRemote<Receiver, void(Data&, DataAux&)> m_recvDelegate;
+
+    uint16_t m_lastSeqNum = 0xFFFF; // Initialize to an impossible value
+    std::atomic<int> m_received{0};
+};
+
+#endif

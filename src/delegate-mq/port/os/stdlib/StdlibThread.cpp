@@ -5,8 +5,12 @@
 
 #include "DelegateMQ.h"
 #include "StdlibThread.h"
+#include <cstdio>
+#include <stdexcept>
 #include "port/os/common/ThreadHooks.h"
+#include "port/os/common/CoreAffinity.h"
 #include "extras/util/Fault.h"
+#include <new>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -369,21 +373,26 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 void StdlibThread::WatchdogCheckAll()
 {
     const std::lock_guard<dmq::RecursiveMutex> lock(GetWatchdogLock());
+    // Report every expired thread to the watchdog hook, then fault once
+    dmq::os::detail::WatchdogReport report;
     StdlibThread* p = GetWatchdogHead();
     while (p != nullptr)
     {
-        p->WatchdogCheck();
+        dmq::Duration stalledFor{};
+        if (p->WatchdogExpired(stalledFor))
+            report.Expired(*p, p->THREAD_NAME.c_str(), stalledFor);
         p = p->m_watchdogNext;
     }
+    report.Finish();
 }
 
 //----------------------------------------------------------------------------
 // WatchdogCheck
 //----------------------------------------------------------------------------
-void StdlibThread::WatchdogCheck()
+bool StdlibThread::WatchdogExpired(dmq::Duration& stalledFor)
 {
     if (m_startGate.IsHeld())
-        return;     // held at its start gate by design, not hung
+        return false;     // held at its start gate by design, not hung
 
     auto now = Timer::GetNow();
     auto lastAlive = m_lastAliveTime.load();
@@ -394,9 +403,11 @@ void StdlibThread::WatchdogCheck()
         auto delta = now - lastAlive;
         if (delta > watchdogTimeout)
         {
-            WatchdogHandler(THREAD_NAME.c_str());
+            stalledFor = std::chrono::duration_cast<dmq::Duration>(delta);
+            return true;
         }
     }
+    return false;
 }
 
 //----------------------------------------------------------------------------
@@ -421,7 +432,9 @@ StdlibThread*& StdlibThread::GetWatchdogHead()
 //----------------------------------------------------------------------------
 dmq::RecursiveMutex& StdlibThread::GetWatchdogLock()
 {
-    static dmq::RecursiveMutex* lock = new dmq::RecursiveMutex();
+    // Static storage, not the heap: constructed on first use, never destroyed
+    alignas(dmq::RecursiveMutex) static char storage[sizeof(dmq::RecursiveMutex)];
+    static dmq::RecursiveMutex* lock = new (storage) dmq::RecursiveMutex();
     return *lock;
 }
 
@@ -446,6 +459,9 @@ void StdlibThread::Process()
     // dmq::ThisThread::GetCurrent() returns this thread from here on. Declared
     // after exitGuard, so it is cleared again before the exit handler runs.
     dmq::CurrentThreadScope currentScope(this);
+
+    // Pin to the cores set by SetCoreAffinity(), before any user code runs here
+    DMQ_ASSERT_TRUE(dmq::os::detail::SetCurrentThreadCoreAffinity(m_coreMask));
 
     if (m_startHandler)
         m_startHandler();
@@ -566,23 +582,23 @@ void StdlibThread::Process()
                             if (!selfExit) DMQ_ASSERT_TRUE(success);
                         }
                         catch (const std::bad_alloc& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled bad_alloc in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled bad_alloc in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (const std::invalid_argument& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled invalid_argument in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled invalid_argument in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (const std::runtime_error& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled runtime_error in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled runtime_error in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (const std::exception& e) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled exception in delegate callback: " << e.what() << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled exception in delegate callback: %s\n", THREAD_NAME.c_str(), e.what());
                             DMQ_ASSERT();
                         }
                         catch (...) {
-                            std::cerr << "[Thread:" << THREAD_NAME << "] Unhandled unknown exception in delegate callback." << std::endl;
+                            fprintf(stderr, "[Thread:%s] Unhandled unknown exception in delegate callback.\n", THREAD_NAME.c_str());
                             DMQ_ASSERT();
                         }
 #else

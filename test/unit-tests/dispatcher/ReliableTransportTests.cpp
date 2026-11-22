@@ -19,11 +19,11 @@ namespace {
     class NeverAckTransport : public ITransport {
     public:
         int sendCount = 0;
-        int Send(xostringstream&, const DmqHeader&) override {
+        int Send(const dmq::ByteWriter&, const DmqHeader&) override {
             sendCount++;
             return 0;
         }
-        int Receive(xstringstream&, DmqHeader&) override { return -1; }
+        int Receive(dmq::ByteReader&, DmqHeader&) override { return -1; }
     };
 
     // Transport whose Receive() returns known, distinguishable data so the
@@ -37,13 +37,13 @@ namespace {
         dmq::DelegateRemoteId receiveId = 0;
         uint16_t receiveSeq = 0;
 
-        int Send(xostringstream&, const DmqHeader&) override {
+        int Send(const dmq::ByteWriter&, const DmqHeader&) override {
             sendCount++;
             return 0;
         }
-        int Receive(xstringstream& is, DmqHeader& header) override {
+        int Receive(dmq::ByteReader& is, DmqHeader& header) override {
             receiveCount++;
-            is << receivePayload;
+            is.assign(receivePayload.data(), receivePayload.size());
             header = DmqHeader(receiveId, receiveSeq);
             return receiveReturn;
         }
@@ -65,8 +65,8 @@ void ReliableTransportTests()
         auto conn = retry.OnDeliveryFailed.Connect(dmq::MakeDelegate(
             [&](DelegateRemoteId, uint16_t) { failedCount++; }));
 
-        xostringstream os;
-        os << "payload";
+        dmq::ByteWriter os;
+        os.write("payload", 7);
         DmqHeader header(/*id=*/99, /*seqNum=*/3);
 
         DMQ_ASSERT_TRUE(reliable.Send(os, header) == 0);
@@ -98,8 +98,8 @@ void ReliableTransportTests()
                 failedSeq = seq;
             }));
 
-        xostringstream os;
-        os << "payload";
+        dmq::ByteWriter os;
+        os.write("payload", 7);
         DmqHeader header(/*id=*/42, /*seqNum=*/7);
 
         int err = reliable.Send(os, header);
@@ -143,7 +143,7 @@ void ReliableTransportTests()
         RetryMonitor retry(transport, monitor, /*maxRetries=*/2);
         ReliableTransport reliable(transport, retry);
 
-        xstringstream is;
+        dmq::ByteReader is;
         DmqHeader header;
         int err = reliable.Receive(is, header);
 
@@ -151,13 +151,13 @@ void ReliableTransportTests()
         DMQ_ASSERT_TRUE(transport.receiveCount == 1);
         DMQ_ASSERT_TRUE(header.GetId() == 55);
         DMQ_ASSERT_TRUE(header.GetSeqNum() == 11);
-        DMQ_ASSERT_TRUE(is.str() == "hello");
+        DMQ_ASSERT_TRUE(std::string(is.data(), is.size()) == "hello");
 
         // A non-zero return from the physical transport (e.g. "nothing to
         // receive") must also pass through unchanged, not be swallowed or
         // remapped by the adapter.
         transport.receiveReturn = -1;
-        xstringstream is2;
+        dmq::ByteReader is2;
         DmqHeader header2;
         DMQ_ASSERT_TRUE(reliable.Receive(is2, header2) == -1);
         DMQ_ASSERT_TRUE(transport.receiveCount == 2);
@@ -172,8 +172,8 @@ void ReliableTransportTests()
         ReliableTransport reliable; // default-constructed, not yet wired
         reliable.Init(transport, retry);
 
-        xostringstream os;
-        os << "payload";
+        dmq::ByteWriter os;
+        os.write("payload", 7);
         DmqHeader header(/*id=*/1, /*seqNum=*/1);
         DMQ_ASSERT_TRUE(reliable.Send(os, header) == 0);
         DMQ_ASSERT_TRUE(transport.sendCount == 1);
