@@ -44,7 +44,7 @@ namespace dmq {
         /// @return Reference to the buffer.
         virtual ByteWriter& Write(ByteWriter& os, const Args&... args) = 0;
 
-        /// @brief Deserializes data from the input stream into function arguments.
+        /// @brief Deserializes data from the byte reader into function arguments.
         /// 
         /// @details
         /// Called by the receiving endpoint before invoking the target function.

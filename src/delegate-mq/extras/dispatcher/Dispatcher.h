@@ -14,9 +14,9 @@
 /// **Key Responsibilities:**
 /// 1. **Message Construction:** Creates the protocol header (`DmqHeader`) containing 
 ///    the Remote ID and a monotonic Sequence Number.
-/// 2. **Stream Management:** Validates that the output stream is compatible 
-///    (a `ByteWriter`).
-/// 3. **Dispatch:** Forwards the header and the serialized payload (stream) to the 
+/// 2. **Buffer Handling:** Takes the serialized arguments in a `ByteWriter`
+///    and resets it after sending.
+/// 3. **Dispatch:** Forwards the header and the serialized payload (the `ByteWriter`'s bytes) to the 
 ///    registered `ITransport::Send()` method.
 /// 
 /// **Usage:**

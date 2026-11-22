@@ -31,7 +31,7 @@
 /// * **Deep Copying:** Supports serializing containers of pointers, automatically
 ///   allocating memory upon deserialization.
 /// * **Error Handling:** Includes a callback-based error reporting mechanism for
-///   stream errors, type mismatches, and boundary violations.
+///   buffer errors (overflow, truncated input), type mismatches, and boundary violations.
 ///
 /// **Usage:**
 /// User-defined classes must inherit from `serialize::I` and implement the `read()`
@@ -118,7 +118,7 @@ namespace serialize_traits
 
 /// @brief The serialize class binary serializes and deserializes C++ objects.
 /// @details Each class need to implement the serialize::I abstract interface
-/// to allow binary serialization to any stream. A default constructor is required
+/// to allow binary serialization into a dmq::ByteWriter. A default constructor is required
 /// for the serialized object. Most container elements can be stored by value or
 /// by pointer. C++ containers supported are:
 ///
@@ -131,7 +131,7 @@ namespace serialize_traits
 ///     wstring
 ///     char[]
 ///
-/// Always check the input stream or output stream to ensure no errors
+/// Always check the byte reader or byte writer to ensure no errors
 /// before using data. e.g.
 ///
 /// if (ss.good())
@@ -147,9 +147,9 @@ namespace serialize_traits
 /// data elements to an object. Once the protocol is released at a particular version,
 /// new data elements can be added but existing ones cannot be removed/changed.
 ///
-/// @note write() requires a seekable stream (i.e. std::ostringstream). The size field
-///       for user-defined objects is backfilled via seekp() after the object is written.
-///       Using a non-seekable stream produces a corrupt size field and triggers an error.
+/// @note The size field of a user-defined object is backfilled with
+///       dmq::ByteWriter::seekp() after the object is written; every ByteWriter
+///       supports that, so there is no seekability requirement as with streams.
 class serialize
 {
 public:
@@ -160,21 +160,21 @@ public:
         virtual ~I() = default;
 
         /// Inheriting class implements the write function. Write each
-        /// class member to the ostream. Write in the same order as read().
+        /// class member to the byte writer. Write in the same order as read().
         /// Each level within the hierarchy must implement. Ensure base
         /// write() implementation is called if necessary.
         /// @param[in] ms - the message serialize instance
-        /// @param[in] os - the output stream
-        /// @return The output stream
+        /// @param[in] os - the byte writer
+        /// @return The byte writer
         virtual dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) = 0;
 
         /// Inheriting class implements the read function. Read each
-        /// class member from the istream. Read in the same order as write().
+        /// class member from the byte reader. Read in the same order as write().
         /// Each level within the hierarchy must implement. Ensure base
         /// read() implementation is called if necessary.
         /// @param[in] ms - the message serialize instance
-        /// @param[in] is - the input stream
-        /// @return The input stream
+        /// @param[in] is - the byte reader
+        /// @return The byte reader
         virtual dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) = 0;
     };
 
@@ -217,10 +217,10 @@ public:
         return le;
     }
 
-    /// Read endian from stream.
-    /// @param[in] is - input stream
-    /// @param[out] littleEndian - set to true if stream was written on a little-endian host
-    /// @return The input stream.
+    /// Read endian from the byte reader.
+    /// @param[in] is - byte reader
+    /// @param[out] littleEndian - set to true if data was written on a little-endian host
+    /// @return The byte reader.
     dmq::ByteReader& readEndian(dmq::ByteReader& is, bool& littleEndian)
     {
         if (read_type(is, Type::ENDIAN))
@@ -230,8 +230,8 @@ public:
         return is;
     }
 
-    /// Write current CPU endian to stream.
-    /// @param[in] os - output stream
+    /// Write current CPU endian to the byte writer.
+    /// @param[in] os - byte writer
     void writeEndian(dmq::ByteWriter& os)
     {
         bool littleEndian = LE();
@@ -239,13 +239,13 @@ public:
         os.write(reinterpret_cast<const char*>(&littleEndian), sizeof(littleEndian));
     }
 
-    /// Read a user defined object implementing the serialize::I interface from a stream.
+    /// Read a user defined object implementing the serialize::I interface from a byte reader.
     /// Normally the sender and receiver object is the same size. However, if a newer version of
     /// the object is introduced on one side the sizes will differ. If received object is smaller
     /// than sent object, the extra data in the sent object is discarded.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] t_ - the object to read
-    /// @return The input stream
+    /// @return The byte reader
     dmq::ByteReader& read(dmq::ByteReader& is, I* t_)
     {
         if (check_stop_parse(is))
@@ -310,10 +310,10 @@ public:
         return is;
     }
 
-    /// Read a std::string from a stream.
-    /// @param[in] is - the input stream
+    /// Read a std::string from a byte reader.
+    /// @param[in] is - the byte reader
     /// @param[in] s - the string to read
-    /// @return The input stream
+    /// @return The byte reader
     template <typename Traits, typename Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::basic_string<char, Traits, Alloc>& s)
     {
@@ -335,10 +335,10 @@ public:
         return is;
     }
 
-    /// Read a std::wstring from a stream.
-    /// @param[in] is - the input stream
+    /// Read a std::wstring from a byte reader.
+    /// @param[in] is - the byte reader
     /// @param[in] s - the string to read
-    /// @return The input stream
+    /// @return The byte reader
     template <typename Traits, typename Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::basic_string<wchar_t, Traits, Alloc>& s)
     {
@@ -366,11 +366,11 @@ public:
         return is;
     }
 
-    /// Read a character string from a stream.
-    /// @param[in] is - the input stream
+    /// Read a character string from a byte reader.
+    /// @param[in] is - the byte reader
     /// @param[in] str - the character string to read into
     /// @param[in] maxLen - the capacity of str in bytes (including null terminator)
-    /// @return The input stream
+    /// @return The byte reader
     dmq::ByteReader& read(dmq::ByteReader& is, char* str, size_t maxLen)
     {
         if (check_stop_parse(is))
@@ -404,8 +404,8 @@ public:
             parseStatus(MSG_SERIALIZE_TYPE_ID(str), size);
             read_internal(is, str, size, true);
 
-            // Truncated stream: is.read() stopped early, so str[gcount()..size-1]
-            // is uninitialized. Report the stream error, not STRING_TOO_LONG.
+            // Truncated input: is.read() stopped early, so str[gcount()..size-1]
+            // is uninitialized. Report the read error, not STRING_TOO_LONG.
             if (!check_stream(is))
             {
                 str[0] = '\0';
@@ -432,14 +432,14 @@ public:
         return is;
     }
 
-    /// Read a vector<bool> container from a stream. The vector<bool> items are
+    /// Read a vector<bool> container from a byte reader. The vector<bool> items are
     /// stored differently and therefore need special handling to serialize.
     /// Unlike other specializations of vector, std::vector<bool> does not manage a
     /// dynamic array of bool objects. Instead, it is supposed to pack the boolean
     /// values into a single bit each.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the vector container to read into
-    /// @return The input stream
+    /// @return The byte reader
     dmq::ByteReader& read(dmq::ByteReader& is, std::vector<bool>& container)
     {
         if (check_stop_parse(is))
@@ -466,11 +466,11 @@ public:
         return is;
     }
 
-    /// Write a user defined object implementing the serialize::I interface to a stream.
-    /// @note The stream must support seekp(). The object size is backfilled after writing.
-    /// @param[in] os - the output stream
+    /// Write a user defined object implementing the serialize::I interface to a byte writer.
+    /// @note The object size is backfilled with os.seekp() after writing.
+    /// @param[in] os - the byte writer
     /// @param[in] t_ - the object to write
-    /// @return The output stream
+    /// @return The byte writer
     dmq::ByteWriter& write(dmq::ByteWriter& os, I* t_)
     {
         if (check_pointer(os, t_))
@@ -504,10 +504,10 @@ public:
         return os;
     }
 
-    /// Write a const std::string to a stream.
-    /// @param[in] os - the output stream
+    /// Write a const std::string to a byte writer.
+    /// @param[in] os - the byte writer
     /// @param[in] s - the string to write
-    /// @return The output stream
+    /// @return The byte writer
     template <typename Traits, typename Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::basic_string<char, Traits, Alloc>& s)
     {
@@ -526,20 +526,20 @@ public:
         return os;
     }
 
-    /// Write a std::string to a stream.
-    /// @param[in] os - the output stream
+    /// Write a std::string to a byte writer.
+    /// @param[in] os - the byte writer
     /// @param[in] s - the string to write
-    /// @return The output stream
+    /// @return The byte writer
     template <typename Traits, typename Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, std::basic_string<char, Traits, Alloc>& s)
     {
         return write(os, static_cast<const std::basic_string<char, Traits, Alloc>&>(s));
     }
 
-    /// Write a const std::wstring to a stream.
-    /// @param[in] os - the output stream
+    /// Write a const std::wstring to a byte writer.
+    /// @param[in] os - the byte writer
     /// @param[in] s - the string to write
-    /// @return The output stream
+    /// @return The byte writer
     template <typename Traits, typename Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::basic_string<wchar_t, Traits, Alloc>& s)
     {
@@ -563,29 +563,29 @@ public:
         return os;
     }
 
-    /// Write a std::wstring to a stream.
-    /// @param[in] os - the output stream
+    /// Write a std::wstring to a byte writer.
+    /// @param[in] os - the byte writer
     /// @param[in] s - the string to write
-    /// @return The output stream
+    /// @return The byte writer
     template <typename Traits, typename Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, std::basic_string<wchar_t, Traits, Alloc>& s)
     {
         return write(os, static_cast<const std::basic_string<wchar_t, Traits, Alloc>&>(s));
     }
 
-    /// Write a character string to a stream.
-    /// @param[in] os - the output stream
+    /// Write a character string to a byte writer.
+    /// @param[in] os - the byte writer
     /// @param[in] str - the character string to write.
-    /// @return The output stream
+    /// @return The byte writer
     dmq::ByteWriter& write(dmq::ByteWriter& os, char* str)
     {
         return write(os, static_cast<const char*>(str));
     }
 
-    /// Write a const character string to a stream.
-    /// @param[in] os - the output stream
+    /// Write a const character string to a byte writer.
+    /// @param[in] os - the byte writer
     /// @param[in] str - the character string to write.
-    /// @return The output stream
+    /// @return The byte writer
     dmq::ByteWriter& write(dmq::ByteWriter& os, const char* str)
     {
         if (check_pointer(os, str))
@@ -612,14 +612,14 @@ public:
         return os;
     }
 
-    /// Write a vector<bool> container to a stream. The vector<bool> items are
+    /// Write a vector<bool> container to a byte writer. The vector<bool> items are
     /// stored differently and therefore need special handling to serialize.
     /// Unlike other specializations of vector, std::vector<bool> does not manage a
     /// dynamic array of bool objects. Instead, it is supposed to pack the boolean
     /// values into a single bit each.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the vector container to write
-    /// @return The output stream
+    /// @return The byte writer
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::vector<bool>& container)
     {
         if (container.size() > MAX_CONTAINER_SIZE) {
@@ -640,10 +640,10 @@ public:
         return os;
     }
 
-    /// Read an object from a stream.
-    /// @param[in] is - the input stream
+    /// Read an object from a byte reader.
+    /// @param[in] is - the byte reader
     /// @param[in] t_ - the object to read into
-    /// @return The input stream
+    /// @return The byte reader
     template<typename T>
     dmq::ByteReader& read(dmq::ByteReader& is, T& t_, bool readPrependedType = true)
     {
@@ -748,10 +748,10 @@ public:
 #endif
     }
 
-    /// Write an object to a stream.
-    /// @param[in] os - the output stream
+    /// Write an object to a byte writer.
+    /// @param[in] os - the byte writer
     /// @param[in] t_ - the object to write
-    /// @return The output stream
+    /// @return The byte writer
     template<typename T>
     dmq::ByteWriter& write(dmq::ByteWriter& os, T& t_, bool prependType = true)
     {
@@ -839,11 +839,11 @@ public:
 #endif
     }
 
-    /// Write a vector container to a stream. The items in vector are stored
+    /// Write a vector container to a byte writer. The items in vector are stored
     /// by value.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the vector container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class T, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::vector<T, Alloc>& container)
     {
@@ -867,11 +867,11 @@ public:
         return os;
     }
 
-    /// Read into a vector container from a stream. Items in vector are stored
+    /// Read into a vector container from a byte reader. Items in vector are stored
     /// by value.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the vector container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class T, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::vector<T, Alloc>& container)
     {
@@ -901,11 +901,11 @@ public:
         return is;
     }
 
-    /// Write a vector container to a stream. The items in vector are stored
+    /// Write a vector container to a byte writer. The items in vector are stored
     /// by pointer.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the vector container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class T, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::vector<T*, Alloc>& container)
     {
@@ -943,11 +943,11 @@ public:
         return os;
     }
 
-    /// Read into a vector container from a stream. Items in vector stored
+    /// Read into a vector container from a byte reader. Items in vector stored
     /// by pointer. Operator new called to create object instances.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the vector container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class T, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::vector<T*, Alloc>& container)
     {
@@ -988,11 +988,11 @@ public:
         return is;
     }
 
-    /// Write a map container to a stream. The items in map are stored
+    /// Write a map container to a byte writer. The items in map are stored
     /// by value.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the map container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class K, class V, class P, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::map<K, V, P, Alloc>& container)
     {
@@ -1017,11 +1017,11 @@ public:
         return os;
     }
 
-    /// Read into a map container from a stream. Items in map are stored
+    /// Read into a map container from a byte reader. Items in map are stored
     /// by value.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the map container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class K, class V, class P, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::map<K, V, P, Alloc>& container)
     {
@@ -1051,11 +1051,11 @@ public:
         return is;
     }
 
-    /// Write a map container to a stream. The items in map are stored
+    /// Write a map container to a byte writer. The items in map are stored
     /// by pointer.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the map container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class K, class V, class P, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::map<K, V*, P, Alloc>& container)
     {
@@ -1094,11 +1094,11 @@ public:
         return os;
     }
 
-    /// Read into a map container from a stream. Items in map stored
+    /// Read into a map container from a byte reader. Items in map stored
     /// by pointer. Operator new called to create object instances.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the map container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class K, class V, class P, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::map<K, V*, P, Alloc>& container)
     {
@@ -1138,11 +1138,11 @@ public:
         return is;
     }
 
-    /// Write a set container to a stream. The items in set are stored
+    /// Write a set container to a byte writer. The items in set are stored
     /// by value.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the set container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class T, class P, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::set<T, P, Alloc>& container)
     {
@@ -1167,11 +1167,11 @@ public:
         return os;
     }
 
-    /// Read into a set container from a stream. Items in set are stored
+    /// Read into a set container from a byte reader. Items in set are stored
     /// by value.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the set container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class T, class P, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::set<T, P, Alloc>& container)
     {
@@ -1199,11 +1199,11 @@ public:
         return is;
     }
 
-    /// Write a set container to a stream. The items in set are stored
+    /// Write a set container to a byte writer. The items in set are stored
     /// by pointer.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the set container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class T, class P, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::set<T*, P, Alloc>& container)
     {
@@ -1239,11 +1239,11 @@ public:
         return os;
     }
 
-    /// Read into a set container from a stream. Items in set stored
+    /// Read into a set container from a byte reader. Items in set stored
     /// by pointer. Operator new called to create object instances.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the set container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class T, class P, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::set<T*, P, Alloc>& container)
     {
@@ -1281,11 +1281,11 @@ public:
         return is;
     }
 
-    /// Write a list container to a stream. The items in list are stored
+    /// Write a list container to a byte writer. The items in list are stored
     /// by value.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the list container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class T, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::list<T, Alloc>& container)
     {
@@ -1310,11 +1310,11 @@ public:
         return os;
     }
 
-    /// Read into a list container from a stream. Items in list are stored
+    /// Read into a list container from a byte reader. Items in list are stored
     /// by value.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the list container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class T, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::list<T, Alloc>& container)
     {
@@ -1342,11 +1342,11 @@ public:
         return is;
     }
 
-    /// Write a list container to a stream. The items in list are stored
+    /// Write a list container to a byte writer. The items in list are stored
     /// by pointer.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the list container to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class T, class Alloc>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::list<T*, Alloc>& container)
     {
@@ -1383,11 +1383,11 @@ public:
         return os;
     }
 
-    /// Read into a list container from a stream. Items in list stored
+    /// Read into a list container from a byte reader. Items in list stored
     /// by pointer. Operator new called to create object instances.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the list container to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class T, class Alloc>
     dmq::ByteReader& read(dmq::ByteReader& is, std::list<T*, Alloc>& container)
     {
@@ -1430,9 +1430,9 @@ public:
     /// std::vector<T> while the other uses std::array<T, N>. The element count on the
     /// wire is what catches a mismatch: the array read requires exactly N. A fixed-size
     /// array needs no allocation, which suits fixed-block / no-heap targets.
-    /// @param[in] os - the output stream
+    /// @param[in] os - the byte writer
     /// @param[in] container - the array to write
-    /// @return The output stream
+    /// @return The byte writer
     template <class T, size_t N>
     dmq::ByteWriter& write(dmq::ByteWriter& os, const std::array<T, N>& container)
     {
@@ -1453,9 +1453,9 @@ public:
     /// written from a std::vector or a std::array. The received element count must
     /// equal N; otherwise the read fails (INVALID_INPUT) and the array is unchanged.
     /// A list, set or map fails with TYPE_MISMATCH.
-    /// @param[in] is - the input stream
+    /// @param[in] is - the byte reader
     /// @param[in] container - the array to read into
-    /// @return The input stream
+    /// @return The byte reader
     template <class T, size_t N>
     dmq::ByteReader& read(dmq::ByteReader& is, std::array<T, N>& container)
     {
@@ -1648,14 +1648,14 @@ private:
         return read(is, t_, false);
     }
 
-    /// Read from stream into caller's character buffer.
+    /// Read from the byte reader into caller's character buffer.
     /// Wire format is little-endian. On a big-endian host the bytes are reversed
     /// after the read so that multi-byte values are correctly stored in memory.
-    /// @param[in] is - input stream
+    /// @param[in] is - byte reader
     /// @param[out] p - buffer to receive the bytes
     /// @param[in] size - number of bytes to read
     /// @param[in] no_swap - true suppresses byte-order reversal (used for char arrays)
-    /// @return The input stream.
+    /// @return The byte reader.
     dmq::ByteReader& read_internal(dmq::ByteReader& is, char* p, uint32_t size, bool no_swap = false)
     {
         if (check_stop_parse(is))
@@ -1672,14 +1672,14 @@ private:
         return is;
     }
 
-    /// Write bytes from caller's buffer to stream.
+    /// Write bytes from caller's buffer to the byte writer.
     /// Wire format is little-endian. On a big-endian host the bytes are reversed
     /// before writing so that multi-byte values appear in little-endian order on the wire.
-    /// @param[in] os - output stream
+    /// @param[in] os - byte writer
     /// @param[in] p - bytes to write
     /// @param[in] size - number of bytes to write
     /// @param[in] no_swap - true suppresses byte-order reversal (used for char arrays)
-    /// @return The output stream.
+    /// @return The byte writer.
     dmq::ByteWriter& write_internal(dmq::ByteWriter& os, const char* p, uint32_t size, bool no_swap = false)
     {
         if (!check_pointer(os, p))
@@ -1748,7 +1748,7 @@ private:
 
     bool read_type(dmq::ByteReader& is, Type type_)
     {
-        // Check for end-of-stream before attempting the cast
+        // Check for the end of the data before attempting the cast
         auto peeked = is.peek();
         if (peeked == dmq::ByteReader::END_OF_DATA)
         {

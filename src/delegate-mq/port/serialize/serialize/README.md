@@ -1,6 +1,6 @@
 # MessageSerialize
 
-A robust, header-only C++ binary serialization library designed for DelegateMQ. It provides a simple yet powerful framework for marshaling C++ objects, primitives, and STL containers into binary streams.
+A robust, header-only C++ binary serialization library designed for DelegateMQ. It provides a simple yet powerful framework for marshaling C++ objects, primitives, and STL containers into a byte buffer (`dmq::ByteWriter`) and back (`dmq::ByteReader`). The standalone [MessageSerialize](https://github.com/endurodave/MessageSerialize) library works on `std::` streams; this copy uses DelegateMQ's byte buffers, so it needs no iostreams.
 
 ## Features
 
@@ -11,16 +11,15 @@ A robust, header-only C++ binary serialization library designed for DelegateMQ. 
 - **Versioning**: Supports forward and backward compatibility for user-defined objects.
 - **Type Safety**: Uses compile-time checks to ensure only supported types are serialized.
 - **Pointer Support**: Supports serializing containers of pointers with automatic memory allocation during deserialization.
-- **Stream Verification**: Includes runtime and compile-time checks (via `is_seekable` trait) to ensure streams support the required seeking operations.
 
-## Stream Requirements
+## Buffers
 
-- **Seekable**: The library requires seekable streams (e.g., `std::stringstream`, `std::fstream`) to handle object versioning and size backfilling. Non-seekable streams (like sockets or `std::cout`) will trigger a runtime error.
-- **Binary Mode**: Always open files or streams in **binary mode** (`std::ios::binary`). Failure to do so may lead to data corruption due to automatic newline translations (especially on Windows).
+- **Writing**: `write()` appends to a `dmq::ByteWriter`. It backfills each user-defined object's size with `seekp()`, which a `ByteWriter` always supports. The writer grows up to `DMQ_MAX_MESSAGE_SIZE`; a write past it fails the writer (`fail()`, `overflowed()`).
+- **Reading**: `read()` reads from a `dmq::ByteReader`, a view of received bytes that doesn't copy them. Reading past the end fails the reader. Check `good()` after reading.
 
 ## Limits
 
-Set in `DelegateMQConfig.h` (defaults in `DelegateMQConfig_Default.h`). They apply on write and on read, so a received message can't make the receiver allocate more than this. Exceeding one fails the stream with the error shown.
+Set in `DelegateMQConfig.h` (defaults in `DelegateMQConfig_Default.h`). They apply on write and on read, so a received message can't make the receiver allocate more than this. Exceeding one fails the write or read (the writer or reader reports `fail()`) with the error shown.
 
 | Setting | Default | Limits | Error |
 |---|---|---|---|
@@ -34,18 +33,18 @@ Set in `DelegateMQConfig.h` (defaults in `DelegateMQConfig_Default.h`). They app
 
 ```cpp
 #include "msg_serialize.h"
-#include <sstream>
 
 serialize ms;
 int value = 123;
-std::stringstream ss;
+dmq::ByteWriter os;
 
-// Write to stream
-ms.write(ss, value);
+// Write into the byte buffer
+ms.write(os, value);
 
-// Read from stream
+// Read back from it
 int outValue;
-ms.read(ss, outValue);
+dmq::ByteReader is(os);
+ms.read(is, outValue);
 ```
 
 ### Custom Serializable Objects
@@ -79,13 +78,14 @@ The library handles standard containers and those using custom allocators (like 
 
 ```cpp
 xlist<int> myList = {1, 2, 3};
-std::stringstream ss;
+dmq::ByteWriter os;
 serialize ms;
 
-ms.write(ss, myList);
+ms.write(os, myList);
 
 xlist<int> outList;
-ms.read(ss, outList);
+dmq::ByteReader is(os);
+ms.read(is, outList);
 ```
 
 ### Choosing Containers on Embedded Targets
@@ -107,7 +107,7 @@ What a message type's fields allocate matters more on an MCU than how they're se
 
 ### Versioning & Compatibility
 
-When serializing objects derived from `serialize::I`, the library records the object size in the stream. 
+When serializing objects derived from `serialize::I`, the library records the object size in the buffer.
 - **Forward Compatibility**: If a receiver gets a newer (larger) version of an object, it reads what it knows and safely skips the remaining bytes.
 - **Backward Compatibility**: If a receiver gets an older (smaller) version, it reads the available data and leaves the remaining members at their default values.
 

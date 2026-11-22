@@ -162,7 +162,7 @@ private:
 namespace detail {
 
 /// @brief Fully non-template holder for a `DelegateXRemote<...>` instance's dispatch
-/// state — remote id, dispatcher, output stream, last error, last dispatched sequence
+/// state — remote id, dispatcher, output buffer, last error, last dispatched sequence
 /// number, and error-handler delegate. None of this depends on the bound function's
 /// signature or target class (the error handler's own signature is fixed, independent
 /// of the owning delegate's), so every `DelegateFreeRemote`/`DelegateMemberRemote`/
@@ -278,7 +278,7 @@ public:
             m_errorHandler(m_id, dmq::DelegateError::SUCCESS, 0);
     }
 
-    /// @brief Check the stream, dispatch it to the remote, and report success/error
+    /// @brief Check the byte buffer, dispatch it to the remote, and report success/error
     /// through the error handler.
     /// @details Everything past the argument serialization step is identical
     /// regardless of the delegate's signature or target class, so it lives here once
@@ -515,8 +515,8 @@ public:
     /// the destination remote receiver. `Invoke()` must be called by the destination 
     /// remote receiver to invoke the target function. Always safe to call.
     /// 
-    /// All argument data is serialized into a binary byte stream. The stream of bytes is 
-    /// sent to the receiver. The receivder deserializes the arguments and invokes the remote
+    /// All argument data is serialized into a byte buffer (dmq::ByteWriter). The bytes are
+    /// sent to the receiver. The receiver deserializes the arguments and invokes the remote
     /// target function. 
     /// 
     /// All user-defined argument data must inherit from ISerializer and implement the 
@@ -690,9 +690,9 @@ public:
         m_serializer = serializer;
     }
 
-    /// @brief Set the serialization stream used to store serialized function
-    /// argument data.
-    /// @param[in] stream An output stream.
+    /// @brief Set the byte buffer that serialized function argument data is
+    /// written into.
+    /// @param[in] stream The buffer (a dmq::ByteWriter); it must outlive the delegate.
     void SetStream(dmq::ByteWriter* stream) {
         m_state.SetStream(stream);
     }
@@ -737,7 +737,7 @@ public:
     uint16_t GetLastSeqNum() const noexcept { return m_state.GetLastSeqNum(); }
 
 private:
-    /// Destination remote id, dispatcher, output stream, last error, last sequence
+    /// Destination remote id, dispatcher, output buffer, last error, last sequence
     /// number, and error handler. Not templated on Sig/TClass — see
     /// `detail::RemoteDispatchState`.
     detail::RemoteDispatchState m_state;
@@ -973,8 +973,8 @@ public:
     /// the destination remote receiver. `Invoke()` must be called by the destination 
     /// remote receiver to invoke the target function. Always safe to call.
     /// 
-    /// All argument data is serialized into a binary byte stream. The stream of bytes is 
-    /// sent to the receiver. The receivder deserializes the arguments and invokes the remote
+    /// All argument data is serialized into a byte buffer (dmq::ByteWriter). The bytes are
+    /// sent to the receiver. The receiver deserializes the arguments and invokes the remote
     /// target function. 
     /// 
     /// All user-defined argument data must inherit from ISerializer and implement the 
@@ -1148,9 +1148,9 @@ public:
         m_serializer = serializer;
     }
 
-    /// @brief Set the serialization stream used to store serialized function
-    /// argument data.
-    /// @param[in] stream An output stream.
+    /// @brief Set the byte buffer that serialized function argument data is
+    /// written into.
+    /// @param[in] stream The buffer (a dmq::ByteWriter); it must outlive the delegate.
     void SetStream(dmq::ByteWriter* stream) {
         m_state.SetStream(stream);
     }
@@ -1195,7 +1195,7 @@ public:
     uint16_t GetLastSeqNum() const noexcept { return m_state.GetLastSeqNum(); }
 
 private:
-    /// Destination remote id, dispatcher, output stream, last error, last sequence
+    /// Destination remote id, dispatcher, output buffer, last error, last sequence
     /// number, and error handler. Not templated on Sig/TClass — see
     /// `detail::RemoteDispatchState`.
     detail::RemoteDispatchState m_state;
@@ -1371,8 +1371,8 @@ public:
     /// the destination remote receiver. `Invoke()` must be called by the destination 
     /// remote receiver to invoke the target function. Always safe to call.
     /// 
-    /// All argument data is serialized into a binary byte stream. The stream of bytes is 
-    /// sent to the receiver. The receivder deserializes the arguments and invokes the remote
+    /// All argument data is serialized into a byte buffer (dmq::ByteWriter). The bytes are
+    /// sent to the receiver. The receiver deserializes the arguments and invokes the remote
     /// target function. 
     /// 
     /// All user-defined argument data must inherit from ISerializer and implement the 
@@ -1546,9 +1546,9 @@ public:
         m_serializer = serializer;
     }
 
-    /// @brief Set the serialization stream used to store serialized function
-    /// argument data.
-    /// @param[in] stream An output stream.
+    /// @brief Set the byte buffer that serialized function argument data is
+    /// written into.
+    /// @param[in] stream The buffer (a dmq::ByteWriter); it must outlive the delegate.
     void SetStream(dmq::ByteWriter* stream) {
         m_state.SetStream(stream);
     }
@@ -1593,7 +1593,7 @@ public:
     uint16_t GetLastSeqNum() const noexcept { return m_state.GetLastSeqNum(); }
 
 private:
-    /// Destination remote id, dispatcher, output stream, last error, last sequence
+    /// Destination remote id, dispatcher, output buffer, last error, last sequence
     /// number, and error handler. Not templated on Sig/TClass — see
     /// `detail::RemoteDispatchState`.
     detail::RemoteDispatchState m_state;
