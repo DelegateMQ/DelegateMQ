@@ -36,7 +36,7 @@ jobs:
       uses: actions/checkout@v7
 
     - name: Cache PlatformIO
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ~/.cache/pip
@@ -44,7 +44,7 @@ jobs:
         key: pio-${{ matrix.env }}-${{ hashFiles('example/platformio/async-delegates/platformio.ini') }}
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.12'
 
