@@ -17,6 +17,8 @@
  *     the application runs there, so Wi-Fi bursts never delay a control tick.
  *   - Core 0: "Controller_NetworkThread" (NetworkNode: receives, and sends to
  *     the GUI), next to ESP-IDF's Wi-Fi and TCP/IP tasks, which it talks to.
+ *   - Core 0: "SpyReporter" (CONFIG_APP_SPY), low priority: sends every DataBus
+ *     message to dmq-spy on the PC, as sender "Controller".
  *   - Core 0: this task, app_main ("main"): Timer::ProcessTimers() every 10 ms
  *     (drives the pump's control and heartbeat timers and the link's receive
  *     poll), the thread watchdog, and the ESP-IDF task watchdog (TWDT).
@@ -25,8 +27,10 @@
 
 #include "DelegateMQ.h"
 #include "extras/databus/NetworkNode.h"
+#include "extras/databus/SpyReporter.h"
 #include "pump/PumpController.h"
 #include "pump/LinkErrorReporter.h"
+#include "util/Stringifiers.h"
 #include "util/Topology.h"
 #include "Esp32Board.h"
 #include "Wifi.h"
@@ -73,6 +77,42 @@ void PrintTasks()
     printf("\n");
 }
 
+#if CONFIG_APP_SPY
+/// Below the application's threads: spy traffic waits, the pump never does
+constexpr int PRIORITY_SPY = 2;
+
+void OnSpyDropped(uint32_t total)
+{
+    // Rate-limited: the first drop, then every 100th
+    if (total == 1 || total % 100 == 0)
+        printf("SpyReporter: %lu messages dropped (queue full or send failed)\n",
+               static_cast<unsigned long>(total));
+}
+
+/// Every message on this node's DataBus -> dmq-spy on the PC, as sender
+/// "Controller", with this board's timestamps. Started before the link, so
+/// the first messages are already labeled and sent.
+void StartSpy()
+{
+    static dmq::transport::UdpTransport transport;
+    static dmq::databus::SpyReporter spy;
+    static dmq::ScopedConnection droppedConn;
+
+    RegisterStringifiers();     // values as text in dmq-spy
+    if (transport.Create(dmq::transport::UdpTransport::Type::PUB, CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT) != 0) {
+        printf("SpyReporter: could not open UDP to %s:%d, dmq-spy off\n", CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT);
+        return;
+    }
+    droppedConn = spy.OnDropped.Connect(dmq::MakeDelegate(&OnSpyDropped));
+    spy.GetThread().SetCoreAffinity(NET_CORE_MASK);
+    spy.GetThread().SetThreadPriority(PRIORITY_SPY);
+    // Watched like the pump and the link: a spy thread stuck in Send() is a
+    // hung thread (WatchdogCheckAll() in the platform loop)
+    if (spy.Start(transport, "Controller", WATCHDOG_TIMEOUT))
+        printf("SpyReporter: DataBus traffic to dmq-spy at %s:%d\n", CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT);
+}
+#endif
+
 } // namespace
 
 extern "C" void app_main()
@@ -82,6 +122,10 @@ extern "C" void app_main()
         printf("Wi-Fi: not connected. Check the SSID and password in menuconfig.\n");
         return;
     }
+
+#if CONFIG_APP_SPY
+    StartSpy();
+#endif
 
     // Built here, after Wi-Fi: dmq::os::Thread and the UDP sockets need the
     // scheduler and lwIP running (app_main is already a FreeRTOS task).

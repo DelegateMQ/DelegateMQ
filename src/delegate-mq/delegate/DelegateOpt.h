@@ -363,6 +363,11 @@ namespace dmq
     /// via NetworkNode's MaxTopics template parameter.
     inline constexpr size_t NETWORK_NODE_MAX_TOPICS = DMQ_NETWORK_NODE_MAX_TOPICS;
 
+    /// @brief Default SpyReporter send queue size (messages waiting to go to dmq-spy).
+    /// Override via DMQ_SPY_REPORTER_QUEUE_SIZE in delegatemqconfig.h, or per
+    /// instance via SpyReporter's constructor.
+    inline constexpr size_t SPY_REPORTER_QUEUE_SIZE = DMQ_SPY_REPORTER_QUEUE_SIZE;
+
     /// @brief Max messages drained per NetworkNode::ReceiverThread() tick.
     /// Override via DMQ_NETWORK_NODE_MAX_WORK in delegatemqconfig.h.
     inline constexpr int NETWORK_NODE_MAX_WORK = DMQ_NETWORK_NODE_MAX_WORK;

@@ -1,7 +1,7 @@
 #include "UI.h"
 #include "util/Constants.h"
 #include "system/System.h"
-#include <sstream>
+#include "util/Stringifiers.h"
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
@@ -22,55 +22,6 @@ namespace pumptron {
 namespace gui {
 
 namespace {
-
-// ---------------------------------------------------------------------------
-// Stringifiers: give the Bus Monitor pane readable values for each topic.
-// ---------------------------------------------------------------------------
-xstring StringifyCommand(const PumpCommandMsg& m) {
-    static const char* names[] = { "START", "STOP", "ESTOP", "RESET", "SET_SPEED", "QUERY" };
-    const auto i = static_cast<size_t>(m.command);
-    std::ostringstream oss;
-    oss << (i < 6 ? names[i] : "?");
-    if (m.command == PumpCommand::SET_SPEED) oss << " " << m.setpointRpm << " RPM";
-    return oss.str().c_str();
-}
-
-xstring StringifyStatus(const PumpStatusMsg& m) {
-    std::ostringstream oss;
-    oss << ToString(m.state) << " sp=" << m.setpointRpm;
-    if (m.faultCode != AlarmCode::NONE) oss << " fault=" << ToString(m.faultCode);
-    return oss.str().c_str();
-}
-
-// "name=value unit" so tools that extract numbers from the text (dmq-spy
-// --plotjuggler) get one named series per field.
-xstring StringifyTelemetry(const TelemetryMsg& m) {
-    char buf[128];
-    snprintf(buf, sizeof(buf), "rpm=%.0f  flow=%.1f L/min  pressure=%.2f bar  temp=%.1f C  vib=%.2f g",
-             m.rpm, m.flowLpm, m.pressureBar, m.motorTempC, m.vibrationG);
-    return buf;
-}
-
-xstring StringifyAlarm(const AlarmMsg& m) {
-    std::ostringstream oss;
-    oss << ToString(m.severity) << " " << ToString(m.code) << (m.active ? " RAISED" : " cleared");
-    return oss.str().c_str();
-}
-
-xstring StringifyHeartbeat(const HeartbeatMsg& m) {
-    std::ostringstream oss;
-    oss << "#" << m.counter;
-    return oss.str().c_str();
-}
-
-void RegisterStringifiersImpl() {
-    DataBus::RegisterStringifier<PumpCommandMsg>(topics::CMD, MakeDelegate(&StringifyCommand));
-    DataBus::RegisterStringifier<PumpStatusMsg>(topics::STATUS, MakeDelegate(&StringifyStatus));
-    DataBus::RegisterStringifier<TelemetryMsg>(topics::TELEMETRY, MakeDelegate(&StringifyTelemetry));
-    DataBus::RegisterStringifier<AlarmMsg>(topics::ALARM, MakeDelegate(&StringifyAlarm));
-    DataBus::RegisterStringifier<HeartbeatMsg>(topics::HB_CONTROLLER, MakeDelegate(&StringifyHeartbeat));
-    DataBus::RegisterStringifier<HeartbeatMsg>(topics::HB_GUI, MakeDelegate(&StringifyHeartbeat));
-}
 
 std::string Timestamp() {
     const std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -305,7 +256,7 @@ void UI::Refresh()
 
 void RegisterStringifiers()
 {
-    RegisterStringifiersImpl();
+    pumptron::RegisterStringifiers();   // common/util/Stringifiers.cpp, shared with the controller
 }
 
 void UI::Run(const std::string& linkDescription)

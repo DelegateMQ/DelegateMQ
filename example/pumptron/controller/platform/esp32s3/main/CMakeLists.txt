@@ -14,6 +14,7 @@ idf_component_register(
         "${CONTROLLER_DIR}/pump/PumpController.cpp"
         "${CONTROLLER_DIR}/pump/PumpModel.cpp"
         "${PUMPTRON_DIR}/common/util/Serializers.cpp"
+        "${PUMPTRON_DIR}/common/util/Stringifiers.cpp"
         "${DMQ_ROOT}/src/DelegateMQ.cpp"
     INCLUDE_DIRS
         "."

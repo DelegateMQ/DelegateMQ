@@ -6,6 +6,11 @@
 
 namespace dmq::databus {
 
+/// @brief Remote ID of a SpyPacket sent through a DelegateMQ transport
+/// (SpyReporter): the message header's id, which dmq-spy checks. One below
+/// INVALID_REMOTE_ID; don't use it for an application message.
+inline constexpr uint16_t SPY_REMOTE_ID = 0xFFFE;   // a dmq::DelegateRemoteId
+
 /// @brief Standardized packet containing bus traffic metadata.
 /// @details This struct is passed to DataBus::Monitor subscribers and is 
 /// designed to be serialized for transmission to external diagnostic tools.

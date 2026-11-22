@@ -1,15 +1,24 @@
 // SpyBridge.h
 // @see https://github.com/DelegateMQ/DelegateMQ
-// Asynchronous DataBus monitoring bridge interface.
+// Desktop front end of dmq::databus::SpyReporter: this process's DataBus traffic
+// to dmq-spy over UDP, unicast or multicast.
 
 #ifndef SPY_BRIDGE_H
 #define SPY_BRIDGE_H
 
 #include "DelegateMQ.h"
+#include "extras/databus/SpyReporter.h"
 #include "../../net/UdpSocket.h"
 #include <string>
 #include <memory>
+#include <vector>
 
+/// @brief Static wrapper around the library's dmq::databus::SpyReporter for
+/// desktop processes. The library bridge does the work (DataBus::Monitor(),
+/// its own DROP-policy thread, a SpyPacket framed with SPY_REMOTE_ID per
+/// message); this adds a UDP socket that can also send multicast, which the
+/// library's desktop UDP transports don't configure. An embedded target uses
+/// dmq::databus::SpyReporter directly with its port's UDP transport.
 class SpyBridge {
 public:
     /// @brief Start the spy bridge using Unicast UDP.
@@ -28,24 +37,32 @@ public:
     /// @brief Stop the spy bridge and cleanup resources.
     static void Stop();
 
+    /// @brief Messages dropped so far (queue full or send failed); 0 if not started.
+    static uint32_t GetDropped();
+
 private:
     SpyBridge() = default;
     ~SpyBridge() = default;
 
     enum class TransportType { UNICAST, MULTICAST };
 
+    /// ITransport over the bridge's UDP socket: header, then payload, one datagram
+    class SocketTransport : public dmq::transport::ITransport {
+    public:
+        UdpSocket socket;
+        std::vector<uint8_t> buffer;    // header + payload; the bridge's thread only
+        int Send(const dmq::ByteWriter& os, const dmq::transport::DmqHeader& header) override;
+        int Receive(dmq::ByteReader& is, dmq::transport::DmqHeader&) override {
+            is.assign(nullptr, 0);
+            return -1;      // send only
+        }
+    };
+
     static void Init(const std::string& address, uint16_t port, TransportType type, const std::string& nodeId, const std::string& localInterface = "");
-    static void OnMonitorPacket(const dmq::databus::SpyPacket& packet);
 
     struct Instance {
-        std::unique_ptr<dmq::os::Thread> thread;
-        dmq::ScopedConnection monitorConn;
-        UdpSocket telemetrySocket;
-        dmq::xstring address;
-        dmq::xstring localInterface;
-        dmq::xstring nodeId;
-        uint16_t port = 0;
-        TransportType type = TransportType::UNICAST;
+        std::unique_ptr<dmq::databus::SpyReporter> bridge;
+        SocketTransport transport;
     };
 
     static Instance& GetInstance() {

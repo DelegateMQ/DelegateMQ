@@ -22,6 +22,19 @@ menu "Pumptron"
             Run "pumptron_gui --udp <the board's address>" there; the board
             prints its address at startup.
 
+    config APP_SPY
+        bool "Send DataBus traffic to dmq-spy"
+        default y
+        help
+            Every message on the controller's DataBus goes to dmq-spy on the
+            PC (APP_GUI_ADDRESS, port APP_SPY_PORT), as sender "Controller",
+            with the board's own timestamps (DelegateMQ's SpyReporter).
+
+    config APP_SPY_PORT
+        int "dmq-spy UDP port"
+        default 9999
+        depends on APP_SPY
+
     config APP_LED_GPIO
         int "RGB LED (WS2812) GPIO"
         default 38

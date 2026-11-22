@@ -112,7 +112,10 @@ You may occasionally see negative values in the Delta columns (e.g., `-0.015` ms
 ### How it Works
 
 1.  **The Spy Console** (`apps/spy.cpp`): The standalone `dmq-spy` application that displays the data in an aligned table layout.
-2.  **The Spy Bridge** (`bridge/spy/SpyBridge.cpp/.h`): A small component you add to your own application to export its internal bus traffic over UDP.
+2.  **The Spy Reporter** (`src/delegate-mq/extras/databus/SpyReporter.h`, library code): subscribes to `DataBus::Monitor()`, queues each message to its own thread and sends it through any DelegateMQ transport, as one message with remote ID `SPY_REMOTE_ID` (a message header, then a serialized `SpyPacket`). It runs on embedded targets as well as desktops.
+3.  **The Spy Bridge** (`bridge/spy/SpyBridge.cpp/.h`): the desktop front end, `SpyBridge::Start()`/`StartMulticast()`. It runs a `SpyReporter` over its own UDP socket, which can also send multicast.
+
+`dmq-spy` accepts only these framed messages. Apps built with DelegateMQ before the spy reporter (which sent bare `SpyPacket`s) don't show up in a newer `dmq-spy`, and the reverse; rebuild both.
 
 ### Integrating SpyBridge into Your App
 
@@ -144,6 +147,26 @@ int main() {
     SpyBridge::StartMulticast("239.1.1.1", 9999, "Node-Beta");
 }
 ```
+
+#### On an Embedded Target
+
+A board with a network uses the library's `SpyReporter` directly, with its port's UDP transport (no `tools/` code, no iostreams). It reports as its own node, with its own clock:
+
+```cpp
+#include "extras/databus/SpyReporter.h"
+
+static dmq::transport::UdpTransport spyTransport;     // the port's UDP transport
+static dmq::databus::SpyReporter spy;
+
+spyTransport.Create(dmq::transport::UdpTransport::Type::PUB, "192.168.0.123", 9999);  // the PC
+spy.GetThread().SetThreadPriority(2);                  // optional, before Start(): priority, stack, core
+spy.Start(spyTransport, "Controller", std::chrono::seconds(10));   // node ID; optional watchdog
+```
+
+- **Its own thread.** Publishing only stringifies the value and queues a copy; the reporter's thread serializes and sends. Set its priority, stack and core (`SetCoreAffinity()`) through `GetThread()` before `Start()`.
+- **Never stalls the application.** The queue drops when full (`FullPolicy::DROP`), and a failed send is dropped too. Every drop is counted (`GetDropped()`) and reported (`OnDropped`, with the total). Size the queue with `DMQ_SPY_REPORTER_QUEUE_SIZE` (default 64) or the constructor.
+- **Watchdog optional.** `Start()`'s third argument watches the reporter's thread like any other (`Thread::WatchdogCheckAll()`); off by default.
+- **Cost on an ESP32-S3:** about 15 KB of flash and 4 KB of static RAM with Pumptron's stringifiers. See [Pumptron's ESP32-S3 controller](../example/pumptron/PUMPTRON.md#esp32-s3-firmware).
 
 ### Distributed DataBus "Echo" Effect
 

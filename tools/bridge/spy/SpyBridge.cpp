@@ -1,11 +1,30 @@
 // SpyBridge.cpp
 // @see https://github.com/DelegateMQ/DelegateMQ
-// Asynchronous DataBus monitoring bridge implementation.
+// Desktop front end of dmq::databus::SpyReporter.
 
 #include "SpyBridge.h"
-#include "port/serialize/serialize/msg_serialize.h"
 #include "extras/util/ThreadMonitor.h"
+#include <cstring>
 #include <iostream>
+
+namespace {
+    /// Desktop bursts (a startup replay, a busy GUI) need more room than the
+    /// library default, which is sized for a board.
+    constexpr size_t DESKTOP_QUEUE_SIZE = 200;
+}
+
+int SpyBridge::SocketTransport::Send(const dmq::ByteWriter& os, const dmq::transport::DmqHeader& header) {
+    using dmq::transport::DmqHeader;
+    if (os.fail() || os.size() > dmq::MAX_MESSAGE_SIZE)
+        return -1;
+    const size_t total = DmqHeader::HEADER_SIZE + os.size();
+    buffer.resize(total);
+    DmqHeader wire = header;
+    wire.SetLength(static_cast<uint16_t>(os.size()));
+    wire.Encode(buffer.data());
+    memcpy(buffer.data() + DmqHeader::HEADER_SIZE, os.data(), os.size());
+    return socket.Send(buffer.data(), total) == static_cast<int>(total) ? 0 : -1;
+}
 
 void SpyBridge::Start(const std::string& address, uint16_t port, const std::string& nodeId) {
     Init(address, port, TransportType::UNICAST, nodeId);
@@ -19,68 +38,43 @@ void SpyBridge::StartMulticast(const std::string& groupAddr, uint16_t port, cons
 
 void SpyBridge::Init(const std::string& address, uint16_t port, TransportType type, const std::string& nodeId, const std::string& localInterface) {
     auto& instance = GetInstance();
-    if (instance.thread) return;
-
-    instance.address = address.c_str();
-    instance.port = port;
-    instance.localInterface = localInterface.c_str();
-    instance.type = type;
-    instance.nodeId = nodeId.c_str();
-
-    // Create a dedicated bridge thread with DROP policy to prevent stalling publishers
-    instance.thread = std::make_unique<dmq::os::Thread>("SpyBridge", 200, dmq::os::FullPolicy::DROP);
-    dmq::util::ThreadMonitor::Register(instance.thread.get());
-    instance.thread->CreateThread();
+    if (instance.bridge) return;
 
     // Initialize the socket
-    instance.telemetrySocket.Create();
+    UdpSocket& socket = instance.transport.socket;
+    socket.Create();
     if (type == TransportType::MULTICAST) {
-#ifdef _WIN32
-        in_addr localAddr;
+        in_addr localAddr{};
         inet_pton(AF_INET, localInterface.c_str(), &localAddr);
-        setsockopt(instance.telemetrySocket.GetSocket(), IPPROTO_IP, IP_MULTICAST_IF, (const char*)&localAddr, sizeof(localAddr));
-        int loop = 0; 
-        setsockopt(instance.telemetrySocket.GetSocket(), IPPROTO_IP, IP_MULTICAST_LOOP, (const char*)&loop, sizeof(loop));
+        setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_IF, (const char*)&localAddr, sizeof(localAddr));
+        int loop = 0;
+        setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_LOOP, (const char*)&loop, sizeof(loop));
         int ttl = 3;
-        setsockopt(instance.telemetrySocket.GetSocket(), IPPROTO_IP, IP_MULTICAST_TTL, (const char*)&ttl, sizeof(ttl));
-#else
-        int loop = 0; 
-        setsockopt(instance.telemetrySocket.GetSocket(), IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
-        int ttl = 3;
-        setsockopt(instance.telemetrySocket.GetSocket(), IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
-#endif
+        setsockopt(socket.GetSocket(), IPPROTO_IP, IP_MULTICAST_TTL, (const char*)&ttl, sizeof(ttl));
     }
-    instance.telemetrySocket.Connect(address, port);
+    socket.Connect(address, port);
 
-    // Subscribe to DataBus::Monitor asynchronously.
-    instance.monitorConn = dmq::databus::DataBus::Monitor(dmq::MakeDelegate(&OnMonitorPacket), instance.thread.get());
-}
-
-void SpyBridge::OnMonitorPacket(const dmq::databus::SpyPacket& packet) {
-    auto& inst = GetInstance();
-
-    // Add nodeId to packet before sending
-    dmq::databus::SpyPacket outgoing = packet;
-    outgoing.nodeId = inst.nodeId;
-
-    serialize ms;
-    dmq::ByteWriter oss;
-    ms.write(oss, outgoing);
-
-    if (oss.good()) {
-        inst.telemetrySocket.Send(oss.data(), oss.size());
-    }
+    // The library bridge: DataBus::Monitor() on its own DROP-policy thread,
+    // one framed SpyPacket per message through the socket above
+    instance.bridge = std::make_unique<dmq::databus::SpyReporter>(DESKTOP_QUEUE_SIZE);
+    dmq::util::ThreadMonitor::Register(&instance.bridge->GetThread());
+    if (!instance.bridge->Start(instance.transport, nodeId.c_str()))
+        std::cerr << "[SpyBridge] ERROR - failed to start the bridge thread" << std::endl;
 }
 
 void SpyBridge::Stop() {
     auto& instance = GetInstance();
-    if (!instance.thread) return;
+    if (!instance.bridge) return;
 
-    instance.monitorConn.Disconnect();
-    // Start() registered the thread with ThreadMonitor: remove it before it's
+    instance.bridge->Stop();
+    // Init() registered the thread with ThreadMonitor: remove it before it's
     // destroyed, or the monitor's next poll reads a freed thread.
-    dmq::util::ThreadMonitor::Deregister(instance.thread.get());
-    instance.thread->ExitThread();
-    instance.thread.reset();
-    instance.telemetrySocket.Close();
+    dmq::util::ThreadMonitor::Deregister(&instance.bridge->GetThread());
+    instance.bridge.reset();
+    instance.transport.socket.Close();
+}
+
+uint32_t SpyBridge::GetDropped() {
+    auto& instance = GetInstance();
+    return instance.bridge ? instance.bridge->GetDropped() : 0;
 }

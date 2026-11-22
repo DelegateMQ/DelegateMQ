@@ -28,6 +28,7 @@
 #include "UdpSocket.h"
 #include "extras/databus/SpyPacket.h"
 #include "port/serialize/serialize/msg_serialize.h"
+#include "port/transport/common/DmqHeader.h"
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -237,6 +238,25 @@ void LogPacket(const std::string& senderIp, const dmq::databus::SpyPacket& packe
     }
 }
 
+/// Decode one datagram into a SpyPacket. Every sender is a
+/// dmq::databus::SpyReporter (the desktop tools' SpyBridge wraps it), which
+/// sends each message through a DelegateMQ transport: the message header
+/// (marker 0xAA55, remote ID SPY_REMOTE_ID, payload length), then the
+/// serialized SpyPacket. Anything else on the port is ignored.
+static bool DecodeSpyDatagram(const uint8_t* data, size_t size, serialize& ms, dmq::databus::SpyPacket& packet) {
+    using dmq::transport::DmqHeader;
+    if (size < DmqHeader::HEADER_SIZE)
+        return false;
+    DmqHeader header;
+    header.Decode(data);
+    if (!header.IsValid() || header.GetId() != dmq::databus::SPY_REMOTE_ID ||
+        header.GetLength() > size - DmqHeader::HEADER_SIZE)
+        return false;
+    dmq::ByteReader iss(reinterpret_cast<const char*>(data + DmqHeader::HEADER_SIZE), header.GetLength());
+    ms.read(iss, packet);
+    return iss.good();
+}
+
 void ReceiverThread(UdpSocket& socket) {
     socket.SetReceiveTimeout(100);
     std::vector<uint8_t> buffer(16384);
@@ -248,9 +268,7 @@ void ReceiverThread(UdpSocket& socket) {
             std::string senderIp = socket.GetRemoteAddress();
             g_packetCount++;
             dmq::databus::SpyPacket packet;
-            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data()), static_cast<size_t>(received));
-            ms_decoder.read(iss, packet);
-            if (iss.good()) {
+            if (DecodeSpyDatagram(buffer.data(), static_cast<size_t>(received), ms_decoder, packet)) {
                 LogPacket(senderIp, packet);
                 ForwardToPlotJuggler(senderIp, packet);
                 
@@ -383,9 +401,7 @@ int RunCli(UdpSocket& socket, CliMode mode, const std::string& topicFilter, bool
         if (received > 0) {
             std::string senderIp = socket.GetRemoteAddress();
             dmq::databus::SpyPacket packet;
-            dmq::ByteReader iss(reinterpret_cast<const char*>(buffer.data()), static_cast<size_t>(received));
-            ms_decoder.read(iss, packet);
-            if (iss.good()) {
+            if (DecodeSpyDatagram(buffer.data(), static_cast<size_t>(received), ms_decoder, packet)) {
                 LogPacket(senderIp, packet);
                 ForwardToPlotJuggler(senderIp, packet);
                 std::string topic = (std::string)packet.topic;

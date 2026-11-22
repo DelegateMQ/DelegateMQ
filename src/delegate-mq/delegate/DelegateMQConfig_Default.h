@@ -219,6 +219,13 @@
     #define DMQ_NETWORK_NODE_MAX_TOPICS     16
 #endif
 
+// Default SpyReporter send queue: DataBus messages waiting to go to dmq-spy.
+// When it's full, new ones are dropped (counted, reported by
+// SpyReporter::OnDropped). Override per instance via SpyReporter's constructor.
+#ifndef DMQ_SPY_REPORTER_QUEUE_SIZE
+    #define DMQ_SPY_REPORTER_QUEUE_SIZE       64
+#endif
+
 // Max messages drained per NetworkNode::ReceiverThread() tick (applies to both
 // the incoming-message drain and the per-peer ACK drain).
 #ifndef DMQ_NETWORK_NODE_MAX_WORK
