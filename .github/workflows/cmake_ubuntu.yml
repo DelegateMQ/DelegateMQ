@@ -43,7 +43,7 @@ jobs:
         lcov --remove coverage.info '/usr/*' '*/DmqSerializer.h' '*/msg_serialize.h' --output-file coverage_filtered.info --ignore-errors inconsistent
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5  # Upload coverage report to Codecov
+      uses: codecov/codecov-action@v7  # Upload coverage report to Codecov
       with:
         token: ${{ secrets.CODECOV_TOKEN }}  # GitHub repository secret for authentication with Codecov
         files: build/coverage_filtered.info  # Path to the filtered coverage file
