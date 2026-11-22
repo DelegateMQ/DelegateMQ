@@ -5,6 +5,7 @@
  * Usage:
  *   pumptron_gui --serial <port> [--baud <rate>]   Real STM32F4 Discovery over RS-232
  *   pumptron_gui --udp                             FreeRTOS simulator on localhost
+ *   pumptron_gui --udp <address>                   ESP32-S3 controller over Wi-Fi
  *   Add --selftest to run a headless end-to-end check instead of the UI.
  *   Add --spy to mirror all DataBus traffic, including messages received over
  *   the link, to dmq-spy (see PUMPTRON.md, "Monitoring with dmq-spy").
@@ -55,6 +56,7 @@ static void PrintUsage(const char* exe)
     printf("Usage:\n");
     printf("  %s --serial <port> [--baud <rate>]   STM32F4 Discovery over RS-232 (default %d baud)\n", exe, SERIAL_BAUD);
     printf("  %s --udp                             FreeRTOS simulator (pumptron_controller) on localhost\n", exe);
+    printf("  %s --udp <address>                   ESP32-S3 controller over Wi-Fi\n", exe);
     printf("  Add --selftest to run a headless end-to-end check of the controller instead of the UI.\n");
     printf("  Add --spy [--spy-address <host:port>] to mirror DataBus traffic to dmq-spy (default 127.0.0.1:%d).\n",
            SPY_DEFAULT_PORT);
@@ -119,6 +121,9 @@ static bool ParseArgs(int argc, char* argv[], System::Options& options, bool& se
             mqtt.allowControl = true;
         } else if (!strcmp(argv[i], "--udp")) {
             options.link = System::LinkType::UDP;
+            // Optional controller address (the ESP32-S3); default localhost (the simulator)
+            if (i + 1 < argc && strncmp(argv[i + 1], "--", 2) != 0)
+                options.udpHost = argv[++i];
             haveLink = true;
         } else {
             return false;

@@ -4,7 +4,8 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT p
 
 # Pumptron controller -- FreeRTOS simulator target (Windows/Linux host).
 # The STM32F4 Discovery hardware target is a separate cross-compiled CMake
-# project in platform/f4/ (see PUMPTRON.md).
+# project in platform/f4/, the ESP32-S3 one an ESP-IDF project in
+# platform/esp32s3/ (see PUMPTRON.md).
 
 if (NOT PUMPTRON_COMMON_DIR)
     set(PUMPTRON_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../common)
@@ -46,10 +47,19 @@ file(GLOB F4_SOURCES CONFIGURE_DEPENDS
 )
 set_source_files_properties(${F4_SOURCES} PROPERTIES HEADER_FILE_ONLY TRUE)
 
+# ESP32-S3 firmware sources -- likewise for browsing only; platform/esp32s3 is
+# an ESP-IDF project (PlatformIO or idf.py, see PUMPTRON.md).
+file(GLOB ESP32S3_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/platform/esp32s3/main/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/platform/esp32s3/main/*.h"
+)
+set_source_files_properties(${ESP32S3_SOURCES} PROPERTIES HEADER_FILE_ONLY TRUE)
+
 add_executable(pumptron_controller
     ${APP_SOURCES}
     ${PLATFORM_SOURCES}
     ${F4_SOURCES}
+    ${ESP32S3_SOURCES}
     ${COMMON_SOURCES}
     ${DMQ_LIB_SOURCES}
     ${DMQ_PORT_SOURCES}
@@ -83,6 +93,7 @@ set_target_properties(pumptron_controller PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$
 source_group("App Files" FILES ${APP_SOURCES})
 source_group("Platform Files/sim" FILES ${PLATFORM_SOURCES})
 source_group("Platform Files/f4" FILES ${F4_SOURCES})
+source_group("Platform Files/esp32s3" FILES ${ESP32S3_SOURCES})
 source_group("Common Files" FILES ${COMMON_SOURCES})
 source_group("DelegateMQ/Delegate Files" FILES ${DMQ_LIB_SOURCES})
 source_group("DelegateMQ/Port Files" FILES ${DMQ_PORT_ONLY_SOURCES})

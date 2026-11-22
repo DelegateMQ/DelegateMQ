@@ -2,7 +2,7 @@
 
 **Pumptron** is a two-CPU DelegateMQ demo: an **STM32F4 Discovery** board runs a simulated industrial pump controller on FreeRTOS, and a **Windows/Linux** operator console (FTXUI) monitors and commands it over a **serial link** (USART6: a 3.3 V USB-UART adapter, or RS-232 via a base board). Both sides communicate only through the **DataBus**.
 
-It is Cellutron's hardware sibling. Cellutron simulates three CPUs on one PC; Pumptron runs the controller on a real microcontroller. The exact same controller code also runs on the FreeRTOS simulator over UDP, so you can develop without the board.
+It is Cellutron's hardware sibling. Cellutron simulates three CPUs on one PC; Pumptron runs the controller on a real microcontroller. The exact same controller code also runs on the FreeRTOS simulator over UDP, so you can develop without the board, and on an **ESP32-S3-DevKitC-1** over Wi-Fi, with its two cores split between the network and the pump (see [ESP32-S3 Firmware](#esp32-s3-firmware)).
 
 **What it showcases:**
 
@@ -55,6 +55,8 @@ Pumptron builds and runs on **Windows** and **Linux**. Steps 1–3 run the whole
     python3 run_pumptron.py --serial /dev/ttyUSB0  # Linux
     ```
     On Linux, `--serial` needs libserialport (see [Hardware](#hardware)).
+
+    Or use an ESP32-S3-DevKitC-1 instead of the F4, over Wi-Fi with no wiring: see [ESP32-S3 Firmware](#esp32-s3-firmware), then `python3 run_pumptron.py --udp <the board's address>`.
 ---
 
 ## What It Does
@@ -68,13 +70,13 @@ any --E-STOP / board button / over-temp / vibration trip--> FAULT (latched)
 FAULT --RESET (stopped, cooled, button released)--> IDLE
 ```
 
-| Signal | Source on the F4 | Source on the simulator |
-|:---|:---|:---|
-| Speed, flow, pressure, motor temperature | Pump model | Pump model |
-| Ambient temperature | **MCU die temperature sensor** (ADC1) | Fixed 25 °C |
-| Vibration | Model + **LIS3DSH accelerometer** (shake the board!) | Model only |
-| Local E-STOP | **Blue USER button** | — |
-| Status indicators | **LD3–LD6 LEDs** | Console prints |
+| Signal | Source on the F4 | Source on the ESP32-S3 | Source on the simulator |
+|:---|:---|:---|:---|
+| Speed, flow, pressure, motor temperature | Pump model | Pump model | Pump model |
+| Ambient temperature | **MCU die temperature sensor** (ADC1) | **Chip temperature sensor** | Fixed 25 °C |
+| Vibration | Model + **LIS3DSH accelerometer** (shake the board!) | Model only | Model only |
+| Local E-STOP | **Blue USER button** | **BOOT button** | — |
+| Status indicators | **LD3–LD6 LEDs** | **RGB LED** colours | Console prints |
 
 Demo scenarios built into the model:
 
@@ -146,6 +148,7 @@ pumptron/
 │   ├── board/IBoard.h        Hardware abstraction used by the pump application
 │   ├── pump/                 PumpController (state machine) + PumpModel (physics)
 │   ├── platform/sim/         FreeRTOS simulator main + SimBoard (UDP link)
+│   ├── platform/esp32s3/     ESP32-S3 firmware (ESP-IDF): main, Esp32Board, Wi-Fi
 │   └── platform/f4/          STM32F4 firmware: main, F4Board, CoreDump, HAL/FreeRTOS
 │                             config, startup, linker script, toolchain, CMakeLists.txt
 └── gui/
@@ -165,7 +168,7 @@ The commands are in [Quick Start](#quick-start); this section covers what they p
 
 Builds both the GUI and the controller to run on Windows or Linux, with the controller on the FreeRTOS simulator. No embedded hardware needed.
 
-Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. `run_pumptron.py` launches whichever configuration is built, the newest if both are; pass `--config Debug` or `--config Release` to pick one. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
+Output: `build/bin/<config>/pumptron_gui` and `pumptron_controller`. `run_pumptron.py` also looks in `build_all.py`'s output (`out/<platform>/example/pumptron/default/bin/<config>`) and launches whichever configuration is built, the newest if both are; pass `--config Debug` or `--config Release` to pick one. On Windows, the top-level project forces a Win32 build because the FreeRTOS Windows simulator port is 32-bit only. For that reason libserialport is compiled from source into the GUI build.
 
 ### STM32F4 Firmware
 
@@ -191,6 +194,57 @@ Any of these work with the `.elf`:
 - **STM32CubeProgrammer:** `STM32_Programmer_CLI -c port=SWD -w build/f4/pumptron_f4.elf -v -rst`
 - **OpenOCD:** `openocd -f board/stm32f4discovery.cfg -c "program build/f4/pumptron_f4.elf verify reset exit"`
 
+### ESP32-S3 Firmware
+
+The controller also runs on an Espressif **ESP32-S3-DevKitC-1** (N8R8), on ESP-IDF's FreeRTOS, talking to the GUI over **Wi-Fi** instead of a serial cable. It is the simulator's link (a UDP `NetworkNode`, the same `ConfigureControllerLink()`), pointed at the PC instead of localhost. `controller/platform/esp32s3/` is an ESP-IDF project that PlatformIO builds as is (`espressif32@6.11.0`, ESP-IDF 5.4.1, like the sensor-node example); `idf.py` builds it too.
+
+```bash
+cd controller/platform/esp32s3
+pio run -t menuconfig        # "Pumptron" menu: Wi-Fi SSID and password, the PC's address
+pio run -t upload            # build and flash (the board's "USB" or "UART" port)
+pio device monitor           # console, 115200
+```
+
+The Wi-Fi password and the PC's address land in `sdkconfig.esp32s3`, which git ignores; the firmware image and the board's NVS also hold the password, in plain text. The board needs a 2.4 GHz network. At startup it prints its address:
+
+```
+Pumptron controller (ESP32-S3) at 192.168.0.241, UDP 5021; GUI at 192.168.0.123:5020
+On the PC: pumptron_gui --udp 192.168.0.241
+```
+
+Then on the PC run `python run_pumptron.py --udp 192.168.0.241`. It opens the GUI and [`dmq-spy`](#monitoring-with-dmq-spy), which shows the traffic both ways: the GUI's commands (`pump/cmd`) and the board's telemetry (10 Hz), status and alarms. `--no-spy` leaves `dmq-spy` out; `pumptron_gui --udp 192.168.0.241` runs the GUI alone. Windows Firewall asks the first time whether `pumptron_gui` may receive on the network: allow it on private networks, or nothing from the board arrives.
+
+The board's hardware (`Esp32Board.h`):
+
+| `IBoard` | ESP32-S3-DevKitC-1 |
+|:---|:---|
+| Ambient temperature | The chip's internal temperature sensor (the die, a few °C above the room, like the F4's) |
+| Vibration | None: the board has no accelerometer, so only the pump model's vibration shows. An I²C accelerometer would plug in here |
+| Local E-STOP | The **BOOT** button (GPIO 0) |
+| Indicators | The one RGB LED (WS2812, GPIO 38): **red** fault, **green** priming or running, **amber** powered and idle, blinking off while the link is degraded. No activity blink |
+
+**Threads and cores.** The ESP32-S3 has two cores. `dmq::os::Thread::SetCoreAffinity()` and `NetworkNode::SetCoreAffinity()` pin a thread to one (ESP-IDF's `xTaskCreatePinnedToCore()`), before the thread starts. `main.cpp` keeps the network on core 0, with ESP-IDF's Wi-Fi and TCP/IP tasks it works with, and gives the pump's control loop core 1 to itself, so Wi-Fi bursts never delay a control tick. One second after startup it prints the task table (`uxTaskGetSystemState()`), with ESP-IDF's own tasks:
+
+```
+Task             Prio  Core Stack free
+main                6     0       5960
+Pump                4     1       5460
+Controller_Netw    23     0       6464
+wifi               23     0       3472
+tiT                18   any       2004
+...
+```
+
+| Thread | Core | Does |
+|:---|:---|:---|
+| `Pump` (`PumpController`) | 1 | The state machine and the pump model, every 50 ms; publishes telemetry (10 Hz), status, alarms, heartbeats |
+| `Controller_NetworkThread` (`NetworkNode`) | 0 | Receives commands and heartbeats from the GUI, sends to it, ACKs and retries RELIABLE messages |
+| `main` (`app_main`) | 0 | The platform loop: `Timer::ProcessTimers()` every 10 ms (the pump's timers, the link's receive poll), the thread watchdog, and the ESP-IDF task watchdog |
+
+The task watchdog (TWDT) watches the `main` loop, as the F4's IWDG does, and resets the board if it stops. The F4's crash dumps (`CoreDump.cpp`) are F4-only; ESP-IDF prints its own panic backtrace on the console.
+
+Measured: 840 KB of flash (the 1.5 MB app partition, `-Os`), 48 KB of static RAM. The self-test passes over Wi-Fi with every step on time, the controller clock at 1.00× real time, and no retries.
+
 ---
 
 ## Running
@@ -200,6 +254,7 @@ Any of these work with the `.elf`:
 ```bash
 python run_pumptron.py                         # simulation: controller + GUI, each in its own terminal
 python run_pumptron.py --serial COM5           # hardware: GUI only, talking to the flashed board
+python run_pumptron.py --udp 192.168.0.241     # ESP32-S3: GUI + dmq-spy, over Wi-Fi to the board's address
 python run_pumptron.py --selftest              # simulation, headless end-to-end check
 python run_pumptron.py --serial COM5 --selftest
 ```
@@ -273,10 +328,11 @@ It measures the controller's clock against wall time first and scales its timeou
 
 ### Monitoring with dmq-spy
 
-The board has no network connection, so it can't run a `SpyBridge` itself. The GUI can do it instead. Every message the GUI receives from the controller is re-published on the GUI's own DataBus, and `--spy` mirrors that bus to [`dmq-spy`](../../tools/TOOLS.md) over UDP. You see the controller's traffic without touching the firmware, over serial or the simulator link alike.
+The controller doesn't run a `SpyBridge` itself: the F4 has no network connection, and the ESP32-S3 has one, but the tools' bridges are desktop code. The GUI does it instead. Every message the GUI receives from the controller is re-published on the GUI's own DataBus, and `--spy` mirrors that bus to [`dmq-spy`](../../tools/TOOLS.md) over UDP. You see the controller's traffic without touching the firmware, over serial or the simulator link alike.
 
 ```bash
 python run_pumptron.py --serial COM5 --spy           # GUI + dmq-spy window
+python run_pumptron.py --udp 192.168.0.241           # ESP32-S3: dmq-spy opens by default (--no-spy to skip)
 python run_pumptron.py --serial COM5 --plotjuggler   # same, plus live plots in PlotJuggler
 ```
 
@@ -296,7 +352,7 @@ Things to know:
 
 ### MQTT Gateway
 
-`--mqtt` puts the pump on an MQTT broker as JSON, so any MQTT client can watch it, and with `--mqtt-control`, run it. MQTT Explorer or `mosquitto_sub` work directly; dashboard tools such as Node-RED, Home Assistant and Grafana need their own MQTT setup (see [Using MQTT Tools](../../tools/TOOLS.md#using-mqtt-tools)). The board itself has no network connection; the GUI is the gateway. It already re-publishes everything the controller sends on its own DataBus, and `MqttBridge` ([`tools/bridge`](../../tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge)) forwards chosen topics as JSON.
+`--mqtt` puts the pump on an MQTT broker as JSON, so any MQTT client can watch it, and with `--mqtt-control`, run it. MQTT Explorer or `mosquitto_sub` work directly; dashboard tools such as Node-RED, Home Assistant and Grafana need their own MQTT setup (see [Using MQTT Tools](../../tools/TOOLS.md#using-mqtt-tools)). The controller doesn't talk MQTT itself (the F4 has no network connection); the GUI is the gateway. It already re-publishes everything the controller sends on its own DataBus, and `MqttBridge` ([`tools/bridge`](../../tools/TOOLS.md#json-bridges--jsontopics-and-mqttbridge)) forwards chosen topics as JSON.
 
 ```bash
 python run_pumptron.py --serial COM5 --mqtt                          # broker tcp://127.0.0.1:1883
@@ -469,6 +525,6 @@ Changes, all on the F4: `FreeRTOSConfig.h` (the two options), a new `freertos_ta
 
 ## Porting Notes
 
-- **New board.** Implement `board::IBoard` and write a `platform/<board>/main.cpp` that creates the link and calls `ConfigureControllerLink()`. Nothing in `pump/` or `common/` changes.
+- **New board.** Implement `board::IBoard` and write a `platform/<board>/main.cpp` that creates the link and calls `ConfigureControllerLink()`. Nothing in `pump/` or `common/` changes. `platform/esp32s3` is the smallest example: a header-only `Esp32Board`, Wi-Fi, and a `main.cpp` of about 100 lines.
 - **New link.** Any type with NetworkNode-style `Send<T>()`/`Receive<T>()` works with `Topology.h`.
 - **UART error recovery.** `Stm32UartTransport` does not restart interrupt-driven reception after a UART error (overrun, framing, noise). `platform/f4/main.cpp` re-arms it from `HAL_UART_ErrorCallback()`. The frame CRC rejects any frame corrupted by the error.

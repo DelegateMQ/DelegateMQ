@@ -10,6 +10,11 @@ the operator console is started, on the given serial port:
     python run_pumptron.py --serial COM5
     python run_pumptron.py --serial /dev/ttyUSB0 --baud 115200
 
+Or the flashed ESP32-S3-DevKitC-1, over Wi-Fi: the operator console is
+started, talking UDP to the board's address (it prints it at startup), with
+dmq-spy showing the traffic both ways (--no-spy to leave it out):
+    python run_pumptron.py --udp 192.168.0.241
+
 Headless end-to-end check instead of the interactive console (either mode):
     python run_pumptron.py --selftest
     python run_pumptron.py --serial COM5 --selftest
@@ -40,14 +45,27 @@ IS_WINDOWS = platform.system() == "Windows"
 EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
+# build_all.py (scripts/03-05) builds outside the source tree, in
+# out/<platform>/<project path>/<variant> (see scripts/full_suite.py):
+# out/windows/example/pumptron/default/bin/Release/... A manual build goes in
+# this folder's build/. Both are searched; the newest executable wins.
+REPO_ROOT = os.path.normpath(os.path.join(BASE_PATH, "..", ".."))
+OUT_PLATFORM = os.environ.get("DMQ_OUT_PLATFORM") or ("windows" if IS_WINDOWS else "linux")
+OUT_DIR = os.path.join(REPO_ROOT, "out", OUT_PLATFORM)
+BUILD_DIRS = [os.path.join(BASE_PATH, "build"),
+              os.path.join(OUT_DIR, "example", "pumptron", "default")]
+
 
 def find_exe(name, config):
     """Newest matching executable across the multi-config (Windows) and
-    single-config (Linux) output layouts of example/pumptron/build.
+    single-config (Linux) output layouts of example/pumptron/build and
+    build_all.py's out/ build.
     config None = whichever of Debug/Release is built (newest if both)."""
     configs = [config] if config else ["Debug", "Release"]
-    candidates = [os.path.join(BASE_PATH, "build", "bin", c, name + EXE_SUFFIX) for c in configs]
-    candidates.append(os.path.join(BASE_PATH, "build", "bin", name + EXE_SUFFIX))
+    candidates = []
+    for d in BUILD_DIRS:
+        candidates += [os.path.join(d, "bin", c, name + EXE_SUFFIX) for c in configs]
+        candidates.append(os.path.join(d, "bin", name + EXE_SUFFIX))
     existing = [p for p in candidates if os.path.isfile(p)]
     if not existing:
         return None, candidates
@@ -55,9 +73,15 @@ def find_exe(name, config):
 
 
 def find_tool(name):
-    """dmq tool executable from tools/bin (every tools build copies there)."""
-    path = os.path.normpath(os.path.join(BASE_PATH, "..", "..", "tools", "bin", name + EXE_SUFFIX))
-    return path if os.path.isfile(path) else None
+    """Newest dmq tool executable: tools/bin (every tools build copies there)
+    or build_all.py's out/<platform>/tools/default."""
+    tools_out = os.path.join(OUT_DIR, "tools", "default")
+    candidates = [os.path.join(REPO_ROOT, "tools", "bin", name + EXE_SUFFIX),
+                  os.path.join(tools_out, "Release", name + EXE_SUFFIX),
+                  os.path.join(tools_out, "Debug", name + EXE_SUFFIX),
+                  os.path.join(tools_out, name + EXE_SUFFIX)]
+    existing = [p for p in candidates if os.path.isfile(p)]
+    return max(existing, key=os.path.getmtime) if existing else None
 
 
 def launch_in_new_terminal(exe_path, args):
@@ -94,10 +118,14 @@ def kill_orphans():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Launch Pumptron (simulator or real STM32F4 hardware).")
-    parser.add_argument("--serial", metavar="PORT",
-                        help="Controller is a real STM32F4 board on this serial port "
-                             "(e.g. COM5, /dev/ttyUSB0). Only the operator console is started.")
+    parser = argparse.ArgumentParser(description="Launch Pumptron (simulator or real STM32F4/ESP32-S3 hardware).")
+    link = parser.add_mutually_exclusive_group()
+    link.add_argument("--serial", metavar="PORT",
+                      help="Controller is a real STM32F4 board on this serial port "
+                           "(e.g. COM5, /dev/ttyUSB0). Only the operator console is started.")
+    link.add_argument("--udp", metavar="ADDRESS",
+                      help="Controller is a real ESP32-S3 board at this IPv4 address, over Wi-Fi. "
+                           "Starts the operator console and dmq-spy (see --no-spy).")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200)")
     parser.add_argument("--config", choices=["Debug", "Release"], default=None,
                         help="Build configuration to launch (default: whichever is built, "
@@ -108,6 +136,8 @@ def main():
     parser.add_argument("--spy", action="store_true",
                         help="Open dmq-spy and have the GUI mirror its DataBus traffic to it -- including "
                              "every message received from the controller over the link")
+    parser.add_argument("--no-spy", action="store_true",
+                        help="With --udp: don't open dmq-spy (opened by default for the ESP32-S3)")
     parser.add_argument("--plotjuggler", action="store_true",
                         help="Like --spy, and dmq-spy also forwards numeric values to PlotJuggler's UDP "
                              "Server (127.0.0.1:9870) for live plots. See tools/TOOLS.md")
@@ -121,8 +151,9 @@ def main():
                              "control path into the pump: use only on a trusted broker")
     args = parser.parse_args()
 
-    simulate = args.serial is None
-    use_spy = args.spy or args.plotjuggler
+    simulate = args.serial is None and args.udp is None
+    # The ESP32-S3 link is a network: show its traffic in dmq-spy by default
+    use_spy = args.spy or args.plotjuggler or (args.udp is not None and not args.no_spy)
     if args.mqtt_control and not args.mqtt:
         parser.error("--mqtt-control requires --mqtt")
 
@@ -153,7 +184,12 @@ def main():
             print("Build the project first (see PUMPTRON.md).")
             sys.exit(1)
 
-    gui_args = ["--udp"] if simulate else ["--serial", args.serial, "--baud", str(args.baud)]
+    if simulate:
+        gui_args = ["--udp"]
+    elif args.udp:
+        gui_args = ["--udp", args.udp]
+    else:
+        gui_args = ["--serial", args.serial, "--baud", str(args.baud)]
     if args.selftest:
         gui_args.append("--selftest")
     if use_spy:
@@ -166,7 +202,13 @@ def main():
     kill_orphans()
 
     print("--- Starting Pumptron ---")
-    print(f"  Mode:   {'Simulation (FreeRTOS simulator over UDP)' if simulate else f'Hardware (STM32F4 on {args.serial} @ {args.baud})'}")
+    if simulate:
+        mode = "Simulation (FreeRTOS simulator over UDP)"
+    elif args.udp:
+        mode = f"Hardware (ESP32-S3 at {args.udp}, UDP over Wi-Fi)"
+    else:
+        mode = f"Hardware (STM32F4 on {args.serial} @ {args.baud})"
+    print(f"  Mode:   {mode}")
     print(f"  Config: {config or 'single-config build'}")
     if args.mqtt:
         print(f"  MQTT:   {args.mqtt}, topics under '{args.mqtt_prefix}/'"

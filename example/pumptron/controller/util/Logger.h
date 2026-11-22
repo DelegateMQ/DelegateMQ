@@ -20,7 +20,9 @@
 #include <cstdio>
 #include <cstdarg>
 
-#ifdef DMQ_THREAD_FREERTOS
+// Not on ESP-IDF (ESP32-S3): its newlib stdio is reentrant and locked per
+// stream, and its tasks are real FreeRTOS tasks, so printf() is already safe.
+#if defined(DMQ_THREAD_FREERTOS) && !defined(ESP_PLATFORM)
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +40,6 @@ void pumptron_safe_printf(const char* format, ...);
 #undef printf
 #define printf pumptron_safe_printf
 
-#endif // DMQ_THREAD_FREERTOS
+#endif // DMQ_THREAD_FREERTOS && !ESP_PLATFORM
 
 #endif // PUMPTRON_LOGGER_H

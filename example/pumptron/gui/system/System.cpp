@@ -63,8 +63,11 @@ bool System::Initialize(const Options& options, std::string& error)
             m_udp.reset();
             return false;
         }
-        m_udp->AddPeer("Controller", "127.0.0.1", CONTROLLER_UDP_PORT);
-        m_linkDescription = "UDP localhost:" + std::to_string(CONTROLLER_UDP_PORT) + " (simulator)";
+        m_udp->AddPeer("Controller", options.udpHost.c_str(), CONTROLLER_UDP_PORT);
+        if (options.udpHost == "127.0.0.1")
+            m_linkDescription = "UDP localhost:" + std::to_string(CONTROLLER_UDP_PORT) + " (simulator)";
+        else
+            m_linkDescription = "UDP " + options.udpHost + ":" + std::to_string(CONTROLLER_UDP_PORT);
     }
 
     m_heartbeatConn = m_heartbeatTimer.OnExpired.Connect(

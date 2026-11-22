@@ -1,6 +1,6 @@
 #include "Logger.h"
 
-#ifdef DMQ_THREAD_FREERTOS
+#if defined(DMQ_THREAD_FREERTOS) && !defined(ESP_PLATFORM)    // see Logger.h
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"

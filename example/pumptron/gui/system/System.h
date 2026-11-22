@@ -37,6 +37,7 @@ public:
         LinkType    link = LinkType::SERIAL;
         std::string serialPort;
         int         baud = 0;
+        std::string udpHost = "127.0.0.1";  ///< UDP: the controller's address (simulator or ESP32-S3)
     };
 
     /// Link health counters, updated from link signals, read by the UI.

@@ -7,6 +7,12 @@ Versions correspond to git tags. Changes are from the perspective of library use
 
 ---
 
+## [Unreleased]
+
+### Added
+- `NetworkNode::SetCoreAffinity()`: pins the node's thread (receive and send) to cores, like `Thread::SetCoreAffinity()`. Call it before `Start()`. Pumptron's ESP32-S3 controller uses it to keep the network on core 0 with Wi-Fi and the pump control on core 1.
+- **Pumptron: the controller runs on an ESP32-S3-DevKitC-1 over Wi-Fi.** `controller/platform/esp32s3` (ESP-IDF; PlatformIO or `idf.py`) runs the same `PumpController` as the simulator and the STM32F4, with `Esp32Board` (the chip's temperature sensor, the BOOT button as local E-STOP, the RGB LED's colours for the four indicators) and the simulator's UDP `NetworkNode`, pointed at the PC. The pump thread is pinned to core 1 and the network thread to core 0, and the board prints its task table with each task's core at startup. `pumptron_gui --udp <address>` and `run_pumptron.py --udp <address>` connect to it (the script also opens `dmq-spy` on the traffic both ways; `--no-spy` to skip); the GUI's self-test passes against the board over Wi-Fi.
+
 ## [3.0.0] - 2026-11-21
 
 3.0 removes iostreams from the remote path: serializers write into a `dmq::ByteWriter` and read from a `dmq::ByteReader` instead of `std::ostream`/`std::istream`. On an ESP32-S3 node that saved 210 KB of flash (20%); on an STM32F407 sample, 163 KB (78%). Code that only uses delegates, signals, threads, timers and the local DataBus doesn't change. Code with remote messages does, mostly by changing types in signatures.

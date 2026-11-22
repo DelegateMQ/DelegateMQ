@@ -1,0 +1,36 @@
+# ESP32-S3-DevKitC-1 N8R8: dual-core Xtensa LX7, ESP-IDF's FreeRTOS SMP
+CONFIG_IDF_TARGET="esp32s3"
+
+# 8 MB quad-I/O flash
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+# 8 MB octal PSRAM (it uses GPIO 35-37), added to the heap
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# RTTI on; no C++ exceptions: DelegateMQ faults through DMQ_ASSERT instead
+CONFIG_COMPILER_CXX_RTTI=y
+
+# 1 ms tick: the platform loop in main.cpp runs Timer::ProcessTimers() every
+# 10 ms, and the pump's control period is 50 ms
+CONFIG_FREERTOS_HZ=1000
+
+# The platform loop runs in the main task
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# The startup task table (main.cpp's PrintTasks()): uxTaskGetSystemState()
+# with each task's core
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS=y
+CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
+
+# The task watchdog resets the board if the platform loop stops (as the F4's
+# IWDG does), instead of only printing
+CONFIG_ESP_TASK_WDT_PANIC=y
+
+# DataBus, the serializer and Wi-Fi: the 1.5 MB app partition (the board has
+# 8 MB), and -Os, which is also what a release build would measure
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y

@@ -157,6 +157,26 @@ public:
     NetworkNode(const NetworkNode&)            = delete;
     NetworkNode& operator=(const NetworkNode&) = delete;
 
+    /// @brief Run this node's thread (it receives, and sends to every peer) only
+    ///        on the cores in coreMask, as dmq::os::Thread::SetCoreAffinity():
+    ///        bit 0 = core 0, bit 1 = core 1, ... 0 (the default) = any core.
+    ///        On the ESP32-S3, e.g. pin it to core 0 with ESP-IDF's Wi-Fi and
+    ///        TCP/IP tasks, and the application's threads to core 1.
+    /// @note Call before Start(): the thread's core is fixed when it is created.
+    void SetCoreAffinity(uint32_t coreMask)
+    {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        DMQ_ASSERT_TRUE(!m_running);
+        m_coreMask = coreMask;
+    }
+
+    /// @brief The mask given to SetCoreAffinity() (0 = any core).
+    uint32_t GetCoreAffinity() const
+    {
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        return m_coreMask;
+    }
+
     /// @brief Open the inbound transport and start the receive thread.
     ///
     /// @param nodeName    Human-readable name used for thread naming and logging.
@@ -203,6 +223,9 @@ public:
 
         m_running    = true;
         m_tickPeriod = tickPeriod;
+
+        if (m_coreMask != 0)
+            m_thread->SetCoreAffinity(m_coreMask);
 
         std::optional<dmq::Duration> wd = (watchdog.count() > 0)
             ? std::optional<dmq::Duration>{watchdog}
@@ -520,6 +543,7 @@ private:
     dmq::ScopedConnection            m_recvConn;
     dmq::Duration                    m_tickPeriod{};
     dmq::TimePoint                   m_lastMonitorCheck{};
+    uint32_t                         m_coreMask = 0;     // SetCoreAffinity(); 0 = any core
     bool                             m_running = false;
     mutable dmq::RecursiveMutex      m_mutex;
 };

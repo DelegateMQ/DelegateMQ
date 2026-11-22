@@ -86,6 +86,12 @@ int NetworkNodeTestMain() {
         // Send() registered before Start()/AddPeer() on the sender.
         nodeA.Send<int>("nn/basic", 1001, serializer, Reliability::UNRELIABLE);
 
+        // NodeA's thread pinned to core 0 (every machine has one); the round
+        // trip below shows the pinned thread still receives and sends.
+        DMQ_ASSERT_TRUE(nodeA.GetCoreAffinity() == 0);
+        nodeA.SetCoreAffinity(1u << 0);
+        DMQ_ASSERT_TRUE(nodeA.GetCoreAffinity() == 1u);
+
         DMQ_ASSERT_TRUE(nodeA.Start("NodeA_Basic", 15310));
         DMQ_ASSERT_TRUE(nodeB.Start("NodeB_Basic", 15311));
 

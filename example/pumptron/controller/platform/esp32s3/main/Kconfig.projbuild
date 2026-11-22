@@ -1,0 +1,37 @@
+menu "Pumptron"
+
+    config APP_WIFI_SSID
+        string "Wi-Fi SSID"
+        default ""
+        help
+            The network the controller joins (2.4 GHz). Set it here, not in
+            sdkconfig.defaults: the generated sdkconfig.esp32s3 that holds it
+            isn't committed.
+
+    config APP_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+        help
+            Empty for an open network.
+
+    config APP_GUI_ADDRESS
+        string "PC (pumptron_gui) IPv4 address"
+        default "192.168.0.100"
+        help
+            Where the controller sends status and telemetry (UDP port 5020).
+            Run "pumptron_gui --udp <the board's address>" there; the board
+            prints its address at startup.
+
+    config APP_LED_GPIO
+        int "RGB LED (WS2812) GPIO"
+        default 38
+        help
+            GPIO 38 on DevKitC-1 v1.1, GPIO 48 on v1.0.
+
+    config APP_BUTTON_GPIO
+        int "Local E-STOP button GPIO"
+        default 0
+        help
+            The BOOT button (GPIO 0, low when pressed).
+
+endmenu
