@@ -8,7 +8,7 @@
 /// Serialize callable argument data using serialize class for transport
 /// to a remote. Endianness correctly handled by serialize class.
 ///
-/// Errors are reported through the stream state (and any exception from a
+/// Errors are reported through the ByteWriter/ByteReader state (and any exception from a
 /// user type's read()/write() propagates); DelegateRemote reports them as
 /// ERR_SERIALIZE / ERR_DESERIALIZE. No try/catch here, per the library rules.
 

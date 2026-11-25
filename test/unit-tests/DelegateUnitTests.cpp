@@ -1301,6 +1301,7 @@ extern void DelegateThreadsTests();
 extern void ContainersTests();
 extern void RemoteChannelTests();
 extern void SerializeTests();
+extern void RawSerializerTests();
 extern void DispatcherTests();
 extern void RetryMonitorTests();
 extern void ReliableTransportTests();
@@ -1327,6 +1328,7 @@ void RunDelegateUnitTests()
 		DelegateThreadsTests();
 		RemoteChannelTests();
 		SerializeTests();
+		RawSerializerTests();
 		DispatcherTests();
 		RetryMonitorTests();
 		ReliableTransportTests();

@@ -183,6 +183,10 @@
     #warning "Serialize implementation not found."
 #endif
 
+// Raw-copy serializer, alongside whichever serializer is selected above: no
+// dependencies, for peers that share an ABI (e.g. two cores over shared memory)
+#include "port/serialize/raw/RawSerializer.h"
+
 #if defined(DMQ_TRANSPORT_ZEROMQ)
     #include "extras/dispatcher/Dispatcher.h"
     #include "port/transport/zeromq/ZeroMqTransport.h"

@@ -93,6 +93,11 @@ else()
     message(FATAL_ERROR "Must set DMQ_SERIALIZE option.")
 endif()
 
+# Raw-copy serializer: header-only, no dependencies, available alongside any
+# DMQ_SERIALIZE choice (DelegateMQ.h includes it)
+file(GLOB RAW_SERIALIZE_SOURCES CONFIGURE_DEPENDS "${DMQ_ROOT_DIR}/port/serialize/raw/*.h")
+list(APPEND SERIALIZE_SOURCES ${RAW_SERIALIZE_SOURCES})
+
 if (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_NONE")
     dmq_compile_definitions(DMQ_TRANSPORT_NONE)
 elseif (DMQ_TRANSPORT STREQUAL "DMQ_TRANSPORT_ZEROMQ")
