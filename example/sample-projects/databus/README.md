@@ -4,7 +4,8 @@ Samples of `dmq::databus::DataBus`, DelegateMQ's topic-based publish/subscribe l
 
 | Sample | Shows | External libraries |
 | :--- | :--- | :--- |
-| [basic](./basic/README.md) | Sensor/actuator system split across a client and a server over UDP. Start here. | none |
+| [local](./local/README.md) | Single-process `DataBus` across three threads: no transport or serializer between them (the optional `SpyBridge` sends a copy to `dmq-spy`). LVC/lifespan, sync vs. async, `minSeparation`, `SubscribeFilter`, `DeadlineSubscription`, `SubscribeUnhandled`, and `dmq-spy` stringifiers. Start here. | none |
+| [basic](./basic/README.md) | Sensor/actuator system split across a client and a server over UDP. | none |
 | [multicast](./multicast/README.md) | One publisher to many subscribers over UDP multicast. | none |
 | [relay](./relay/README.md) | A gateway relaying topics both ways between UDP and local IPC (Windows named pipe, Linux Unix socket) with `AddRelayTopic`. | none |
 | [freertos](./freertos/README.md) | A FreeRTOS server (Win32 simulator, Windows only) and a PC client over UDP. | FreeRTOS |

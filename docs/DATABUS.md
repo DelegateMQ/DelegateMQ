@@ -103,7 +103,7 @@ DataBus::Subscribe<float>("topic", handler, &workerThread);
 ```
 
 ### 2. Timer Loop (for QoS Features)
-**Deadline Monitoring** (`dmq::databus::DeadlineSubscription<T>`) relies on the `dmq::util::Timer` system. You must call `Timer::ProcessTimers()` periodically (e.g., every 1-10ms) from a main loop or dedicated thread.
+**Deadline Monitoring** (`dmq::databus::DeadlineSubscription<T>`) relies on the `dmq::util::Timer` system. Call `Timer::ProcessTimers()` periodically (e.g., every 1-10ms) from a main loop or dedicated task, or sleep until the next timer is due using `Timer::GetNextExpiry()` and `Timer::SetScheduleChangedHandler()` for event-driven / low-power processing (see [`Timer.h`](../src/delegate-mq/extras/util/Timer.h) and [`databus/local`](../example/sample-projects/databus/local/README.md)).
 ```cpp
 while (app_running) {
     dmq::util::Timer::ProcessTimers();
@@ -157,6 +157,9 @@ Remote distribution requires these specific calls (silent failure if missed):
 2. `DataBus::AddIncomingTopic<T>(topic, remoteId, participant, serializer)`: Maps the incoming network ID to the topic.
 3. **Polling Loop**: You must call `participant->ProcessIncoming()` in a loop (or use `NetworkNode`) to drive the receive side and dispatch data to local subscribers.
 
+**Serializers (including `raw::Serializer`):**
+Each remote topic uses any `dmq::ISerializer<void(T)>` — the built-in serializer, MessagePack, Cereal, Bitsery, RapidJSON, or [`dmq::serialization::raw::Serializer<void(T)>`](../src/delegate-mq/port/serialize/raw/RawSerializer.h). `raw::Serializer` is always available regardless of `DMQ_SERIALIZE_*` and copies each argument's bytes directly with no encoding overhead (useful for high-rate PODs or large `std::array` payloads between same-ABI peers built from the same headers, such as two cores of one chip over shared memory, two processes of one build, or identical boards). Every field must be trivially copyable (checked at compile time); use fixed-width types (`int32_t`, enums with a fixed underlying type), since a type like `long` compiles but differs in size between ABIs. It provides no endianness conversion or schema versioning, so use a portable serializer across differing ABIs.
+
 ### Relay Nodes
 A relay (gateway) node receives a topic on one link and forwards it out others, for example to bridge UDP to a local IPC link or UART to Ethernet. All of the node's links share its one DataBus; each link sends only the topics registered on it. Mark the topic as relayed where it comes in, and as outgoing on each link it should go out on:
 
@@ -178,6 +181,7 @@ m_mcu.Send<PumpCmd>(topics::PUMP_CMD, RID_PUMP_CMD, serCmd, Reliability::RELIABL
 - **The relay uses the data too.** `AddRelayTopic` does a full `Publish`, so relayed data also reaches the relay node's own local subscribers. A gateway can log, display or act on what it forwards with an ordinary `DataBus::Subscribe`.
 - **Transform before forwarding.** To filter or modify data on the way through, don't use `AddRelayTopic`. Receive the topic with `AddIncomingTopic`, subscribe to it, and publish the result on a different topic that is outgoing on the other link. It must be a different topic: a subscriber that republishes on its own topic receives that publish again, an endless local loop.
 - **Each hop is independent.** The relay deserializes each message and serializes it again, so it needs the message type and a serializer for each relayed topic. Remote IDs only have to match between the two ends of one hop. Reliability is per hop too: with `ReliableTransport`, an ACK means the relay received the message, not that the final destination did.
+- **One outgoing serializer per topic.** `DataBus::RegisterSerializer<T>(topic, ser)` sets one send serializer per topic across the whole bus (`NetworkNode::Send()` registers it; the last registration wins), while receive serializers are per link. If a gateway must forward the same message type out two links using different serializers (for example, `raw::Serializer` on a same-ABI link and the built-in serializer over Ethernet to a different ABI), use two topic names (receive with `AddIncomingTopic` and republish on the second topic).
 - **The topic list is fixed.** The relay forwards only the topics registered in its code. There is no discovery across the bridge.
 - **Topic names are global on the bus.** Every link delivers into the same DataBus, so two MCUs that both send `temp` are indistinguishable at the relay and beyond. Give each source its own topic (`mcu1/temp`, `mcu2/temp`). Remote IDs, by contrast, only have to be unique per link.
 - **Participants are shared.** Every link's participants count against one `dmq::MAX_PARTICIPANTS` (`DMQ_MAX_PARTICIPANTS`, default 8). `NetworkNode` and `SerialLink` use two per peer (reliable and unreliable), so two Ethernet peers and two serial MCUs already use all 8. Raise it in the gateway's config; exceeding it reports `ERR_CAPACITY_EXCEEDED` and calls `FaultHandler`.
@@ -221,6 +225,15 @@ Fires for (non-exhaustive):
 - `ERR_CAPACITY_EXCEEDED` — a fixed-size capacity limit was reached (e.g. `dmq::MAX_PARTICIPANTS`).
 
 Several of these (`ERR_TYPE_MISMATCH`, `ERR_CAPACITY_EXCEEDED`) are followed by a hard fault (`DMQ_ASSERT()`) immediately after the report — the report is a last diagnostic before `FaultHandler` runs, not a chance to recover. Errors are latched per (topic, error code) — reported once unless `DataBus::EnableContinuousErrors(true)` is set. Per-participant errors reach the global handler too: `Participant::SubscribeError` catches a single node's errors; `DataBus::SubscribeError` aggregates across every participant.
+
+For non-error diagnosis of silent drops, `DataBus::SubscribeUnhandled` fires whenever a `Publish()` has no local subscribers and no interested remote participants (useful for catching misspelled topic strings; note it also fires when seeding an LVC topic before any subscriber connects):
+
+```cpp
+auto unhandledConn = dmq::databus::DataBus::SubscribeUnhandled(
+    [](const dmq::xstring& topic) {
+        printf("No subscribers on topic: %s\n", topic.c_str());
+    });
+```
 
 ### Status — `NetworkNode` signals
 
@@ -267,9 +280,11 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 
 - **Location Transparency**: Same API for inter-thread and inter-node communication.
 - **Type Safety**: Runtime checks prevent mismatched data types on the same topic.
-- **Spying and Monitoring**: Enable human-readable logs for every message on the bus.
-  - **Stringifiers**: Use `RegisterStringifier<T>(topic, func)` to convert your custom message types into strings.
-  - **Spy Tool**: View real-time traffic using the [`dmq-spy` tool](../tools/TOOLS.md).
+- **Content Filtering**: `DataBus::SubscribeFilter<T>(topic, handler, predicate, thread, qos)` delivers only messages matching a predicate (evaluated with the handler on the target thread if one is given).
+- **Spying and Monitoring**: Observe all local bus traffic with human-readable formatting, with no serializer required.
+  - **Stringifiers**: Use `RegisterStringifier<T>(topic, func)` to format custom message types.
+  - **Monitor Hook**: `DataBus::Monitor(handler, thread)` receives a `SpyPacket` (topic, stringified value, timestamp) for every publish.
+  - **Spy Tool**: Forward traffic to [`dmq-spy`](../tools/TOOLS.md) via `dmq::databus::SpyReporter` (embedded targets, over any `ITransport`) or `SpyBridge` (desktop wrapper in `tools/bridge/spy/`).
 - **Duplicate Protection**: Automatic filtering of redundant network packets.
 
 ## Threading and Performance
@@ -303,6 +318,7 @@ A plain non-zero `Receive()`/`ProcessIncoming()` result during `NetworkNode`'s n
 auto conn = dmq::databus::DataBus::Subscribe<int>("status", [](int s) { /* ... */ });
 dmq::databus::DataBus::Publish<int>("status", 1);
 ```
+See [`databus/local`](../example/sample-projects/databus/local/README.md) for a complete single-process sample (no transport or serializer between threads) covering LVC/lifespan, sync vs. async delivery, `minSeparation`, `SubscribeFilter`, `DeadlineSubscription`, `SubscribeUnhandled`, and `dmq-spy`.
 
 ### Async Dispatch (Thread)
 ```cpp
@@ -316,6 +332,7 @@ participant->AddRemoteTopic("telemetry", 100);
 dmq::databus::DataBus::AddParticipant(participant);
 dmq::databus::DataBus::RegisterSerializer<MyData>("telemetry", serializer);
 ```
+See [`databus/basic`](../example/sample-projects/databus/basic/README.md) for a client/server UDP example, and [DataBus samples](../example/sample-projects/databus/README.md) for the full list (multicast, relay, FreeRTOS, Zephyr, MQTT, interop).
 
 ### Advanced: Cellutron System
 See the [Cellutron Example](../example/cellutron/CELLUTRON.md) for a comprehensive, real-world system architecture using DataBus across multiple threads and nodes.

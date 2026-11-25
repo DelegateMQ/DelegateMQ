@@ -65,6 +65,7 @@ See [databus/README.md](./databus/README.md).
 
 | Sample | Description | Threading (`dmq::IThread`) | Serialization (`dmq::ISerializer`) | Transport (`dmq::IDispatcher`) |
 | :--- | :--- | :--- | :--- | :--- |
+| **[databus/local](./databus/local/README.md)** | Single-process `dmq::databus::DataBus` across three threads (LVC/lifespan, sync vs. async, rate limiting, filtering, deadline monitoring, `dmq-spy`). | `std::thread` | None between threads (`SpyBridge` to `dmq-spy`: built-in) | None between threads (`SpyBridge` to `dmq-spy`: UDP, optional) |
 | **[databus/basic](./databus/basic/README.md)** | Distributed sensor/actuator system using `dmq::databus::DataBus` over UDP. | `std::thread` | `dmq::Serializer` class | UDP Socket |
 | **[databus/multicast](./databus/multicast/README.md)** | One-to-many distribution over UDP multicast. | `std::thread` | `dmq::Serializer` class | UDP Multicast |
 | **[databus/relay](./databus/relay/README.md)** | Three nodes across two different links: sensor ↔ gateway over UDP, gateway ↔ monitor over local IPC. The gateway relays topics both ways with `AddRelayTopic` and uses two transports in one process. Windows: named pipe / Linux: Unix domain socket. | `std::thread` | `dmq::Serializer` class | UDP Socket + Win32 Pipe / Unix Domain Socket |

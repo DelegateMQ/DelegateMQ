@@ -28,7 +28,8 @@ Most applications are a small step from an existing sample. Copy its structure, 
 | You want | Start from |
 |---|---|
 | Async delegates and signals between threads, one process | `example/sample-code/` (`ActiveObject.cpp`, `SysDataNoLock.cpp`), `delegate_app` |
-| DataBus pub/sub between threads and processes on a PC | `example/sample-projects/databus/basic` |
+| DataBus pub/sub between threads in one process (no transport, no serializer) | `example/sample-projects/databus/local` |
+| DataBus pub/sub between processes on a PC (UDP) | `example/sample-projects/databus/basic` |
 | Two DelegateMQ apps over a specific transport and serializer | `example/sample-projects/transport/serializer`, built for the transport and serializer you choose (`-DSAMPLE_TRANSPORT=zeromq -DSAMPLE_SERIALIZER=msgpack`) |
 | Client/server with managers, alarms and point-to-point RPC (`RemoteDispatcher`) | `example/sample-projects/system-architecture/full` (or `no-deps`, without external libraries) |
 | DataBus gateway relaying between two different links | `example/sample-projects/databus/relay` |

@@ -154,6 +154,7 @@ SUCCESS_OVERRIDES = {
 # Keys are project names; values are dicts mapping role ("client"/"server"/"app")
 # to a required substring.  Only roles listed here are checked.
 REQUIRED_OUTPUT = {
+    "databus/local":               {"app": "ALL TESTS PASSED"},
     "databus/basic":               {"client": "Client received DataMsg"},
     "databus/freertos":            {"client": "[Client] sensor/temp"},
     "databus/multicast":           {"client": "Received Multicast Data"},
