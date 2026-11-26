@@ -32,7 +32,7 @@ The implementations of the interfaces below, in `src/delegate-mq/port` (OS, tran
 
 - `dmq::IThread` — cross-platform thread dispatch interface; pre-built ports for stdlib, Win32, POSIX (raw pthreads), FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2, NuttX, Qt, and bare-metal (ARM/RISC-V)
 - `dmq::ISerializer<Sig>` — serialization interface; adapters for MessagePack, RapidJSON, Cereal, Bitsery
-- `dmq::transport::ITransport` — transport interface; adapters for ZeroMQ, NNG, MQTT, TCP/UDP, serial, pipes
+- `dmq::transport::ITransport` — transport interface; adapters for ZeroMQ, NNG, MQTT, TCP/UDP, serial, pipes, shared memory (`ShmRingTransport` between cores or threads; `Win32ShmTransport` / `LinuxShmTransport` between processes)
 - `dmq::IDispatcher` — dispatches serialized data to remote endpoints
 
 ## Key API Patterns
@@ -129,6 +129,7 @@ The samples bind async delegates with a raw `this` (`MakeDelegate(this, &X::F, m
 - On ESP-IDF, FreeRTOS stack sizes (`DMQ_FREERTOS_STACK_WORDS`, `SetStackMem()`) are bytes, not words.
 - One `std::cout`/`std::stringstream` in MCU firmware links all of iostreams (~160-200 KB of flash); use `printf`/`snprintf`.
 - Remote messages over `DMQ_MAX_MESSAGE_SIZE` (65535; 4096 with `DMQ_ALLOCATOR`) fail with `ERR_MESSAGE_TOO_LARGE`.
+- Shared memory (`ShmRingTransport` and the Win32/Linux process versions; not included by `DelegateMQ.h`, include its header): side A's `Create()` initializes the region and empties the rings, so create side A first (side B's `Create()` fails until then; retry) and never restart side A while side B runs. Both sides need the same `DMQ_SHM_SLOT_COUNT` / `DMQ_SHM_MAX_PAYLOAD`. `Send()` never blocks: a full ring or a payload over the slot size fails, reported as `ERR_DISPATCH` with a `ShmRingError` aux code (`SHM_ERR_RING_FULL`, `SHM_ERR_TOO_LARGE`, ...). With an `IShmSignal`, `Receive()` blocks up to `DMQ_SHM_RECV_TIMEOUT_MS` (100 ms): set `SetRecvTimeout(0)` when polling, and always inside a FreeRTOS simulator task.
 - More, with fixes: "Pitfalls" in `docs/APP-GUIDE.md`.
 - Passing a `std::shared_ptr` argument through an async delegate copies the smart pointer, not the pointed-to object — the pointed-to data is shared, not duplicated.
 - `Signal::Connect()` and every `Subscribe*()` return a `[[nodiscard]]` `dmq::ScopedConnection` that owns the subscription. Discarding it disconnects immediately: no callbacks, no error. Store it in a member variable or container.

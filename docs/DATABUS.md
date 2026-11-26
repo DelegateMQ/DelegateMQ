@@ -187,7 +187,7 @@ m_mcu.Send<PumpCmd>(topics::PUMP_CMD, RID_PUMP_CMD, serCmd, Reliability::RELIABL
 - **Participants are shared.** Every link's participants count against one `dmq::MAX_PARTICIPANTS` (`DMQ_MAX_PARTICIPANTS`, default 8). `NetworkNode` and `SerialLink` use two per peer (reliable and unreliable), so two Ethernet peers and two serial MCUs already use all 8. Raise it in the gateway's config; exceeding it reports `ERR_CAPACITY_EXCEEDED` and calls `FaultHandler`.
 - **One `NetworkNode` is one inbound link.** All of its peers arrive on a single receive participant. A topic relayed in from one of its peers and also `Send()` on the same `NetworkNode` goes back to every peer, including the sender. It isn't a loop (the sender receives it with `Delivery::LOCAL`), but the sender gets its own data back. Relay between different links.
 
-[`databus/relay`](../example/sample-projects/databus/relay/README.md) is a worked example: a gateway relaying one topic each way between UDP and a named pipe (Windows) or Unix socket (Linux), and logging both.
+[`databus/relay`](../example/sample-projects/databus/relay/README.md) is a worked example: a gateway relaying one topic each way between UDP and a named pipe (Windows) or Unix socket (Linux), and logging both. With `--shm` the local hop is shared memory (`ShmRingTransport`) instead: the layout of a dual-core MCU, where the network core relays to the real-time core.
 
 ### Relay Loop Hazard
 A relay loop occurs when a node re-broadcasts a message back to its originator.
