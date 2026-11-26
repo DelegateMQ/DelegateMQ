@@ -152,7 +152,7 @@ void ShmRing_FullRing_FailsAndRecovers()
 
     for (uint16_t i = 0; i < 4; i++)
         DMQ_ASSERT_TRUE(SendU32(link.a, 1, i, i) == 0);
-    DMQ_ASSERT_TRUE(SendU32(link.a, 1, 99, 99) == -1);
+    DMQ_ASSERT_TRUE(SendU32(link.a, 1, 99, 99) == SHM_ERR_RING_FULL);
     DMQ_ASSERT_TRUE(link.a.GetSendFullCount() == 1);
 
     DmqHeader h;
@@ -193,7 +193,7 @@ void ShmRing_IndexWrap_32Bit()
     // Full detection across the wrap: 4 fit, the 5th doesn't
     for (int i = 0; i < 4; i++)
         DMQ_ASSERT_TRUE(SendU32(link.a, 1, 0, 0) == 0);
-    DMQ_ASSERT_TRUE(SendU32(link.a, 1, 0, 0) == -1);
+    DMQ_ASSERT_TRUE(SendU32(link.a, 1, 0, 0) == SHM_ERR_RING_FULL);
     std::cout << "ShmRing_IndexWrap_32Bit() complete!" << std::endl;
 }
 
@@ -206,7 +206,7 @@ void ShmRing_PayloadLimits()
     uint8_t big[33];
     for (size_t i = 0; i < sizeof(big); i++) big[i] = static_cast<uint8_t>(i + 1);
 
-    DMQ_ASSERT_TRUE(SendBytes(link.a, 5, 1, big, 33) == -1);
+    DMQ_ASSERT_TRUE(SendBytes(link.a, 5, 1, big, 33) == SHM_ERR_TOO_LARGE);
     DMQ_ASSERT_TRUE(link.a.GetSendTooLargeCount() == 1);
     DMQ_ASSERT_TRUE(SendBytes(link.a, 5, 2, big, 32) == 0);
     DMQ_ASSERT_TRUE(SendBytes(link.a, 5, 3, nullptr, 0) == 0);
@@ -238,12 +238,21 @@ void ShmRing_MalformedSlot_DroppedAndCounted()
     DmqHeader bad(1, 2, 17);                                 // length > MaxPayload
     bad.Encode(link.block->aToB.slots[1].header);
 
+    // Reported to the handler too, which may call back into the transport
+    int reported = 0;
+    bool reentered = false;
+    link.b.SetRecvErrorHandler(MakeDelegate([&](ShmRingError err) {
+        if (err == SHM_ERR_BAD_SLOT) reported++;
+        reentered = link.b.IsOpen();                         // no deadlock: called outside the locks
+    }));
+
     DmqHeader h;
     uint32_t v = 0;
     ByteReader is;
-    DMQ_ASSERT_TRUE(link.b.Receive(is, h) == -1);
-    DMQ_ASSERT_TRUE(link.b.Receive(is, h) == -1);
+    DMQ_ASSERT_TRUE(link.b.Receive(is, h) == SHM_ERR_BAD_SLOT);
+    DMQ_ASSERT_TRUE(link.b.Receive(is, h) == SHM_ERR_BAD_SLOT);
     DMQ_ASSERT_TRUE(link.b.GetRecvErrorCount() == 2);
+    DMQ_ASSERT_TRUE(reported == 2 && reentered);
     DMQ_ASSERT_TRUE(RecvU32(link.b, h, v) == 0 && v == 3);
     std::cout << "ShmRing_MalformedSlot_DroppedAndCounted() complete!" << std::endl;
 }
@@ -256,19 +265,19 @@ void ShmRing_Attach()
     auto block = std::make_unique<Shm::ControlBlock>();
     Shm a, b;
 
-    DMQ_ASSERT_TRUE(b.Create(*block, Shm::Side::B) == -1);   // not initialized yet
+    DMQ_ASSERT_TRUE(b.Create(*block, Shm::Side::B) == SHM_ERR_CLOSED);   // not initialized yet
     DMQ_ASSERT_TRUE(!b.IsOpen());
     ByteWriter os;
     DmqHeader h;
     ByteReader is;
-    DMQ_ASSERT_TRUE(b.Send(os, DmqHeader(1, 1)) == -1);      // closed
-    DMQ_ASSERT_TRUE(b.Receive(is, h) == -1);
+    DMQ_ASSERT_TRUE(b.Send(os, DmqHeader(1, 1)) == SHM_ERR_CLOSED);
+    DMQ_ASSERT_TRUE(b.Receive(is, h) == SHM_ERR_CLOSED);
 
     DMQ_ASSERT_TRUE(a.Create(*block, Shm::Side::A) == 0);
     DMQ_ASSERT_TRUE(a.IsOpen() && !a.IsPeerOpen());
 
     block->maxPayload = 32;                                   // as if built differently
-    DMQ_ASSERT_TRUE(b.Create(*block, Shm::Side::B) == -1);
+    DMQ_ASSERT_TRUE(b.Create(*block, Shm::Side::B) == SHM_ERR_CLOSED);
     block->maxPayload = 16;
     DMQ_ASSERT_TRUE(b.Create(*block, Shm::Side::B) == 0);
     DMQ_ASSERT_TRUE(a.IsPeerOpen() && b.IsPeerOpen());
@@ -401,8 +410,11 @@ void ShmRing_RemoteDelegate_EndToEnd()
 
     // A full ring fails the send and is reported here; the loop below resends
     std::atomic<int> sendErrors{ 0 };
-    sender.SetErrorHandler(MakeDelegate([&](DelegateRemoteId, DelegateError e, DelegateErrorAux) {
-        if (e != DelegateError::SUCCESS) sendErrors++;      // also called on success
+    std::atomic<int> otherErrors{ 0 };
+    sender.SetErrorHandler(MakeDelegate([&](DelegateRemoteId, DelegateError e, DelegateErrorAux aux) {
+        if (e == DelegateError::SUCCESS) return;            // also called on success
+        if (e == DelegateError::ERR_DISPATCH && aux == SHM_ERR_RING_FULL) sendErrors++;
+        else otherErrors++;
     }));
 
     for (int i = 0; i < COUNT; i++) {
@@ -427,7 +439,47 @@ void ShmRing_RemoteDelegate_EndToEnd()
     DMQ_ASSERT_TRUE(s_pointCalls == COUNT);
     DMQ_ASSERT_TRUE(s_pointSum == (COUNT - 1) * COUNT / 2 + COUNT);
     DMQ_ASSERT_TRUE(sendErrors == static_cast<int>(link.a.GetSendFullCount()));
+    DMQ_ASSERT_TRUE(otherErrors == 0);
     std::cout << "ShmRing_RemoteDelegate_EndToEnd() complete!" << std::endl;
+}
+
+struct Big { uint8_t bytes[40]; };     // over the 32-byte MaxPayload below
+void OnBig(Big) {}
+
+// A failed remote call reports ERR_DISPATCH with the transport's ShmRingError
+// as the aux code: the app can tell a full ring from an oversized message
+void ShmRing_RemoteErrors_CarryShmCode()
+{
+    constexpr DelegateRemoteId POINT_ID = 1, BIG_ID = 2;
+    Link<2, 32> link(false);
+    link.b.SetSendTransport(nullptr);
+
+    DelegateError lastErr = DelegateError::SUCCESS;
+    DelegateErrorAux lastAux = 0;
+    auto handler = MakeDelegate([&](DelegateRemoteId, DelegateError e, DelegateErrorAux aux) {
+        if (e != DelegateError::SUCCESS) { lastErr = e; lastAux = aux; }
+    });
+
+    dmq::serialization::raw::Serializer<void(Big)> bigSer;
+    RemoteChannel<void(Big)> big(link.a, bigSer, BIG_ID);
+    big.SetErrorHandler(handler);
+    big(Big{});
+    DMQ_ASSERT_TRUE(lastErr == DelegateError::ERR_DISPATCH && lastAux == SHM_ERR_TOO_LARGE);
+
+    dmq::serialization::raw::Serializer<void(Point)> pointSer;
+    RemoteChannel<void(Point)> point(link.a, pointSer, POINT_ID);
+    point.SetErrorHandler(handler);
+    lastErr = DelegateError::SUCCESS;
+    point(Point{ 1, 2 });
+    point(Point{ 3, 4 });
+    DMQ_ASSERT_TRUE(lastErr == DelegateError::SUCCESS);      // 2 slots: both fit
+    point(Point{ 5, 6 });
+    DMQ_ASSERT_TRUE(lastErr == DelegateError::ERR_DISPATCH && lastAux == SHM_ERR_RING_FULL);
+
+    link.a.Close();
+    point(Point{ 7, 8 });
+    DMQ_ASSERT_TRUE(lastErr == DelegateError::ERR_DISPATCH && lastAux == SHM_ERR_CLOSED);
+    std::cout << "ShmRing_RemoteErrors_CarryShmCode() complete!" << std::endl;
 }
 
 /// Payload for the stress tests: a sender id, a sequence, and filler derived
@@ -539,6 +591,7 @@ void ShmRingTransportTests()
     ShmRing_Signal_WakesReceiver();
     ShmRing_Ack_TransportMonitor();
     ShmRing_RemoteDelegate_EndToEnd();
+    ShmRing_RemoteErrors_CarryShmCode();
     ShmRing_Stress_Bidirectional();
     ShmRing_Stress_TwoSendersOneSide();
     std::cout << "ShmRingTransportTests() complete!" << std::endl;

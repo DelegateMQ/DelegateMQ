@@ -47,5 +47,5 @@ The two processes share the console, so their lines can interleave in any order.
 
 - **Start order.** Start side A first: its `Create()` sets up the region and empties the rings. Don't restart side A while side B runs. Side B can close and reopen freely.
 - **Build settings.** Both processes must use the same `DMQ_SHM_SLOT_COUNT` and `DMQ_SHM_MAX_PAYLOAD`. If they don't, side B's `Create()` fails rather than misreading the region.
-- **Full ring.** A full ring fails the send and reports it through the channel's error handler. Nothing waits. Here the reply rate keeps the 16-slot rings far from full.
+- **Errors.** A full ring fails the send. Nothing waits: the channel's error handler gets `ERR_DISPATCH` with `SHM_ERR_RING_FULL` as its aux code (`SHM_ERR_TOO_LARGE` for a message over the slot size, `SHM_ERR_CLOSED` once the transport is closed). A corrupted slot on the receiving side goes to the transport's `SetRecvErrorHandler()`. Here the reply rate keeps the 16-slot rings far from full.
 - **No ACKs.** Both sides call `SetSendTransport(nullptr)`, because neither uses a `TransportMonitor`. To detect a hung peer, attach one as the serializer sample does.

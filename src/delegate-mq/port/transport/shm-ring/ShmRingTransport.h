@@ -34,6 +34,12 @@
 /// counted (`GetSendFullCount()`, `GetSendTooLargeCount()`). Size the ring for
 /// the bursts expected between receives (DMQ_SHM_SLOT_COUNT).
 ///
+/// **Errors.** Send() and Receive() return a ShmRingError on failure. A
+/// remote delegate or RemoteChannel reports a failed Send() as ERR_DISPATCH
+/// with the ShmRingError as its DelegateErrorAux, so the app's error handler
+/// can tell a full ring from an oversized message. A malformed slot found by
+/// Receive() is dropped, counted, and reported to `SetRecvErrorHandler()`.
+///
 /// **ACKs.** As with the UART and UDP transports: a received message other than
 /// an ACK is ACKed through the send transport (this one by default), and a
 /// received ACK clears the entry in the TransportMonitor, if one is set.
@@ -61,6 +67,7 @@
 /// and needs lock-free 32-bit atomics, which AVR lacks): include this header.
 
 #include "delegate/DelegateOpt.h"
+#include "delegate/UnicastDelegate.h"
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransport.h"
 #include "port/transport/common/ITransportMonitor.h"
@@ -68,6 +75,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <utility>
 
 namespace dmq::transport {
 
@@ -89,6 +97,18 @@ public:
     /// returns are fine: Receive() checks the ring again.
     /// @return true if notified, false on timeout.
     virtual bool WaitForData(std::chrono::milliseconds timeout) = 0;
+};
+
+/// @brief Failure results of ShmRingTransport::Send() and Receive() (and of
+/// Create()). A failed remote call carries one as the DelegateErrorAux of
+/// DelegateError::ERR_DISPATCH.
+enum ShmRingError : int
+{
+    SHM_ERR_CLOSED    = -1,   ///< Not open (never created, closed, or Create() failed)
+    SHM_ERR_RING_FULL = -2,   ///< Send(): the peer's ring is full; the peer isn't keeping up
+    SHM_ERR_TOO_LARGE = -3,   ///< Send(): payload exceeds MaxPayload
+    SHM_ERR_BUFFER    = -4,   ///< Send(): the ByteWriter failed (overflowed while serializing)
+    SHM_ERR_BAD_SLOT  = -5    ///< Receive(): malformed slot (bad marker, version or length), dropped
 };
 
 /// @brief ITransport over a pair of shared-memory rings. See the file comment.
@@ -122,8 +142,8 @@ public:
     /// @param[in] side   This side.
     /// @param[in] signal Wakes the peer and waits for data; nullptr to poll.
     /// Must outlive the transport.
-    /// @return 0 on success, -1 if side B found the block uninitialized or
-    /// built with another layout.
+    /// @return 0 on success, SHM_ERR_CLOSED if side B found the block
+    /// uninitialized or built with another layout.
     int Create(ControlBlock& block, Side side, IShmSignal* signal = nullptr)
     {
         const dmq::LockGuard<dmq::Mutex> recvLock(m_recvMutex);
@@ -133,7 +153,7 @@ public:
         if (side == Side::A)
             block.Init();
         else if (!block.IsCompatible())
-            return -1;
+            return SHM_ERR_CLOSED;
 
         m_block = &block;
         m_side = side;
@@ -204,26 +224,36 @@ public:
     /// @brief Received slots dropped as malformed (bad marker, version or length).
     uint32_t GetRecvErrorCount() const { return m_recvErrors.load(std::memory_order_relaxed); }
 
+    /// @brief Called, on the receiving thread, when Receive() drops a malformed
+    /// slot (SHM_ERR_BAD_SLOT): memory corruption, or a peer that isn't speaking
+    /// this protocol. Set it before receiving starts. Called outside the
+    /// transport's locks, so it may call the transport.
+    void SetRecvErrorHandler(dmq::UnicastDelegate<void(ShmRingError)> handler)
+    {
+        const dmq::LockGuard<dmq::Mutex> lock(m_recvMutex);
+        m_recvErrorHandler = std::move(handler);
+    }
+
     /// @brief Publish a message to the peer's ring and notify it. Never blocks
     /// on the peer.
-    /// @return 0 on success; -1 if closed, `os` failed, the payload exceeds
-    /// MaxPayload, or the ring is full.
+    /// @return 0 on success, or SHM_ERR_BUFFER (`os` failed), SHM_ERR_CLOSED,
+    /// SHM_ERR_TOO_LARGE (payload over MaxPayload) or SHM_ERR_RING_FULL.
     int Send(const dmq::ByteWriter& os, const DmqHeader& header) override
     {
         if (os.fail())
-            return -1;
+            return SHM_ERR_BUFFER;
 
         {
             // NotifyPeer() runs under the lock too, so Close() can't release
             // the signal's resources while a Send() is still using them
             const dmq::LockGuard<dmq::Mutex> lock(m_sendMutex);
             if (!m_tx)
-                return -1;
+                return SHM_ERR_CLOSED;
 
             const size_t len = os.size();
             if (len > MaxPayload) {
                 m_sendTooLarge.fetch_add(1, std::memory_order_relaxed);
-                return -1;
+                return SHM_ERR_TOO_LARGE;
             }
 
             // Producer: head is ours (relaxed); acquire on tail so the consumer
@@ -232,7 +262,7 @@ public:
             const uint32_t tail = m_tx->tail.load(std::memory_order_acquire);
             if (static_cast<uint32_t>(head - tail) >= static_cast<uint32_t>(SlotCount)) {
                 m_sendFull.fetch_add(1, std::memory_order_relaxed);
-                return -1;
+                return SHM_ERR_RING_FULL;
             }
 
             ShmSlot<MaxPayload>& slot = m_tx->slots[head & Ring::MASK];
@@ -254,18 +284,20 @@ public:
     /// @details With a signal and a non-zero receive timeout, waits for the peer
     /// when the ring is empty. The payload is copied to this transport's buffer
     /// (valid until the next Receive() or Close()) and the slot freed at once.
-    /// @return 0 with a message, RECEIVE_NO_DATA if none arrived, -1 if closed
-    /// or the slot was malformed (dropped and counted).
+    /// @return 0 with a message, RECEIVE_NO_DATA if none arrived,
+    /// SHM_ERR_CLOSED, or SHM_ERR_BAD_SLOT (a malformed slot, dropped, counted
+    /// and reported to the receive error handler).
     int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
         is.assign(nullptr, 0);   // nothing until a message arrives
         uint16_t len = 0;
         ITransportMonitor* monitor = nullptr;
         ITransport* ackTransport = nullptr;
+        bool badSlot = false;
         {
             const dmq::LockGuard<dmq::Mutex> recvLock(m_recvMutex);
             if (!m_rx)
-                return -1;
+                return SHM_ERR_CLOSED;
 
             // Consumer: tail is ours (relaxed); acquire on head so the slot's
             // contents written before it are visible.
@@ -288,12 +320,20 @@ public:
             // Release: done with the slot; the producer may reuse it
             m_rx->tail.store(tail + 1, std::memory_order_release);
 
-            if (!valid) {
+            if (!valid)
                 m_recvErrors.fetch_add(1, std::memory_order_relaxed);
-                return -1;
+            else {
+                monitor = m_transportMonitor;
+                ackTransport = m_sendTransport;
             }
-            monitor = m_transportMonitor;
-            ackTransport = m_sendTransport;
+            badSlot = !valid;
+        }
+
+        if (badSlot) {
+            // Outside the lock: the handler may call back into the transport
+            if (m_recvErrorHandler)
+                m_recvErrorHandler(SHM_ERR_BAD_SLOT);
+            return SHM_ERR_BAD_SLOT;
         }
 
         if (len > 0)
@@ -364,6 +404,7 @@ private:
 
     ITransport* m_sendTransport = this;
     ITransportMonitor* m_transportMonitor = nullptr;
+    dmq::UnicastDelegate<void(ShmRingError)> m_recvErrorHandler;
 
     std::atomic<uint32_t> m_recvTimeoutMs{ static_cast<uint32_t>(dmq::SHM_RECV_TIMEOUT.count()) };
     std::atomic<uint32_t> m_sendFull{ 0 };
