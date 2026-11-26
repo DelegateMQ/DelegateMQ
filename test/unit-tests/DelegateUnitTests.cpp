@@ -1309,6 +1309,8 @@ extern void RemoteDispatcherTests();
 extern void MonotonicGuardTests();
 extern void TimerDelegateTests();
 extern void IsrDelegateTests();
+extern void ShmRingTransportTests();
+extern void ShmOsTransportTests();
 #ifdef DMQ_ALLOCATOR
 extern void AllocatorTests();
 #endif
@@ -1336,6 +1338,8 @@ void RunDelegateUnitTests()
 		MonotonicGuardTests();
 		TimerDelegateTests();
 		IsrDelegateTests();
+		ShmRingTransportTests();
+		ShmOsTransportTests();
 #ifdef DMQ_ALLOCATOR
 		AllocatorTests();
 #endif

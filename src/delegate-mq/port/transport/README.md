@@ -26,6 +26,8 @@ The subdirectories contain ready-to-use transport implementations for specific p
 ### IPC & Serial
 * **`win32-pipe`**: Inter-Process Communication (IPC) using Windows Named Pipes.
 * **`linux-uds`**: Inter-Process Communication (IPC) using Linux Unix domain datagram sockets (`AF_UNIX`, `SOCK_DGRAM`). Duplex, path-addressed, no start-order dependency. A stale socket file left by a crashed process is reused; a path still bound by a live process makes `Create()` fail. Socket access follows the directory's permissions, so prefer a per-user directory such as `$XDG_RUNTIME_DIR` over `/tmp` when other local users must not be able to send. Selected via `DMQ_TRANSPORT_LINUX_UDS`.
+* **`shm-ring`**: Shared memory between two cores of an AMP MCU, two processes, or two threads (`ShmRingTransport`). Two lock-free single-producer, single-consumer rings of fixed-size slots in one shared control block, no locks between the sides, no heap, no OS calls. The peer is woken through an `IShmSignal` (a cross-core interrupt, an event, a semaphore), or not at all (polling). Sized by `DMQ_SHM_SLOT_COUNT` / `DMQ_SHM_MAX_PAYLOAD`; a full ring fails `Send()` and is counted. Header-only, not selected by `DMQ_TRANSPORT_*` and not included by `DelegateMQ.h`: include `port/transport/shm-ring/ShmRingTransport.h` beside any other transport.
+* **`win32-shm`** / **`linux-shm`**: `ShmRingTransport` between two processes: a named file mapping and events (Windows), or `shm_open` and named semaphores (Linux). Run by `example/sample-projects/transport/shm-ring`.
 * **`serial`**: Serial port (UART/RS-232) transport using **libserialport**.
 * **`stm32-uart`**: Interrupt-driven STM32 HAL UART transport for embedded targets (selected via `DMQ_TRANSPORT_STM32_UART`).
 

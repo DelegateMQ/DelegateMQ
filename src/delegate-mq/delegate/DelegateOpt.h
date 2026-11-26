@@ -428,6 +428,14 @@ namespace dmq
     inline constexpr std::chrono::milliseconds UART_TX_TIMEOUT{ DMQ_UART_TX_TIMEOUT_MS };
     inline constexpr std::chrono::milliseconds UART_FRAME_TIMEOUT{ DMQ_UART_FRAME_TIMEOUT_MS };
 
+    /// @brief Shared-memory ring transport (ShmRingTransport) defaults: slots per
+    /// direction, max payload per message, and the receive wait with a doorbell.
+    /// Override via DMQ_SHM_SLOT_COUNT / DMQ_SHM_MAX_PAYLOAD /
+    /// DMQ_SHM_RECV_TIMEOUT_MS in delegatemqconfig.h.
+    inline constexpr size_t SHM_SLOT_COUNT = DMQ_SHM_SLOT_COUNT;
+    inline constexpr size_t SHM_MAX_PAYLOAD = DMQ_SHM_MAX_PAYLOAD;
+    inline constexpr std::chrono::milliseconds SHM_RECV_TIMEOUT{ DMQ_SHM_RECV_TIMEOUT_MS };
+
     // --- MUTEX / LOCK SELECTION ---
 #if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
     // Windows / Linux / macOS / Qt / POSIX

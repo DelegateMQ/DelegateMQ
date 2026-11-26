@@ -162,6 +162,19 @@
     #define DMQ_UART_FRAME_TIMEOUT_MS       100
 #endif
 
+// Shared-memory ring transport (ShmRingTransport): slots per direction (a
+// power of 2), max payload bytes per message (both sides must agree), and the
+// most Receive() waits for data when an IShmSignal is set.
+#ifndef DMQ_SHM_SLOT_COUNT
+    #define DMQ_SHM_SLOT_COUNT              16
+#endif
+#ifndef DMQ_SHM_MAX_PAYLOAD
+    #define DMQ_SHM_MAX_PAYLOAD             256
+#endif
+#ifndef DMQ_SHM_RECV_TIMEOUT_MS
+    #define DMQ_SHM_RECV_TIMEOUT_MS         100
+#endif
+
 // Maximum number of distinct fixed-block allocator buckets (heap-blocks mode only).
 // Each unique power-of-two allocation size gets one bucket. Most applications use
 // 8-12 distinct sizes; raise this only if xallocator's ASSERT fires at runtime.
