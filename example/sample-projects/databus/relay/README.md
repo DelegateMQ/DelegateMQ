@@ -17,6 +17,8 @@ The sensor's simulated temperature drifts toward the current setpoint, so the ro
 
 **Platform:** Windows: named pipe / Linux: Unix domain socket. The local IPC hop ("the pipe" below) uses `Win32PipeTransport` on Windows and `LinuxUdsTransport` (`AF_UNIX` datagram socket) on Linux. Both are duplex, so the code is the same apart from creating the transport.
 
+With `--shm` on the gateway and monitor, the local hop is shared memory (`ShmRingTransport`) instead: the shape of a dual-core MCU such as the STM32H755, where one core is on the network and relays to the other through shared SRAM. See [Shared Memory Hop](#shared-memory-hop---shm).
+
 ## Relaying Is Explicit
 
 DelegateMQ does no automatic routing. When a node receives a remote topic, it handles it one of two ways:
@@ -49,11 +51,19 @@ DDS behaves the same way. A DDS participant doesn't forward between networks eit
 - **Pipe start order (Windows).** The gateway is the pipe server and creates `\\.\pipe\dmq_relay`, and the monitor connects to it. The monitor retries for up to 10 s, but the gateway has to be started first. Until the monitor connects, the gateway's pipe sends fail and it reports that once. The pipe takes a single client and doesn't accept a reconnect: if the monitor exits, restart the gateway too.
 - **No start order (Linux).** A Unix datagram socket has no connection. The gateway binds `/tmp/dmq_relay_gateway.sock`, the monitor binds `/tmp/dmq_relay_monitor.sock`, and each sends to the other's path. Nodes can start in any order and the monitor can be restarted freely: sends to a peer that isn't running yet fail (the gateway reports that once) and succeed as soon as it binds. Each node removes a stale socket file from a crashed run before binding, and removes its own on exit. Starting a second copy of a node while the first is running fails with "in use by another process" rather than taking over its socket. The paths are in `/tmp` for simplicity; a real deployment would use a per-user directory such as `$XDG_RUNTIME_DIR`.
 
+## Shared Memory Hop (`--shm`)
+
+Run the gateway and monitor with `--shm` (`run_databus_relay.py --shm` does) and the gateway <-> monitor hop goes through shared memory: `Win32ShmTransport` (file mapping `Local\dmq-shm-relay`, named events) on Windows, `LinuxShmTransport` (`/dev/shm/dmq-shm-relay`, named semaphores) on Linux, both over `ShmRingTransport`. Nothing else changes: the same `Participant`, the same `AddRelayTopic` wiring, the same messages. `common/ShmLink.h` holds the transport choice and the argument parsing.
+
+- **Start order.** The gateway is side A: it creates the shared region. The monitor is side B and retries for up to 10 s until it can attach, so start the gateway first. Don't restart the gateway while the monitor runs (its `Create()` empties the rings); restart both.
+- **No polling delay.** Each side's receive thread sleeps in `Receive()` until the other side's send wakes it (or the 100 ms receive timeout passes), instead of draining every 10 ms.
+- **This is the dual-core layout.** On an STM32H755 the gateway's job would run on the Cortex-M7 (network, relaying, tools) and the monitor's on the Cortex-M4, with the region in shared SRAM and a hardware-semaphore interrupt for the wake-up. The DataBus and relay code here is the same library code that runs there.
+
 ## Files
 
 | Path | Contents |
 |------|----------|
-| `common/` | `TempMsg`, `SetpointMsg`, topic names, remote IDs, ports, pipe name and socket paths |
+| `common/` | `TempMsg`, `SetpointMsg`, topic names, remote IDs, ports, pipe name and socket paths; `ShmLink.h`: the shared-memory transport and the `--shm` argument |
 | `sensor/` | UDP-only node: publishes `sensor/temp`, receives `cmd/setpoint` |
 | `gateway/` | UDP + IPC node: relays both topics |
 | `monitor/` | IPC-only node: receives `sensor/temp`, publishes `cmd/setpoint` |
@@ -65,6 +75,7 @@ DDS behaves the same way. A DDS participant doesn't forward between networks eit
 | gateway → sensor | UDP `127.0.0.1:5021` (sensor listens) |
 | gateway ↔ monitor (Windows) | named pipe `\\.\pipe\dmq_relay` (gateway = server) |
 | gateway ↔ monitor (Linux) | Unix datagram sockets `/tmp/dmq_relay_gateway.sock` ↔ `/tmp/dmq_relay_monitor.sock` |
+| gateway ↔ monitor (`--shm`) | shared memory `relay` (gateway = side A, creates it) |
 
 ## Build
 
@@ -80,9 +91,10 @@ cmake --build build --config Release
 ```bash
 python run_databus_relay.py                 # three consoles, run until Ctrl+C
 python run_databus_relay.py --duration 30   # each node exits after 30 s
+python run_databus_relay.py --shm           # gateway <-> monitor over shared memory
 ```
 
-Each app also takes an optional run duration in seconds as its first argument. To start them by hand on Windows, start them in this order: gateway, monitor, sensor. On Linux any order works.
+Each app also takes an optional run duration in seconds as its first argument, and the gateway and monitor take `--shm`. To start them by hand on Windows, start them in this order: gateway, monitor, sensor. On Linux any order works, except that with `--shm` the gateway comes before the monitor. `build_all.py` runs the sample both ways (`databus/relay` and `databus/relay (shm)`).
 
 Expected output (abridged):
 

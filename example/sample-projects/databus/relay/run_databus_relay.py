@@ -17,6 +17,7 @@ Description:
 Usage:
     > python run_databus_relay.py                 # run until Ctrl+C
     > python run_databus_relay.py --duration 30   # each node exits after 30 s
+    > python run_databus_relay.py --shm           # gateway <-> monitor over shared memory
     > python run_databus_relay.py --config Debug
 """
 
@@ -100,6 +101,11 @@ def main():
         default=0,
         help="Seconds each node runs before exiting on its own (default: 0 = until Ctrl+C)."
     )
+    parser.add_argument(
+        "--shm",
+        action="store_true",
+        help="Gateway <-> monitor over shared memory instead of the named pipe / Unix socket."
+    )
     args = parser.parse_args()
 
     base_path = os.path.dirname(os.path.abspath(__file__))
@@ -134,7 +140,7 @@ def main():
         to_launch.append((node["name"], exe_path))
 
     print("--- Starting DataBus Relay Sample ---")
-    ipc = "named pipe" if IS_WINDOWS else "Unix socket"
+    ipc = "shared memory" if args.shm else ("named pipe" if IS_WINDOWS else "Unix socket")
     print(f"  sensor (A) <--- UDP ---> gateway (B) <--- {ipc} ---> monitor (C)")
     print(f"  Duration: {args.duration} s" if args.duration > 0 else "  Duration: until Ctrl+C")
 
@@ -142,8 +148,10 @@ def main():
     processes = []
     for name, exe_path in to_launch:
         print(f"Launching {name}: {exe_path}")
-        processes.append(launch_process(exe_path, node_args, os.path.dirname(exe_path)))
-        time.sleep(1.0)  # Windows: gateway must create the pipe before the monitor connects
+        # --shm: only the gateway and monitor are on the shared-memory hop
+        extra = ["--shm"] if args.shm and name in ("Gateway", "Monitor") else []
+        processes.append(launch_process(exe_path, node_args + extra, os.path.dirname(exe_path)))
+        time.sleep(1.0)  # gateway must create the pipe (Windows) or shared memory before the monitor attaches
 
     print("\nAll nodes started.")
     print("Terminate this script (Ctrl+C) to stop all processes.")

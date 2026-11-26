@@ -4,7 +4,8 @@
 //   sensor (A) <--- UDP ---> gateway (B) <--- local IPC ---> monitor (C)
 //
 // Local IPC is a Win32 named pipe on Windows and a Unix domain datagram socket
-// on Linux. Both are duplex: one transport, one participant, both directions.
+// on Linux, or shared memory with --shm (ShmLink.h). All are duplex: one
+// transport, one participant, both directions.
 //
 // The gateway sits on two different links and bridges DataBus topics between
 // them. DelegateMQ never forwards received data on its own: AddIncomingTopic
@@ -28,6 +29,7 @@
 #endif
 #include "SystemMessages.h"
 #include "SystemIds.h"
+#include "ShmLink.h"
 
 #include <iostream>
 #include <memory>
@@ -45,6 +47,7 @@ using IpcTransport = dmq::transport::LinuxUdsTransport;
 #endif
 
 static std::atomic<bool> g_running(true);
+static const char* g_ipcName = SystemLink::IpcName;    // "shm" with --shm
 
 static void SignalHandler(int) { g_running = false; }
 
@@ -55,8 +58,11 @@ struct GatewayState {
     std::shared_ptr<Participant> udpInParticipant;
     std::shared_ptr<Participant> udpOutParticipant;
 
-    // Pipe side (monitor): one duplex IPC link, one participant, both directions
+    // Pipe side (monitor): one duplex IPC link, one participant, both directions.
+    // `ipc` is the pipe/socket, or the shared memory with --shm.
     IpcTransport pipe;
+    ShmTransport shm;
+    dmq::transport::ITransport* ipc = &pipe;
     std::shared_ptr<Participant> pipeParticipant;
 
     dmq::serialization::serializer::Serializer<void(TempMsg)> tempSerializer;
@@ -67,7 +73,7 @@ struct GatewayState {
     dmq::ScopedConnection errorConn;
 };
 
-static bool SetupTransports(GatewayState& s) {
+static bool SetupTransports(GatewayState& s, bool useShm) {
     if (s.udpIn.Create(UdpTransport::Type::SUB, SystemLink::UdpAddr, SystemLink::GatewayUdpPort) != 0) {
         std::cerr << "[gateway] Failed to create UDP SUB transport" << std::endl;
         return false;
@@ -77,6 +83,17 @@ static bool SetupTransports(GatewayState& s) {
     if (s.udpOut.Create(UdpTransport::Type::PUB, SystemLink::UdpAddr, SystemLink::SensorUdpPort) != 0) {
         std::cerr << "[gateway] Failed to create UDP PUB transport" << std::endl;
         return false;
+    }
+
+    if (useShm) {
+        // Side A: create and initialize the shared region the monitor attaches to
+        if (s.shm.Create(SystemLink::ShmName, ShmTransport::Side::A) != 0) {
+            std::cerr << "[gateway] Failed to create shared memory link " << SystemLink::ShmName << std::endl;
+            return false;
+        }
+        s.shm.SetSendTransport(nullptr);    // no ACKs: everything is sent unreliable
+        s.ipc = &s.shm;
+        return true;
     }
 
 #ifdef _WIN32
@@ -107,7 +124,7 @@ static void SetupDataBus(GatewayState& s) {
     DataBus::AddRelayTopic<TempMsg>(SystemTopic::SensorTemp, SystemTopic::SensorTempId,
         *s.udpInParticipant, s.tempSerializer);
 
-    s.pipeParticipant = std::make_shared<Participant>(s.pipe);
+    s.pipeParticipant = std::make_shared<Participant>(*s.ipc);
     s.pipeParticipant->AddRemoteTopic(SystemTopic::SensorTemp, SystemTopic::SensorTempId);
     DataBus::AddParticipant(s.pipeParticipant);
 
@@ -127,10 +144,10 @@ static void RegisterSubscriptions(GatewayState& s) {
     // A relay node is still a normal DataBus node: relayed data also reaches local subscribers.
     s.tempConn = DataBus::Subscribe<TempMsg>(SystemTopic::SensorTemp, [](const TempMsg& msg) {
         std::cout << "[gateway] relayed sensor/temp: " << msg.celsius << " C (seq " << msg.seq
-                  << ")  UDP -> " << SystemLink::IpcName << std::endl;
+                  << ")  UDP -> " << g_ipcName << std::endl;
     });
     s.setpointConn = DataBus::Subscribe<SetpointMsg>(SystemTopic::CmdSetpoint, [](const SetpointMsg& msg) {
-        std::cout << "[gateway] relayed cmd/setpoint: " << msg.celsius << " C  " << SystemLink::IpcName << " -> UDP" << std::endl;
+        std::cout << "[gateway] relayed cmd/setpoint: " << msg.celsius << " C  " << g_ipcName << " -> UDP" << std::endl;
     });
 
     // Until the monitor connects, IPC sends fail. Report once instead of every message.
@@ -144,18 +161,20 @@ static void RegisterSubscriptions(GatewayState& s) {
 }
 
 int main(int argc, char* argv[]) {
-    int duration = 0;
-    if (argc > 1) duration = atoi(argv[1]);
+    const NodeArgs args = ParseNodeArgs(argc, argv);   // [seconds] [--shm]
+    const int duration = args.duration;
+    if (args.shm)
+        g_ipcName = "shm";
 
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 
-    std::cout << "Starting DataBus Relay GATEWAY (B, UDP <-> " << SystemLink::IpcName << ")..." << std::endl;
+    std::cout << "Starting DataBus Relay GATEWAY (B, UDP <-> " << g_ipcName << ")..." << std::endl;
 
     dmq::util::NetworkContext netCtx;  // Winsock init on Windows; no-op on Linux
 
     GatewayState s;
-    if (!SetupTransports(s)) return -1;
+    if (!SetupTransports(s, args.shm)) return -1;
     SetupDataBus(s);
     RegisterSubscriptions(s);
 
@@ -168,8 +187,12 @@ int main(int argc, char* argv[]) {
     });
     std::thread pipeThread([&]() {
         while (running) {
-            while (s.pipeParticipant->ProcessIncoming() == 0) {}  // drain; IPC reads don't block
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // Drain. Pipe/socket reads don't block, so pause between drains;
+            // a shared-memory read sleeps until the monitor's next send (or
+            // the 100 ms receive timeout), woken by its event or semaphore.
+            while (s.pipeParticipant->ProcessIncoming() == 0) {}
+            if (!args.shm)
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
 
@@ -189,5 +212,6 @@ int main(int argc, char* argv[]) {
     s.udpIn.Close();
     s.udpOut.Close();
     s.pipe.Close();
+    s.shm.Close();
     return 0;
 }

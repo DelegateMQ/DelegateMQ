@@ -122,6 +122,13 @@ MULTI_NODE = {
     "databus/relay": ["gateway", "monitor", "sensor"],  # Windows: gateway creates the pipe the monitor connects to
 }
 
+# Extra runs of a MULTI_NODE project with added node arguments, each reported
+# as "<project> (<variant>)": {project: {variant: {node: [args]}}}.
+MULTI_NODE_VARIANTS = {
+    # gateway <-> monitor over shared memory instead of the pipe/Unix socket
+    "databus/relay": {"shm": {"gateway": ["--shm"], "monitor": ["--shm"]}},
+}
+
 WINDOWS_ONLY = {
     "databus/freertos",        # server uses FreeRTOS Win32 simulator (32-bit); client/server pair only runs on Windows
     "os/freertos-bare-metal",
@@ -540,6 +547,32 @@ def run_sensor_node_pair(label, node, prefix, pc, project_dir, passed, failed):
             r["failed"] = did_fail = True
     if any(r.get("timed_out") for r in results.values()):
         did_fail = True   # both end on their own; a timeout is a hang
+    report_group(label, did_fail, results, passed, failed)
+
+
+def run_multi_node_variant(project_name, project_dir, variant, node_args, passed, failed, skipped):
+    """Run a MULTI_NODE project again with extra arguments for some nodes
+    (MULTI_NODE_VARIANTS), checked against the same REQUIRED_OUTPUT."""
+    label = f"{project_name} ({variant})"
+    procs = []
+    for node in MULTI_NODE[project_name]:
+        node_dir = os.path.join(project_dir, node)
+        node_exe = find_executable(full_suite.build_dir(node_dir),
+                                   get_exe_name(os.path.join(node_dir, "CMakeLists.txt")))
+        if not node_exe:
+            skipped.append((label, "not built"))
+            return
+        procs.append((node, [node_exe, str(APP_DURATION)] + node_args.get(node, []), node_dir))
+
+    print(f"[RUNNING] {label}  ({'/'.join(MULTI_NODE[project_name])})")
+    did_fail, results = run_group(procs)
+    if not did_fail:
+        for role, required_str in REQUIRED_OUTPUT.get(project_name, {}).items():
+            role_result = results.get(role)
+            if role_result is not None and required_str not in role_result.get("output", ""):
+                print(f"   FAILED  ({role} output missing: {required_str!r})")
+                role_result["failed"] = True
+                did_fail = True
     report_group(label, did_fail, results, passed, failed)
 
 
@@ -1198,6 +1231,10 @@ def run_samples(use_clang=False, assume_yes=False, full=False, results_path=None
                 tout_note = " (killed after timeout)"
             print(f"   passed{tout_note}")
             passed.append(project_name)
+
+        # --- MULTI-NODE VARIANTS (e.g. databus/relay over shared memory) ---
+        for variant, node_args in MULTI_NODE_VARIANTS.get(project_name, {}).items():
+            run_multi_node_variant(project_name, project_dir, variant, node_args, passed, failed, skipped)
 
         # --- CROSS-ENDIAN RUNS (Linux) ---
         if project_name == full_suite.CROSS_ENDIAN_SAMPLE and not IS_WINDOWS:

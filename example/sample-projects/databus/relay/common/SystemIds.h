@@ -4,7 +4,8 @@
 #include "DelegateMQ.h"
 
 // Topology:  sensor <--- UDP ---> gateway <--- local IPC ---> monitor
-//   local IPC = Win32 named pipe (Windows) or Unix domain socket (Linux)
+//   local IPC = Win32 named pipe (Windows) or Unix domain socket (Linux),
+//   or shared memory with --shm (ShmLink.h)
 namespace SystemTopic {
     // Topic names
     inline constexpr const char* const SensorTemp  = "sensor/temp";   // sensor -> gateway -> monitor

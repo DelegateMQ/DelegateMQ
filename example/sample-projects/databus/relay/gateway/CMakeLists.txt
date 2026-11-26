@@ -53,3 +53,11 @@ target_link_libraries(${DELEGATE_APP} PRIVATE Threads::Threads)
 if(WIN32)
     target_link_libraries(${DELEGATE_APP} PRIVATE ws2_32)
 endif()
+
+if(UNIX)
+    # ShmLink.h (--shm): shm_open/sem_open are in librt before glibc 2.34
+    find_library(RT_LIB rt)
+    if(RT_LIB)
+        target_link_libraries(${DELEGATE_APP} PRIVATE ${RT_LIB})
+    endif()
+endif()

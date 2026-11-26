@@ -4,7 +4,8 @@
 //   sensor (A) <--- UDP ---> gateway (B) <--- local IPC ---> monitor (C)
 //
 // Local IPC is a Win32 named pipe on Windows and a Unix domain datagram socket
-// on Linux (CMake selects DMQ_TRANSPORT_WIN32_PIPE or DMQ_TRANSPORT_LINUX_UDS).
+// on Linux (CMake selects DMQ_TRANSPORT_WIN32_PIPE or DMQ_TRANSPORT_LINUX_UDS),
+// or shared memory with --shm (ShmLink.h).
 //
 // An ordinary DataBus node on the pipe side, typically a local app running on
 // the same box as the gateway. It never talks to the sensor directly: the
@@ -16,6 +17,7 @@
 #include "DelegateMQ.h"
 #include "SystemMessages.h"
 #include "SystemIds.h"
+#include "ShmLink.h"
 
 #include <iostream>
 #include <memory>
@@ -37,6 +39,8 @@ static void SignalHandler(int) { g_running = false; }
 
 struct MonitorState {
     IpcTransport pipe;   // client end of the gateway's IPC link (duplex)
+    ShmTransport shm;    // or side B of the shared memory, with --shm
+    dmq::transport::ITransport* ipc = &pipe;
     std::shared_ptr<Participant> pipeParticipant;
     dmq::serialization::serializer::Serializer<void(TempMsg)> tempSerializer;
     dmq::serialization::serializer::Serializer<void(SetpointMsg)> setpointSerializer;
@@ -73,8 +77,24 @@ static bool ConnectPipe(MonitorState& s) {
 }
 #endif
 
+// Shared memory: the gateway (side A) creates the region; attach once it has.
+static bool ConnectShm(MonitorState& s) {
+    for (int attempt = 0; attempt < 40 && g_running; ++attempt) {
+        if (s.shm.Create(SystemLink::ShmName, ShmTransport::Side::B) == 0) {
+            s.shm.SetSendTransport(nullptr);    // no ACKs: everything is sent unreliable
+            s.ipc = &s.shm;
+            std::cout << "[monitor] attached to gateway shared memory " << SystemLink::ShmName << std::endl;
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
+    std::cerr << "[monitor] Could not attach to shared memory " << SystemLink::ShmName
+              << " (is the gateway running with --shm?)" << std::endl;
+    return false;
+}
+
 static void SetupDataBus(MonitorState& s) {
-    s.pipeParticipant = std::make_shared<Participant>(s.pipe);
+    s.pipeParticipant = std::make_shared<Participant>(*s.ipc);
 
     // Outgoing: cmd/setpoint -> gateway
     s.pipeParticipant->AddRemoteTopic(SystemTopic::CmdSetpoint, SystemTopic::CmdSetpointId);
@@ -96,23 +116,26 @@ static void SetupDataBus(MonitorState& s) {
 }
 
 int main(int argc, char* argv[]) {
-    int duration = 0;
-    if (argc > 1) duration = atoi(argv[1]);
+    const NodeArgs args = ParseNodeArgs(argc, argv);   // [seconds] [--shm]
+    const int duration = args.duration;
 
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 
-    std::cout << "Starting DataBus Relay MONITOR (C, IPC side)..." << std::endl;
+    std::cout << "Starting DataBus Relay MONITOR (C, " << (args.shm ? "shared memory" : "IPC") << " side)..." << std::endl;
 
     MonitorState s;
-    if (!ConnectPipe(s)) return -1;
+    if (!(args.shm ? ConnectShm(s) : ConnectPipe(s))) return -1;
     SetupDataBus(s);
 
     std::atomic<bool> running{ true };
     std::thread recvThread([&]() {
         while (running) {
-            while (s.pipeParticipant->ProcessIncoming() == 0) {}  // drain; IPC reads don't block
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // Drain; a shared-memory read sleeps until data or its 100 ms
+            // timeout, pipe/socket reads don't block
+            while (s.pipeParticipant->ProcessIncoming() == 0) {}
+            if (!args.shm)
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
 
@@ -143,5 +166,6 @@ int main(int argc, char* argv[]) {
     running = false;
     recvThread.join();
     s.pipe.Close();
+    s.shm.Close();
     return 0;
 }
