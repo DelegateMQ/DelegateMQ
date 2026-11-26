@@ -309,13 +309,23 @@ void ShmRing_Signal_WakesReceiver()
     DMQ_ASSERT_TRUE(elapsed < 2000ms);                       // woken, not timed out
     DMQ_ASSERT_TRUE(link.sigA.notifyCount == 1);
 
-    // Nothing sent: the wait ends at the timeout
-    link.b.SetRecvTimeout(30ms);
+    // Nothing sent: the wait ends at the timeout. (Margin: Windows timer ticks
+    // are ~15.6 ms, and a wait may end up to a tick early.)
+    link.b.SetRecvTimeout(60ms);
     DmqHeader h;
     ByteReader is;
-    const auto t0 = std::chrono::steady_clock::now();
+    auto t0 = std::chrono::steady_clock::now();
     DMQ_ASSERT_TRUE(link.b.Receive(is, h) == ITransport::RECEIVE_NO_DATA);
-    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - t0 >= 25ms);
+    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - t0 >= 40ms);
+
+    // A message taken without waiting leaves the signal set. The next empty
+    // Receive() must still wait out its timeout, not return at once.
+    DMQ_ASSERT_TRUE(SendU32(link.a, 1, 2, 5678) == 0);       // sets B's signal
+    uint32_t v = 0;
+    DMQ_ASSERT_TRUE(RecvU32(link.b, h, v) == 0 && v == 5678); // ring not empty: no wait
+    t0 = std::chrono::steady_clock::now();
+    DMQ_ASSERT_TRUE(link.b.Receive(is, h) == ITransport::RECEIVE_NO_DATA);
+    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - t0 >= 40ms);
 
     // Timeout 0: never blocks, even with a signal
     link.b.SetRecvTimeout(0ms);

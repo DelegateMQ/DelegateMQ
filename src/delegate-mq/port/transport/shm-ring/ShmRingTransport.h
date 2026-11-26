@@ -146,6 +146,8 @@ public:
 
     /// @brief Close this side. The block and anything still in the rings are
     /// left as they are. Safe to call more than once.
+    /// @note Waits for a Receive() in progress on another thread, which can be
+    /// blocked in WaitForData() for up to the receive timeout.
     void Close()
     {
         const dmq::LockGuard<dmq::Mutex> recvLock(m_recvMutex);
@@ -170,13 +172,28 @@ public:
 
     /// @brief The most Receive() blocks for data when a signal is set (ignored
     /// without one). 0 = never block. Default DMQ_SHM_RECV_TIMEOUT_MS.
-    void SetRecvTimeout(std::chrono::milliseconds timeout) { m_recvTimeoutMs.store(static_cast<uint32_t>(timeout.count()), std::memory_order_relaxed); }
+    /// Negative counts as 0; capped at 0xFFFFFFFE ms (Win32 treats 0xFFFFFFFF as forever).
+    void SetRecvTimeout(std::chrono::milliseconds timeout)
+    {
+        const auto ms = timeout.count();
+        const uint32_t clamped = ms <= 0 ? 0u : (ms >= 0xFFFFFFFELL ? 0xFFFFFFFEu : static_cast<uint32_t>(ms));
+        m_recvTimeoutMs.store(clamped, std::memory_order_relaxed);
+    }
 
-    void SetTransportMonitor(ITransportMonitor* tm) { m_transportMonitor = tm; }
+    /// @brief The monitor a received ACK is reported to (Remove()).
+    void SetTransportMonitor(ITransportMonitor* tm)
+    {
+        const dmq::LockGuard<dmq::Mutex> lock(m_recvMutex);
+        m_transportMonitor = tm;
+    }
 
     /// @brief Where ACKs for received messages are sent: this transport by
     /// default; nullptr sends none.
-    void SetSendTransport(ITransport* st) { m_sendTransport = st; }
+    void SetSendTransport(ITransport* st)
+    {
+        const dmq::LockGuard<dmq::Mutex> lock(m_recvMutex);
+        m_sendTransport = st;
+    }
 
     /// @brief Send() calls that failed because the peer's ring was full.
     uint32_t GetSendFullCount() const { return m_sendFull.load(std::memory_order_relaxed); }
@@ -242,58 +259,86 @@ public:
     int Receive(dmq::ByteReader& is, DmqHeader& header) override
     {
         is.assign(nullptr, 0);   // nothing until a message arrives
-        const dmq::LockGuard<dmq::Mutex> recvLock(m_recvMutex);
-        if (!m_rx)
-            return -1;
-
-        // Consumer: tail is ours (relaxed); acquire on head so the slot's
-        // contents written before it are visible.
-        const uint32_t tail = m_rx->tail.load(std::memory_order_relaxed);
-        uint32_t head = m_rx->head.load(std::memory_order_acquire);
-        if (head == tail)
+        uint16_t len = 0;
+        ITransportMonitor* monitor = nullptr;
+        ITransport* ackTransport = nullptr;
         {
-            const uint32_t timeoutMs = m_recvTimeoutMs.load(std::memory_order_relaxed);
-            if (!m_signal || timeoutMs == 0)
-                return RECEIVE_NO_DATA;
-            m_signal->WaitForData(std::chrono::milliseconds(timeoutMs));
-            head = m_rx->head.load(std::memory_order_acquire);
-            if (head == tail)
-                return RECEIVE_NO_DATA;
-        }
+            const dmq::LockGuard<dmq::Mutex> recvLock(m_recvMutex);
+            if (!m_rx)
+                return -1;
 
-        const ShmSlot<MaxPayload>& slot = m_rx->slots[tail & Ring::MASK];
-        header.Decode(slot.header);
-        const uint16_t len = header.GetLength();
-        const bool valid = header.IsValid() && len <= MaxPayload;
-        if (valid && len > 0)
-            memcpy(m_rxBuf, slot.payload, len);
+            // Consumer: tail is ours (relaxed); acquire on head so the slot's
+            // contents written before it are visible.
+            const uint32_t tail = m_rx->tail.load(std::memory_order_relaxed);
+            uint32_t head = m_rx->head.load(std::memory_order_acquire);
+            if (head == tail) {
+                WaitForMessage(tail);
+                head = m_rx->head.load(std::memory_order_acquire);
+                if (head == tail)
+                    return RECEIVE_NO_DATA;
+            }
 
-        // Release: done with the slot; the producer may reuse it
-        m_rx->tail.store(tail + 1, std::memory_order_release);
+            const ShmSlot<MaxPayload>& slot = m_rx->slots[tail & Ring::MASK];
+            header.Decode(slot.header);
+            len = header.GetLength();
+            const bool valid = header.IsValid() && len <= MaxPayload;
+            if (valid && len > 0)
+                memcpy(m_rxBuf, slot.payload, len);
 
-        if (!valid) {
-            m_recvErrors.fetch_add(1, std::memory_order_relaxed);
-            return -1;
+            // Release: done with the slot; the producer may reuse it
+            m_rx->tail.store(tail + 1, std::memory_order_release);
+
+            if (!valid) {
+                m_recvErrors.fetch_add(1, std::memory_order_relaxed);
+                return -1;
+            }
+            monitor = m_transportMonitor;
+            ackTransport = m_sendTransport;
         }
 
         if (len > 0)
             is.assign(reinterpret_cast<const char*>(m_rxBuf), len);
 
+        // Outside the receive lock: TransportMonitor::Remove() fires
+        // OnSendStatus, whose subscribers may call back into this transport
         if (header.GetId() == dmq::ACK_REMOTE_ID) {
-            if (m_transportMonitor)
-                m_transportMonitor->Remove(header.GetSeqNum());
+            if (monitor)
+                monitor->Remove(header.GetSeqNum());
         }
-        else if (m_sendTransport) {
+        else if (ackTransport) {
             // A failed ACK (full ring) is counted by Send(); the sender's
             // TransportMonitor then times the message out.
             const dmq::ByteWriter empty;
             const DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
-            m_sendTransport->Send(empty, ack);
+            ackTransport->Send(empty, ack);
         }
         return 0;
     }
 
 private:
+    /// Ring empty: wait for the peer, up to the receive timeout, if a signal is
+    /// set. A signal can be left set by a message that was taken without
+    /// waiting; such a wake-up finds the ring still empty, so wait out the rest
+    /// of the timeout rather than return early. The caller checks the ring again.
+    void WaitForMessage(uint32_t tail)
+    {
+        const uint32_t timeoutMs = m_recvTimeoutMs.load(std::memory_order_relaxed);
+        if (!m_signal || timeoutMs == 0)
+            return;
+        const auto deadline = dmq::Clock::now() + std::chrono::milliseconds(timeoutMs);
+        std::chrono::milliseconds remaining(timeoutMs);
+        for (;;) {
+            if (!m_signal->WaitForData(remaining))
+                return;                                         // timed out
+            if (m_rx->head.load(std::memory_order_acquire) != tail)
+                return;                                         // data
+            const auto now = dmq::Clock::now();
+            if (now >= deadline)
+                return;
+            remaining = std::chrono::ceil<std::chrono::milliseconds>(deadline - now);
+        }
+    }
+
     std::atomic<uint32_t>& ReadyFlag(Side side) const
     {
         return (side == Side::A) ? m_block->readyA : m_block->readyB;
@@ -302,7 +347,9 @@ private:
     void CloseLocked()
     {
         if (m_block)
-            ReadyFlag(m_side).store(0, std::memory_order_release);
+            // seq_cst: a derived Close() then reads the peer's flag to decide
+            // who cleans up; both closing at once must not both see "peer open"
+            ReadyFlag(m_side).store(0, std::memory_order_seq_cst);
         m_block = nullptr;
         m_tx = nullptr;
         m_rx = nullptr;
@@ -327,7 +374,7 @@ private:
     mutable dmq::Mutex m_sendMutex;     // Send() callers on this side, and the open state
     dmq::Mutex m_recvMutex;             // Receive(); Create()/Close() take both
 
-    uint8_t m_rxBuf[MaxPayload];        // the last received payload
+    uint8_t m_rxBuf[MaxPayload]{};      // the last received payload
 };
 
 } // namespace dmq::transport

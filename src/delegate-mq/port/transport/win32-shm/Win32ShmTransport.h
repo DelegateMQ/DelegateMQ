@@ -47,6 +47,7 @@
 #include "port/transport/shm-ring/ShmRingTransport.h"
 #include <chrono>
 #include <cstdio>
+#include <mutex>
 #include <new>
 
 namespace dmq::transport {
@@ -55,6 +56,7 @@ template <size_t SlotCount = dmq::SHM_SLOT_COUNT, size_t MaxPayload = dmq::SHM_M
 class Win32ShmTransport : public ShmRingTransport<SlotCount, MaxPayload>, private IShmSignal
 {
     using Base = ShmRingTransport<SlotCount, MaxPayload>;
+    static_assert(sizeof(typename Base::ControlBlock) <= 0xFFFFFFFFu, "Win32ShmTransport: region too large for one mapping size argument");
 
 public:
     using typename Base::ControlBlock;
@@ -71,6 +73,7 @@ public:
     int Create(const char* name, Side side)
     {
         Close();
+        const std::lock_guard<std::mutex> lock(m_osMutex);
         if (!name || !*name)
             return -1;
 
@@ -87,17 +90,17 @@ public:
             m_mapping = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, mapName);
         }
         if (!m_mapping)
-            return Fail();
+            return FailLocked();
 
         void* view = MapViewOfFile(m_mapping, FILE_MAP_ALL_ACCESS, 0, 0, size);
         if (!view)
-            return Fail();
+            return FailLocked();
         m_view = view;
 
         // Side B: the region must be large enough before it is read
         MEMORY_BASIC_INFORMATION info{};
         if (VirtualQuery(view, &info, sizeof(info)) == 0 || info.RegionSize < size)
-            return Fail();
+            return FailLocked();
 
         // Side A constructs the block in the fresh mapping (Create() then Init()s it);
         // side B uses the one side A built
@@ -107,15 +110,30 @@ public:
         m_ownEvent = CreateEventA(nullptr, FALSE, FALSE, side == Side::A ? evA : evB);
         m_peerEvent = CreateEventA(nullptr, FALSE, FALSE, side == Side::A ? evB : evA);
         if (!m_ownEvent || !m_peerEvent)
-            return Fail();
+            return FailLocked();
+        if (side == Side::A) {
+            // Events reused from a peer still running may be left set
+            ResetEvent(m_ownEvent);
+            ResetEvent(m_peerEvent);
+        }
 
         if (Base::Create(*block, side, this) != 0)
-            return Fail();
+            return FailLocked();
         return 0;
     }
 
-    /// @brief Close this side and release its handles. Safe to call more than once.
+    /// @brief Close this side and release its handles. Safe to call more than
+    /// once, from any thread.
+    /// @note Waits for a Receive() in progress on another thread (up to the
+    /// receive timeout).
     void Close()
+    {
+        const std::lock_guard<std::mutex> lock(m_osMutex);
+        CloseLocked();
+    }
+
+private:
+    void CloseLocked()
     {
         Base::Close();
         if (m_view) { UnmapViewOfFile(m_view); m_view = nullptr; }
@@ -124,7 +142,6 @@ public:
         if (m_peerEvent) { CloseHandle(m_peerEvent); m_peerEvent = nullptr; }
     }
 
-private:
     static constexpr size_t MAX_NAME = 128;
 
     static bool MakeName(char* out, const char* name, const char* suffix)
@@ -133,9 +150,9 @@ private:
         return n > 0 && n < static_cast<int>(MAX_NAME);
     }
 
-    int Fail()
+    int FailLocked()
     {
-        Close();
+        CloseLocked();
         return -1;
     }
 
@@ -144,9 +161,12 @@ private:
 
     bool WaitForData(std::chrono::milliseconds timeout) override
     {
-        return WaitForSingleObject(m_ownEvent, static_cast<DWORD>(timeout.count())) == WAIT_OBJECT_0;
+        const auto ms = timeout.count();
+        const DWORD wait = ms <= 0 ? 0 : (ms >= static_cast<long long>(INFINITE) ? INFINITE - 1 : static_cast<DWORD>(ms));
+        return WaitForSingleObject(m_ownEvent, wait) == WAIT_OBJECT_0;
     }
 
+    std::mutex m_osMutex;               // Create()/Close(): the handles below
     HANDLE m_mapping = nullptr;
     void* m_view = nullptr;
     HANDLE m_ownEvent = nullptr;        // set by the peer: data for this side

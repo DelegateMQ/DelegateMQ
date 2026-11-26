@@ -130,12 +130,21 @@ void ShmOs_Signal_WakesReceiver()
     DMQ_ASSERT_TRUE(rc == 0 && value == 4321);
     DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - start < 2000ms);   // woken, not timed out
 
-    // Nothing sent: the wait ends at the timeout
-    b.SetRecvTimeout(30ms);
+    // Nothing sent: the wait ends at the timeout. (Margin: Windows timer ticks
+    // are ~15.6 ms, and a wait may end up to a tick early.)
+    b.SetRecvTimeout(60ms);
     uint32_t v = 0;
-    const auto t0 = std::chrono::steady_clock::now();
+    auto t0 = std::chrono::steady_clock::now();
     DMQ_ASSERT_TRUE(RecvU32(b, v) == ITransport::RECEIVE_NO_DATA);
-    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - t0 >= 25ms);
+    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - t0 >= 40ms);
+
+    // A message taken without waiting leaves the event/semaphore set; the next
+    // empty Receive() must still wait out its timeout
+    DMQ_ASSERT_TRUE(SendU32(a, 9, 99) == 0);
+    DMQ_ASSERT_TRUE(RecvU32(b, v) == 0 && v == 99);
+    t0 = std::chrono::steady_clock::now();
+    DMQ_ASSERT_TRUE(RecvU32(b, v) == ITransport::RECEIVE_NO_DATA);
+    DMQ_ASSERT_TRUE(std::chrono::steady_clock::now() - t0 >= 40ms);
 
     // Several sends before a receive: all arrive, and the extra wake-ups do no harm
     for (uint16_t i = 0; i < 5; i++)
@@ -163,7 +172,36 @@ void ShmOs_SideBReopens()
     std::cout << "ShmOs_SideBReopens() complete!" << std::endl;
 }
 
+// Side B built with another layout is rejected, and leaves the link usable
+void ShmOs_WrongLayout_Rejected()
+{
+#if defined(_WIN32)
+    using Wrong = Win32ShmTransport<8, 128>;
+#else
+    using Wrong = LinuxShmTransport<8, 128>;
+#endif
+    OsShm a, b;
+    DMQ_ASSERT_TRUE(a.Create(LinkName(), OsShm::Side::A) == 0);
+    Wrong wrongLayout;
+    DMQ_ASSERT_TRUE(wrongLayout.Create(LinkName(), Wrong::Side::B) == -1);
+    DMQ_ASSERT_TRUE(!a.IsPeerOpen());
+    DMQ_ASSERT_TRUE(b.Create(LinkName(), OsShm::Side::B) == 0);
+    std::cout << "ShmOs_WrongLayout_Rejected() complete!" << std::endl;
+}
+
 #if defined(__linux__)
+// While side A's process is alive, a second side A can't take the link over
+void ShmOs_SecondSideA_Rejected()
+{
+    OsShm a, a2;
+    DMQ_ASSERT_TRUE(a.Create(LinkName(), OsShm::Side::A) == 0);
+    DMQ_ASSERT_TRUE(a2.Create(LinkName(), OsShm::Side::A) == -1);
+    DMQ_ASSERT_TRUE(a.IsOpen() && ShmNameExists(LinkName()));      // untouched
+    a.Close();
+    DMQ_ASSERT_TRUE(a2.Create(LinkName(), OsShm::Side::A) == 0);    // free again
+    std::cout << "ShmOs_SecondSideA_Rejected() complete!" << std::endl;
+}
+
 void ShmOs_LastClose_RemovesNames()
 {
     {
@@ -201,7 +239,9 @@ void ShmOsTransportTests()
     ShmOs_SendReceive_BothDirections();
     ShmOs_Signal_WakesReceiver();
     ShmOs_SideBReopens();
+    ShmOs_WrongLayout_Rejected();
 #if defined(__linux__)
+    ShmOs_SecondSideA_Rejected();
     ShmOs_LastClose_RemovesNames();
 #endif
     std::cout << "ShmOsTransportTests() complete!" << std::endl;

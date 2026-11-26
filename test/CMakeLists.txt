@@ -106,4 +106,13 @@ target_link_libraries(${DELEGATE_APP} PRIVATE
     sample_code_lib
 )
 
+# LinuxShmTransport (ShmOsTransportTests): shm_open/sem_open are in librt
+# before glibc 2.34
+if (UNIX AND NOT APPLE)
+    find_library(RT_LIB rt)
+    if (RT_LIB)
+        target_link_libraries(${DELEGATE_APP} PRIVATE ${RT_LIB})
+    endif()
+endif()
+
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${DELEGATE_APP})

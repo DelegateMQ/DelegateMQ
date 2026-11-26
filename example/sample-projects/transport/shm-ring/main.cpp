@@ -222,12 +222,11 @@ static bool StartSideB(const char* self)
 
 static int WaitSideB()
 {
-    if (WaitForSingleObject(s_child.hProcess, 10000) != WAIT_OBJECT_0) {
-        TerminateProcess(s_child.hProcess, 1);
-        return 1;
-    }
     DWORD code = 1;
-    GetExitCodeProcess(s_child.hProcess, &code);
+    if (WaitForSingleObject(s_child.hProcess, 10000) == WAIT_OBJECT_0)
+        GetExitCodeProcess(s_child.hProcess, &code);
+    else
+        TerminateProcess(s_child.hProcess, 1);
     CloseHandle(s_child.hProcess);
     CloseHandle(s_child.hThread);
     return static_cast<int>(code);
@@ -267,7 +266,11 @@ int main(int argc, char* argv[])
 {
 #if defined(_WIN32)
     char self[MAX_PATH];
-    GetModuleFileNameA(nullptr, self, MAX_PATH);
+    const DWORD len = GetModuleFileNameA(nullptr, self, MAX_PATH);
+    if (len == 0 || len >= MAX_PATH) {
+        printf("Can't get this program's path\n");
+        return 1;
+    }
 #else
     const char* self = argv[0];
 #endif

@@ -181,7 +181,8 @@
 /// slots per direction (a power of 2; a full ring fails Send()), max payload
 /// bytes per message (both sides must agree: the region's layout depends on it),
 /// and the most Receive() blocks for data when a signal (IShmSignal) is
-/// attached. Footprint: about 2 x SLOT_COUNT x (MAX_PAYLOAD + 12) bytes.
+/// attached. Footprint: about 2 x SLOT_COUNT x (MAX_PAYLOAD + 10) bytes,
+/// plus a few hundred bytes of indices.
 #define DMQ_SHM_SLOT_COUNT              16
 #define DMQ_SHM_MAX_PAYLOAD             256
 #define DMQ_SHM_RECV_TIMEOUT_MS         100

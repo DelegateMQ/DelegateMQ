@@ -87,6 +87,7 @@ struct ShmControlBlock
     uint32_t maxPayload = 0;                ///< MaxPayload side A was built with
     std::atomic<uint32_t> readyA{ 0 };      ///< 1 while side A's transport is open
     std::atomic<uint32_t> readyB{ 0 };      ///< 1 while side B's transport is open
+    std::atomic<uint32_t> ownerA{ 0 };      ///< Set by a platform layer: who holds side A (a process ID on desktop); 0 = unknown
 
     Ring aToB;                              ///< Side A -> side B
     Ring bToA;                              ///< Side B -> side A
@@ -101,6 +102,7 @@ struct ShmControlBlock
         maxPayload = static_cast<uint32_t>(MaxPayload);
         readyA.store(0, std::memory_order_relaxed);
         readyB.store(0, std::memory_order_relaxed);
+        ownerA.store(0, std::memory_order_relaxed);
         aToB.Reset();
         bToA.Reset();
         magic.store(MAGIC, std::memory_order_release);
