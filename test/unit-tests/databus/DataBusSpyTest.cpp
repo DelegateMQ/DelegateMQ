@@ -171,6 +171,11 @@ int DataBusSpyTestMain() {
         DMQ_ASSERT_TRUE(packet.value == "42");
         DMQ_ASSERT_TRUE(packet.nodeId == "NodeA");
         DMQ_ASSERT_TRUE(packet.timestamp_us > 0);
+        // The bridge counts a send after Send() returns, on its own thread, so the
+        // transport can see the message before the count changes: wait for it
+        const auto sentDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (bridge.GetSent() < 1 && std::chrono::steady_clock::now() < sentDeadline)
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         DMQ_ASSERT_TRUE(bridge.GetSent() == 1);
         DMQ_ASSERT_TRUE(bridge.GetDropped() == 0);
 
