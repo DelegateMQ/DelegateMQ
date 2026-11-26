@@ -142,6 +142,7 @@ MQTT_SUCCESS = "Data Message"
 TRANSPORT_SAMPLE = "transport/serializer"
 TRANSPORT_COMBOS = [
     ("udp", "builtin"), ("tcp", "builtin"), ("pipe", "builtin"), ("uds", "builtin"),
+    ("shm", "builtin"),
     ("lwip", "builtin"), ("lwip-netconn", "builtin"),
     ("zeromq", "builtin"), ("zeromq", "bitsery"), ("zeromq", "cereal"),
     ("zeromq", "msgpack"), ("zeromq", "rapidjson"), ("nng", "bitsery"),

@@ -6,7 +6,7 @@
 #
 # SAMPLE_TRANSPORT:  udp, tcp (Linux or Win32 sockets, picked by the host),
 #                    pipe (Windows named pipe), uds (Linux Unix domain
-#                    socket), lwip and lwip-netconn (UDP over the lwIP
+#                    socket), shm (shared memory, Windows or Linux), lwip and lwip-netconn (UDP over the lwIP
 #                    stack's socket or netconn API, Linux), zeromq, nng
 # SAMPLE_SERIALIZER: builtin (DelegateMQ's own serialize class, no
 #                    dependencies), bitsery, cereal, msgpack, rapidjson
@@ -19,9 +19,9 @@ set(DELEGATE_APP "delegate_app")
 project(Delegate VERSION 1.0 LANGUAGES CXX)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${DELEGATE_APP})
 
-set(SAMPLE_TRANSPORT "udp" CACHE STRING "udp, tcp, pipe, uds, lwip, lwip-netconn, zeromq or nng")
+set(SAMPLE_TRANSPORT "udp" CACHE STRING "udp, tcp, pipe, uds, shm, lwip, lwip-netconn, zeromq or nng")
 set(SAMPLE_SERIALIZER "builtin" CACHE STRING "builtin, bitsery, cereal, msgpack or rapidjson")
-set_property(CACHE SAMPLE_TRANSPORT PROPERTY STRINGS udp tcp pipe uds lwip lwip-netconn zeromq nng)
+set_property(CACHE SAMPLE_TRANSPORT PROPERTY STRINGS udp tcp pipe uds shm lwip lwip-netconn zeromq nng)
 set_property(CACHE SAMPLE_SERIALIZER PROPERTY STRINGS builtin bitsery cereal msgpack rapidjson)
 
 if (MSVC)
@@ -51,6 +51,12 @@ elseif (SAMPLE_TRANSPORT STREQUAL "uds")
         message(FATAL_ERROR "SAMPLE_TRANSPORT=uds is a Linux Unix domain socket; Linux only")
     endif()
     set(DMQ_TRANSPORT "DMQ_TRANSPORT_LINUX_UDS")
+elseif (SAMPLE_TRANSPORT STREQUAL "shm")
+    if (NOT WIN32 AND NOT (UNIX AND NOT APPLE))
+        message(FATAL_ERROR "SAMPLE_TRANSPORT=shm is Win32ShmTransport or LinuxShmTransport; Windows or Linux only")
+    endif()
+    # ShmRingTransport sits beside any DMQ_TRANSPORT; NONE brings the dispatcher
+    set(DMQ_TRANSPORT "DMQ_TRANSPORT_NONE")
 elseif (SAMPLE_TRANSPORT STREQUAL "lwip" OR SAMPLE_TRANSPORT STREQUAL "lwip-netconn")
     if (NOT (UNIX AND NOT APPLE))
         message(FATAL_ERROR "SAMPLE_TRANSPORT=${SAMPLE_TRANSPORT} runs lwIP's Unix port; Linux only")
@@ -65,7 +71,7 @@ elseif (SAMPLE_TRANSPORT STREQUAL "zeromq")
 elseif (SAMPLE_TRANSPORT STREQUAL "nng")
     set(DMQ_TRANSPORT "DMQ_TRANSPORT_NNG")
 else()
-    message(FATAL_ERROR "Unknown SAMPLE_TRANSPORT '${SAMPLE_TRANSPORT}' (udp, tcp, pipe, uds, lwip, lwip-netconn, zeromq, nng)")
+    message(FATAL_ERROR "Unknown SAMPLE_TRANSPORT '${SAMPLE_TRANSPORT}' (udp, tcp, pipe, uds, shm, lwip, lwip-netconn, zeromq, nng)")
 endif()
 
 # Serializer -> DelegateMQ's DMQ_SERIALIZE option
@@ -137,6 +143,12 @@ elseif (SAMPLE_TRANSPORT STREQUAL "nng")
     target_link_libraries(${DELEGATE_APP} PRIVATE ${NNG_LIB})
     if (WIN32)
         target_link_libraries(${DELEGATE_APP} PRIVATE ws2_32)
+    endif()
+elseif (SAMPLE_TRANSPORT STREQUAL "shm" AND UNIX)
+    # shm_open/sem_open: in libc since glibc 2.34, librt before
+    find_library(RT_LIB rt)
+    if (RT_LIB)
+        target_link_libraries(${DELEGATE_APP} PRIVATE ${RT_LIB})
     endif()
 elseif (SAMPLE_TRANSPORT MATCHES "^lwip")
     # lwIP itself (LWIP_SOURCES, from DelegateMQ's External.cmake) plus its

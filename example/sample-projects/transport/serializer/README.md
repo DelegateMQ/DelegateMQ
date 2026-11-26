@@ -25,6 +25,7 @@ build-udp-builtin/delegate_app 5        # Windows: build-udp-builtin\Release\del
 | `tcp` | TCP sockets (`LinuxTcpTransport` / `Win32TcpTransport`) | Linux, Windows | Yes |
 | `pipe` | Windows named pipe (`Win32PipeTransport`) | Windows | No |
 | `uds` | Unix domain datagram socket (`LinuxUdsTransport`) | Linux | No |
+| `shm` | Shared memory (`ShmRingTransport`: `Win32ShmTransport` / `LinuxShmTransport`) | Linux, Windows | Yes |
 | `lwip` | UDP over the lwIP stack's socket API (`ArmLwipUdpTransport`), on lwIP's Unix port and its loopback interface | Linux | Yes |
 | `lwip-netconn` | The same over lwIP's netconn API (`ArmLwipNetconnUdpTransport`) | Linux | Yes |
 | `zeromq` | ZeroMQ PUB/SUB (`ZeroMqTransport`) | Linux, Windows | No |
@@ -40,11 +41,11 @@ build-udp-builtin/delegate_app 5        # Windows: build-udp-builtin\Release\del
 
 Any transport works with any serializer. The RapidJSON serializer writes one JSON document per message, so its delegate takes one argument (`SAMPLE_AUX` in its `data.h`).
 
-The `udp`, `tcp`, `pipe` and `uds` transports with the `builtin` serializer need nothing beyond DelegateMQ. `lwip` and `lwip-netconn` need lwIP, fetched by `scripts/01_fetch_repos.py`: they run the transports an lwIP board uses (socket or netconn API) on lwIP's own UDP/IP code, through lwIP's 127.0.0.1 loopback interface rather than the host network stack. `transport/lwip/lwipopts.h` holds its lwIP options, and `SampleTransportInit()` in `transport/lwip/lwip_init.h` starts lwIP's tcpip thread before the transports are created. ZeroMQ, NNG and the other serializers are fetched and built by `scripts/01_fetch_repos.py` and `02_build_libs.py` (see [BUILD.md](../../../../docs/BUILD.md)).
+The `udp`, `tcp`, `pipe`, `uds` and `shm` transports with the `builtin` serializer need nothing beyond DelegateMQ. `lwip` and `lwip-netconn` need lwIP, fetched by `scripts/01_fetch_repos.py`: they run the transports an lwIP board uses (socket or netconn API) on lwIP's own UDP/IP code, through lwIP's 127.0.0.1 loopback interface rather than the host network stack. `transport/lwip/lwipopts.h` holds its lwIP options, and `SampleTransportInit()` in `transport/lwip/lwip_init.h` starts lwIP's tcpip thread before the transports are created. ZeroMQ, NNG and the other serializers are fetched and built by `scripts/01_fetch_repos.py` and `02_build_libs.py` (see [BUILD.md](../../../../docs/BUILD.md)).
 
-## Acknowledgments (UDP, TCP, lwIP)
+## Acknowledgments (UDP, TCP, shared memory, lwIP)
 
-With `SAMPLE_ACKS 1` (set in the transport's `transport.h`), the sender wraps the transport in a `ReliableTransport`: a `TransportMonitor` tracks each message until the receiver's transport acknowledges it, and a `RetryMonitor` resends it on timeout (500 ms, 3 retries), reporting `>> TIMEOUT!` through `TransportMonitor::OnSendStatus`. The sender reads acknowledgments after each send (`Receive()` handles an ACK itself). ZeroMQ and NNG PUB sockets have no return path for an ACK, and a pipe or Unix domain socket is a reliable local link, so those run without.
+With `SAMPLE_ACKS 1` (set in the transport's `transport.h`), the sender wraps the transport in a `ReliableTransport`: a `TransportMonitor` tracks each message until the receiver's transport acknowledges it, and a `RetryMonitor` resends it on timeout (500 ms, 3 retries), reporting `>> TIMEOUT!` through `TransportMonitor::OnSendStatus`. The sender reads acknowledgments after each send (`Receive()` handles an ACK itself). Shared memory doesn't lose messages either, but runs with acknowledgments to show a `TransportMonitor` over it: on a real two-core link they are how one side finds out the other has hung. ZeroMQ and NNG PUB sockets have no return path for an ACK, and a pipe or Unix domain socket is a reliable local link, so those run without.
 
 ## Output
 
@@ -62,7 +63,7 @@ The `Acknowledged` line appears only with acknowledgments. `delegate_app [second
 
 `build_all.py` builds and runs these combinations, each in `out/<platform>/example/sample-projects/transport/serializer/<transport>-<serializer>` (and a clang build of each on Linux with `--clang`), from `full_suite.TRANSPORT_COMBOS`:
 
-`udp-builtin`, `tcp-builtin`, `pipe-builtin` (Windows), `uds-builtin` (Linux), `lwip-builtin` and `lwip-netconn-builtin` (Linux), `zeromq-builtin`, `zeromq-bitsery`, `zeromq-cereal`, `zeromq-msgpack`, `zeromq-rapidjson`, `nng-bitsery`.
+`udp-builtin`, `tcp-builtin`, `pipe-builtin` (Windows), `uds-builtin` (Linux), `shm-builtin`, `lwip-builtin` and `lwip-netconn-builtin` (Linux), `zeromq-builtin`, `zeromq-bitsery`, `zeromq-cereal`, `zeromq-msgpack`, `zeromq-rapidjson`, `nng-bitsery`.
 
 Apart from the `uds` and `lwip` builds, these are the combinations of the separate samples this one replaced (`linux-tcp-serializer`, `linux-udp-serializer`, `win32-tcp-serializer`, `win32-udp-serializer`, `win32-pipe-serializer`, `zeromq-serializer`, `zeromq-bitsery`, `zeromq-cereal`, `zeromq-msgpack-cpp`, `zeromq-rapidjson`, `nnq-bitsery`). Their folders were removed; to build what one of them built, configure its combination above (e.g. `zeromq-cereal`: `-DSAMPLE_TRANSPORT=zeromq -DSAMPLE_SERIALIZER=cereal`).
 
