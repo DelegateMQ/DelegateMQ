@@ -182,7 +182,7 @@ Why choose DelegateMQ over a callback, signal/slot, or messaging library.
 
 # Supported Integrations
 
-Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface.
+Numerous platform, serialization, transport, and tool integrations are available out of the box. The OS, serializer, and transport integrations form the **DelegateMQ Abstraction Layer** (`src/delegate-mq/port`), which sits between the library and the platform (see the [layer diagram](#overview)); the tools are separate applications built on the library. Adding support for a new OS, serializer, or transport requires only implementing a small pure-virtual interface. Which to pick for your system: [Choosing a Configuration](docs/CHOOSING.md).
 
 | Category | Supported |
 | :--- | :--- |
@@ -586,6 +586,7 @@ Yes. DelegateMQ is MIT licensed: use, modify and ship it, closed source included
 | :--- | :--- | :--- |
 | [**Tutorial**](docs/TUTORIAL.md) | Step-by-step system evolution | Adoption & Use Cases |
 | [**Application Guide**](docs/APP-GUIDE.md) | Rules for writing an app with DelegateMQ (also for coding agents) | Setup, Threads, Shutdown Order |
+| [**Choosing a Configuration**](docs/CHOOSING.md) | Which OS port, transport, serializer and topology for your system | Selection Tables |
 | [**Build**](docs/BUILD.md) | Build & configuration guide | CMake & Setup |
 | [**PlatformIO**](example/platformio/PLATFORMIO.md) | Arduino and PlatformIO boards | ESP32, STM32, Pico, Setup |
 | [**Signals**](docs/SIGNALS.md) | Decoupled event handling | Signal/Slot RAII |
