@@ -62,11 +62,15 @@ inline const char* Text(uint32_t bytes, char (&out)[12])
 inline void Run(bool realStacks)
 {
     dmq::os::Thread thread("StackTest");
-    const uint32_t size = thread.GetStackSize();
-    DMQ_ASSERT_TRUE(size != 0);
+    DMQ_ASSERT_TRUE(thread.GetStackSize() != 0);
     DMQ_ASSERT_TRUE(thread.GetStackFreeMin() == dmq::STACK_UNKNOWN);   // not created yet
 
     DMQ_ASSERT_TRUE(thread.CreateThread());
+    // After CreateThread(): a kernel may give more than was asked (Zephyr's
+    // CMSIS-RTOS2 layer takes stacks from a pool of a configured size), and the
+    // free-stack readings are relative to what it gave
+    const uint32_t size = thread.GetStackSize();
+    DMQ_ASSERT_TRUE(size != 0);
     dmq::MakeDelegate(&Nothing, thread, dmq::WAIT_INFINITE)();      // the dispatch path once
     const uint32_t before = thread.GetStackFreeMin();
 
