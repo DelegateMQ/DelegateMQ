@@ -41,7 +41,7 @@ happen only when every check passed, and prints ALL TESTS PASSED.
 os/freertos-bare-metal's Win32 simulator build/ also runs, on Windows.
 
 Skip List (always excluded):
-    - boards/stm32-freertos         Embedded STM32 target, cannot run on host
+    - boards/stm32-freertos         STM32F4 firmware + PC client: built by 04, run only with the board
     - boards/esp32s3-devkitc        ESP32-S3 board, cannot run on host
     - boards/stm32h755-nucleo       Dual-core STM32H755 board, cannot run on host
 

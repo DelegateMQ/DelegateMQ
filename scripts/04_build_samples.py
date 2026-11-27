@@ -31,7 +31,6 @@ and os/freertos-bare-metal (full_suite.QEMU_TARGET_SAMPLES) that
 03_generate_samples.py configured (targets whose toolchain is installed).
 
 Skip List (always excluded):
-    - boards/stm32-freertos          Embedded STM32 target, requires cross-compiler
     - boards/esp32s3-devkitc         ESP32-S3 board, built with PlatformIO or idf.py
     - boards/stm32h755-nucleo        Dual-core STM32H755, cross-compiled, needs the STM32Cube H7 package
     - system-architecture/python  Python-only client, no C++ build
@@ -62,7 +61,6 @@ import full_suite
 # ---------------------------------------------------------------------------
 
 SKIP_ALWAYS = {
-    "boards/stm32-freertos",
     "boards/esp32s3-devkitc",
     "boards/stm32h755-nucleo",
     "system-architecture/python",
@@ -79,6 +77,7 @@ WINDOWS_ONLY = {
     "databus/freertos",        # server uses FreeRTOS Win32 simulator (32-bit); full pair only meaningful on Windows
     "os/freertos-bare-metal",
     "os/win32",                # DMQ_THREAD_WIN32 port
+    "boards/stm32-freertos",   # STM32F4 firmware + PC client; the board's tools (FW_F4) are on the Windows side
 }
 
 LINUX_ONLY = {

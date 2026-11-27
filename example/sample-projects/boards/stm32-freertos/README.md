@@ -31,7 +31,7 @@ To run the `RUN_NETWORK_TESTS` mode (Client-Server demo), you need the following
 
 ## 💻 Software Prerequisites
 
-* **IDE:** STM32CubeIDE (Tested on v2.0.0).
+* **IDE:** STM32CubeIDE (Tested on v2.0.0), or no IDE: the firmware also builds with CMake (see [Building Without the IDE](#building-without-the-ide-cmake)).
 * **Firmware:** STM32Cube FW_F4 V1.28.3 (or compatible).
 * **Library:** [DelegateMQ](../../../../README.md) (Source code must be available locally).
 * **PC Client:** The companion `ClientApp` (built via Visual Studio/CMake) running on Windows/Linux is required for Network Tests.
@@ -50,6 +50,19 @@ The project files contain no absolute paths. DelegateMQ sources are found relati
 3.  Click **Apply and Close**, then import the project (**File** > **Import** > **Existing Projects into Workspace**, select `server/STM32CubeIDE`), or refresh it if it's already open.
 
 The setting lives in your workspace, not the repository, so it never shows up as a change in git. The project links the firmware's source files under `Drivers/` and `Middlewares/`, and its include folders under `STM32Cube/` (excluded from the build; the compiler include paths point at them).
+
+### Building Without the IDE (CMake)
+`server/CMakeLists.txt` builds the same firmware from the same sources, with the Arm GNU Toolchain (`arm-none-eabi-gcc` on the PATH, or the GCC bundled with STM32CubeIDE, found automatically) and Ninja:
+
+```
+cd server
+cmake -B build -G Ninja
+cmake --build build
+```
+
+It finds the STM32Cube FW_F4 package in `~/STM32Cube/Repository` (the newest version there), or pass `-DSTM32_REPO=<path>`. Output: `build/stm32_freertos_server.elf`, `.hex` and `.bin`; flash with STM32CubeProgrammer or OpenOCD, or debug the `.elf` from STM32CubeIDE. The test mode is chosen in `Src/main.cpp`, as for the IDE build.
+
+`build_all.py` builds the firmware this way (Windows, when the toolchain and FW_F4 package are present) and builds the PC client, so a change that breaks either fails the test suite. It runs neither: the firmware needs the board.
 
 ### 2. Selecting the Test Mode
 Open `server/Src/main.cpp` and uncomment exactly **ONE** of the following lines to choose the operating mode:

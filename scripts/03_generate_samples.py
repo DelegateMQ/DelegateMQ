@@ -104,11 +104,12 @@ def find_arm_gcc():
     return shutil.which("arm-none-eabi-gcc")
 
 
-def configure_pumptron_f4(pumptron_dir):
-    """Configure Pumptron's STM32F4 firmware (Ninja, Release) into its f4 build, if the
-    cross toolchain and STM32Cube FW_F4 package are available. The toolchain file
-    finds the compiler itself; these checks only decide whether to try."""
-    label = "pumptron (STM32F4 firmware)"
+def configure_stm32_f4_firmware(label, cwd, source_dir, build_path):
+    """Configure an STM32F4 firmware cross-build (Ninja, Release) into build_path, if
+    the cross toolchain and STM32Cube FW_F4 package are available. The toolchain
+    file finds the compiler itself; these checks only decide whether to try. A
+    missing tool removes a stale build_path, so 04_build_samples.py skips it too.
+    Used for Pumptron's controller and boards/stm32-freertos's server."""
     missing = []
     if not shutil.which("ninja"):
         missing.append("ninja")
@@ -120,18 +121,16 @@ def configure_pumptron_f4(pumptron_dir):
     if missing:
         print(f"[SKIPPED] {label} -- missing: {', '.join(missing)}")
         # Drop a stale firmware tree from an earlier configure so
-        # 04_build_samples.py (which builds the f4 build if present) skips it too.
-        stale = full_suite.build_dir(pumptron_dir, "f4")
-        if os.path.isdir(stale):
-            shutil.rmtree(stale, ignore_errors=True)
+        # 04_build_samples.py (which builds it if present) skips it too.
+        if os.path.isdir(build_path):
+            shutil.rmtree(build_path, ignore_errors=True)
         return
 
     print(f"[CONFIGURING] {label}")
-    cmd = ["cmake", "-S", os.path.join("controller", "platform", "f4"),
-           "-B", full_suite.build_dir(pumptron_dir, "f4"), "-G", "Ninja",
+    cmd = ["cmake", "-S", source_dir, "-B", build_path, "-G", "Ninja",
            "-DCMAKE_BUILD_TYPE=Release", f"-DSTM32_REPO={stm32_repo}"]
     try:
-        subprocess.run(cmd, cwd=pumptron_dir, check=True,
+        subprocess.run(cmd, cwd=cwd, check=True,
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         print("   Success!")
     except subprocess.CalledProcessError as e:
@@ -393,7 +392,7 @@ def build_samples(use_clang=False, clean=False, full=False):
             if "install" in dirnames: dirnames.remove("install")
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
-            skip_dirs = ["unit-tests", "boards/stm32-freertos", "boards/esp32s3-devkitc", "boards/stm32h755-nucleo"]
+            skip_dirs = ["unit-tests", "boards/esp32s3-devkitc", "boards/stm32h755-nucleo"]
             dirnames[:] = [d for d in dirnames if d not in skip_dirs
                            and full_suite.sample_name(os.path.join(dirpath, d)) not in skip_dirs]
 
@@ -432,6 +431,18 @@ def build_samples(use_clang=False, clean=False, full=False):
                     configure_zephyr(dirpath, name, clean, full)
                 if name in full_suite.ZEPHYR_QEMU_TARGETS:
                     configure_zephyr_qemu(dirpath, name, clean, full)
+                continue
+
+            # boards/stm32-freertos: the PC client is an ordinary sample (below);
+            # the server is the STM32F4 Discovery firmware, cross-compiled (Windows,
+            # where the board's tools live) when the toolchain and FW_F4 package
+            # are there. Built, never run: it needs the board.
+            if (os.path.basename(dirpath) == "server"
+                    and full_suite.sample_name(os.path.dirname(dirpath)) == full_suite.STM32_FREERTOS_SAMPLE):
+                dirnames.clear()
+                if IS_WINDOWS:
+                    configure_stm32_f4_firmware(f"{full_suite.STM32_FREERTOS_SAMPLE}/server (STM32F4 firmware)",
+                                                dirpath, ".", full_suite.build_dir(dirpath))
                 continue
 
             # Pumptron is configured once from its top-level CMakeLists.txt
@@ -545,7 +556,9 @@ def build_samples(use_clang=False, clean=False, full=False):
 
                 # --- PUMPTRON STM32F4 FIRMWARE CONFIGURE ---
                 if project_name == "pumptron":
-                    configure_pumptron_f4(dirpath)
+                    configure_stm32_f4_firmware("pumptron (STM32F4 firmware)", dirpath,
+                                                os.path.join("controller", "platform", "f4"),
+                                                full_suite.build_dir(dirpath, "f4"))
 
                 # --- CELLUTRON THREADX CONFIGURE (Linux only) ---
                 # Cellutron's controller/safety nodes support a CELLUTRON_RTOS

@@ -160,6 +160,13 @@ SAMPLE_GROUPS = {"os", "bare-metal", "boards", "transport", "databus",
                  "system-architecture", "integration", "patterns"}
 
 
+# example/sample-projects/boards/stm32-freertos: a PC client (an ordinary
+# desktop build) and the STM32F4 Discovery firmware in server/ (a CMake
+# cross-build beside its STM32CubeIDE project), both built on Windows, never
+# run here (the firmware needs the board).
+STM32_FREERTOS_SAMPLE = "boards/stm32-freertos"
+
+
 def sample_name(path):
     """The name the scripts use for the sample folder at path: "<group>/<sample>"
     inside a SAMPLE_GROUPS folder, else the folder name."""
@@ -439,7 +446,7 @@ def test_variants():
 
 # Samples --full doesn't cover yet: name -> what it needs.
 PENDING = {
-    "boards/stm32-freertos":         "hardware: needs an STM32 board",
+    "boards/stm32-freertos":         "hardware: built (firmware and PC client), run needs the STM32F4 Discovery",
     "boards/esp32s3-devkitc":        "hardware: needs an ESP32-S3 board",
     "boards/stm32h755-nucleo":       "hardware: needs a NUCLEO-H755ZI-Q board",
 }
