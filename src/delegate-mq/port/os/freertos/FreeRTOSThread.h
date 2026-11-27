@@ -44,6 +44,7 @@
 #include "extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
+#include "port/os/common/StackWatermark.h"
 #include "FreeRTOSDelegateQueue.h"
 #include "FreeRTOSHeaders.h"
 #include <string>
@@ -84,6 +85,8 @@ public:
         float invoke_max_window_ms;  // Max execution since last snapshot
         float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
+        uint32_t stack_size;          // Bytes, or dmq::STACK_UNKNOWN (GetStackSize())
+        uint32_t stack_free_min;      // Least free stack seen, bytes, or dmq::STACK_UNKNOWN
     };
 #endif
 
@@ -136,6 +139,16 @@ public:
 
     /// Get current queue size
     size_t GetQueueSize();
+
+    /// The task's stack size in bytes: DMQ_FREERTOS_STACK_WORDS or SetStackMem()'s
+    /// size, times sizeof(StackType_t).
+    uint32_t GetStackSize() const { return m_stackSize * static_cast<uint32_t>(sizeof(StackType_t)); }
+
+    /// The least free stack the task has had, in bytes (its high-water mark):
+    /// how close it came to overflowing. Callable from any thread, also after the
+    /// task has exited (its last value). dmq::STACK_UNKNOWN before CreateThread(),
+    /// or without INCLUDE_uxTaskGetStackHighWaterMark in FreeRTOSConfig.h.
+    uint32_t GetStackFreeMin();
 
     /// Sleep for a duration.
     /// @param[in] timeout - the duration to sleep.
@@ -255,7 +268,13 @@ private:
     // Run loop called by Process
     void Run();
 
-    /// Check watchdog is expired for this instance. 
+    /// Free stack of task (nullptr: the calling task) in bytes, or STACK_UNKNOWN
+    static uint32_t MeasureStackFree(TaskHandle_t task);
+
+    /// Record the task's final stack reading; on this task, before it can exit
+    void FinishStackWatermark();
+
+    /// Check watchdog is expired for this instance.
     /// @return true if expired, with the time since the thread was last alive in stalledFor.
     bool WatchdogExpired(dmq::Duration& stalledFor);
 
@@ -307,6 +326,7 @@ private:
 #if (configSUPPORT_STATIC_ALLOCATION == 1)
     StaticTask_t m_tcb;          // TCB storage for static creation
 #endif
+    detail::StackWatermark m_stackWatermark;   // GetStackFreeMin()
 
     // Watchdog related members
     std::atomic<uint32_t> m_lastAliveTime{0};

@@ -46,6 +46,7 @@ static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
     options.lowerPriority = [](Thread& t) { t.SetThreadPriority(1); };
+    options.realStacks = true;   // ESP32 (QEMU or the chip): tasks run on their own stacks
     return options;
 }
 

@@ -522,7 +522,7 @@ static void OnHungThread(const dmq::os::WatchdogInfo& info)
 }
 ```
 
-`os/freertos-bare-metal`'s Test 15 runs this on a Cortex-M3: one thread blocked forever on a semaphore and one spinning, both reported, and the saved PCs resolve to `xQueueSemaphoreTake` and the spinning function. On ESP-IDF, a hook can start a core dump of every task instead (`esp_core_dump`, configured in menuconfig).
+`os/freertos-bare-metal`'s Test 16 runs this on a Cortex-M3: one thread blocked forever on a semaphore and one spinning, both reported, and the saved PCs resolve to `xQueueSemaphoreTake` and the spinning function. On ESP-IDF, a hook can start a core dump of every task instead (`esp_core_dump`, configured in menuconfig).
 
 **The fault hook** gets the file and line of the failed `DMQ_ASSERT`. The default `FaultHandler()` calls it after printing and before halting. A watchdog expiry calls only the watchdog hook, not both (on desktop the default `WatchdogHandler()` ends through `DMQ_ASSERT()` for its stack traces, with the fault hook cleared first). A custom `FaultHandler()` (`DMQ_CUSTOM_FAULT_HANDLER`) owns the whole path; it can call `dmq::util::RunFaultHook(file, line)` to keep the hook.
 
@@ -577,6 +577,8 @@ Thread::ThreadStats Thread::SnapshotStats()
 ```
 
 Update the window counters on every dispatch and message under the same lock `SnapshotStats()` uses.
+
+4. **Stack:** `GetStackSize()` and `GetStackFreeMin()` (the high-water mark: the least free stack the thread has had), both in bytes, filled into `stats.stack_size` and `stats.stack_free_min`. A port that can't tell returns `dmq::STACK_UNKNOWN` (the desktop ports do). Measure with the kernel's own API (FreeRTOS `uxTaskGetStackHighWaterMark()`, Zephyr `k_thread_stack_space_get()`, CMSIS-RTOS2 `osThreadGetStackSpace()`) or by scanning the fill pattern the kernel writes into a new stack (ThreadX). The thread's control block or stack may be freed while another thread asks, so wrap the measurement in `dmq::os::detail::StackWatermark` (`port/os/common/StackWatermark.h`): `Start()` after creating the thread, `Get()` for each query, and `Finish()` with a last reading before the memory can go away. That is on the thread itself just before it exits, if the kernel frees it on self-delete (FreeRTOS, CMSIS-RTOS2), or in `ExitThread()`'s cleanup before the free (ThreadX, Zephyr). `test/portable/StackPortableTest.h` checks a port; set `PortableTests::Options::realStacks` on real hardware or QEMU.
 
 ### Current Thread
 

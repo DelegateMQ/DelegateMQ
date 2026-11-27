@@ -45,6 +45,11 @@ static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
     options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(osPriorityLow); };
+    // native_sim runs threads on host stacks; a CPU target (mps2/an385 on
+    // QEMU) runs them on the stacks the kernel reports
+#if !defined(CONFIG_ARCH_POSIX)
+    options.realStacks = true;
+#endif
     return options;
 }
 

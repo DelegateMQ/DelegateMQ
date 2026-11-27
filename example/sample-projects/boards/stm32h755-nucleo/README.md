@@ -13,7 +13,7 @@ Status, step by step:
 
 ## What runs
 
-**Cortex-M7** (`cm7/`): sets the clocks and MPU, releases the M4, then runs the DelegateMQ FreeRTOS test suite of [os/freertos-bare-metal](../../os/freertos-bare-metal/README.md) (`main_delegate.cpp`). That is the same 15 tests that run on a Cortex-M3 under QEMU, now on real hardware: async delegates, signals, timers, `IsrDelegate` from a real timer interrupt (TIM6), `FullPolicy`, the start gate, the watchdog hook, and a check that nothing uses the heap once the system runs (`DMQ_ALLOCATOR` in static pools). Output goes to the ST-LINK's virtual COM port (USART3, 115200 8N1). When the suite ends, LD1 (green) stays on for a pass; LD3 (red) blinks for a failure.
+**Cortex-M7** (`cm7/`): sets the clocks and MPU, releases the M4, then runs the DelegateMQ FreeRTOS test suite of [os/freertos-bare-metal](../../os/freertos-bare-metal/README.md) (`main_delegate.cpp`). That is the same 16 tests that run on a Cortex-M3 under QEMU, now on real hardware: async delegates, signals, timers, `IsrDelegate` from a real timer interrupt (TIM6), `FullPolicy`, the start gate, the stack high-water mark, the watchdog hook, and a check that nothing uses the heap once the system runs (`DMQ_ALLOCATOR` in static pools). Output goes to the ST-LINK's virtual COM port (USART3, 115200 8N1). When the suite ends, LD1 (green) stays on for a pass; LD3 (red) blinks for a failure.
 
 **Cortex-M4** (`cm4/`): at reset it stops its domain and waits for the M7's release (hardware semaphore 0), then blinks LD2 (yellow) once a second.
 

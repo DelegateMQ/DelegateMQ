@@ -41,6 +41,7 @@ CmsisRtos2Thread::CmsisRtos2Thread(const char* threadName, size_t maxQueueSize, 
 {
     // Default Priority
     m_priority = osPriorityNormal;
+    m_stackSize.store(STACK_SIZE);   // what CreateThread() asks for
 
 #if defined(DMQ_DATABUS_TOOLS)
     m_statMutex = osMutexNew(NULL);
@@ -150,6 +151,11 @@ bool CmsisRtos2Thread::CreateThread(std::optional<dmq::Duration> watchdogTimeout
 
         m_thread = osThreadNew(CmsisRtos2Thread::Process, this, &attr);
         DMQ_ASSERT_TRUE(m_thread != NULL);
+        // The stack the kernel actually gave the thread, which the free-stack
+        // readings are relative to (Zephyr's layer may give more than asked)
+        const uint32_t actualSize = osThreadGetStackSize(m_thread);
+        m_stackSize.store(actualSize != 0 ? actualSize : STACK_SIZE);
+        m_stackWatermark.Start();   // GetStackFreeMin() may query the thread now
 
         if (m_startSync) {
             // m_thread is now stored: let Run() proceed to the start handler (see
@@ -236,6 +242,8 @@ void CmsisRtos2Thread::ExitThread(ExitPolicy policy)
         if (osThreadGetId() == m_thread) {
             if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
+            // The thread exits once Run() returns: no queries of it after this
+            FinishStackWatermark();
         } else {
             // Send exit message
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
@@ -638,12 +646,38 @@ void CmsisRtos2Thread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Before signalling: Process() ends the thread (osThreadExit(), and the
+    // kernel may free its control block and stack) once Run() returns
+    FinishStackWatermark();
+
     // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
     m_selfExitPtr = nullptr;
     // Signal ExitThread() that we are done
     if (m_exitSem) {
         osSemaphoreRelease(m_exitSem);
     }
+}
+
+//----------------------------------------------------------------------------
+// Stack high-water mark
+//----------------------------------------------------------------------------
+uint32_t CmsisRtos2Thread::MeasureStackFree(osThreadId_t thread)
+{
+    // 0: no watermarking in this kernel, or an error (never a real reading of
+    // a thread that is still running)
+    const uint32_t space = osThreadGetStackSpace(thread);
+    return space != 0 ? space : dmq::STACK_UNKNOWN;
+}
+
+void CmsisRtos2Thread::FinishStackWatermark()
+{
+    if (m_stackWatermark.IsLive())
+        m_stackWatermark.Finish(MeasureStackFree(osThreadGetId()), [] { osDelay(1); });
+}
+
+uint32_t CmsisRtos2Thread::GetStackFreeMin()
+{
+    return m_stackWatermark.Get([this] { return MeasureStackFree(m_thread); });
 }
 
 #if defined(DMQ_DATABUS_TOOLS)
@@ -680,6 +714,8 @@ CmsisRtos2Thread::ThreadStats CmsisRtos2Thread::SnapshotStats()
     stats.invoke_max_all_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count()) / 1000.0f;
 
     stats.dispatch_count = m_dispatchCountAll;
+    stats.stack_size = GetStackSize();
+    stats.stack_free_min = GetStackFreeMin();
 
     // Reset windowed stats
     m_queueDepthMaxWindow = 0;

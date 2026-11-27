@@ -38,7 +38,7 @@ uint32_t BspHeapCallCount(void);
 /// The return address and size of the last heap call, to find what allocated.
 void* BspHeapLastCaller(size_t* size);
 
-/// Set by a test that expects a watchdog expiry (Test 15): the target's
+/// Set by a test that expects a watchdog expiry (Test 16): the target's
 /// WatchdogHandler() calls it instead of failing the run. It checks the
 /// result and ends the run itself.
 extern void (*BspWatchdogExpected)(const char* threadName);

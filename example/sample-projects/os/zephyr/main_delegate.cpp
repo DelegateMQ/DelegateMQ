@@ -31,6 +31,9 @@ static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
     options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(5); };
+    // native_sim runs threads on host stacks; a CPU target (mps2/an385 on
+    // QEMU) runs them on the stacks Zephyr reports
+    options.realStacks = !IS_ENABLED(CONFIG_ARCH_POSIX);
     return options;
 }
 

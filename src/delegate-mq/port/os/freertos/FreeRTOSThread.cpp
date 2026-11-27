@@ -234,6 +234,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     }
 
     DMQ_ASSERT_TRUE(m_thread != nullptr);
+    m_stackWatermark.Start();   // GetStackFreeMin() may query the task now
 
     if (m_startSync) {
         // m_thread is now stored: let Run() proceed to the start handler (see Run()),
@@ -270,6 +271,8 @@ void FreeRTOSThread::ExitThread(ExitPolicy policy)
         if (xTaskGetCurrentTaskHandle() == m_thread) {
             if (m_selfExitPtr) { *m_selfExitPtr = true; m_selfExitPtr = nullptr; }
             m_startGate.Leave();     // exited from its start handler: never reaches the gate
+            // The task deletes itself once Run() returns: no queries of it after this
+            FinishStackWatermark();
         } else {
             ThreadMsg* msg = new (std::nothrow) ThreadMsg(MSG_EXIT_THREAD);
             if (!msg)
@@ -644,11 +647,41 @@ void FreeRTOSThread::Run()
     currentScope.reset();
     exitGuard.Fire();
 
+    // Before signalling: Process() deletes the task (and the kernel may free its
+    // control block and stack) once Run() returns
+    FinishStackWatermark();
+
     // Clear before signalling: once ExitThread() returns, 'this' may be destroyed
     m_selfExitPtr = nullptr;
     if (m_exitSem) {
         xSemaphoreGive(m_exitSem);
     }
+}
+
+//----------------------------------------------------------------------------
+// Stack high-water mark
+//----------------------------------------------------------------------------
+uint32_t FreeRTOSThread::MeasureStackFree(TaskHandle_t task)
+{
+#if (INCLUDE_uxTaskGetStackHighWaterMark == 1)
+    // Words on mainline FreeRTOS, bytes on ESP-IDF (StackType_t is uint8_t there)
+    return static_cast<uint32_t>(uxTaskGetStackHighWaterMark(task)) *
+           static_cast<uint32_t>(sizeof(StackType_t));
+#else
+    (void)task;
+    return dmq::STACK_UNKNOWN;
+#endif
+}
+
+void FreeRTOSThread::FinishStackWatermark()
+{
+    if (m_stackWatermark.IsLive())
+        m_stackWatermark.Finish(MeasureStackFree(nullptr), [] { vTaskDelay(1); });
+}
+
+uint32_t FreeRTOSThread::GetStackFreeMin()
+{
+    return m_stackWatermark.Get([this] { return MeasureStackFree(m_thread); });
 }
 
 #if defined(DMQ_DATABUS_TOOLS)
@@ -700,6 +733,8 @@ FreeRTOSThread::ThreadStats FreeRTOSThread::SnapshotStats()
         stats.dispatch_count = m_dispatchCountAll;
     }
 
+    stats.stack_size = GetStackSize();
+    stats.stack_free_min = GetStackFreeMin();
     return stats;
 }
 #endif

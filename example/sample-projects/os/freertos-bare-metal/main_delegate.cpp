@@ -4,6 +4,7 @@
 
 #include "DelegateMQ.h" 
 #include "../../../../test/portable/StartGatePortableTest.h"
+#include "../../../../test/portable/StackPortableTest.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -174,7 +175,7 @@ static void NoHeapTarget(int value) { s_noHeapCalls++; s_noHeapSum += static_cas
 static int NoHeapSquare(int value) { return value * value; }
 static void NoHeapTick() { s_noHeapCalls++; }
 
-// Test 15: the watchdog hook (dmq::os::SetWatchdogHook()). Two threads hang:
+// Test 16: the watchdog hook (dmq::os::SetWatchdogHook()). Two threads hang:
 // one blocked forever on a semaphore (as in a deadlock), one spinning in
 // SpinForever(). A checker task calls Thread::WatchdogCheckAll(). The hook
 // records each hung thread and the program counter FreeRTOS saved for it, which
@@ -720,8 +721,14 @@ void ExecuteAllTests() {
         worker.ExitThread();
     }
 
-    // --- TEST 15: Watchdog hook (last: a watchdog expiry ends the run) ---
-    printf("\n[Test 15] Watchdog hook: two hung threads reported, then one fault:\n");
+    // --- TEST 15: Stack high-water mark ---
+    // On a real Cortex-M stack: going deeper must lower the reading
+    printf("\n[Test 15] Stack high-water mark (GetStackSize(), GetStackFreeMin()):\n");
+    StackPortableTest::Run(/*realStacks=*/true);
+    printf("  -> stack high-water mark tracked\n");
+
+    // --- TEST 16: Watchdog hook (last: a watchdog expiry ends the run) ---
+    printf("\n[Test 16] Watchdog hook: two hung threads reported, then one fault:\n");
     {
         static Thread blocked("HungBlocked");
         static Thread spinning("HungSpin");

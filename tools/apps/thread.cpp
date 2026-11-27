@@ -82,6 +82,26 @@ static void ReceiverThread(UdpSocket& socket) {
     }
 }
 
+/// A stack value in bytes, or "n/a" when the sender's port doesn't track it
+/// (desktop threads, or an RTOS build without the kernel's stack tracking)
+static std::string StackValue(uint32_t bytes) {
+    return bytes == dmq::STACK_UNKNOWN ? std::string("n/a") : std::to_string(bytes);
+}
+
+/// "least free / size" for the Stack column; "n/a" when neither is known
+static std::string StackText(const dmq::util::ThreadStatsPacket& p) {
+    if (p.stack_free_min == dmq::STACK_UNKNOWN && p.stack_size == dmq::STACK_UNKNOWN)
+        return "n/a";
+    return StackValue(p.stack_free_min) + "/" + StackValue(p.stack_size);
+}
+
+/// Least free stack as a fraction of the size; negative when either is unknown
+static double StackFreeFraction(const dmq::util::ThreadStatsPacket& p) {
+    if (p.stack_free_min == dmq::STACK_UNKNOWN || p.stack_size == dmq::STACK_UNKNOWN || p.stack_size == 0)
+        return -1.0;
+    return static_cast<double>(p.stack_free_min) / static_cast<double>(p.stack_size);
+}
+
 /// --once: every thread heard from, as plain text, sorted by CPU then thread.
 static void PrintThreadTable() {
     std::vector<ThreadRecord> records;
@@ -94,19 +114,21 @@ static void PrintThreadTable() {
         return a.packet.thread_name < b.packet.thread_name;
     });
 
-    std::cout << std::left << std::setw(12) << "CPU" << std::setw(20) << "Thread" << std::setw(16) << "IP"
+    std::cout << std::left << std::setw(12) << "CPU" << std::setw(26) << "Thread" << std::setw(16) << "IP"
               << std::right << std::setw(6) << "QCur" << std::setw(6) << "QWin" << std::setw(6) << "QMax"
               << std::setw(10) << "LatAvg" << std::setw(10) << "LatMax" << std::setw(10) << "InvAvg"
-              << std::setw(10) << "InvMax" << std::setw(10) << "Dispatch" << "\n";
+              << std::setw(10) << "InvMax" << std::setw(10) << "Dispatch"
+              << std::setw(11) << "StackFree" << std::setw(11) << "StackSize" << "\n";
     for (const auto& r : records) {
         const auto& p = r.packet;
-        std::cout << std::left << std::setw(12) << (std::string)p.cpu_name << std::setw(20) << (std::string)p.thread_name
+        std::cout << std::left << std::setw(12) << (std::string)p.cpu_name << std::setw(26) << (std::string)p.thread_name
                   << std::setw(16) << r.ip << std::right << std::setw(6) << p.queue_depth
                   << std::setw(6) << p.queue_depth_max_window << std::setw(6) << p.queue_depth_max_all
                   << std::fixed << std::setprecision(2)
                   << std::setw(10) << p.latency_avg_ms << std::setw(10) << p.latency_max_all_ms
                   << std::setw(10) << p.invoke_avg_ms << std::setw(10) << p.invoke_max_all_ms
-                  << std::setw(10) << p.dispatch_count << "\n";
+                  << std::setw(10) << p.dispatch_count
+                  << std::setw(11) << StackValue(p.stack_free_min) << std::setw(11) << StackValue(p.stack_size) << "\n";
     }
     std::cout << records.size() << " thread(s), " << g_packetCount.load() << " packet(s) received" << std::endl;
 }
@@ -172,37 +194,39 @@ int main(int argc, char* argv[]) {
             return a.packet.thread_name < b.packet.thread_name;
         });
 
+        // Column widths: the whole row fits a 140-column console
+        constexpr int W_CPU = 10, W_THREAD = 25, W_IP = 16, W_Q = 5, W_MS = 8, W_STACK = 12;
+
         Elements rows;
         // Header
         rows.push_back(hbox({
-            text(" CPU")           | bold | size(WIDTH, EQUAL, 12),
+            text(" CPU")    | bold | size(WIDTH, EQUAL, W_CPU),
             separator(),
-            text(" Thread")        | bold | size(WIDTH, EQUAL, 20),
+            text(" Thread") | bold | size(WIDTH, EQUAL, W_THREAD),
             separator(),
-            text(" IP")            | bold | size(WIDTH, EQUAL, 15),
+            text(" IP")     | bold | size(WIDTH, EQUAL, W_IP),
             separator(),
-            text(" QCur")          | bold | size(WIDTH, EQUAL, 6),
+            text(" QCur")   | bold | size(WIDTH, EQUAL, W_Q),
             separator(),
-            text(" QWin")          | bold | size(WIDTH, EQUAL, 6),
+            text(" QWin")   | bold | size(WIDTH, EQUAL, W_Q),
             separator(),
-            text(" QMax")          | bold | size(WIDTH, EQUAL, 6),
+            text(" QMax")   | bold | size(WIDTH, EQUAL, W_Q),
             separator(),
-            text(" LAvg(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            text(" LAvg")   | bold | size(WIDTH, EQUAL, W_MS),
             separator(),
-            text(" LWin(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            text(" LWin")   | bold | size(WIDTH, EQUAL, W_MS),
             separator(),
-            text(" LMax(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            text(" LMax")   | bold | size(WIDTH, EQUAL, W_MS),
             separator(),
-            text(" IAvg(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            text(" IAvg")   | bold | size(WIDTH, EQUAL, W_MS),
             separator(),
-            text(" IWin(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            text(" IWin")   | bold | size(WIDTH, EQUAL, W_MS),
             separator(),
-            text(" IMax(ms)")      | bold | size(WIDTH, EQUAL, 10),
+            text(" IMax")   | bold | size(WIDTH, EQUAL, W_MS),
+            separator(),
+            text(" Stack")  | bold | size(WIDTH, EQUAL, W_STACK),
             }) | color(Color::White));
             rows.push_back(separator());
-
-            for (const auto& rec : records) {
-            auto& p = rec.packet;
 
             auto fmtFloat = [](float f) {
                 std::stringstream ss;
@@ -210,35 +234,49 @@ int main(int argc, char* argv[]) {
                 return ss.str();
             };
 
+            for (const auto& rec : records) {
+            auto& p = rec.packet;
+
             rows.push_back(hbox({
-                text(" " + p.cpu_name)    | size(WIDTH, EQUAL, 12),
+                text(" " + p.cpu_name)    | size(WIDTH, EQUAL, W_CPU),
                 separator(),
-                text(" " + p.thread_name) | size(WIDTH, EQUAL, 20),
+                text(" " + p.thread_name) | size(WIDTH, EQUAL, W_THREAD),
                 separator(),
-                text(" " + rec.ip)        | size(WIDTH, EQUAL, 15),
+                text(" " + rec.ip)        | size(WIDTH, EQUAL, W_IP),
                 separator(),
-                text(" " + std::to_string(p.queue_depth)) | size(WIDTH, EQUAL, 6),
+                text(" " + std::to_string(p.queue_depth)) | size(WIDTH, EQUAL, W_Q),
                 separator(),
-                text(" " + std::to_string(p.queue_depth_max_window)) | size(WIDTH, EQUAL, 6),
+                text(" " + std::to_string(p.queue_depth_max_window)) | size(WIDTH, EQUAL, W_Q),
                 separator(),
-                text(" " + std::to_string(p.queue_depth_max_all)) | size(WIDTH, EQUAL, 6),
+                text(" " + std::to_string(p.queue_depth_max_all)) | size(WIDTH, EQUAL, W_Q),
                 separator(),
-                text(" " + fmtFloat(p.latency_avg_ms)) | size(WIDTH, EQUAL, 10),
+                text(" " + fmtFloat(p.latency_avg_ms)) | size(WIDTH, EQUAL, W_MS),
                 separator(),
-                text(" " + fmtFloat(p.latency_max_window_ms)) | size(WIDTH, EQUAL, 10),
+                text(" " + fmtFloat(p.latency_max_window_ms)) | size(WIDTH, EQUAL, W_MS),
                 separator(),
-                text(" " + fmtFloat(p.latency_max_all_ms)) | size(WIDTH, EQUAL, 10),
+                text(" " + fmtFloat(p.latency_max_all_ms)) | size(WIDTH, EQUAL, W_MS),
                 separator(),
-                text(" " + fmtFloat(p.invoke_avg_ms)) | size(WIDTH, EQUAL, 10),
+                text(" " + fmtFloat(p.invoke_avg_ms)) | size(WIDTH, EQUAL, W_MS),
                 separator(),
-                text(" " + fmtFloat(p.invoke_max_window_ms)) | size(WIDTH, EQUAL, 10),
+                text(" " + fmtFloat(p.invoke_max_window_ms)) | size(WIDTH, EQUAL, W_MS),
                 separator(),
-                text(" " + fmtFloat(p.invoke_max_all_ms)) | size(WIDTH, EQUAL, 10),
+                text(" " + fmtFloat(p.invoke_max_all_ms)) | size(WIDTH, EQUAL, W_MS),
+                separator(),
+                // Little stack left at its worst: yellow under 25% free, red under 10%
+                [&] {
+                    auto cell = text(" " + StackText(p)) | size(WIDTH, EQUAL, W_STACK);
+                    const double free = StackFreeFraction(p);
+                    if (free >= 0.0 && free < 0.10) return cell | color(Color::Red) | bold;
+                    if (free >= 0.0 && free < 0.25) return cell | color(Color::Yellow);
+                    return cell;
+                }(),
             }));
             }
         return vbox({
             text("DelegateMQ Thread Monitor") | bold | color(Color::Cyan) | center,
             text(" Packets: " + std::to_string(g_packetCount)) | dim,
+            text(" Q: queue depth (now, this window, max). L: wait in queue, I: run time, in ms (average, "
+                 "this window's max, all-time max). Stack: least free / size, bytes") | dim,
             vbox(std::move(rows)) | border,
         });
     });

@@ -16,6 +16,7 @@
 /// | DelegateThreadsPortableTests.cpp | cross-thread dispatch (free, member, shared_ptr member, std::function) and FullPolicy, then StartGatePortableTest |
 /// | TimerDelegatePortableTests.cpp | PacedDispatch, TimerDelegate, Timer::ProcessTimers() draining |
 /// | StartGatePortableTest.h | dmq::os::StartGate (also run by the desktop unit tests) |
+/// | StackPortableTest.h | Thread::GetStackSize() and GetStackFreeMin() (run by DelegateThreadsPortableTests.cpp) |
 ///
 /// Requirements on the sample:
 /// - Call from a thread the port knows (an RTOS task, not a raw host thread),
@@ -45,6 +46,12 @@ struct Options
     /// kernel can't run that (ThreadX's Linux/GNU simulation port, see
     /// os/threadx/main_delegate.cpp); skips the tests that need it.
     bool concurrentThreads = true;
+
+    /// true: the threads run on the stacks the port reports (a real CPU or
+    /// QEMU), so StackPortableTest also checks that using more stack lowers
+    /// GetStackFreeMin(). false on the desktop ports and the RTOS simulators,
+    /// whose threads run on host stacks.
+    bool realStacks = false;
 };
 
 /// Cross-thread dispatch, FullPolicy and StartGate tests.

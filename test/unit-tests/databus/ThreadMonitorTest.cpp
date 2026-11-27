@@ -55,6 +55,10 @@ void SnapshotStatsTest()
     DMQ_ASSERT_TRUE(s0.queue_size_limit == 100);
     DMQ_ASSERT_TRUE(s0.queue_depth == 0);
     DMQ_ASSERT_TRUE(s0.dispatch_count == 0);
+    // The desktop ports don't track the stack (the RTOS ports' readings are
+    // checked by test/portable/StackPortableTest.h on each OS sample)
+    DMQ_ASSERT_TRUE(s0.stack_size == dmq::STACK_UNKNOWN);
+    DMQ_ASSERT_TRUE(s0.stack_free_min == dmq::STACK_UNKNOWN);
 
     // A blocker holds the worker; QUEUED quick messages pile up behind it.
     std::atomic<bool> started{false}, release{false};
@@ -129,6 +133,8 @@ void SerializerTest()
     in.invoke_max_window_ms = 3.0f;
     in.invoke_max_all_ms = 9.5f;
     in.dispatch_count = 0x1234567890ULL;   // needs more than 32 bits
+    in.stack_size = 4096;
+    in.stack_free_min = 612;
 
     ThreadStatsPacketSerializer ser;
     dmq::ByteWriter ss;
@@ -153,11 +159,21 @@ void SerializerTest()
     DMQ_ASSERT_TRUE(out.invoke_max_window_ms == in.invoke_max_window_ms);
     DMQ_ASSERT_TRUE(out.invoke_max_all_ms == in.invoke_max_all_ms);
     DMQ_ASSERT_TRUE(out.dispatch_count == in.dispatch_count);
+    DMQ_ASSERT_TRUE(out.stack_size == in.stack_size);
+    DMQ_ASSERT_TRUE(out.stack_free_min == in.stack_free_min);
 
-    // The text form the spy console shows names the thread and its CPU
+    // The text form the spy console shows names the thread and its CPU, and
+    // the stack as least free / size
     dmq::xstring text = ThreadStatsPacketToString(in);
     DMQ_ASSERT_TRUE(text.find("CPU:GUI") != dmq::xstring::npos);
     DMQ_ASSERT_TRUE(text.find("Thread:Alarms") != dmq::xstring::npos);
+    DMQ_ASSERT_TRUE(text.find("Stack free/size:612/4096") != dmq::xstring::npos);
+
+    // A packet's stack fields default to unknown, shown as "n/a"
+    ThreadStatsPacket unknown;
+    DMQ_ASSERT_TRUE(unknown.stack_size == dmq::STACK_UNKNOWN);
+    DMQ_ASSERT_TRUE(unknown.stack_free_min == dmq::STACK_UNKNOWN);
+    DMQ_ASSERT_TRUE(ThreadStatsPacketToString(unknown).find("Stack free/size:n/a/n/a") != dmq::xstring::npos);
 
     std::cout << "SerializerTest() complete!" << std::endl;
 }

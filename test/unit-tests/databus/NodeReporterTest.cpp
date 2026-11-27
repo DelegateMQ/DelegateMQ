@@ -148,6 +148,8 @@ int NodeReporterTestMain() {
         dmq::util::ThreadStatsPacket stats;
         stats.thread_name = "Pump";
         stats.queue_depth = 3;
+        stats.stack_size = 2048;
+        stats.stack_free_min = 300;
         DataBus::Publish(NodeReporter::THREAD_STATS_TOPIC, stats);
 
         dmq::util::ThreadStatsPacket received;
@@ -158,6 +160,23 @@ int NodeReporterTestMain() {
             },
             [](const dmq::util::ThreadStatsPacket& p) { return p.thread_name == "Pump"; }, received));
         DMQ_ASSERT_TRUE(received.queue_depth == 3);
+        DMQ_ASSERT_TRUE(received.stack_size == 2048);
+        DMQ_ASSERT_TRUE(received.stack_free_min == 300);
+        // No CPU name: grouped under the node's name
+        DMQ_ASSERT_TRUE(received.cpu_name == "NodeC");
+
+        // A thread that names its CPU keeps it
+        dmq::util::ThreadStatsPacket named;
+        named.thread_name = "Safety";
+        named.cpu_name = "M4";
+        DataBus::Publish(NodeReporter::THREAD_STATS_TOPIC, named);
+        DMQ_ASSERT_TRUE(transport.WaitFor(THREAD_STATS_REMOTE_ID,
+            [](dmq::ByteReader& is, dmq::util::ThreadStatsPacket& p) {
+                dmq::util::ThreadStatsPacketSerializer ser;
+                ser.Read(is, p);
+            },
+            [](const dmq::util::ThreadStatsPacket& p) { return p.thread_name == "Safety"; }, received));
+        DMQ_ASSERT_TRUE(received.cpu_name == "M4");
         reporter.Stop();
     }
 #endif

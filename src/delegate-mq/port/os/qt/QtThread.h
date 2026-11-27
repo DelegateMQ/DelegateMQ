@@ -120,6 +120,8 @@ public:
         float invoke_max_window_ms;  // Max execution since last snapshot
         float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
+        uint32_t stack_size;          // Bytes, or dmq::STACK_UNKNOWN (GetStackSize())
+        uint32_t stack_free_min;      // Least free stack seen, bytes, or dmq::STACK_UNKNOWN
     };
 #endif
 
@@ -169,6 +171,12 @@ public:
 
     /// Get current queue size
     size_t GetQueueSize() const { return m_queueSize.load(); }
+
+    /// Stack size and high-water mark: not tracked on the desktop ports, so
+    /// always dmq::STACK_UNKNOWN. On an RTOS port they report the thread's
+    /// stack size and the least free stack it has had, in bytes.
+    uint32_t GetStackSize() const { return dmq::STACK_UNKNOWN; }
+    uint32_t GetStackFreeMin() const { return dmq::STACK_UNKNOWN; }
 
     /// Sleep for a duration.
     /// @param[in] timeout - the duration to sleep.

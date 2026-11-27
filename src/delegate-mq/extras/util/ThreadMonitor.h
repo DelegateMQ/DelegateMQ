@@ -30,6 +30,8 @@ struct ThreadStatsPacket {
     float       invoke_max_window_ms = 0.0f;
     float       invoke_max_all_ms = 0.0f;
     uint64_t    dispatch_count = 0;
+    uint32_t    stack_size = dmq::STACK_UNKNOWN;      ///< Bytes (Thread::GetStackSize())
+    uint32_t    stack_free_min = dmq::STACK_UNKNOWN;  ///< Least free stack seen, bytes (Thread::GetStackFreeMin())
 };
 
 /// @brief Central monitor that polls registered threads and publishes stats.

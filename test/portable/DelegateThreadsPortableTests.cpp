@@ -29,6 +29,7 @@
 
 #include "PortableTests.h"
 #include "StartGatePortableTest.h"
+#include "StackPortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -484,6 +485,9 @@ void DelegateThreadsTests(const Options& options)
     ThreadFullPolicyTests();
 
     StartGatePortableTest::Run(/*twoThreads=*/options.concurrentThreads);
+
+    std::cout << "Stack high-water mark:" << std::endl;
+    StackPortableTest::Run(options.realStacks);
 }
 
 } // namespace PortableTests

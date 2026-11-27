@@ -106,6 +106,8 @@ void ThreadMonitor::MonitorLoop() {
         packet.invoke_max_window_ms = s.invoke_max_window_ms;
         packet.invoke_max_all_ms = s.invoke_max_all_ms;
         packet.dispatch_count = s.dispatch_count;
+        packet.stack_size = s.stack_size;
+        packet.stack_free_min = s.stack_free_min;
 
         dmq::databus::DataBus::Publish(m_topic, packet);
     }

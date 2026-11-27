@@ -42,6 +42,7 @@
 #include "delegate/UnicastDelegate.h"
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
+#include "port/os/common/StackWatermark.h"
 #include "ThreadXDelegateQueue.h"
 #include "extras/util/Timer.h"
 #include <tx_api.h>
@@ -83,6 +84,8 @@ public:
         float invoke_max_window_ms;  // Max execution since last snapshot
         float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
+        uint32_t stack_size;          // Bytes, or dmq::STACK_UNKNOWN (GetStackSize())
+        uint32_t stack_free_min;      // Least free stack seen, bytes, or dmq::STACK_UNKNOWN
     };
 #endif
 
@@ -139,6 +142,20 @@ public:
 
     /// Get current queue size
     size_t GetQueueSize();
+
+    /// The thread's stack size in bytes (DMQ_THREADX_STACK_BYTES, rounded up to
+    /// a whole ULONG).
+    uint32_t GetStackSize() const
+    {
+        return static_cast<uint32_t>((STACK_SIZE + sizeof(ULONG) - 1) / sizeof(ULONG) * sizeof(ULONG));
+    }
+
+    /// The least free stack the thread has had, in bytes (its high-water mark):
+    /// how close it came to overflowing. Callable from any thread, also after the
+    /// thread has exited (its last value). Measured by scanning the stack for
+    /// the fill pattern ThreadX writes when it creates a thread, so
+    /// dmq::STACK_UNKNOWN with TX_DISABLE_STACK_FILLING, and before CreateThread().
+    uint32_t GetStackFreeMin();
 
     /// Sleep for a duration.
     /// @param[in] timeout - the duration to sleep.
@@ -257,6 +274,9 @@ private:
     /// @return true if expired, with the time since the thread was last alive in stalledFor.
     bool WatchdogExpired(dmq::Duration& stalledFor);
 
+    /// Free stack in bytes: the untouched fill pattern at the stack's low end
+    uint32_t MeasureStackFree() const;
+
     /// Get registry head using the "Immortal" Pattern
     static ThreadXThread*& GetWatchdogHead();
 
@@ -301,6 +321,7 @@ private:
     // Stack memory required by ThreadX (Managed by RAII)
     // Using ULONG[] ensures correct alignment for the ThreadX stack
     std::unique_ptr<ULONG[]> m_stackMemory;
+    detail::StackWatermark m_stackWatermark;   // GetStackFreeMin()
 
     // Configurable stack size (bytes)
     static const ULONG STACK_SIZE = static_cast<ULONG>(dmq::THREADX_STACK_BYTES); // DMQ_THREADX_STACK_BYTES

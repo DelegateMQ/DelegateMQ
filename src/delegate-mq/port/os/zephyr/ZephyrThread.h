@@ -31,6 +31,7 @@
 #include "delegate/UnicastDelegate.h"
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
+#include "port/os/common/StackWatermark.h"
 #include "ZephyrDelegateQueue.h"
 #include "extras/util/Timer.h"
 #include <zephyr/kernel.h>
@@ -67,6 +68,8 @@ public:
         float invoke_max_window_ms;  // Max execution since last snapshot
         float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
+        uint32_t stack_size;          // Bytes, or dmq::STACK_UNKNOWN (GetStackSize())
+        uint32_t stack_free_min;      // Least free stack seen, bytes, or dmq::STACK_UNKNOWN
     };
 #endif
 
@@ -116,6 +119,16 @@ public:
 
     /// Get current queue size
     size_t GetQueueSize();
+
+    /// The thread's stack size in bytes (DMQ_ZEPHYR_STACK_BYTES).
+    uint32_t GetStackSize() const { return static_cast<uint32_t>(STACK_SIZE); }
+
+    /// The least free stack the thread has had, in bytes (its high-water mark):
+    /// how close it came to overflowing. Callable from any thread, also after the
+    /// thread has exited (its last value). Needs CONFIG_INIT_STACKS and
+    /// CONFIG_THREAD_STACK_INFO (k_thread_stack_space_get()); otherwise, and
+    /// before CreateThread(), dmq::STACK_UNKNOWN.
+    uint32_t GetStackFreeMin();
 
     /// Sleep for a duration.
     /// @param[in] timeout - the duration to sleep.
@@ -219,6 +232,9 @@ private:
     /// @return true if expired, with the time since the thread was last alive in stalledFor.
     bool WatchdogExpired(dmq::Duration& stalledFor);
 
+    /// Free stack in bytes (k_thread_stack_space_get()), or STACK_UNKNOWN
+    uint32_t MeasureStackFree();
+
     /// Get registry head using the "Immortal" Pattern
     static ZephyrThread*& GetWatchdogHead();
 
@@ -271,6 +287,7 @@ private:
     // k_aligned_alloc and freed via k_free. Also doubles as the
     // "is thread created" sentinel checked throughout this class.
     std::unique_ptr<char, ZephyrDeleter> m_stackMemory{nullptr, k_free};
+    detail::StackWatermark m_stackWatermark;   // GetStackFreeMin()
 
     // Stack size in bytes
     static const size_t STACK_SIZE = dmq::ZEPHYR_STACK_BYTES; // DMQ_ZEPHYR_STACK_BYTES

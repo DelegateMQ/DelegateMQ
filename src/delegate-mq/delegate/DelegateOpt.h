@@ -306,6 +306,12 @@ namespace dmq
     inline constexpr size_t CMSIS_RTOS2_STACK_BYTES = DMQ_CMSIS_RTOS2_STACK_BYTES;
     inline constexpr size_t NUTTX_STACK_BYTES = DMQ_NUTTX_STACK_BYTES;
 
+    /// @brief What Thread::GetStackSize() and GetStackFreeMin() return when the
+    /// port can't tell: the desktop ports, and RTOS builds without the kernel
+    /// option that tracks stack use (see each port's GetStackFreeMin()).
+    /// Never a real size, and never 0, which would read as an overflow.
+    inline constexpr uint32_t STACK_UNKNOWN = 0xFFFFFFFFu;
+
     /// @brief Default dmq::os::Thread priority on the ThreadX, Zephyr (passed to
     /// K_PRIO_PREEMPT()) and NuttX (SCHED_FIFO) ports. SetThreadPriority()
     /// overrides it per thread.

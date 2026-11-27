@@ -172,6 +172,8 @@ bool ThreadXThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                                TX_DONT_START);
 
         if (ret == TX_SUCCESS) {
+            m_stackWatermark.Start();   // GetStackFreeMin() may scan the stack now
+
             // Register before resuming: the thread must never be able to run
             // (and call Process()) before its registry entry exists.
             {
@@ -336,6 +338,13 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         // ExitThread() waits for it is still reported.
         m_watchdogTimeout.store(0);
 
+        // The thread is done: its last stack reading, before the control block
+        // is cleared below (its stack pointers go with it)
+        m_stackWatermark.Finish(MeasureStackFree(), [currentThread] {
+            if (currentThread != nullptr)
+                tx_thread_sleep(1);
+        });
+
         tx_thread_terminate(&m_thread);
         tx_thread_delete(&m_thread);
 
@@ -353,6 +362,39 @@ void ThreadXThread::ExitThread(ExitPolicy policy)
         memset(&m_thread, 0, sizeof(m_thread));
         m_selfExited.store(false);
     }
+}
+
+//----------------------------------------------------------------------------
+// Stack high-water mark
+//----------------------------------------------------------------------------
+uint32_t ThreadXThread::MeasureStackFree() const
+{
+#if defined(TX_DISABLE_STACK_FILLING)
+    return dmq::STACK_UNKNOWN;
+#else
+    // tx_thread_create() filled the stack with TX_STACK_FILL; the stack grows
+    // down, so the fill bytes still intact at its low end were never used
+#if defined(TX_ENABLE_RANDOM_NUMBER_STACK_FILLING) && defined(TX_ENABLE_STACK_CHECKING)
+    const UCHAR fill = static_cast<UCHAR>(m_thread.tx_thread_stack_fill_value & 0xFFu);
+#else
+    const UCHAR fill = static_cast<UCHAR>(0xEFu);
+#endif
+    const UCHAR* p = static_cast<const UCHAR*>(m_thread.tx_thread_stack_start);
+    const UCHAR* end = static_cast<const UCHAR*>(m_thread.tx_thread_stack_end);
+    if (p == nullptr || end == nullptr)
+        return dmq::STACK_UNKNOWN;
+    uint32_t free = 0;
+    while (p <= end && *p == fill) {
+        ++p;
+        ++free;
+    }
+    return free;
+#endif
+}
+
+uint32_t ThreadXThread::GetStackFreeMin()
+{
+    return m_stackWatermark.Get([this] { return MeasureStackFree(); });
 }
 
 //----------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 #include "DelegateMQ.h"
 #include "UnitTestCommon.h"
 #include "StartGatePortableTest.h"
+#include "StackPortableTest.h"
 #include "port/os/common/CoreAffinity.h"
 #include <iostream>
 #include <random>
@@ -1209,4 +1210,5 @@ void DelegateThreadsTests()
 #if defined(DMQ_HAS_START_GATE)
     StartGatePortableTest::Run();
 #endif
+    StackPortableTest::Run(/*realStacks=*/false);   // desktop: both values unknown
 }

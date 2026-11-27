@@ -44,6 +44,7 @@
 #include "extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
+#include "port/os/common/StackWatermark.h"
 #include "CmsisRtos2DelegateQueue.h"
 #include "cmsis_os2.h"
 #include <string>
@@ -79,6 +80,8 @@ public:
         float invoke_max_window_ms;  // Max execution since last snapshot
         float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
+        uint32_t stack_size;          // Bytes, or dmq::STACK_UNKNOWN (GetStackSize())
+        uint32_t stack_free_min;      // Least free stack seen, bytes, or dmq::STACK_UNKNOWN
     };
 #endif
 
@@ -130,6 +133,22 @@ public:
 
     /// Get current queue size
     size_t GetQueueSize();
+
+    /// The thread's stack size in bytes: what the kernel gave it
+    /// (osThreadGetStackSize()), which can be more than the
+    /// DMQ_CMSIS_RTOS2_STACK_BYTES requested (Zephyr's CMSIS-RTOS2 layer takes
+    /// stacks from a pool of CONFIG_CMSIS_V2_THREAD_MAX_STACK_SIZE). The
+    /// requested size before CreateThread() or if the kernel doesn't say.
+    uint32_t GetStackSize() const { return m_stackSize.load(); }
+
+    /// The least free stack the thread has had, in bytes (its high-water mark):
+    /// how close it came to overflowing. Callable from any thread, also after the
+    /// thread has exited (its last value). From osThreadGetStackSpace(), which
+    /// needs the kernel's stack watermarking (Keil RTX: OS_STACK_WATERMARK;
+    /// Zephyr: CONFIG_INIT_STACKS and CONFIG_THREAD_STACK_INFO). It returns 0
+    /// without it, which this reports as dmq::STACK_UNKNOWN, as before
+    /// CreateThread().
+    uint32_t GetStackFreeMin();
 
     /// Sleep for a duration.
     /// @param[in] timeout - the duration to sleep.
@@ -232,6 +251,15 @@ private:
     /// Check watchdog is expired. Called by WatchdogCheckAll().
     /// @return true if expired, with the time since the thread was last alive in stalledFor.
     bool WatchdogExpired(dmq::Duration& stalledFor);
+
+    /// Free stack of thread in bytes (osThreadGetStackSpace()), or STACK_UNKNOWN
+    static uint32_t MeasureStackFree(osThreadId_t thread);
+
+    /// Record the thread's final stack reading; on this thread, before it can exit
+    void FinishStackWatermark();
+
+    detail::StackWatermark m_stackWatermark;   // GetStackFreeMin()
+    std::atomic<uint32_t> m_stackSize{0};      // GetStackSize(); set by the constructor and CreateThread()
 
     /// Get registry head using the "Immortal" Pattern
     static CmsisRtos2Thread*& GetWatchdogHead();

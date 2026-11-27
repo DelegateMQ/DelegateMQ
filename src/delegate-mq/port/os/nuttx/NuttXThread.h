@@ -69,6 +69,8 @@ public:
         float invoke_max_window_ms;  // Max execution since last snapshot
         float invoke_max_all_ms;     // All-time max execution
         uint64_t dispatch_count;      // Total dispatches (all-time)
+        uint32_t stack_size;          // Bytes, or dmq::STACK_UNKNOWN (GetStackSize())
+        uint32_t stack_free_min;      // Least free stack seen, bytes, or dmq::STACK_UNKNOWN
     };
 #endif
 
@@ -117,6 +119,14 @@ public:
 
     /// Get current queue size
     size_t GetQueueSize();
+
+    /// The thread's stack size in bytes (DMQ_NUTTX_STACK_BYTES).
+    uint32_t GetStackSize() const { return static_cast<uint32_t>(STACK_SIZE); }
+
+    /// The least free stack the thread has had: not measured on NuttX yet
+    /// (it would need CONFIG_STACK_COLORATION and the kernel's TCB), so always
+    /// dmq::STACK_UNKNOWN.
+    uint32_t GetStackFreeMin() const { return dmq::STACK_UNKNOWN; }
 
     /// Sleep for a duration.
     /// @param[in] timeout - the duration to sleep.

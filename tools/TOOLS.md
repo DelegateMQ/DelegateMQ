@@ -24,7 +24,8 @@ Diagnostic tools and Terminal User Interface (TUI) dashboards for the DelegateMQ
 
 *   **Per-Thread Metrics**: Tracks current, window-max, and all-time max queue depths.
 *   **Latency Analysis**: Measures how long messages wait in the queue before being dispatched (Average and Max).
-*   **CPU Grouping**: Threads are grouped by their logical CPU name (e.g. GUI, Controller, Safety).
+*   **Stack Headroom**: The *Stack* column shows, as free/size, each thread's stack high-water mark (the least free stack it has had, in bytes) and its stack size, from `Thread::GetStackFreeMin()` and `GetStackSize()`. Yellow under 25% free, red under 10%. Reported by the RTOS ports (FreeRTOS, ThreadX, Zephyr, CMSIS-RTOS2; NuttX the size only); `n/a` on desktop threads, which don't track it. Some kernels need an option on: FreeRTOS `INCLUDE_uxTaskGetStackHighWaterMark`, Zephyr `CONFIG_INIT_STACKS` and `CONFIG_THREAD_STACK_INFO`.
+*   **CPU Grouping**: Threads are grouped by their logical CPU name (e.g. GUI, Controller, Safety): the `cpuName` given to the `Thread` constructor, or else the node name the `NodeReporter` (or `NodeBridge`) reporting it was started with, which also covers the threads the library creates itself (`NetworkNode`, the reporters).
 *   **Live Updates**: `ThreadMonitor` publishes each registered thread's statistics every 2 seconds.
 *   **Multi-Node Aggregation**: Automatically aggregates and sorts threads from multiple physical machines or processes.
 *   **Zero-Impact Design**: Statistics are captured atomically and transmitted via a dedicated background bridge to ensure no interference with application timing.

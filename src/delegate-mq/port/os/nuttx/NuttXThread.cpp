@@ -691,6 +691,8 @@ NuttXThread::ThreadStats NuttXThread::SnapshotStats()
     stats.invoke_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count() / 1000.0f;
 
     stats.dispatch_count = m_dispatchCountAll;
+    stats.stack_size = GetStackSize();
+    stats.stack_free_min = GetStackFreeMin();
 
     // Reset windowed stats
     m_queueDepthMaxWindow = 0;

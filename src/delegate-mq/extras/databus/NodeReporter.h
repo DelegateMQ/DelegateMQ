@@ -282,7 +282,16 @@ private:
     void OnThreadStats(const dmq::util::ThreadStatsPacket& packet)
     {
         m_writer.reset();
-        m_threadStatsSer.Write(m_writer, packet);
+        if (packet.cpu_name.empty() && !m_nodeId.empty()) {
+            // A thread without a CPU name (the Thread constructor's cpuName,
+            // and every thread the library creates itself: NetworkNode, the
+            // reporters) is grouped under this node in dmq-thread
+            dmq::util::ThreadStatsPacket named = packet;
+            named.cpu_name = m_nodeId;
+            m_threadStatsSer.Write(m_writer, named);
+        } else {
+            m_threadStatsSer.Write(m_writer, packet);
+        }
         Send(THREAD_STATS_REMOTE_ID);
     }
 #endif

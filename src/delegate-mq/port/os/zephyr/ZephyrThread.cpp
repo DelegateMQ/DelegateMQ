@@ -153,6 +153,7 @@ bool ZephyrThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
                                       pinned ? K_FOREVER : K_NO_WAIT);
 
         DMQ_ASSERT_TRUE(tid != nullptr);
+        m_stackWatermark.Start();   // GetStackFreeMin() may query the thread now
 
         // Optional: Set thread name for debug
         k_thread_name_set(tid, THREAD_NAME.c_str());
@@ -285,6 +286,9 @@ void ZephyrThread::ExitThread(ExitPolicy policy)
         // teardown takes -- there is no risk of deadlock.
         k_thread_join(&m_thread, K_FOREVER);
 
+        // The thread is done: its last stack reading, before the stack is freed below
+        m_stackWatermark.Finish(MeasureStackFree(), [] { k_sleep(K_MSEC(1)); });
+
         // The thread has finished (or, on a self-exit, is in its last handler):
         // stop watchdog checks. Not earlier, so a thread that hangs while
         // ExitThread() waits for it is still reported.
@@ -339,6 +343,24 @@ k_tid_t ZephyrThread::GetCurrentThreadId()
 bool ZephyrThread::IsCurrentThread()
 {
     return GetThreadId() == GetCurrentThreadId();
+}
+
+//----------------------------------------------------------------------------
+// Stack high-water mark
+//----------------------------------------------------------------------------
+uint32_t ZephyrThread::MeasureStackFree()
+{
+#if defined(CONFIG_INIT_STACKS) && defined(CONFIG_THREAD_STACK_INFO)
+    size_t unused = 0;
+    if (k_thread_stack_space_get(&m_thread, &unused) == 0)
+        return static_cast<uint32_t>(unused);
+#endif
+    return dmq::STACK_UNKNOWN;
+}
+
+uint32_t ZephyrThread::GetStackFreeMin()
+{
+    return m_stackWatermark.Get([this] { return MeasureStackFree(); });
 }
 
 //----------------------------------------------------------------------------
@@ -721,6 +743,8 @@ ZephyrThread::ThreadStats ZephyrThread::SnapshotStats()
     stats.invoke_max_all_ms = (float)std::chrono::duration_cast<std::chrono::microseconds>(m_invokeMaxAll).count() / 1000.0f;
 
     stats.dispatch_count = m_dispatchCountAll;
+    stats.stack_size = GetStackSize();
+    stats.stack_free_min = GetStackFreeMin();
 
     // Reset windowed stats
     m_queueDepthMaxWindow = 0;
