@@ -70,7 +70,7 @@ By default `xallocator` takes blocks from the heap as it needs them and recycles
 #define DMQ_XALLOC_POOL_128    4
 ```
 
-Sizes are powers of two from 16 to 16384 (the request plus the block header, rounded up); a size left at 0 takes no memory. A full pool, or a size with no pool, makes `xmalloc()` return NULL, which `XALLOCATOR`, `stl_allocator` and `xmake_shared` report with `BAD_ALLOC()`. To size the pools, run in heap-blocks mode under the heaviest load and call `xalloc_print_pool_config()`, which prints these lines with the peak blocks in use; add headroom. See "No Heap After Startup" in [docs/SAFETY.md](../../../../docs/SAFETY.md).
+Sizes are powers of two from 16 to 16384 (the request plus the block header, rounded up); a size left at 0 takes no memory. A full pool, or a size with no pool, makes `xmalloc()` return NULL, which `XALLOCATOR`, `stl_allocator` and `xmake_shared` report with `BAD_ALLOC()`. To size the pools, run in heap-blocks mode under the heaviest load and call `xalloc_print_pool_config()`, which prints these lines with the peak blocks in use; add headroom. At run time, `xalloc_get_pool_stats()` returns each block size's blocks in use, peak and capacity (0 for heap-backed blocks), and `NodeReporter` reports the fullest pool to `dmq-monitor`. See "No Heap After Startup" in [docs/SAFETY.md](../../../../docs/SAFETY.md).
 
 ## Integration with DelegateMQ
 

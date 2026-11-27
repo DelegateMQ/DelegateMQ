@@ -67,6 +67,7 @@ struct NodeHealthPacket : public serialize::I {
     static constexpr uint32_t SRC_DATABUS   = 1u << 0;  ///< DataBus errors (always)
     static constexpr uint32_t SRC_TRANSPORT = 1u << 1;  ///< A TransportMonitor or NetworkNode is watched
     static constexpr uint32_t SRC_RETRY     = 1u << 2;  ///< A RetryMonitor or NetworkNode is watched
+    static constexpr uint32_t SRC_ALLOCATOR = 1u << 3;  ///< The fixed-block allocator (DMQ_ALLOCATOR): the pool* fields
 
     dmq::xstring nodeId;        ///< Same as NodeInfoPacket::nodeId
     dmq::xstring ipAddress;     ///< Same as NodeInfoPacket::ipAddress (with nodeId, the monitor's row key)
@@ -78,6 +79,16 @@ struct NodeHealthPacket : public serialize::I {
     uint32_t    pendingExceeded  = 0;  ///< Expired entries piling up faster than they're processed (OnPendingExceeded)
     dmq::xstring lastEvent;     ///< Most recent problem, as text (e.g. "delivery failed, Controller id=12 seq=40, retries exhausted")
 
+    // The fixed-block allocator (SRC_ALLOCATOR). With static pools
+    // (DMQ_XALLOCATOR_STATIC_POOLS), the fullest pool by its peak: its blocks
+    // most in use at once against its size. A pool whose peak reaches its
+    // capacity faults on the next allocation. Blocks from the heap have no
+    // fixed limit: capacity 0, and only the total is reported.
+    uint32_t    poolBlockSize    = 0;  ///< Fullest pool: bytes per block
+    uint32_t    poolPeak         = 0;  ///< Fullest pool: most blocks in use at once
+    uint32_t    poolCapacity     = 0;  ///< Fullest pool: blocks in it (DMQ_XALLOC_POOL_<size>); 0: heap-backed
+    uint32_t    poolPeakBytes    = 0;  ///< All block sizes: each one's peak blocks times its block size, summed
+
     dmq::ByteWriter& write(serialize& ms, dmq::ByteWriter& os) override {
         ms.write(os, nodeId);
         ms.write(os, ipAddress);
@@ -87,7 +98,11 @@ struct NodeHealthPacket : public serialize::I {
         ms.write(os, deliveryFailures);
         ms.write(os, capExceeded);
         ms.write(os, pendingExceeded);
-        return ms.write(os, lastEvent);
+        ms.write(os, lastEvent);
+        ms.write(os, poolBlockSize);
+        ms.write(os, poolPeak);
+        ms.write(os, poolCapacity);
+        return ms.write(os, poolPeakBytes);
     }
 
     dmq::ByteReader& read(serialize& ms, dmq::ByteReader& is) override {
@@ -99,7 +114,11 @@ struct NodeHealthPacket : public serialize::I {
         ms.read(is, deliveryFailures);
         ms.read(is, capExceeded);
         ms.read(is, pendingExceeded);
-        return ms.read(is, lastEvent);
+        ms.read(is, lastEvent);
+        ms.read(is, poolBlockSize);
+        ms.read(is, poolPeak);
+        ms.read(is, poolCapacity);
+        return ms.read(is, poolPeakBytes);
     }
 };
 

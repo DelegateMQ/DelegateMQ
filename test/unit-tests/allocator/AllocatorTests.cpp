@@ -50,6 +50,7 @@ void AllocatorTests()
         size_t requestSize = 32;
         Allocator allocator(requestSize, 5, NULL, "TestAllocator");
         DMQ_ASSERT_TRUE(allocator.GetBlockSize() == (requestSize < minBlockSize ? minBlockSize : requestSize));
+        DMQ_ASSERT_TRUE(allocator.GetMaxBlocks() == 5);
         DMQ_ASSERT_TRUE(allocator.GetBlockCount() == 0);
         DMQ_ASSERT_TRUE(allocator.GetBlocksInUse() == 0);
 
@@ -150,6 +151,37 @@ void AllocatorTests()
         DMQ_ASSERT_TRUE(p5 == NULL);
         
         xfree(p3);
+    }
+
+    // xalloc_get_pool_stats(): a block in use shows in its block size's entry,
+    // peak never below in use, entries smallest first
+    {
+        void* p = xmalloc(100);
+        DMQ_ASSERT_TRUE(p != NULL);
+        const uint32_t blockSize = static_cast<uint32_t>(xallocator_get_allocator(100)->GetBlockSize());
+
+        XallocPoolStats stats[32];
+        const size_t n = xalloc_get_pool_stats(stats, 32);
+        DMQ_ASSERT_TRUE(n > 0);
+        bool found = false;
+        for (size_t i = 0; i < n; i++) {
+            DMQ_ASSERT_TRUE(stats[i].peakBlocks >= stats[i].blocksInUse);
+            if (i > 0)
+                DMQ_ASSERT_TRUE(stats[i].blockSize > stats[i - 1].blockSize);
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+            DMQ_ASSERT_TRUE(stats[i].capacity > 0 && stats[i].peakBlocks <= stats[i].capacity);
+#else
+            DMQ_ASSERT_TRUE(stats[i].capacity == 0);   // heap-backed: no fixed limit
+#endif
+            if (stats[i].blockSize == blockSize) {
+                found = true;
+                DMQ_ASSERT_TRUE(stats[i].blocksInUse >= 1);
+            }
+        }
+        DMQ_ASSERT_TRUE(found);
+        DMQ_ASSERT_TRUE(xalloc_get_pool_stats(stats, 0) == 0);
+        DMQ_ASSERT_TRUE(xalloc_get_pool_stats(NULL, 32) == 0);
+        xfree(p);
     }
 
     // Test stl_allocator with list

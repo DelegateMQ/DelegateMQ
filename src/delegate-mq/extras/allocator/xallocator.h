@@ -98,6 +98,25 @@ void *xrealloc(void *ptr, size_t size);
 /// Output allocator statistics to the standard output
 void xalloc_stats();
 
+/// One block size's usage (xalloc_get_pool_stats()).
+typedef struct
+{
+    uint32_t blockSize;     ///< Bytes per block
+    uint32_t blocksInUse;   ///< Blocks allocated now
+    uint32_t peakBlocks;    ///< Most blocks in use at once since startup
+    uint32_t capacity;      ///< The pool's blocks (DMQ_XALLOC_POOL_<size>); 0 when
+                            ///< blocks come from the heap (no fixed limit)
+} XallocPoolStats;
+
+/// Usage of each block size in use so far, smallest first: how close each pool
+/// is to full. With static pools (DMQ_XALLOCATOR_STATIC_POOLS), a pool whose
+/// peakBlocks reaches capacity faults on the next allocation, so a deployed
+/// node can report its headroom (NodeReporter does, to dmq-monitor). Cheap:
+/// copies counters under the allocator's lock.
+/// @param[out] stats room for maxPools entries
+/// @return the number of entries filled
+size_t xalloc_get_pool_stats(XallocPoolStats* stats, size_t maxPools);
+
 /// Print (printf), for each block size used so far, the most blocks in use at
 /// once, as DelegateMQConfig.h lines for static pools:
 ///   #define DMQ_XALLOCATOR_STATIC_POOLS

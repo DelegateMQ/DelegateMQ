@@ -77,7 +77,8 @@ Many safety standards and coding rules (MISRA C++, DO-178C and IEC 61508 practic
    #define DMQ_XALLOC_POOL_64     7
    ```
 3. Add headroom and put the lines in `DelegateMQConfig.h`. Every DelegateMQ block now comes from static memory (visible in the linker map); the heap is never used. A size set to 0 takes no memory. A full pool, or a size with no pool, faults through `BAD_ALLOC()`, so an undersized pool fails loudly rather than corrupting memory (the [fault hook](PORTING.md#capturing-the-failure-watchdog-and-fault-hooks) can record it).
-4. For a certification argument, the peak can also be bounded by calculation rather than only measured: with a bounded queue (`maxQueueSize`, `FullPolicy`), each thread holds at most that many messages in flight, each a fixed number of blocks.
+4. Watch the headroom once deployed: `xalloc_get_pool_stats()` gives each pool's peak and size at run time, and `NodeReporter` sends the fullest pool to `dmq-monitor`, which warns at 90% (see [TOOLS.md](../tools/TOOLS.md#link-health)).
+5. For a certification argument, the peak can also be bounded by calculation rather than only measured: with a bounded queue (`maxQueueSize`, `FullPolicy`), each thread holds at most that many messages in flight, each a fixed number of blocks.
 
 **What static pools don't cover:** allocations that don't go through DelegateMQ's allocator. A lambda whose captures exceed `std::function`'s small inline buffer allocates from the global heap (member-function delegates never do), and so does any application or third-party code. Check it rather than assume it: link with `-Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc`, count the calls in the wrappers (C++ `new` calls `malloc`), and check the count doesn't change once the system runs. `os/freertos-bare-metal` (`targets/arm-m3/main.c`, Test 14) does exactly that.
 

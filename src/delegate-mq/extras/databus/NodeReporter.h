@@ -273,10 +273,45 @@ private:
             health.sources = m_sources;
             health.lastEvent = m_lastEvent;
         }
+#if defined(DMQ_ALLOCATOR)
+        FillPoolHealth(health);
+#endif
         m_writer.reset();
         m_serialize.write(m_writer, health);
         Send(NODE_HEALTH_REMOTE_ID);
     }
+
+#if defined(DMQ_ALLOCATOR)
+    /// The fixed-block allocator's peak use in bytes, and with static pools the
+    /// fullest pool by its peak against its size: the one closest to faulting
+    /// (a full pool faults on the next allocation)
+    static void FillPoolHealth(NodeHealthPacket& health)
+    {
+        XallocPoolStats pools[16];
+        const size_t n = xalloc_get_pool_stats(pools, sizeof(pools) / sizeof(pools[0]));
+        if (n == 0)
+            return;
+        health.sources |= NodeHealthPacket::SRC_ALLOCATOR;
+        uint64_t peakBytes = 0;
+        const XallocPoolStats* fullest = nullptr;
+        for (size_t i = 0; i < n; i++) {
+            peakBytes += static_cast<uint64_t>(pools[i].peakBlocks) * pools[i].blockSize;
+            if (pools[i].capacity == 0)
+                continue;
+            // peak/capacity > best peak/best capacity, without division
+            if (fullest == nullptr ||
+                static_cast<uint64_t>(pools[i].peakBlocks) * fullest->capacity >
+                static_cast<uint64_t>(fullest->peakBlocks) * pools[i].capacity)
+                fullest = &pools[i];
+        }
+        health.poolPeakBytes = peakBytes > 0xFFFFFFFFu ? 0xFFFFFFFFu : static_cast<uint32_t>(peakBytes);
+        if (fullest == nullptr)
+            return;   // heap-backed: no fixed limit, the total only
+        health.poolBlockSize = fullest->blockSize;
+        health.poolPeak = fullest->peakBlocks;
+        health.poolCapacity = fullest->capacity;
+    }
+#endif
 
 #if defined(DMQ_DATABUS_TOOLS)
     void OnThreadStats(const dmq::util::ThreadStatsPacket& packet)

@@ -714,6 +714,21 @@ void ExecuteAllTests() {
         }
         printf("  -> the fixed-block pools' peak use so far (xalloc_print_pool_config()):\n");
         xalloc_print_pool_config();
+        // The same numbers as a node reports them (xalloc_get_pool_stats(),
+        // NodeReporter -> dmq-monitor): every static pool has a capacity, and
+        // no peak reached past it
+        XallocPoolStats pools[16];
+        const size_t poolCount = xalloc_get_pool_stats(pools, 16);
+        DMQ_ASSERT_TRUE(poolCount > 0);
+        for (size_t i = 0; i < poolCount; i++) {
+            printf("  -> pool %4lu B: peak %lu of %lu blocks\n",
+                   static_cast<unsigned long>(pools[i].blockSize),
+                   static_cast<unsigned long>(pools[i].peakBlocks),
+                   static_cast<unsigned long>(pools[i].capacity));
+            DMQ_ASSERT_TRUE(pools[i].capacity > 0);
+            DMQ_ASSERT_TRUE(pools[i].blocksInUse <= pools[i].peakBlocks);
+            DMQ_ASSERT_TRUE(pools[i].peakBlocks <= pools[i].capacity);
+        }
         DMQ_ASSERT_TRUE(waitOk == 50);
         DMQ_ASSERT_TRUE(s_noHeapCalls >= 1000 + 100 + 10);  // async + signal, ISR posts, some ticks
         DMQ_ASSERT_TRUE(s_noHeapSum == expectSum);           // every async, signal and ISR call ran once

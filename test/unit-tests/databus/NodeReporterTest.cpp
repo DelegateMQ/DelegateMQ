@@ -103,7 +103,18 @@ int NodeReporterTestMain() {
             [](dmq::ByteReader& is, NodeHealthPacket& p) { ReadSerialize(is, p); },
             [](const NodeHealthPacket&) { return true; }, health));
         DMQ_ASSERT_TRUE(health.nodeId == "NodeA");
-        DMQ_ASSERT_TRUE(health.sources == NodeHealthPacket::SRC_DATABUS);   // nothing watched
+        // Nothing watched: DataBus errors, plus the allocator's pools in a
+        // DMQ_ALLOCATOR build (heap-backed here: a total, no fixed limit)
+#if defined(DMQ_ALLOCATOR)
+        DMQ_ASSERT_TRUE(health.sources == (NodeHealthPacket::SRC_DATABUS | NodeHealthPacket::SRC_ALLOCATOR));
+        DMQ_ASSERT_TRUE(health.poolPeakBytes > 0);   // the reporter's own allocations, at least
+#if !defined(DMQ_XALLOCATOR_STATIC_POOLS)
+        DMQ_ASSERT_TRUE(health.poolCapacity == 0);
+#endif
+#else
+        DMQ_ASSERT_TRUE(health.sources == NodeHealthPacket::SRC_DATABUS);
+        DMQ_ASSERT_TRUE(health.poolPeakBytes == 0 && health.poolCapacity == 0);
+#endif
         DMQ_ASSERT_TRUE(health.sendTimeouts == 0);
         DMQ_ASSERT_TRUE(reporter.GetDropped() == 0);
 
@@ -180,6 +191,28 @@ int NodeReporterTestMain() {
         reporter.Stop();
     }
 #endif
+
+    // 3b. The health packet's pool fields survive the wire
+    {
+        NodeHealthPacket out;
+        out.nodeId = "Pools";
+        out.sources = NodeHealthPacket::SRC_DATABUS | NodeHealthPacket::SRC_ALLOCATOR;
+        out.lastEvent = "x";
+        out.poolBlockSize = 64;
+        out.poolPeak = 37;
+        out.poolCapacity = 48;
+        out.poolPeakBytes = 5120;
+        dmq::ByteWriter os;
+        serialize ms;
+        ms.write(os, out);
+        dmq::ByteReader is(os);
+        NodeHealthPacket in;
+        ms.read(is, in);
+        DMQ_ASSERT_TRUE(!is.fail() && is.remaining() == 0);
+        DMQ_ASSERT_TRUE(in.nodeId == "Pools" && in.lastEvent == "x" && in.sources == out.sources);
+        DMQ_ASSERT_TRUE(in.poolBlockSize == 64 && in.poolPeak == 37 && in.poolCapacity == 48 &&
+                        in.poolPeakBytes == 5120);
+    }
 
     // 4. A failed send is a drop: counted and reported
     {

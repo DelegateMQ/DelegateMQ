@@ -382,11 +382,13 @@ The Health column summarizes each node's last 10 seconds:
 | Health | Meaning |
 |---|---|
 | **OK** (green) | No problems reported. |
-| **WARN** (yellow) | Reliable messages needed retries (ACK timeouts), or expired messages are piling up faster than they're processed. Also any DataBus error since the last reset: DataBus errors are reported once per topic and error, so they stay visible until you press `r`. |
+| **WARN** (yellow) | Reliable messages needed retries (ACK timeouts), or expired messages are piling up faster than they're processed. Also any DataBus error since the last reset: DataBus errors are reported once per topic and error, so they stay visible until you press `r`. Also a fixed-block memory pool at 90% or more of its size at its peak: a full pool faults. |
 | **FAIL** (red) | Reliable messages were abandoned after all retries, or sends were rejected because too many messages were unacknowledged. |
 | **-** (gray) | The node sends no health data (its NodeBridge predates health reporting). |
 
 Selecting a node shows the breakdown: totals since the node started (or since `r`), the increase in the last 10 seconds as `(+n)`, and the most recent event, e.g. `delivery failed, Safety id=105 seq=8767, retries exhausted`. If only DataBus errors are reported, the panel says the links aren't watched.
+
+A node built with the fixed-block allocator (`DMQ_ALLOCATOR`) also reports its memory pools: the most memory its blocks have used at once, and with static pools (`DMQ_XALLOCATOR_STATIC_POOLS`) the fullest pool, e.g. `Memory pools: peak 1856 B in fixed blocks; fullest 32 B pool, peak 37 of 48 blocks (77%)`. That is the headroom left before a pool faults, on a deployed node, without a debugger. The numbers come from `xalloc_get_pool_stats()`, which an application can also call itself.
 
 Health is what the sender can see. On a link without ACKs (`UNRELIABLE` / best-effort) lost messages go unnoticed, so OK there means "no errors reported", not "nothing lost". The counters live on the node, so restarting `dmq-monitor` loses nothing, and a missed health packet is caught up by the next one.
 

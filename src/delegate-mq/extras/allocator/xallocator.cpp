@@ -517,6 +517,36 @@ extern "C" void xalloc_print_pool_config()
 	dmq::get_mutex().unlock();
 }
 
+/// Usage of each block size, smallest first (see xallocator.h)
+extern "C" size_t xalloc_get_pool_stats(XallocPoolStats* stats, size_t maxPools)
+{
+	if (stats == NULL || maxPools == 0)
+		return 0;
+	dmq::get_mutex().lock();
+	size_t largest = 0;
+	for (int i=0; i<MAX_ALLOCATORS && dmq::_allocators[i]; i++)
+	{
+		if (dmq::_allocators[i]->GetBlockSize() > largest)
+			largest = dmq::_allocators[i]->GetBlockSize();
+	}
+	size_t n = 0;
+	// By size, as xalloc_print_pool_config() does (heap-blocks mode creates
+	// allocators in first-use order)
+	for (size_t size = 1; size != 0 && size <= largest && n < maxPools; size <<= 1)
+	{
+		dmq::Allocator* allocator = dmq::find_allocator(size);
+		if (allocator == NULL)
+			continue;
+		stats[n].blockSize = static_cast<uint32_t>(allocator->GetBlockSize());
+		stats[n].blocksInUse = allocator->GetBlocksInUse();
+		stats[n].peakBlocks = allocator->GetBlockCount();
+		stats[n].capacity = allocator->GetMaxBlocks();
+		n++;
+	}
+	dmq::get_mutex().unlock();
+	return n;
+}
+
 /// Output xallocator usage statistics
 extern "C" void xalloc_stats()
 {

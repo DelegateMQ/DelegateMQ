@@ -79,6 +79,10 @@ public:
     /// @return		The number of fixed memory blocks in use.
     uint32_t GetBlocksInUse() { return m_blocksInUse; }
 
+    /// Gets the most blocks the allocator can hold: the pool's size, or 0 when
+    /// blocks come from the heap as needed (no fixed limit).
+    uint32_t GetMaxBlocks() const { return m_maxObjects; }
+
     /// Gets the total number of allocations for this allocator instance.
     /// @return		The total number of allocations.
     uint32_t GetAllocations() { return m_allocations; }

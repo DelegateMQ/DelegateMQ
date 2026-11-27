@@ -157,15 +157,28 @@ static HealthCounts RecentCounts(const HealthRecord& h) {
     return HealthCounts::From(h.latest) - h.samples.front().second;
 }
 
+/// The node's fullest fixed-block pool at its peak, as a percentage of its
+/// size; -1 when the node doesn't report pools (no static pools)
+static int PoolPeakPercent(const dmq::NodeHealthPacket& p) {
+    if ((p.sources & dmq::NodeHealthPacket::SRC_ALLOCATOR) == 0 || p.poolCapacity == 0) return -1;
+    return static_cast<int>((static_cast<uint64_t>(p.poolPeak) * 100) / p.poolCapacity);
+}
+
+/// A pool this full at its peak warns: the next burst may exhaust it, and a
+/// full pool faults
+static constexpr int POOL_WARN_PERCENT = 90;
+
 /// FAIL: messages lost or rejected recently. WARN: retries or a growing backlog
-/// recently, or any DataBus error since the last reset (DataBus errors are
-/// usually reported once per topic and error, so they stay visible). OK: none.
+/// recently, any DataBus error since the last reset (DataBus errors are
+/// usually reported once per topic and error, so they stay visible), or a
+/// memory pool at POOL_WARN_PERCENT or more at its peak. OK: none.
 static HealthLevel GetHealth(const HealthRecord* h) {
     if (h == nullptr) return HealthLevel::NONE;
     HealthCounts recent = RecentCounts(*h);
     HealthCounts sinceReset = HealthCounts::From(h->latest) - h->baseline;
     if (recent.deliveryFailures > 0 || recent.capExceeded > 0) return HealthLevel::FAIL;
-    if (recent.sendTimeouts > 0 || recent.pendingExceeded > 0 || sinceReset.dataBusErrors > 0)
+    if (recent.sendTimeouts > 0 || recent.pendingExceeded > 0 || sinceReset.dataBusErrors > 0 ||
+        PoolPeakPercent(h->latest) >= POOL_WARN_PERCENT)
         return HealthLevel::WARN;
     return HealthLevel::OK;
 }
@@ -308,6 +321,18 @@ static Element HealthPanel(const NodeRecord& rec, const std::optional<HealthReco
     if (!linkWatched) {
         lines.push_back(text("  Link health not watched: call NodeBridge::Watch() with the node's "
                              "NetworkNode or TransportMonitor/RetryMonitor.") | color(Color::GrayDark));
+    }
+    if (h.latest.sources & dmq::NodeHealthPacket::SRC_ALLOCATOR) {
+        const int poolPercent = PoolPeakPercent(h.latest);
+        std::string pool = "  Memory pools: peak " + std::to_string(h.latest.poolPeakBytes) + " B in fixed blocks";
+        if (poolPercent >= 0) {
+            pool += "; fullest " + std::to_string(h.latest.poolBlockSize) + " B pool, peak " +
+                    std::to_string(h.latest.poolPeak) + " of " + std::to_string(h.latest.poolCapacity) +
+                    " blocks (" + std::to_string(poolPercent) + "%)";
+        } else {
+            pool += " (heap-backed, no fixed limit)";
+        }
+        lines.push_back(text(pool) | color(poolPercent >= POOL_WARN_PERCENT ? Color::Yellow : Color::White));
     }
     const std::string& last = h.latest.lastEvent;
     if (!last.empty() && total.Any()) {
