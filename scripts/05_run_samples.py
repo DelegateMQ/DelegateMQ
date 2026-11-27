@@ -43,6 +43,7 @@ os/freertos-bare-metal's Win32 simulator build/ also runs, on Windows.
 Skip List (always excluded):
     - boards/stm32-freertos         Embedded STM32 target, cannot run on host
     - boards/esp32s3-devkitc        ESP32-S3 board, cannot run on host
+    - boards/stm32h755-nucleo       Dual-core STM32H755 board, cannot run on host
 
 Windows-only (skipped on Linux):
     - databus/freertos        Server uses FreeRTOS Win32 simulator (32-bit); full pair only runs on Windows
@@ -93,6 +94,7 @@ APP_TIMEOUT = APP_DURATION + 15
 SKIP_ALWAYS = {
     "boards/stm32-freertos",
     "boards/esp32s3-devkitc",
+    "boards/stm32h755-nucleo",
     "test",
     "tools",
 }

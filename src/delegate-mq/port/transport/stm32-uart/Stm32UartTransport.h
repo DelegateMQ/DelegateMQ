@@ -24,18 +24,30 @@
 /// * Sizes and timeouts come from DMQ_UART_* in DelegateMQConfig.h.
 /// * Handles reliable delivery via `TransportMonitor` (ACKs/Retries).
 
-#include "stm32f4xx_hal.h"
-#include "stm32f4xx_hal_uart.h"
+// STM32 HAL for the chip family: the first family HAL on the include path, or
+// the header named by DMQ_STM32_HAL_HEADER (e.g. -DDMQ_STM32_HAL_HEADER=\"stm32g4xx_hal.h\").
+// The UART calls used here are the same across the families' HALs.
+#if defined(DMQ_STM32_HAL_HEADER)
+    #include DMQ_STM32_HAL_HEADER
+#elif __has_include("stm32h7xx_hal.h")
+    #include "stm32h7xx_hal.h"
+#elif __has_include("stm32f4xx_hal.h")
+    #include "stm32f4xx_hal.h"
+#elif __has_include("stm32f7xx_hal.h")
+    #include "stm32f7xx_hal.h"
+#elif __has_include("stm32g4xx_hal.h")
+    #include "stm32g4xx_hal.h"
+#elif __has_include("stm32l4xx_hal.h")
+    #include "stm32l4xx_hal.h"
+#else
+    #error "Stm32UartTransport: no STM32 HAL found; define DMQ_STM32_HAL_HEADER"
+#endif
 #include "delegate/DelegateOpt.h"
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransport.h"
 #include "port/transport/common/ITransportMonitor.h"
 #include "extras/util/crc16.h"
-
-// FreeRTOS Includes
-#include "FreeRTOS.h"
-#include "semphr.h"
-#include "task.h"
+#include "port/os/freertos/FreeRTOSHeaders.h"
 
 #include <cstring>
 #include <atomic>

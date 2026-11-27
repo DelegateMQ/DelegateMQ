@@ -44,6 +44,7 @@ Each sample checks DelegateMQ's delegate types (sync, async, async-wait, multica
 | Sample | Description | Threading (`dmq::IThread`) | Platform / Toolchain |
 | :--- | :--- | :--- | :--- |
 | **[boards/stm32-freertos](./boards/stm32-freertos/README.md)** | FreeRTOS on an STM32F4 Discovery board, talking to a PC client over a UART. | FreeRTOS | STM32CubeIDE / ARM GCC |
+| **[boards/stm32h755-nucleo](./boards/stm32h755-nucleo/README.md)** | Both cores of a NUCLEO-H755ZI-Q (STM32H755, Cortex-M7 and Cortex-M4) from one CMake build: the Cortex-M7 runs the FreeRTOS test suite of `os/freertos-bare-metal` on real hardware, the Cortex-M4 boots on its release. Shared memory between the cores comes next. | FreeRTOS | ARM GCC, CMake, STM32Cube FW_H7 |
 | **[boards/esp32s3-devkitc](./boards/esp32s3-devkitc/README.md)** | ESP-IDF's FreeRTOS on both cores of an ESP32-S3-DevKitC-1 (N8R8): a worker thread owning the RGB LED, a `Timer`, and the BOOT button's interrupt through an `IsrDelegate`. A starting point. | FreeRTOS (ESP-IDF) | PlatformIO or ESP-IDF 5.4.1 |
 
 ## transport/

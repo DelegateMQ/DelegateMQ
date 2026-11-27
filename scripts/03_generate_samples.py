@@ -393,7 +393,7 @@ def build_samples(use_clang=False, clean=False, full=False):
             if "install" in dirnames: dirnames.remove("install")
             
             # SKIP: Explicitly skip directories to prevent processing as standalone apps
-            skip_dirs = ["unit-tests", "boards/stm32-freertos", "boards/esp32s3-devkitc"]
+            skip_dirs = ["unit-tests", "boards/stm32-freertos", "boards/esp32s3-devkitc", "boards/stm32h755-nucleo"]
             dirnames[:] = [d for d in dirnames if d not in skip_dirs
                            and full_suite.sample_name(os.path.join(dirpath, d)) not in skip_dirs]
 

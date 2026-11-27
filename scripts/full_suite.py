@@ -441,6 +441,7 @@ def test_variants():
 PENDING = {
     "boards/stm32-freertos":         "hardware: needs an STM32 board",
     "boards/esp32s3-devkitc":        "hardware: needs an ESP32-S3 board",
+    "boards/stm32h755-nucleo":       "hardware: needs a NUCLEO-H755ZI-Q board",
 }
 
 # Folders with nothing to build or run at that step: name -> why.

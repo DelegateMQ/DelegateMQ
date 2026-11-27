@@ -29,7 +29,7 @@ The subdirectories contain ready-to-use transport implementations for specific p
 * **`shm-ring`**: Shared memory between two cores of an AMP MCU, two processes, or two threads (`ShmRingTransport`). Two lock-free single-producer, single-consumer rings of fixed-size slots in one shared control block, no locks between the sides, no heap, no OS calls. The peer is woken through an `IShmSignal` (a cross-core interrupt, an event, a semaphore), or not at all (polling). Sized by `DMQ_SHM_SLOT_COUNT` / `DMQ_SHM_MAX_PAYLOAD`; a full ring fails `Send()` and is counted. Failures return a `ShmRingError`, which a remote delegate's error handler receives as the aux code of `ERR_DISPATCH`; a malformed received slot goes to `SetRecvErrorHandler()`. Header-only, not selected by `DMQ_TRANSPORT_*` and not included by `DelegateMQ.h`: include `port/transport/shm-ring/ShmRingTransport.h` beside any other transport.
 * **`win32-shm`** / **`linux-shm`**: `ShmRingTransport` between two processes: a named file mapping and events (Windows), or `shm_open` and named semaphores (Linux). Run by `example/sample-projects/transport/shm-ring`.
 * **`serial`**: Serial port (UART/RS-232) transport using **libserialport**.
-* **`stm32-uart`**: Interrupt-driven STM32 HAL UART transport for embedded targets (selected via `DMQ_TRANSPORT_STM32_UART`).
+* **`stm32-uart`**: Interrupt-driven STM32 HAL UART transport for embedded targets (selected via `DMQ_TRANSPORT_STM32_UART`). It includes the first family HAL on the include path (H7, F4, F7, G4, L4), or the header named by `DMQ_STM32_HAL_HEADER`.
 
 ## Usage
 

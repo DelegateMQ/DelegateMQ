@@ -33,6 +33,7 @@ and os/freertos-bare-metal (full_suite.QEMU_TARGET_SAMPLES) that
 Skip List (always excluded):
     - boards/stm32-freertos          Embedded STM32 target, requires cross-compiler
     - boards/esp32s3-devkitc         ESP32-S3 board, built with PlatformIO or idf.py
+    - boards/stm32h755-nucleo        Dual-core STM32H755, cross-compiled, needs the STM32Cube H7 package
     - system-architecture/python  Python-only client, no C++ build
 
 Windows-only (skipped on Linux):
@@ -63,6 +64,7 @@ import full_suite
 SKIP_ALWAYS = {
     "boards/stm32-freertos",
     "boards/esp32s3-devkitc",
+    "boards/stm32h755-nucleo",
     "system-architecture/python",
 }
 

@@ -384,8 +384,6 @@ extern "C" void *xmalloc(size_t size)
 	dmq::Allocator* allocator = xallocator_get_allocator(size);
 	if (allocator == NULL)
 		return NULL;
-	size_t blockSize = allocator->GetBlockSize();
-
 	void* blockMemoryPtr = NULL;
 
 #if defined(DMQ_XALLOCATOR_STATIC_POOLS)
@@ -408,7 +406,7 @@ extern "C" void *xmalloc(size_t size)
 		// with standard library internal locks (e.g., MSVC _Lockit in debug builds).
 		// nothrow: an exception must not leave this extern "C" function (see
 		// CLAUDE.md). Callers (XALLOCATOR, stl_allocator) report NULL with BAD_ALLOC().
-		blockMemoryPtr = (void*)new (std::nothrow) char[blockSize];
+		blockMemoryPtr = (void*)new (std::nothrow) char[allocator->GetBlockSize()];
 		if (blockMemoryPtr != NULL)
 		{
 			dmq::get_mutex().lock();
