@@ -38,6 +38,7 @@
 #include "delegate/DelegateOpt.h"
 #include "delegate/UnicastDelegate.h"
 #include "port/transport/common/ITransport.h"
+#include "port/transport/common/TransportAck.h"
 #include "port/transport/common/ITransportMonitor.h"
 #include "port/transport/common/DmqHeader.h"
 #include "FrameCodec.h"
@@ -150,20 +151,8 @@ public:
         if (result != 0)
             return result;   // RECEIVE_NO_DATA
 
-        if (header.GetId() == dmq::ACK_REMOTE_ID) {
-            if (monitor)
-                monitor->Remove(header.GetSeqNum());
-        }
-        // ACK whenever a send path exists, whether or not this transport also
-        // tracks its own sends: a receive-only transport (e.g. NetworkNode's
-        // SUB) has no monitor but must still ACK the sender's RELIABLE messages
-        else if (ackTransport) {
-            dmq::ByteWriter empty;
-            DmqHeader ack;
-            ack.SetId(dmq::ACK_REMOTE_ID);
-            ack.SetSeqNum(header.GetSeqNum());
-            ackTransport->Send(empty, ack);
-        }
+        // ACK step (common/TransportAck.h)
+        AckReceived(header, monitor, ackTransport);
         return 0;
     }
 

@@ -40,6 +40,7 @@
 
 #include "delegate/DelegateOpt.h"
 #include "port/transport/common/ITransport.h"
+#include "port/transport/common/TransportAck.h"
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransportMonitor.h"
 
@@ -324,15 +325,11 @@ private:
         }
 
         // 3. Handle Acknowledgment
-        if (header.GetId() == dmq::ACK_REMOTE_ID) {
-            if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
-        }
-        else if (m_sendTransport) {
-            // Send ACK using a small stack buffer
-            DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
+        // ACK step (common/TransportAck.h). The ACK goes back on this client's
+        // socket, not through Send()
+        if (!HandleAck(header, m_transportMonitor) && m_sendTransport) {
             char ackBuf[DmqHeader::HEADER_SIZE];
-            ack.Encode(ackBuf);
-
+            EncodeAck(header.GetSeqNum(), ackBuf);
             const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);  // don't interleave with Send()
             (void)WriteAll(fd, ackBuf, DmqHeader::HEADER_SIZE);
         }

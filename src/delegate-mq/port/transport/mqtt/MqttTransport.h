@@ -32,6 +32,7 @@
 #endif
 
 #include "port/transport/common/ITransport.h"
+#include "port/transport/common/TransportAck.h"
 #include "port/transport/common/ITransportMonitor.h"
 #include "port/transport/common/DmqHeader.h"
 #include "MQTTClient.h"
@@ -254,26 +255,31 @@ public:
             }
 
             // 3. ACK Logic
-            if (header.GetId() == dmq::ACK_REMOTE_ID) {
-                if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
-            }
-            else if (m_transportMonitor) {
-                // Auto-ACK
-                dmq::ByteWriter ss_ack;
-                DmqHeader ack;
-                ack.SetId(dmq::ACK_REMOTE_ID);
-                ack.SetSeqNum(header.GetSeqNum());
-                Send(ss_ack, ack);
-            }
+            // ACK step (common/TransportAck.h). Only with a send transport set
+            // (SetSendTransport()): an ACK published on this transport's own topic
+            // would never reach a PUB sender, which doesn't subscribe to it
+            AckReceived(header, m_transportMonitor, m_sendTransport);
             return 0;
         }
 
         return RECEIVE_NO_DATA; // Timeout
     }
 
+    /// Call this and SetSendTransport() before starting the receive loop:
+    /// Receive() reads both without a lock.
     void SetTransportMonitor(ITransportMonitor* transportMonitor)
     {
         m_transportMonitor = transportMonitor;
+    }
+
+    /// Where received messages are ACKed (common/TransportAck.h). None by
+    /// default: an ACK published on this transport's topic can't reach a PUB
+    /// sender, which doesn't subscribe to it. For RELIABLE delivery over MQTT,
+    /// set a PUB transport on a reply topic the sender subscribes to (its
+    /// TransportMonitor then gets the ACKs).
+    void SetSendTransport(ITransport* sendTransport)
+    {
+        m_sendTransport = sendTransport;
     }
 
     void SetRecvTimeout(std::chrono::milliseconds timeout)
@@ -329,6 +335,7 @@ private:
     MQTTClient m_client = nullptr;
     std::string m_topic = DEFAULT_TOPIC;
     ITransportMonitor* m_transportMonitor = nullptr;
+    ITransport* m_sendTransport = nullptr;   ///< SetSendTransport(); none: no ACKs
     Type m_type = Type::PUB;
 
     std::chrono::milliseconds m_recvTimeout = std::chrono::milliseconds(1000);

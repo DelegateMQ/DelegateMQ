@@ -7,6 +7,7 @@ This directory contains the transport part of the **DelegateMQ Abstraction Layer
 * **`dmq::transport::ITransport`**: The abstract base class that all transport implementations must inherit from. Defines the `Send()` and `Receive()` contract.
 * **`dmq::transport::DmqHeader`**: Defines the protocol header structure (Marker, ID, Sequence Number, Length) used for framing messages.
 * **`dmq::transport::ITransportMonitor`**: Interface for reliability monitoring (ACKs, timeouts, and retries).
+* **`common/TransportAck.h`**: The ACK step a transport runs after receiving a message: a received ACK clears its entry in the `ITransportMonitor`, any other message is ACKed back whenever a send path exists. A new transport calls `AckReceived(header, monitor, sendTransport)`, or `HandleAck()` and `EncodeAck()` if it writes the ACK to the peer itself.
 
 ## Implementations
 

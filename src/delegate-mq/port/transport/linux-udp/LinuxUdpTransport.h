@@ -26,6 +26,7 @@
 
 #include "delegate/DelegateOpt.h"
 #include "port/transport/common/ITransport.h"
+#include "port/transport/common/TransportAck.h"
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransportMonitor.h"
 
@@ -261,23 +262,14 @@ public:
         }
 
         // 3. Handle ACKs and Metadata
-        if (header.GetId() == dmq::ACK_REMOTE_ID)
+        // ACK step (common/TransportAck.h). A SUB socket ACKs straight back to the
+        // sender's address (recvfrom()'s)
+        if (!HandleAck(header, m_transportMonitor) && m_sendTransport && m_type == Type::SUB)
         {
-            if (m_transportMonitor)
-                m_transportMonitor->Remove(header.GetSeqNum());
-        }
-        else if (m_sendTransport && m_type == Type::SUB)
-        {
-            // Send ACK using a small stack buffer to avoid any heap
-            DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
             char ackBuf[DmqHeader::HEADER_SIZE];
-            ack.Encode(ackBuf);
-
-            // Use the subscriber's m_addr which was set by recvfrom if m_type == SUB
-            sockaddr_in targetAddr = (m_type == Type::SUB) ? fromAddr : m_addr;
-
+            EncodeAck(header.GetSeqNum(), ackBuf);
             sendto(m_socket, ackBuf, DmqHeader::HEADER_SIZE, 0,
-                (struct sockaddr*)&targetAddr, sizeof(targetAddr));
+                (struct sockaddr*)&fromAddr, sizeof(fromAddr));
         }
 
         return 0;

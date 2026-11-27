@@ -18,6 +18,7 @@
 
 #include "delegate/DelegateOpt.h"
 #include "port/transport/common/ITransport.h"
+#include "port/transport/common/TransportAck.h"
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransportMonitor.h"
 
@@ -248,24 +249,9 @@ public:
             is.assign(m_buffer + DmqHeader::HEADER_SIZE, payloadSize);
         }
 
-        if (header.GetId() == dmq::ACK_REMOTE_ID)
-        {
-            if (m_transportMonitor)
-                m_transportMonitor->Remove(header.GetSeqNum());
-        }
-        // ACK whenever a send path exists, whether or not this transport also
-        // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
-        // has no monitor but must still ACK the sender's RELIABLE messages.
-        else if (m_sendTransport)
-        {
-            // Send ACK back using Send logic (recursive mutex handles it)
-            dmq::ByteWriter ss_ack;
-            DmqHeader ack;
-            ack.SetId(dmq::ACK_REMOTE_ID);
-            ack.SetSeqNum(header.GetSeqNum());
-            ack.SetLength(0);
-            m_sendTransport->Send(ss_ack, ack);
-        }
+        // ACK step (common/TransportAck.h): clear a received ACK in the monitor,
+        // or ACK the message back through the send transport
+        AckReceived(header, m_transportMonitor, m_sendTransport);
 
         return 0;
     }

@@ -70,6 +70,7 @@
 #include "delegate/UnicastDelegate.h"
 #include "port/transport/common/DmqHeader.h"
 #include "port/transport/common/ITransport.h"
+#include "port/transport/common/TransportAck.h"
 #include "port/transport/common/ITransportMonitor.h"
 #include "ShmRing.h"
 #include <atomic>
@@ -339,19 +340,11 @@ public:
         if (len > 0)
             is.assign(reinterpret_cast<const char*>(m_rxBuf), len);
 
-        // Outside the receive lock: TransportMonitor::Remove() fires
-        // OnSendStatus, whose subscribers may call back into this transport
-        if (header.GetId() == dmq::ACK_REMOTE_ID) {
-            if (monitor)
-                monitor->Remove(header.GetSeqNum());
-        }
-        else if (ackTransport) {
-            // A failed ACK (full ring) is counted by Send(); the sender's
-            // TransportMonitor then times the message out.
-            const dmq::ByteWriter empty;
-            const DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
-            ackTransport->Send(empty, ack);
-        }
+        // ACK step (common/TransportAck.h), outside the receive lock:
+        // TransportMonitor::Remove() fires OnSendStatus, whose subscribers may
+        // call back into this transport. A failed ACK (full ring) is counted by
+        // Send(); the sender's TransportMonitor then times the message out.
+        AckReceived(header, monitor, ackTransport);
         return 0;
     }
 

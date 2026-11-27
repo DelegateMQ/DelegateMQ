@@ -614,10 +614,69 @@ void IsrStream_UnderTransport()
     std::cout << "IsrStream_UnderTransport() complete!" << std::endl;
 }
 
+// --------------------------------------------------------------------------
+// TransportAck.h (the ACK step every transport shares)
+// --------------------------------------------------------------------------
+
+void TransportAck_Helpers()
+{
+    struct RecordingMonitor : ITransportMonitor
+    {
+        std::vector<uint16_t> removed;
+        bool Add(uint16_t, DelegateRemoteId) override { return true; }
+        void Remove(uint16_t seq) override { removed.push_back(seq); }
+    } monitor;
+    struct RecordingTransport : ITransport
+    {
+        std::vector<DmqHeader> sent;
+        size_t payloadBytes = 0;
+        int Send(const ByteWriter& os, const DmqHeader& h) override
+        {
+            sent.push_back(h);
+            payloadBytes += os.size();
+            return 0;
+        }
+        int Receive(ByteReader&, DmqHeader&) override { return RECEIVE_NO_DATA; }
+    } transport;
+
+    // An ACK clears its entry and sends nothing
+    DmqHeader ack(dmq::ACK_REMOTE_ID, 21);
+    AckReceived(ack, &monitor, &transport);
+    DMQ_ASSERT_TRUE(monitor.removed.size() == 1 && monitor.removed[0] == 21);
+    DMQ_ASSERT_TRUE(transport.sent.empty());
+
+    // A message is ACKed back: an empty message with the same sequence number
+    DmqHeader msg(90, 22);
+    AckReceived(msg, &monitor, &transport);
+    DMQ_ASSERT_TRUE(transport.sent.size() == 1);
+    DMQ_ASSERT_TRUE(transport.sent[0].GetId() == dmq::ACK_REMOTE_ID && transport.sent[0].GetSeqNum() == 22);
+    DMQ_ASSERT_TRUE(transport.payloadBytes == 0);
+    DMQ_ASSERT_TRUE(monitor.removed.size() == 1);   // not an ACK: nothing removed
+
+    // No monitor, no send transport: an ACK is still recognized; nothing is sent
+    DMQ_ASSERT_TRUE(HandleAck(ack, nullptr));
+    DMQ_ASSERT_TRUE(!HandleAck(msg, nullptr));
+    AckReceived(msg, nullptr, nullptr);
+    DMQ_ASSERT_TRUE(transport.sent.size() == 1);
+
+    // EncodeAck(): a header-only frame that decodes back to the ACK (both buffer types)
+    char chars[DmqHeader::HEADER_SIZE];
+    uint8_t bytes[DmqHeader::HEADER_SIZE];
+    EncodeAck(23, chars);
+    EncodeAck(23, bytes);
+    DMQ_ASSERT_TRUE(std::memcmp(chars, bytes, DmqHeader::HEADER_SIZE) == 0);
+    DmqHeader decoded;
+    decoded.Decode(bytes);
+    DMQ_ASSERT_TRUE(decoded.IsValid() && decoded.GetId() == dmq::ACK_REMOTE_ID);
+    DMQ_ASSERT_TRUE(decoded.GetSeqNum() == 23 && decoded.GetLength() == 0);
+    std::cout << "TransportAck_Helpers() complete!" << std::endl;
+}
+
 } // namespace
 
 void FramedStreamTransportTests()
 {
+    TransportAck_Helpers();
     Codec_WireFormat();
     Codec_ResyncAndErrors();
     Codec_ResetDropsPartial();

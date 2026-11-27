@@ -34,6 +34,7 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #include "port/transport/common/ITransport.h"
+#include "port/transport/common/TransportAck.h"
 #include "port/transport/common/ITransportMonitor.h"
 #include "port/transport/common/DmqHeader.h"
 #include <windows.h>
@@ -341,18 +342,11 @@ private:
         }
 
         // 3. Handle Acknowledgment
-        if (header.GetId() == dmq::ACK_REMOTE_ID) {
-            if (m_transportMonitor) m_transportMonitor->Remove(header.GetSeqNum());
-        }
-        // ACK whenever a send path exists, whether or not this transport also
-        // tracks its own sends: a receive-only transport (e.g. NetworkNode's SUB)
-        // has no monitor but must still ACK the sender's RELIABLE messages.
-        else if (m_sendTransport) {
-            // Send ACK using a small stack buffer
-            DmqHeader ack(dmq::ACK_REMOTE_ID, header.GetSeqNum());
+        // ACK step (common/TransportAck.h). The ACK goes back on this client's
+        // socket, not through Send()
+        if (!HandleAck(header, m_transportMonitor) && m_sendTransport) {
             char ackBuf[DmqHeader::HEADER_SIZE];
-            ack.Encode(ackBuf);
-
+            EncodeAck(header.GetSeqNum(), ackBuf);
             const std::lock_guard<dmq::RecursiveMutex> lock(m_mutex);  // don't interleave with Send()
             const char* ptr = ackBuf;
             int remaining = static_cast<int>(DmqHeader::HEADER_SIZE);
