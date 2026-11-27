@@ -112,7 +112,9 @@ static void Error_Handler();
 // ---------------------------------------------------------------------------
 
 /// Drains incoming frames. Stm32UartTransport::Receive() sleeps on a semaphore
-/// given by the USART6 RX interrupt, so this task costs nothing while idle.
+/// given by the USART6 RX interrupt, waking at least every
+/// DMQ_UART_RECV_TIMEOUT_MS with no data, so this task costs almost nothing
+/// while idle.
 static void LinkRxTask(void*)
 {
     for (;;)

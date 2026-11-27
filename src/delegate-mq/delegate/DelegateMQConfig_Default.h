@@ -146,9 +146,12 @@
     #define DMQ_UDP_SUB_RECV_TIMEOUT_MS     2000
 #endif
 
-// STM32 UART transport: RX ring buffer bytes, max payload per frame, blocking
-// transmit timeout per frame, and the most it waits for the rest of a frame
-// once its marker has arrived.
+// Framed stream transports (FramedStreamTransport: Stm32UartTransport,
+// SerialTransport, any UART/USB-CDC link): RX ring buffer bytes
+// (IsrByteStream), max payload per frame, blocking transmit timeout per frame,
+// the most it waits for the rest of a frame once its marker has arrived, and
+// how long Receive() waits for a frame to start before returning
+// RECEIVE_NO_DATA.
 #ifndef DMQ_UART_RX_RING_SIZE
     #define DMQ_UART_RX_RING_SIZE           1024
 #endif
@@ -160,6 +163,9 @@
 #endif
 #ifndef DMQ_UART_FRAME_TIMEOUT_MS
     #define DMQ_UART_FRAME_TIMEOUT_MS       100
+#endif
+#ifndef DMQ_UART_RECV_TIMEOUT_MS
+    #define DMQ_UART_RECV_TIMEOUT_MS        100
 #endif
 
 // Shared-memory ring transport (ShmRingTransport): slots per direction (a

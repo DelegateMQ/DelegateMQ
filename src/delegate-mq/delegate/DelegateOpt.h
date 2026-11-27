@@ -426,13 +426,15 @@ namespace dmq
     inline constexpr std::chrono::milliseconds UDP_PUB_RECV_TIMEOUT{ DMQ_UDP_PUB_RECV_TIMEOUT_MS };
     inline constexpr std::chrono::milliseconds UDP_SUB_RECV_TIMEOUT{ DMQ_UDP_SUB_RECV_TIMEOUT_MS };
 
-    /// @brief STM32 UART transport sizes and timeouts.
+    /// @brief Framed stream (UART) transport sizes and timeouts.
     /// Override via DMQ_UART_RX_RING_SIZE / DMQ_UART_MAX_PAYLOAD /
-    /// DMQ_UART_TX_TIMEOUT_MS / DMQ_UART_FRAME_TIMEOUT_MS in delegatemqconfig.h.
+    /// DMQ_UART_TX_TIMEOUT_MS / DMQ_UART_FRAME_TIMEOUT_MS /
+    /// DMQ_UART_RECV_TIMEOUT_MS in delegatemqconfig.h.
     inline constexpr size_t UART_RX_RING_SIZE = DMQ_UART_RX_RING_SIZE;
     inline constexpr size_t UART_MAX_PAYLOAD = DMQ_UART_MAX_PAYLOAD;
     inline constexpr std::chrono::milliseconds UART_TX_TIMEOUT{ DMQ_UART_TX_TIMEOUT_MS };
     inline constexpr std::chrono::milliseconds UART_FRAME_TIMEOUT{ DMQ_UART_FRAME_TIMEOUT_MS };
+    inline constexpr std::chrono::milliseconds UART_RECV_TIMEOUT{ DMQ_UART_RECV_TIMEOUT_MS };
 
     /// @brief Shared-memory ring transport (ShmRingTransport) defaults: slots per
     /// direction, max payload per message, and the receive wait with a doorbell.

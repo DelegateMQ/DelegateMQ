@@ -41,7 +41,7 @@ How messages cross between processes and processors. Not needed between threads 
 | Cores of a dual-core MCU (AMP) | `ShmRingTransport` | No OS calls; you supply the chip's wake-up (`IShmSignal`), the linker placement and cache setup |
 | Ethernet or Wi-Fi, desktop | UDP (`WIN32_UDP`, `LINUX_UDP`), TCP (`WIN32_TCP`, `LINUX_TCP`) | TCP for reliable, ordered delivery with no retry layer. UDP for low latency or multicast, with `ReliableTransport` for ACK and retry where needed |
 | Ethernet or Wi-Fi, MCU | lwIP (`ARM_LWIP_UDP`, `ARM_LWIP_NETCONN_UDP`), NetX Duo (`THREADX_UDP`), Zephyr sockets (`ZEPHYR_UDP`) | lwIP also covers ESP-IDF |
-| Serial port / UART | `SERIAL_PORT` (PC, libserialport), `STM32_UART` (STM32 HAL) | Framed and CRC-checked |
+| Serial port / UART | `SERIAL_PORT` (PC, libserialport), `STM32_UART` (STM32 HAL) | Framed and CRC-checked. Another MCU's UART, USB-CDC or RS-485: a small adapter on `FramedStreamTransport` (`port/transport/framed-stream`), same frames |
 | Through a broker, IoT | MQTT (`MQTT`) | For DataBus topics as JSON to MQTT tools (Node-RED, Grafana), see `MqttBridge` in [TOOLS.md](../tools/TOOLS.md#using-mqtt-tools) |
 | Messaging library already in use | ZeroMQ (`ZEROMQ`), NNG (`NNG`) | |
 | Anything else | your `ITransport` | `Send()` and `Receive()`; see [the transport README](../src/delegate-mq/port/transport/README.md) |
