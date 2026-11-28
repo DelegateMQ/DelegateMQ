@@ -6,6 +6,7 @@
 #include "../../../../test/portable/StartGatePortableTest.h"
 #include "../../../../test/portable/StackPortableTest.h"
 #include "../../../../test/portable/ClockPortableTest.h"
+#include "../../../../test/portable/PriorityPortableTest.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -749,6 +750,12 @@ void ExecuteAllTests() {
     printf("\n[Test 15b] HighResClock (tick + SysTick) and ThisThread::sleep_until():\n");
     ClockPortableTest::Run(/*highRes=*/true);
     printf("  -> sub-millisecond time and drift-free periodic sleep\n");
+
+    // --- TEST 15c: Thread priority bands ---
+    // One core: of two threads made ready together, the more urgent band runs first
+    printf("\n[Test 15c] Thread priority bands (SetPriority()):\n");
+    PriorityPortableTest::Run(/*priorityOrder=*/true);
+    printf("  -> bands map to FreeRTOS priorities, in order\n");
 
     // --- TEST 16: Watchdog hook (last: a watchdog expiry ends the run) ---
     printf("\n[Test 16] Watchdog hook: two hung threads reported, then one fault:\n");

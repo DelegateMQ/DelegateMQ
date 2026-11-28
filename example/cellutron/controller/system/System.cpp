@@ -34,7 +34,7 @@ void System::Initialize() {
 
     // 1. Create System Thread
 #ifndef DMQ_THREAD_STDLIB
-    m_thread.SetThreadPriority(PRIORITY_SYSTEM);
+    m_thread.SetPriority(PRIORITY_SYSTEM);
 #endif
     // Every controller thread holds at the start gate until step 6. Without
     // it, each runs as soon as it is created: the Sensors poll timer could

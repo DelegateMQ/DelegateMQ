@@ -34,7 +34,8 @@ using namespace dmq::util;
 static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
-    options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(1); };
+    // One core and a priority scheduler: the more urgent band runs first
+    options.priorityOrder = true;
     return options;
 }
 

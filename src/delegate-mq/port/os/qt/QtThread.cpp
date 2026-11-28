@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include "extras/util/Fault.h"
 #include "port/os/common/CoreAffinity.h"
+#include "port/os/common/DesktopPriority.h"
 #include <new>
 #include <QDebug>
 #include <limits>
@@ -228,6 +229,7 @@ bool QtThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
              watchdog = m_watchdogTimeout.load(), coreMask = m_coreMask]() {
                 worker->BeginCurrentScope(self);
                 DMQ_ASSERT_TRUE(dmq::os::detail::SetCurrentThreadCoreAffinity(coreMask));
+                dmq::os::detail::StartDesktopPriority(qt->m_nativeThreadId, qt->m_priorityBand, qt->m_priorityBandSet);
                 if (startHandler)
                     startHandler();
                 if (idleHandler)
@@ -377,10 +379,22 @@ dmq::RecursiveMutex& QtThread::GetWatchdogLock()
 }
 
 //----------------------------------------------------------------------------
+// SetPriority
+//----------------------------------------------------------------------------
+bool QtThread::SetPriority(ThreadPriority band, int /*step*/)
+{
+    return dmq::os::detail::SetDesktopPriority(m_nativeThreadId, m_priorityBand, m_priorityBandSet, band);
+}
+
+//----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
 void QtThread::ExitThread(ExitPolicy policy)
 {
+    // Stop SetPriority() from reaching this thread's OS id first, while the
+    // thread still holds it: once it ends, the OS may reuse the id
+    m_nativeThreadId.store(0);
+
     if (m_thread)
     {
         // Under m_mutex: DispatchDelegate() checks m_exiting and emits under it,

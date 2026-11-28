@@ -16,7 +16,7 @@ Process::~Process() { Shutdown(); }
 void Process::Initialize()
 {
     dmq::util::ThreadMonitor::Register(&m_thread);
-    m_thread.SetThreadPriority(PRIORITY_PROCESS);
+    m_thread.SetPriority(PRIORITY_PROCESS);
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
     m_pumpProcess.SetThread(m_thread);
     m_cellProcess.SetThread(m_thread);

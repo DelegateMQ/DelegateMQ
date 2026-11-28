@@ -38,6 +38,7 @@
 #include "./extras/util/Timer.h"
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
+#include "port/os/common/ThreadPriority.h"
 #include <thread>
 #include <deque>
 #include <atomic>
@@ -157,6 +158,16 @@ public:
     /// a platform without thread affinity (macOS), faults (DMQ_ASSERT) there.
     void SetCoreAffinity(uint32_t coreMask) { DMQ_ASSERT_TRUE(!m_thread); m_coreMask = coreMask; }
     uint32_t GetCoreAffinity() const { return m_coreMask; }
+
+    /// Set the priority as a portable band (port/os/common/ThreadPriority.h),
+    /// mapped to the OS's thread priorities (DesktopPriority.h). Can be called
+    /// before or after CreateThread(); set before, it applies as the thread
+    /// starts, best effort.
+    /// @param band the band
+    /// @param step ignored here (on an RTOS port, native levels within the band)
+    /// @return false if the OS refused the running thread's new priority
+    /// (Linux: raising it needs CAP_SYS_NICE; macOS: any band but NORMAL)
+    bool SetPriority(dmq::os::ThreadPriority band, int step = 0);
 
     /// @brief Register a handler invoked on the worker thread before it processes
     /// any message. Use it for per-thread setup (COM, a language runtime attach,
@@ -279,6 +290,11 @@ private:
     // Optional handlers invoked on the worker thread at start, exit and when idle
     dmq::UnicastDelegate<void()> m_startHandler;
     uint32_t m_coreMask = 0;  // SetCoreAffinity(); 0 = any core
+
+    // SetPriority(): the thread's OS id while it runs (0 otherwise) and its band
+    std::atomic<uint64_t> m_nativeThreadId{0};
+    std::atomic<dmq::os::ThreadPriority> m_priorityBand{dmq::os::ThreadPriority::NORMAL};
+    std::atomic<bool> m_priorityBandSet{false};
     dmq::UnicastDelegate<void()> m_exitHandler;
     dmq::UnicastDelegate<void()> m_idleHandler;
     dmq::Duration m_idleInterval = dmq::Duration::zero();

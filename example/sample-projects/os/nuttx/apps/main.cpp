@@ -40,10 +40,11 @@ using namespace dmq::util;
 static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
-    options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(50); };
     // NuttX sim: CLOCK_MONOTONIC has tick resolution, and time stands still
     // while a thread spins
     options.highResClock = false;
+    // One core and a priority scheduler: the more urgent band runs first
+    options.priorityOrder = true;
     return options;
 }
 

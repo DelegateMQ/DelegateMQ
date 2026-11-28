@@ -322,6 +322,24 @@ void ZephyrThread::SetThreadPriority(int priority)
 }
 
 //----------------------------------------------------------------------------
+// SetPriority
+//----------------------------------------------------------------------------
+bool ZephyrThread::SetPriority(ThreadPriority band, int step)
+{
+    // Lower is more urgent: the bands span the preemptible priorities, IDLE at
+    // the lowest application priority, TIME_CRITICAL at K_PRIO_PREEMPT(0). A
+    // step above TIME_CRITICAL, or the config, may reach the cooperative ones.
+    // With no preemptible priorities (CONFIG_NUM_PREEMPT_PRIORITIES 0), the
+    // bands span the cooperative ones instead.
+    const int least = K_LOWEST_APPLICATION_THREAD_PRIO;
+    const int top = least >= 0 ? K_PRIO_PREEMPT(0) : K_HIGHEST_APPLICATION_THREAD_PRIO;
+    auto bands = detail::SpreadPriorityBands(least, (least + top) / 2, top);
+    bands.most = K_HIGHEST_APPLICATION_THREAD_PRIO;
+    SetThreadPriority(detail::PriorityToNative(bands, band, step));
+    return true;
+}
+
+//----------------------------------------------------------------------------
 // GetThreadId
 //----------------------------------------------------------------------------
 k_tid_t ZephyrThread::GetThreadId()

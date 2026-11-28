@@ -208,6 +208,21 @@ void CmsisRtos2Thread::SetThreadPriority(osPriority_t priority)
 }
 
 //----------------------------------------------------------------------------
+// SetPriority
+//----------------------------------------------------------------------------
+bool CmsisRtos2Thread::SetPriority(ThreadPriority band, int step)
+{
+    // The named levels, so a step moves through osPriorityNormal1..7 and the
+    // like. osPriorityIdle is the kernel's idle thread's.
+    static constexpr detail::PriorityBands BANDS = {
+        { osPriorityLow, osPriorityLow4, osPriorityBelowNormal, osPriorityNormal,
+          osPriorityAboveNormal, osPriorityHigh, osPriorityRealtime },
+        osPriorityLow, osPriorityRealtime7 };
+    SetThreadPriority(static_cast<osPriority_t>(detail::PriorityToNative(BANDS, band, step)));
+    return true;
+}
+
+//----------------------------------------------------------------------------
 // GetThreadPriority
 //----------------------------------------------------------------------------
 osPriority_t CmsisRtos2Thread::GetThreadPriority()

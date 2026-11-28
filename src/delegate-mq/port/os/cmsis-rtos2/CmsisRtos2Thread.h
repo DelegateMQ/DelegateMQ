@@ -45,6 +45,7 @@
 #include "port/os/common/ThreadMsg.h"
 #include "port/os/common/StartGate.h"
 #include "port/os/common/StackWatermark.h"
+#include "port/os/common/ThreadPriority.h"
 #include "CmsisRtos2DelegateQueue.h"
 #include "cmsis_os2.h"
 #include <string>
@@ -121,6 +122,15 @@ public:
 
     /// Returns true if the calling thread is this thread
     virtual bool IsCurrentThread() override;
+
+    /// Set the priority as a portable band (port/os/common/ThreadPriority.h),
+    /// placed across this kernel's range, or where DMQ_PRIORITY_BAND_* in the
+    /// config puts it. Can be called before or after CreateThread().
+    /// @param band the band
+    /// @param step native levels within the band: +1 more urgent, -1 less.
+    /// A step that would reach the next band faults (DMQ_ASSERT).
+    /// @return true
+    bool SetPriority(dmq::os::ThreadPriority band, int step = 0);
 
     /// Set the thread priority.
     /// Can be called before or after CreateThread().

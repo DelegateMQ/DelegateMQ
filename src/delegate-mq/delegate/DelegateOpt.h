@@ -359,6 +359,17 @@ namespace dmq
     inline constexpr int ZEPHYR_THREAD_PRIORITY = DMQ_ZEPHYR_THREAD_PRIORITY;
     inline constexpr int NUTTX_THREAD_PRIORITY = DMQ_NUTTX_THREAD_PRIORITY;
 
+    /// @brief Native priority of each dmq::os::ThreadPriority band on the RTOS
+    /// ports, least urgent first (IDLE ... TIME_CRITICAL); PRIORITY_BAND_AUTO
+    /// lets the port place that band itself. Desktop ports ignore these.
+    /// Override via DMQ_PRIORITY_BAND_IDLE ... DMQ_PRIORITY_BAND_TIME_CRITICAL
+    /// in delegatemqconfig.h.
+    inline constexpr int PRIORITY_BAND_AUTO = DMQ_PRIORITY_BAND_AUTO;
+    inline constexpr int PRIORITY_BANDS[7] = {
+        DMQ_PRIORITY_BAND_IDLE, DMQ_PRIORITY_BAND_LOWEST, DMQ_PRIORITY_BAND_BELOW_NORMAL,
+        DMQ_PRIORITY_BAND_NORMAL, DMQ_PRIORITY_BAND_ABOVE_NORMAL, DMQ_PRIORITY_BAND_HIGHEST,
+        DMQ_PRIORITY_BAND_TIME_CRITICAL };
+
     /// @brief Fallback queue size (maxQueueSize == 0) for the desktop
     /// stdlib/Win32 Thread ports only, which back their queue with a plain
     /// std::deque and would otherwise grow without bound if the destination

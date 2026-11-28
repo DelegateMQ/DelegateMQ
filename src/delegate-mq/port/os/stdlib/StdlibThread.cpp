@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include "port/os/common/ThreadHooks.h"
 #include "port/os/common/CoreAffinity.h"
+#include "port/os/common/DesktopPriority.h"
 #include "extras/util/Fault.h"
 #include <new>
 
@@ -192,10 +193,22 @@ void StdlibThread::SetThreadName(std::thread::native_handle_type handle, const d
 }
 
 //----------------------------------------------------------------------------
+// SetPriority
+//----------------------------------------------------------------------------
+bool StdlibThread::SetPriority(ThreadPriority band, int /*step*/)
+{
+    return dmq::os::detail::SetDesktopPriority(m_nativeThreadId, m_priorityBand, m_priorityBandSet, band);
+}
+
+//----------------------------------------------------------------------------
 // ExitThread
 //----------------------------------------------------------------------------
 void StdlibThread::ExitThread(ExitPolicy policy)
 {
+    // Stop SetPriority() from reaching this thread's OS id first, while the
+    // thread still holds it: once it ends, the OS may reuse the id
+    m_nativeThreadId.store(0);
+
     if (!m_thread)
         return;
 
@@ -462,6 +475,9 @@ void StdlibThread::Process()
 
     // Pin to the cores set by SetCoreAffinity(), before any user code runs here
     DMQ_ASSERT_TRUE(dmq::os::detail::SetCurrentThreadCoreAffinity(m_coreMask));
+
+    // Record the OS id for SetPriority(), and apply a band set before CreateThread()
+    dmq::os::detail::StartDesktopPriority(m_nativeThreadId, m_priorityBand, m_priorityBandSet);
 
     if (m_startHandler)
         m_startHandler();

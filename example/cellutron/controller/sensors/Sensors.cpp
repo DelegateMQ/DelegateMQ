@@ -18,7 +18,7 @@ Sensors::~Sensors() {
 void Sensors::Initialize() {
     // 1. Register for monitoring and start thread
     ThreadMonitor::Register(&m_thread);
-    m_thread.SetThreadPriority(PRIORITY_HARDWARE);
+    m_thread.SetPriority(PRIORITY_HARDWARE);
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 
     // 2. Initialize simulated sensors

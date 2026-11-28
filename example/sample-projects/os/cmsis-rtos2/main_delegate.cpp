@@ -44,7 +44,6 @@ using namespace dmq::util;
 static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
-    options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(osPriorityLow); };
     // native_sim runs threads on host stacks; a CPU target (mps2/an385 on
     // QEMU) runs them on the stacks the kernel reports
 #if !defined(CONFIG_ARCH_POSIX)
@@ -53,6 +52,8 @@ static PortableTests::Options TestOptions()
     // native_sim's time advances only while the CPU idles
     options.highResClock = false;
 #endif
+    // One core and a priority scheduler: the more urgent band runs first
+    options.priorityOrder = true;
     return options;
 }
 

@@ -31,6 +31,7 @@
 #include "StartGatePortableTest.h"
 #include "StackPortableTest.h"
 #include "ClockPortableTest.h"
+#include "PriorityPortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -73,10 +74,16 @@ const std::chrono::milliseconds TEST_TIMEOUT(5000);
 
 void SleepMs(int ms) { dmq::ThisThread::sleep_for(std::chrono::milliseconds(ms)); }
 
+// On an RTOS a post wakes a more urgent consumer at once, so the tests that
+// check the publisher never stalls (FullPolicy::DROP) need the consumer below
+// the caller. Desktop: posting doesn't preempt the caller; left as is.
 void LowerPriority(Thread& thread)
 {
-    if (s_options.lowerPriority)
-        s_options.lowerPriority(thread);
+#if !(defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_POSIX) || defined(DMQ_THREAD_QT))
+    thread.SetPriority(dmq::os::ThreadPriority::LOWEST);
+#else
+    (void)thread;
+#endif
 }
 
 /// The queue capacity a Thread gets with maxQueueSize 0 on this port.
@@ -492,6 +499,9 @@ void DelegateThreadsTests(const Options& options)
 
     std::cout << "HighResClock and sleep_until():" << std::endl;
     ClockPortableTest::Run(options.highResClock);
+
+    std::cout << "Thread priority bands:" << std::endl;
+    PriorityPortableTest::Run(options.priorityOrder && options.concurrentThreads);
 }
 
 } // namespace PortableTests

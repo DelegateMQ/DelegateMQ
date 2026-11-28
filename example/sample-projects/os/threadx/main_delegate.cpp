@@ -58,7 +58,6 @@ using namespace dmq::util;
 static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
-    options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(20); };
     options.concurrentThreads = false;
     return options;
 }

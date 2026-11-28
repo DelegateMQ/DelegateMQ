@@ -245,6 +245,18 @@ void ThreadXThread::SetThreadPriority(UINT priority)
 }
 
 //----------------------------------------------------------------------------
+// SetPriority
+//----------------------------------------------------------------------------
+bool ThreadXThread::SetPriority(ThreadPriority band, int step)
+{
+    // 0 is most urgent: IDLE at TX_MAX_PRIORITIES - 1, TIME_CRITICAL at 0
+    const int least = static_cast<int>(TX_MAX_PRIORITIES) - 1;
+    const auto bands = detail::SpreadPriorityBands(least, least / 2, 0);
+    SetThreadPriority(static_cast<UINT>(detail::PriorityToNative(bands, band, step)));
+    return true;
+}
+
+//----------------------------------------------------------------------------
 // GetThreadPriority
 //----------------------------------------------------------------------------
 UINT ThreadXThread::GetThreadPriority()

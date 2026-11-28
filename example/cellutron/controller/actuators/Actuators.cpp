@@ -18,7 +18,7 @@ Actuators::~Actuators() {
 void Actuators::Initialize() {
     // 1. Start the thread
     ThreadMonitor::Register(&m_thread);
-    m_thread.SetThreadPriority(PRIORITY_HARDWARE);
+    m_thread.SetPriority(PRIORITY_HARDWARE);
     m_thread.SetDroppedHandler(dmq::MakeDelegate(this, &Actuators::OnMessageDropped));
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 

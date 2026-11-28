@@ -78,6 +78,24 @@
 #define DMQ_ZEPHYR_THREAD_PRIORITY      5
 #define DMQ_NUTTX_THREAD_PRIORITY       100
 
+/// Native priority of each dmq::os::ThreadPriority band (Thread::SetPriority()) on
+/// the RTOS ports. Left undefined, the port spreads the seven bands across its
+/// own range (FreeRTOS: 0 to configMAX_PRIORITIES-1; ThreadX: TX_MAX_PRIORITIES-1
+/// to 0; Zephyr: the preemptible priorities; CMSIS-RTOS2: osPriorityLow to
+/// osPriorityRealtime; NuttX: around SCHED_PRIORITY_DEFAULT). Set one to place a
+/// band around fixed kernel or vendor tasks, e.g. keep HIGHEST below an ESP-IDF
+/// Wi-Fi task. Values are the port's native numbers (ThreadX and Zephyr: lower is
+/// more urgent); the bands must stay in order, or SetPriority() faults. A step
+/// (SetPriority(band, step)) moves within a band, never onto the next one. The
+/// desktop ports ignore these.
+// #define DMQ_PRIORITY_BAND_IDLE          1
+// #define DMQ_PRIORITY_BAND_LOWEST        4
+// #define DMQ_PRIORITY_BAND_BELOW_NORMAL  8
+// #define DMQ_PRIORITY_BAND_NORMAL        12
+// #define DMQ_PRIORITY_BAND_ABOVE_NORMAL  16
+// #define DMQ_PRIORITY_BAND_HIGHEST       20
+// #define DMQ_PRIORITY_BAND_TIME_CRITICAL 22
+
 /// Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32/POSIX/Qt
 /// Thread ports only. A high-water-mark safety net (not a throughput limiter) against
 /// unbounded growth if the destination thread is dead/stuck -- large enough to

@@ -63,6 +63,35 @@
     #define DMQ_NUTTX_THREAD_PRIORITY       100     // SCHED_FIFO
 #endif
 
+// Native priority of each dmq::os::ThreadPriority band on the RTOS ports
+// (Thread::SetPriority()). DMQ_PRIORITY_BAND_AUTO: the port spreads the bands
+// across its own range (see port/os/common/ThreadPriority.h). The desktop ports
+// ignore these.
+#ifndef DMQ_PRIORITY_BAND_AUTO
+    #define DMQ_PRIORITY_BAND_AUTO          (-2147483647 - 1)
+#endif
+#ifndef DMQ_PRIORITY_BAND_IDLE
+    #define DMQ_PRIORITY_BAND_IDLE          DMQ_PRIORITY_BAND_AUTO
+#endif
+#ifndef DMQ_PRIORITY_BAND_LOWEST
+    #define DMQ_PRIORITY_BAND_LOWEST        DMQ_PRIORITY_BAND_AUTO
+#endif
+#ifndef DMQ_PRIORITY_BAND_BELOW_NORMAL
+    #define DMQ_PRIORITY_BAND_BELOW_NORMAL  DMQ_PRIORITY_BAND_AUTO
+#endif
+#ifndef DMQ_PRIORITY_BAND_NORMAL
+    #define DMQ_PRIORITY_BAND_NORMAL        DMQ_PRIORITY_BAND_AUTO
+#endif
+#ifndef DMQ_PRIORITY_BAND_ABOVE_NORMAL
+    #define DMQ_PRIORITY_BAND_ABOVE_NORMAL  DMQ_PRIORITY_BAND_AUTO
+#endif
+#ifndef DMQ_PRIORITY_BAND_HIGHEST
+    #define DMQ_PRIORITY_BAND_HIGHEST       DMQ_PRIORITY_BAND_AUTO
+#endif
+#ifndef DMQ_PRIORITY_BAND_TIME_CRITICAL
+    #define DMQ_PRIORITY_BAND_TIME_CRITICAL DMQ_PRIORITY_BAND_AUTO
+#endif
+
 // Fallback queue size (maxQueueSize == 0) for the desktop stdlib/Win32/POSIX/Qt Thread ports
 // only. Unlike DMQ_DEFAULT_QUEUE_SIZE (sized for real RTOS RAM constraints), these
 // ports back their queue with a plain std::deque, so maxQueueSize == 0 otherwise

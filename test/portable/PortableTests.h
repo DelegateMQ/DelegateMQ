@@ -18,6 +18,7 @@
 /// | StartGatePortableTest.h | dmq::os::StartGate (also run by the desktop unit tests) |
 /// | StackPortableTest.h | Thread::GetStackSize() and GetStackFreeMin() (run by DelegateThreadsPortableTests.cpp) |
 /// | ClockPortableTest.h | dmq::HighResClock and ThisThread::sleep_until() (run by DelegateThreadsPortableTests.cpp) |
+/// | PriorityPortableTest.h | dmq::os::ThreadPriority bands and Thread::SetPriority() (run by DelegateThreadsPortableTests.cpp) |
 ///
 /// Requirements on the sample:
 /// - Call from a thread the port knows (an RTOS task, not a raw host thread),
@@ -34,15 +35,6 @@ namespace PortableTests {
 /// What differs between ports. The defaults suit the desktop ports.
 struct Options
 {
-    /// Lowers a test's consumer thread below the priority of the thread running
-    /// the tests, before it's created. On a preemptive RTOS, posting to an
-    /// equal- or higher-priority thread switches to it at once, so a test that
-    /// checks the publisher never stalls (FullPolicy::DROP) needs a
-    /// lower-priority consumer. Priority values and their direction differ per
-    /// RTOS, so the sample supplies this. nullptr: no change (desktop ports,
-    /// where posting doesn't preempt the caller).
-    void (*lowerPriority)(dmq::os::Thread& thread) = nullptr;
-
     /// false: never keep two test threads alive at once. Only for a port whose
     /// kernel can't run that (ThreadX's Linux/GNU simulation port, see
     /// os/threadx/main_delegate.cpp); skips the tests that need it.
@@ -60,6 +52,12 @@ struct Options
     /// and for the simulators whose time stands still while a thread spins
     /// (Zephyr native_sim, NuttX sim).
     bool highResClock = true;
+
+    /// true: one core and a priority scheduler, so PriorityPortableTest checks
+    /// that of two threads made ready together, the more urgent band runs
+    /// first. false on the desktop ports and multi-core targets (ESP32), where
+    /// both may run at once, and where concurrentThreads is false.
+    bool priorityOrder = false;
 };
 
 /// Cross-thread dispatch, FullPolicy and StartGate tests.

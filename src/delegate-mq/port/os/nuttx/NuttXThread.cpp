@@ -285,6 +285,23 @@ void NuttXThread::SetThreadPriority(int priority)
 }
 
 //----------------------------------------------------------------------------
+// SetPriority
+//----------------------------------------------------------------------------
+bool NuttXThread::SetPriority(ThreadPriority band, int step)
+{
+    // SCHED_FIFO, higher is more urgent: NORMAL at NuttX's default priority
+    const int least = sched_get_priority_min(SCHED_FIFO);
+    const int most = sched_get_priority_max(SCHED_FIFO);
+#ifdef SCHED_PRIORITY_DEFAULT
+    const int normal = SCHED_PRIORITY_DEFAULT;
+#else
+    const int normal = (least + most) / 2;
+#endif
+    SetThreadPriority(detail::PriorityToNative(detail::SpreadPriorityBands(least, normal, most), band, step));
+    return true;
+}
+
+//----------------------------------------------------------------------------
 // GetThreadId
 //----------------------------------------------------------------------------
 pthread_t NuttXThread::GetThreadId()

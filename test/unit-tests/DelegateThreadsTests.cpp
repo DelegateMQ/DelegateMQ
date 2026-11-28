@@ -3,6 +3,7 @@
 #include "StartGatePortableTest.h"
 #include "StackPortableTest.h"
 #include "ClockPortableTest.h"
+#include "PriorityPortableTest.h"
 #include "port/os/common/CoreAffinity.h"
 #include <iostream>
 #include <random>
@@ -1213,4 +1214,5 @@ void DelegateThreadsTests()
 #endif
     StackPortableTest::Run(/*realStacks=*/false);   // desktop: both values unknown
     ClockPortableTest::Run();
+    PriorityPortableTest::Run(/*priorityOrder=*/false);   // desktop: several cores
 }

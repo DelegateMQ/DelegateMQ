@@ -332,6 +332,14 @@ void FreeRTOSThread::SetThreadPriority(int priority) {
     }
 }
 
+bool FreeRTOSThread::SetPriority(ThreadPriority band, int step) {
+    // IDLE at the idle task's level, TIME_CRITICAL at configMAX_PRIORITIES - 1
+    const int most = static_cast<int>(configMAX_PRIORITIES) - 1;
+    const auto bands = detail::SpreadPriorityBands(static_cast<int>(tskIDLE_PRIORITY), most / 2, most);
+    SetThreadPriority(detail::PriorityToNative(bands, band, step));
+    return true;
+}
+
 //----------------------------------------------------------------------------
 // DispatchDelegate
 //----------------------------------------------------------------------------

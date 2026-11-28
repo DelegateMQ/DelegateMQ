@@ -32,7 +32,7 @@ void System::Initialize() {
     ThreadMonitor::Enable();
 
 #ifndef DMQ_THREAD_STDLIB
-    m_thread.SetThreadPriority(PRIORITY_PROCESS);
+    m_thread.SetPriority(PRIORITY_PROCESS);
 #endif
     m_thread.CreateThread(WATCHDOG_TIMEOUT);
 

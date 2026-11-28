@@ -106,7 +106,7 @@ if (thread)
     thread->DispatchDelegate(msg);  // target thread later calls Invoke()
 ```
 
-**Adding a new OS port.** Name the class `<Platform>Thread` in `port/os/<platform>/<Platform>Thread.h/.cpp` and end the header with `using Thread = <Platform>Thread;` in `namespace dmq::os`, so all code keeps using `dmq::os::Thread`. Use the shared `port/os/common/ThreadMsg.h` for queue messages (all ports but Qt); don't copy it.
+**Adding a new OS port.** Name the class `<Platform>Thread` in `port/os/<platform>/<Platform>Thread.h/.cpp` and end the header with `using Thread = <Platform>Thread;` in `namespace dmq::os`, so all code keeps using `dmq::os::Thread`. Use the shared `port/os/common/ThreadMsg.h` for queue messages (all ports but Qt); don't copy it. Give it `bool SetPriority(dmq::os::ThreadPriority band, int step = 0)`: describe the kernel's range as a `detail::PriorityBands` (`detail::SpreadPriorityBands(least, normal, most)`, or a table of named levels as on CMSIS-RTOS2) and pass `detail::PriorityToNative(bands, band, step)` to the port's native setter, which applies the config's `DMQ_PRIORITY_BAND_*` and checks the step (see [Thread Priority and Latency](#thread-priority-and-latency)).
 
 Handle a full queue per `FullPolicy` (aliased into `dmq::os`). With a lockable queue (stdlib, Win32), check space before allocating; with an atomic RTOS queue (FreeRTOS, Zephyr, ...), allocate, send, and delete on failure.
 
@@ -250,6 +250,30 @@ Each OS port provides a `dmq::os::Thread` (`StdlibThread`, `Win32Thread`, `Posix
 ### Thread Priority and Latency
 
 A dispatched delegate waits in the target thread's queue, so dispatch latency depends mostly on that thread's OS priority and scheduler wake-up time. Give time-critical work (commands, emergency stops) high-priority threads, general logic medium, and telemetry or logging low.
+
+`SetPriority(band, step)` sets a thread's priority the same way on every port, before or after `CreateThread()`. The bands, least urgent first, are `dmq::os::ThreadPriority::IDLE`, `LOWEST`, `BELOW_NORMAL`, `NORMAL`, `ABOVE_NORMAL`, `HIGHEST` and `TIME_CRITICAL` (the Win32 names; `HIGH` and `LOW` are Arduino macros). Each port turns a band into its kernel's own number, whichever way the kernel counts:
+
+```cpp
+controlThread.SetPriority(dmq::os::ThreadPriority::ABOVE_NORMAL);
+motorThread.SetPriority(dmq::os::ThreadPriority::HIGHEST, +1);   // just above other HIGHEST threads
+logThread.SetPriority(dmq::os::ThreadPriority::BELOW_NORMAL);
+```
+
+| Port | Bands (IDLE ... TIME_CRITICAL) | A step of +1 |
+| :--- | :--- | :--- |
+| `FreeRTOSThread` | spread from `tskIDLE_PRIORITY` to `configMAX_PRIORITIES - 1` (7 levels: 0 to 6; 25 on ESP-IDF: 0, 4, 8, 12, 16, 20, 24) | one number higher |
+| `ThreadXThread` | spread from `TX_MAX_PRIORITIES - 1` to 0 (32 levels: 31, 26, 21, 15, 10, 5, 0) | one number lower |
+| `ZephyrThread` | the preemptible priorities, `K_LOWEST_APPLICATION_THREAD_PRIO` to `K_PRIO_PREEMPT(0)`; a step above `TIME_CRITICAL` may reach the cooperative ones (with `CONFIG_NUM_PREEMPT_PRIORITIES=0`, the bands span the cooperative ones) | one number lower |
+| `CmsisRtos2Thread` | `osPriorityLow`, `osPriorityLow4`, `osPriorityBelowNormal`, `osPriorityNormal`, `osPriorityAboveNormal`, `osPriorityHigh`, `osPriorityRealtime` | the next named level (`osPriorityNormal1` ...) |
+| `NuttXThread` | `SCHED_FIFO`, `SCHED_PRIORITY_MIN` to `SCHED_PRIORITY_MAX` with `NORMAL` at `SCHED_PRIORITY_DEFAULT` (1, 34, 67, 100, 151, 203, 255) | one number higher |
+| `Win32Thread`, `StdlibThread` (Windows) | `THREAD_PRIORITY_IDLE` ... `THREAD_PRIORITY_TIME_CRITICAL` | ignored |
+| `PosixThread`, `StdlibThread`, `QtThread` (Linux) | the thread's nice value, 19, 10, 5, 0, -5, -10, -20 | ignored |
+
+- **A step stays within its band.** It orders threads inside a band without needing their numbers; one that would reach the next band's level, or pass the end of the range, faults (`DMQ_ASSERT`), so the bands keep their order. With few levels (FreeRTOS's 7) the bands use every level and a step has no room.
+- **The project places the bands.** `DMQ_PRIORITY_BAND_IDLE` ... `DMQ_PRIORITY_BAND_TIME_CRITICAL` in `DelegateMQConfig.h` give a band's native number, e.g. to keep `HIGHEST` below an ESP-IDF Wi-Fi task or a vendor stack. Unset bands keep the port's spread. Bands out of order or outside the port's range fault on the first `SetPriority()`.
+- **The native call stays.** `SetThreadPriority()` on each RTOS port takes the kernel's own number, for a thread that needs one exact level; whichever call comes last wins. A thread that never calls either keeps the port's default (`DMQ_THREADX_THREAD_PRIORITY` and the like), as before.
+- **Desktop.** Raising a thread on Linux, also back to `NORMAL` after lowering it, needs `CAP_SYS_NICE` (or `RLIMIT_NICE`); without it `SetPriority()` on a running thread returns false and the thread keeps its priority. A band set before `CreateThread()` applies as the thread starts, best effort. macOS: any band but `NORMAL` returns false. The desktop ports ignore a step and the `DMQ_PRIORITY_BAND_*` values. Don't call `SetPriority()` while another thread runs `ExitThread()` on the same thread: the OS may reuse an exited thread's id.
+- **Tested** by `test/portable/PriorityPortableTest.h` on every port: the band arithmetic, every band set before and after `CreateThread()`, and on the single-core RTOS samples (FreeRTOS simulator, Zephyr, CMSIS-RTOS2, NuttX, and `os/freertos-bare-metal` on QEMU's Cortex-M3) that of two threads made ready together, the more urgent band runs first. The portable tests' consumer threads use `SetPriority(LOWEST)`, which replaced each sample's own priority numbers.
 
 ### Core Affinity
 
