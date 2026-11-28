@@ -102,6 +102,16 @@ m_timer.Start(std::chrono::milliseconds(100));
 ```
 
 - Connect timers with `MakeTimerDelegate`, not `MakeDelegate`. It allows at most one tick in flight, so a slow handler can't flood the queue.
+- **One-shot (a timeout, a retry, debounce):** use `dmq::util::OneShotTimer`, one member instead of a `Timer`, a `ScopedConnection` and a delegate:
+
+```cpp
+dmq::util::OneShotTimer m_retry{ &m_thread };               // callback runs on m_thread
+m_retry.Start(200ms, dmq::MakeDelegate(this, &X::Retry));   // once, in 200 ms
+m_retry.Start(200ms);                                       // again before it fires: restarts (debounce)
+m_retry.Stop();
+```
+
+  After `Stop()` or a restart, the earlier expiry never runs the callback, even if it was already queued to the thread, so the callback needs no "is this still current?" check (a plain `Timer`'s queued callback would still run). Destroying it stops it. It still needs `ProcessTimers()`.
 - Call `ProcessTimers()` from a dedicated loop or task on desktop and RTOS ports. Only on bare metal may it run in a hardware ISR, and then: connect or disconnect a timer's `OnExpired` only while that timer is stopped (the subscriber list has no lock on bare metal), keep each timer to at most `DMQ_SIGNAL_SBO_COUNT` (8) subscribers (more allocate inside the ISR), and keep synchronous callbacks ISR-safe. If that doesn't fit, call it from the main loop instead. See "Bare Metal: ProcessTimers() in an ISR" in `Timer.h`. It must never block, so never connect a `DelegateAsyncWait` to `OnExpired`.
 - **Low power or precise timing:** instead of a fixed period, the loop can wait for `Timer::GetNextExpiry()`, woken early by `Timer::SetScheduleChangedHandler()` when a `Start()` adds a sooner deadline. Timers then fire on time and the CPU can sleep in between (tickless idle, `WFI`). See "Event-driven processing" in [llms.txt](../llms.txt).
 

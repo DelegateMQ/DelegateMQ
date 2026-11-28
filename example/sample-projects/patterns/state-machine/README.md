@@ -14,12 +14,12 @@ What each part of DelegateMQ does here:
 | Part | Role |
 | :--- | :--- |
 | `dmq::os::Thread` | The door's own thread (`SetThread()`). `Open()`, `Close()` and `Obstacle()` may be called from any thread: the transition map posts the call to the door's thread and returns. |
-| `dmq::util::Timer` | Travel time and auto-close. Each timer's `OnExpired` is connected with the door's thread, so its callback is queued like any other event. An entry action starts a timer and the matching exit action stops it. |
+| `dmq::util::OneShotTimer` | Travel time and auto-close, one member each. Constructed with the door's thread, so its callback is queued like any other event. An entry action starts a timer and the matching exit action stops it. |
 | `dmq::Signal` | `OnTransition` (from `StateMachine`). A control panel subscribes with its own thread, so it gets every transition, in order, on that thread. |
 | Async-wait delegate | The test reads the panel's log by running `TakeLog()` on the panel's thread and waiting for the result. |
 | `Timer::GetNextExpiry()` | The timer driver sleeps until the next deadline instead of polling, and `Timer::SetScheduleChangedHandler()` wakes it when a timer starts. |
 
-A timer can expire just as the state it was started for is left; its callback is then already queued. `Door` stamps the time it entered the state before starting the timer, and the callback ignores an expiry that came too soon after the stamp.
+A timer can expire just as the state it was started for is left; its callback is then already queued. `OneShotTimer` drops such an expiry itself: after `Stop()`, or a `Start()` that restarted it, the earlier expiry never runs the callback. With a plain `dmq::util::Timer` the callback would have to check the time itself.
 
 ## Tests
 

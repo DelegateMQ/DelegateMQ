@@ -1313,6 +1313,7 @@ extern void ShmRingTransportTests();
 extern void ShmOsTransportTests();
 extern void FramedStreamTransportTests();
 extern void LogTests();
+extern void OneShotTimerTests();
 #ifdef DMQ_ALLOCATOR
 extern void AllocatorTests();
 #endif
@@ -1344,6 +1345,7 @@ void RunDelegateUnitTests()
 		ShmOsTransportTests();
 		FramedStreamTransportTests();
 		LogTests();
+		OneShotTimerTests();
 #ifdef DMQ_ALLOCATOR
 		AllocatorTests();
 #endif

@@ -290,6 +290,7 @@
 // DMQ_TRANSPORT_* guard here.
 #if !defined(DMQ_THREAD_NONE)
     #include "extras/util/TimerDelegate.h"
+    #include "extras/util/OneShotTimer.h"
     #include "extras/util/AsyncInvoke.h"
     #include "extras/util/TransportMonitor.h"
     #include "extras/util/ThreadMonitor.h"

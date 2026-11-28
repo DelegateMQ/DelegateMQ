@@ -12,7 +12,7 @@
 
 #include "DelegateMQ.h"
 #include "StateMachine.h"   // active-fsm
-#include "extras/util/Timer.h"
+#include "extras/util/OneShotTimer.h"
 
 namespace cellutron {
 namespace process {
@@ -92,8 +92,9 @@ private:
 
     dmq::ScopedConnection m_valveConn;
     dmq::ScopedConnection m_pumpConn;
-    dmq::ScopedConnection m_timerConn;
-    dmq::util::Timer m_timer;
+    // The pump step's duration; its callback runs on the process thread, and
+    // never for a step that was already abandoned
+    dmq::util::OneShotTimer m_timer;
     std::shared_ptr<const PumpData> m_data;
 };
 

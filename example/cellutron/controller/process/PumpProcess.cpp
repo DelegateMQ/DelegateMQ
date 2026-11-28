@@ -24,7 +24,7 @@ void PumpProcess::SetThread(dmq::IThread& thread)
     StateMachine::SetThread(thread);
     m_valveConn = actuators::Actuators::GetInstance().OnValveChanged.Connect(dmq::MakeDelegate(this, &PumpProcess::OnValveChanged, thread));
     m_pumpConn = actuators::Actuators::GetInstance().OnPumpChanged.Connect(dmq::MakeDelegate(this, &PumpProcess::OnPumpChanged, thread));
-    m_timerConn = m_timer.OnExpired.Connect(dmq::MakeDelegate(this, &PumpProcess::OnTimerExpired, thread));
+    m_timer.SetThread(&thread);
 }
 
 void PumpProcess::Start(std::shared_ptr<const cellutron::process::PumpData> data)
@@ -139,6 +139,7 @@ STATE_DEFINE(cellutron::process::PumpProcess, Idle, NoEventData)
 STATE_DEFINE(cellutron::process::PumpProcess, ValveOpen, cellutron::process::PumpData)
 {
     m_data = data;
+    m_timer.Stop();     // a new step: an abandoned step's wait never completes it
     DMQ_LOG_INF("PumpProcess", "ST_VALVE_OPEN (ID: %d)", data->valveId);
     actuators::Actuators::GetInstance().SetValve(data->valveId, true);
 }
@@ -155,7 +156,7 @@ STATE_DEFINE(cellutron::process::PumpProcess, PumpOn, cellutron::process::PumpDa
 STATE_DEFINE(cellutron::process::PumpProcess, Waiting, cellutron::process::PumpData)
 {
     DMQ_LOG_INF("PumpProcess", "ST_WAITING (%lld ms)", (long long)data->duration.count());
-    m_timer.Start(data->duration, true);
+    m_timer.Start(data->duration, dmq::MakeDelegate(this, &PumpProcess::OnTimerExpired));
 }
 
 STATE_DEFINE(cellutron::process::PumpProcess, PumpOff, cellutron::process::PumpData)

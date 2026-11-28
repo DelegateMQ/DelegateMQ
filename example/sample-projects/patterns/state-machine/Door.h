@@ -15,7 +15,7 @@
 // map posts the call to the door's thread (BEGIN_TRANSITION_MAP) and returns.
 
 #include "StateMachine.h"
-#include "extras/util/Timer.h"
+#include "extras/util/OneShotTimer.h"
 
 class Door : public StateMachine
 {
@@ -54,21 +54,14 @@ private:
     void MotionDone();
     void AutoClose();
 
-    // Timer callbacks, dispatched onto the door's thread
-    void OnMotionTimer();
-    void OnAutoCloseTimer();
-
     dmq::os::Thread m_thread;
 
-    dmq::util::Timer m_motionTimer;
-    dmq::util::Timer m_autoCloseTimer;
-    dmq::ScopedConnection m_motionConn;
-    dmq::ScopedConnection m_autoCloseConn;
-
-    /// When the current state was entered. A timer can expire just as the state
-    /// it was started for is left, and its callback is then already queued on
-    /// the door's thread; comparing against this discards such stale expiries.
-    dmq::TimePoint m_stateEntered{};
+    // One-shot timers whose callbacks run on the door's thread, so never
+    // concurrently with a state action. An expiry from a timer the door has
+    // since stopped (the state it was started for was left) never runs, even
+    // if it was already queued to the thread.
+    dmq::util::OneShotTimer m_motionTimer{ &m_thread };
+    dmq::util::OneShotTimer m_autoCloseTimer{ &m_thread };
 
     // State functions
     STATE_DECLARE(Door, Closed, NoEventData)
