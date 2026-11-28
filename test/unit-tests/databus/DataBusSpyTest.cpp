@@ -1,6 +1,7 @@
 #include "DelegateMQ.h"
 #if defined(DMQ_DATABUS)
 #include "extras/databus/SpyReporter.h"
+#include "extras/databus/SpyLogSink.h"
 #endif
 #include <condition_variable>
 #include <mutex>
@@ -237,6 +238,69 @@ int DataBusSpyTestMain() {
         DMQ_ASSERT_TRUE(bridge.GetDropped() == 1);
         DMQ_ASSERT_TRUE(bridge.GetSent() == 0);
         bridge.Stop();
+    }
+
+    // 6. SpyLogSink: a log line reaches dmq-spy as "log/<level>/<tag>", from
+    //    this node, stamped by dmq::Clock, and the next handler gets it too
+    {
+        DataBus::ResetForTesting();
+        const dmq::LogHandler saved = dmq::GetLogHandler();
+
+        static std::atomic<int> nextCalls{0};
+        nextCalls = 0;
+        SpyCaptureTransport transport;
+        SpyReporter bridge;
+        DMQ_ASSERT_TRUE(bridge.Start(transport, "Logger"));
+        SpyLogSink::Attach(bridge, [](dmq::LogLevel, const char*, const char*) { nextCalls++; });
+
+        const uint64_t before = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+            dmq::Clock::now().time_since_epoch()).count());
+        DMQ_LOG_ERR("Pump", "sensor %d failed", 3);
+        dmq::Log(dmq::LogLevel::WRN, "Valve", "slow to open");
+        DMQ_ASSERT_TRUE(transport.WaitForSends(2));
+        DMQ_ASSERT_TRUE(nextCalls.load() == 2);
+
+        dmq::transport::DmqHeader header;
+        SpyPacket packet;
+        DMQ_ASSERT_TRUE(transport.Get(0, header, packet));
+        DMQ_ASSERT_TRUE(header.GetId() == SPY_REMOTE_ID);
+        DMQ_ASSERT_TRUE(packet.topic == "log/ERR/Pump");
+        DMQ_ASSERT_TRUE(packet.value == "sensor 3 failed");
+        DMQ_ASSERT_TRUE(packet.nodeId == "Logger");
+        DMQ_ASSERT_TRUE(packet.timestamp_us >= before);
+        DMQ_ASSERT_TRUE(transport.Get(1, header, packet));
+        DMQ_ASSERT_TRUE(packet.topic == "log/WRN/Valve");
+        DMQ_ASSERT_TRUE(packet.value == "slow to open");
+
+        // Detach(): the next handler takes over, nothing more goes to dmq-spy
+        SpyLogSink::Detach();
+        DMQ_ASSERT_TRUE(dmq::GetLogHandler() != &SpyLogSink::Handler);
+        DMQ_LOG_ERR("Pump", "after detach");
+        DMQ_ASSERT_TRUE(nextCalls.load() == 3);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        DMQ_ASSERT_TRUE(transport.Count() == 2);
+        bridge.Stop();
+
+        // Before Start() (or after Stop()), a line is dropped and counted. A
+        // line logged from the drop report itself (inside the sink) is skipped
+        // and counted, not sent again: logging can't loop
+        SpyReporter idle;
+        auto droppedConn = idle.OnDropped.Connect(dmq::MakeDelegate(
+            +[](uint32_t total) { DMQ_LOG_WRN("Spy", "%u dropped", static_cast<unsigned>(total)); }));
+        SpyLogSink::Attach(idle);
+        const uint32_t skippedBefore = SpyLogSink::GetSkipped();
+        DMQ_LOG_ERR("Pump", "nobody listening");
+        DMQ_ASSERT_TRUE(idle.GetDropped() == 1);
+        DMQ_ASSERT_TRUE(SpyLogSink::GetSkipped() == skippedBefore + 1);
+
+        // Attach() with the sink's own handler as next keeps the current next
+        // (chaining to itself would recurse forever)
+        SpyLogSink::Attach(idle, dmq::GetLogHandler());
+        DMQ_LOG_ERR("Pump", "still no loop");
+        SpyLogSink::Detach();
+        droppedConn.Disconnect();
+
+        dmq::SetLogHandler(saved);
     }
 
     std::cout << "DataBusSpyTest PASSED!" << std::endl;

@@ -151,7 +151,8 @@ private:
     Timer& operator=(const Timer&);
 
     /// Called to check for expired timers and callback registered clients.
-    bool CheckExpired();
+    /// @param[out] fellBehind set if a periodic timer missed whole periods
+    bool CheckExpired(bool& fellBehind);
 
     /// Get list head using the "Immortal" Pattern
     static Timer*& GetTimersHead()

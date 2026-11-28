@@ -209,7 +209,7 @@ public:
         // (LinuxUdpTransport binds the address it's given; the other UDP ports
         // already bind INADDR_ANY for SUB and ignore it.)
         if (m_recvTransport.Create(Transport::Type::SUB, "0.0.0.0", listenPort) != 0) {
-            printf("NetworkNode [%s]: ERROR - failed to open recv port %u\n", nodeName, listenPort);
+            DMQ_LOG_ERR("NetworkNode", "[%s] failed to open receive port %u", nodeName, listenPort);
             return false;
         }
         m_recvTransport.SetRecvTimeout(std::chrono::milliseconds(1));
@@ -315,7 +315,7 @@ public:
         node.name[nameLen] = '\0';
 
         if (node.rawTransport.Create(Transport::Type::PUB, addr, port) != 0) {
-            printf("NetworkNode: ERROR - failed to connect to peer '%s' at %s:%u\n", name, addr, port);
+            DMQ_LOG_ERR("NetworkNode", "failed to connect to peer \'%s\' at %s:%u", name, addr, port);
             return;
         }
 
@@ -339,19 +339,19 @@ public:
         dmq::xstring peerName(name);
         node.capConn = node.transportMonitor.OnCapExceeded.Connect(
             dmq::MakeDelegate([this, peerName](size_t n) {
-                printf("NetworkNode [%s]: cap exceeded (%zu unacked messages)\n",
-                       peerName.c_str(), n);
+                DMQ_LOG_WRN("NetworkNode", "[%s] cap exceeded (%lu unacked messages)",
+                       peerName.c_str(), static_cast<unsigned long>(n));
                 this->OnPeerCapExceeded(peerName, n);
             }));
         node.pendingConn = node.transportMonitor.OnPendingExceeded.Connect(
             dmq::MakeDelegate([this, peerName](size_t n) {
-                printf("NetworkNode [%s]: pending exceeded (%zu entries remain)\n",
-                       peerName.c_str(), n);
+                DMQ_LOG_WRN("NetworkNode", "[%s] pending exceeded (%lu entries remain)",
+                       peerName.c_str(), static_cast<unsigned long>(n));
                 this->OnPeerPendingExceeded(peerName, n);
             }));
         node.deliveryFailedConn = node.retryMonitor.OnDeliveryFailed.Connect(
             dmq::MakeDelegate([this, peerName](dmq::DelegateRemoteId id, uint16_t seq) {
-                printf("NetworkNode [%s]: delivery failed id=%u seq=%u (retries exhausted)\n",
+                DMQ_LOG_ERR("NetworkNode", "[%s] delivery failed id=%u seq=%u (retries exhausted)",
                        peerName.c_str(), id, seq);
                 this->OnDeliveryFailed(peerName, id, seq);
             }));
@@ -360,7 +360,7 @@ public:
                 // Only TIMEOUT is print-worthy here -- SUCCESS fires on every
                 // acked RELIABLE message and would flood the log under normal load.
                 if (status == TransportMonitor::Status::TIMEOUT) {
-                    printf("NetworkNode [%s]: send status TIMEOUT id=%u seq=%u (retry pending)\n",
+                    DMQ_LOG_WRN("NetworkNode", "[%s] send TIMEOUT id=%u seq=%u (retry pending)",
                            peerName.c_str(), id, seq);
                 }
                 this->OnPeerSendStatus(peerName, id, seq, status);

@@ -122,7 +122,7 @@ public:
             // ERR_DISPATCH). Not through OnDeliveryFailed: that is keyed by
             // (remoteId, seqNum), which here names the earlier message, still in
             // flight. Firing it would report that message as failed.
-            LOG_ERROR("RetryMonitor: SeqNum wraparound collision for seq {}", header.GetSeqNum());
+            DMQ_LOG_ERR("RetryMonitor", "seq number wraparound collision for seq %u", static_cast<unsigned>(header.GetSeqNum()));
             return -1;
         }
 
@@ -138,7 +138,7 @@ public:
                 dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
                 m_retryStore.erase(key);
             }
-            LOG_ERROR("RetryMonitor: TransportMonitor::Add() failed for seq {}", header.GetSeqNum());
+            DMQ_LOG_ERR("RetryMonitor", "TransportMonitor::Add() failed for seq %u", static_cast<unsigned>(header.GetSeqNum()));
             OnDeliveryFailed(header.GetId(), header.GetSeqNum());
             return -1;
         }
@@ -162,7 +162,7 @@ public:
             // erased == 0: OnStatusChanged() already abandoned the entry and
             // reported it (failed re-register while this Send() was running).
             if (erased > 0) {
-                LOG_ERROR("RetryMonitor: immediate Send() failure for seq {}", header.GetSeqNum());
+                DMQ_LOG_ERR("RetryMonitor", "Send() failed for seq %u", static_cast<unsigned>(header.GetSeqNum()));
                 OnDeliveryFailed(header.GetId(), header.GetSeqNum());
             }
         }
@@ -258,7 +258,7 @@ private:
                         dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
                         m_retryStore.erase(key);
                     }
-                    LOG_ERROR("RetryMonitor: immediate Send() failure while retrying seq {}", seqNum);
+                    DMQ_LOG_ERR("RetryMonitor", "Send() failed retrying seq %u", static_cast<unsigned>(seqNum));
                     OnDeliveryFailed(id, seqNum);
                 }
             } else {
@@ -266,7 +266,7 @@ private:
                     dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
                     m_retryStore.erase(key);
                 }
-                LOG_ERROR("RetryMonitor: TransportMonitor::Add() failed while retrying seq {}", seqNum);
+                DMQ_LOG_ERR("RetryMonitor", "TransportMonitor::Add() failed retrying seq %u", static_cast<unsigned>(seqNum));
                 OnDeliveryFailed(id, seqNum);
             }
         }
@@ -284,7 +284,7 @@ private:
                     erased = m_retryStore.erase(key);
                 }
                 if (erased > 0) {
-                    LOG_ERROR("RetryMonitor: TransportMonitor::Add() failed while re-registering seq {}", seqNum);
+                    DMQ_LOG_ERR("RetryMonitor", "TransportMonitor::Add() failed re-registering seq %u", static_cast<unsigned>(seqNum));
                     OnDeliveryFailed(id, seqNum);
                 }
             }
@@ -292,7 +292,7 @@ private:
 
         if (shouldReportFailure)
         {
-            LOG_ERROR("RetryMonitor: Max retries exceeded for seq {}", seqNum);
+            DMQ_LOG_ERR("RetryMonitor", "max retries exceeded for seq %u", static_cast<unsigned>(seqNum));
             OnDeliveryFailed(id, seqNum);
         }
     }

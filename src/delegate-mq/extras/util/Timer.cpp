@@ -86,8 +86,6 @@ void Timer::Start(dmq::Duration timeout, bool once)
             m_next = GetTimersHead();
             GetTimersHead() = this;
         }
-
-        LOG_INFO("Timer::Start timeout={}", m_timeout.count());
     }
 
     // Outside the lock: a driver sleeping on GetNextExpiry() recomputes its deadline
@@ -107,14 +105,12 @@ void Timer::Stop()
     // Don't remove immediately! Just set a flag.
     // Let ProcessTimers() handle the actual removal safely.
     m_timerStopped = true;
-
-    LOG_INFO("Timer::Stop timeout={}", m_timeout.count());
 }
 
 //------------------------------------------------------------------------------
 // CheckExpired
 //------------------------------------------------------------------------------
-bool Timer::CheckExpired()
+bool Timer::CheckExpired(bool& fellBehind)
 {
     if (!m_enabled)
         return false;
@@ -143,10 +139,11 @@ bool Timer::CheckExpired()
             // very next ProcessTimers() call.
             m_expireTime = now + m_timeout;
 
-            // Timer processing is falling behind. Maybe user timer expiration is too 
-            // short, time processing takings too long, or CheckExpired not called 
-            // frequently enough. 
-            LOG_INFO("Timer::CheckExpired Timer Processing Falling Behind");
+            // Timer processing is falling behind. Maybe user timer expiration is too
+            // short, time processing takings too long, or CheckExpired not called
+            // frequently enough. Reported by ProcessTimers() once the lock is
+            // released: no log handler may run with interrupts masked.
+            fellBehind = true;
         }
     }
 
@@ -168,6 +165,7 @@ void Timer::ProcessTimers()
         std::array<dmq::Signal<void()>::Snapshot, dmq::MAX_TIMER_EXPIRED> snapshots;
         count = 0;
         size_t remaining = 0;
+        bool fellBehind = false;
 
         {
             // Held until every timer found expired below has had its subscribers
@@ -215,7 +213,7 @@ void Timer::ProcessTimers()
                         break;
                     }
 
-                    if (t->CheckExpired())
+                    if (t->CheckExpired(fellBehind))
                         expired[count++] = t;
                     t = t->m_next;
                 }
@@ -240,8 +238,16 @@ void Timer::ProcessTimers()
             snapshots[i] = {};  // release shared_ptr refs so delegates aren't held between calls
         }
 
+        if (fellBehind) {
+            // Rate-limited: the first time, then every 100th. A plain counter
+            // (one driver calls ProcessTimers(); a lost count is harmless).
+            static uint32_t s_fellBehind = 0;
+            if (++s_fellBehind == 1 || s_fellBehind % 100 == 0)
+                DMQ_LOG_WRN("Timer", "processing falling behind: periodic timers missed whole periods (%lu times)",
+                            static_cast<unsigned long>(s_fellBehind));
+        }
         if (remaining > 0) {
-            LOG_ERROR("Timer::ProcessTimers: batch cap reached, {} timers remain — continuing drain.", remaining);
+            DMQ_LOG_WRN("Timer", "batch cap reached, %lu timers remain: continuing", static_cast<unsigned long>(remaining));
         }
 
     } while (count == dmq::MAX_TIMER_EXPIRED);

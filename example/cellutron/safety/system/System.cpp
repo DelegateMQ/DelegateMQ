@@ -6,6 +6,8 @@
 #include "messages/FaultMsg.h"
 #include "extras/util/ThreadMonitor.h"
 #include "SpyBridge.h"
+#include "extras/databus/SpyLogSink.h"
+#include "extras/util/LogSinks.h"
 #include "NodeBridge.h"
 #include <cstdio>
 
@@ -22,7 +24,7 @@ System::System()
 }
 
 void System::Initialize() {
-    printf("Safety: System initializing...\n");
+    DMQ_LOG_INF("Safety", "System initializing...");
 
     cellutron::RegisterSerializers();
     cellutron::RegisterStringifiers();
@@ -42,7 +44,7 @@ void System::Initialize() {
 
     m_heartbeat.Start();
 
-    printf("Safety: System ready.\n");
+    DMQ_LOG_INF("Safety", "System ready.");
 }
 
 void System::Shutdown() {
@@ -70,10 +72,10 @@ void System::OnSpeed(CentrifugeSpeedMsg msg) {
     if (msg.rpm > MAX_CENTRIFUGE_RPM) {
         if (!m_faulted) {
             m_faulted = true;
-            printf("Safety: CRITICAL - Centrifuge speed exceeded limit! (%u RPM). TRIGGERING FAULT.\n", msg.rpm);
+            DMQ_LOG_ERR("Safety", "Centrifuge speed exceeded limit! (%u RPM). TRIGGERING FAULT.", msg.rpm);
             dmq::databus::DataBus::Publish<FaultMsg>(topics::FAULT, { FAULT_OVERSPEED });
         } else {
-            printf("Safety: Overspeed still active (%u RPM). System already faulted.\n", msg.rpm);
+            DMQ_LOG_INF("Safety", "Overspeed still active (%u RPM). System already faulted.", msg.rpm);
         }
     }
 }
@@ -86,20 +88,20 @@ void System::OnFault(FaultMsg) {
 }
 
 void System::OnDataBusError(const dmq::xstring& topic, dmq::DelegateError error) {
-    printf("Safety: DataBus ERROR - topic=%s error=%d\n", topic.c_str(), static_cast<int>(error));
+    DMQ_LOG_ERR("Safety", "DataBus ERROR - topic=%s error=%d", topic.c_str(), static_cast<int>(error));
 }
 
 void System::OnDeliveryFailed(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum) {
-    printf("Safety: CRITICAL - delivery to %s failed (id=%u seq=%u, retries exhausted)\n",
+    DMQ_LOG_ERR("Safety", "delivery to %s failed (id=%u seq=%u, retries exhausted)",
            peerName.c_str(), id, seqNum);
 }
 
 void System::OnPeerCapExceeded(const dmq::xstring& peerName, size_t count) {
-    printf("Safety: WARNING - unacked-message cap exceeded for %s (%zu messages)\n", peerName.c_str(), count);
+    DMQ_LOG_WRN("Safety", "unacked-message cap exceeded for %s (%zu messages)", peerName.c_str(), count);
 }
 
 void System::OnPeerPendingExceeded(const dmq::xstring& peerName, size_t remaining) {
-    printf("Safety: WARNING - retry backlog not draining fast enough for %s (%zu remaining)\n", peerName.c_str(), remaining);
+    DMQ_LOG_WRN("Safety", "retry backlog not draining fast enough for %s (%zu remaining)", peerName.c_str(), remaining);
 }
 
 void System::OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum,
@@ -108,13 +110,17 @@ void System::OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteI
     // fires once, only after the retry budget is exhausted. SUCCESS (every acked
     // RELIABLE message) is intentionally not logged here to avoid flooding output.
     if (status == dmq::util::TransportMonitor::Status::TIMEOUT) {
-        printf("Safety: NOTICE - still retrying delivery to %s (id=%u seq=%u)\n",
+        DMQ_LOG_INF("Safety", "still retrying delivery to %s (id=%u seq=%u)",
                peerName.c_str(), id, seqNum);
     }
 }
 
 void System::SetupNetwork() {
     SpyBridge::Start("127.0.0.1", 9999, "Safety");
+    // DMQ_LOG_* lines (this app's and the library's) to the console, and to
+    // dmq-spy as "log/<level>/<tag>", next to this node's DataBus traffic
+    if (auto* reporter = SpyBridge::GetReporter())
+        dmq::databus::SpyLogSink::Attach(*reporter, &dmq::log::StdioSink);
     NodeBridge::StartMulticast("Safety", "239.1.1.1", 9998);
     NodeBridge::Watch(m_network);   // link health in dmq-monitor's Health column
 

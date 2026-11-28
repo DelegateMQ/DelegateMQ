@@ -28,7 +28,7 @@ void Sensors::Initialize() {
     m_pollTimerConn = m_pollTimer.OnExpired.Connect(dmq::util::MakeTimerDelegate(this, &Sensors::Poll, m_thread));
     m_pollTimer.Start(std::chrono::milliseconds(50));
 
-    printf("Sensors: Subsystem initialized.\n");
+    DMQ_LOG_INF("Sensors", "Subsystem initialized.");
 }
 
 void Sensors::Shutdown() {

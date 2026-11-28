@@ -423,7 +423,7 @@ bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
             DMQ_ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
-            printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+            DMQ_LOG_WRN("Thread", "queue post timed out on \'%s\' (possible deadlock): message dropped", THREAD_NAME.c_str());
             if (m_droppedHandler)
                 m_droppedHandler(GetQueueSize());
         } else { // DROP

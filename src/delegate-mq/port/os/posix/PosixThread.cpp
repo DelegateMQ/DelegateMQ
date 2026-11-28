@@ -368,7 +368,7 @@ bool PosixThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             {
                 size_t depth = m_highQueue.size() + m_normalQueue.size();
                 pthread_mutex_unlock(&m_mutex);
-                printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+                DMQ_LOG_WRN("Thread", "queue post timed out on \'%s\' (possible deadlock): message dropped", THREAD_NAME.c_str());
                 if (m_droppedHandler)
                     m_droppedHandler(depth);
                 return false;

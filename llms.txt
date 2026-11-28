@@ -426,6 +426,13 @@ For unsupported platforms, implement the `dmq::IThread` interface and the librar
 - PlatformIO: `lib_deps = endurodave/DelegateMQ@^3.0.0`, C++17 and RTTI enabled, `DelegateMQConfig.h` in the project's `include/` folder (not `src/`). STM32 Arduino cores don't start FreeRTOS: add `stm32duino/STM32duino FreeRTOS` and call `vTaskStartScheduler()` from `setup()`. See [PLATFORMIO](example/platformio/PLATFORMIO.md) and `example/platformio/async-delegates`.
 - Key CMake options: `DMQ_THREAD` (e.g., `DMQ_THREAD_STDLIB`, `DMQ_THREAD_FREERTOS`, `DMQ_THREAD_WIN32`), `DMQ_ALLOCATOR` (fixed-block allocator), `DMQ_ASSERTS`, `DMQ_TOOLS`.
 
+## Logging
+
+- `DMQ_LOG_ERR/WRN/INF/DBG("Tag", "fmt", ...)` (printf-style) and `dmq::Log()` on every port (`extras/util/Log.h`, included by `DelegateMQ.h`). One handler receives every line: `dmq::SetLogHandler(void (*)(dmq::LogLevel, const char* tag, const char* msg))`. Default: `printf()` as `[INF] Tag: text` (spdlog with `DMQ_LOG`); `SetLogHandler(nullptr)` silences.
+- Sinks: `dmq::log::StdioSink` (printf under a `dmq::Mutex`, also safe on the FreeRTOS simulators), `EspLogSink`, `ZephyrSink`, `NuttXSink` (`extras/util/LogSinks.h`); `dmq::databus::SpyLogSink::Attach(spyReporter, next)` (`extras/databus/SpyLogSink.h`) sends each line to `dmq-spy` as topic `log/<level>/<tag>` and to `next`.
+- `DMQ_LOG_LEVEL` (default 3) compiles out higher levels; `DMQ_LOG_LINE_SIZE` (128) bytes per line on the caller's stack, longer lines truncated and counted (`dmq::GetLogTruncatedCount()`).
+- The handler runs on the calling thread; not from an interrupt. The library logs only outside its critical sections. `LogLevel` uses `ERR/WRN/INF/DBG` (ERROR and DEBUG are macros in Windows headers). The old spdlog-only `LOG_INFO/LOG_DEBUG/LOG_ERROR` macros are gone (they clashed with `<syslog.h>`).
+
 ## Diagnostic Tools (DMQ_TOOLS=ON)
 
 Desktop-only (`tools/`), not part of the library. See [TOOLS](tools/TOOLS.md).
@@ -438,7 +445,7 @@ Desktop-only (`tools/`), not part of the library. See [TOOLS](tools/TOOLS.md).
 
 Bridges an application links in (`tools/bridge/`):
 
-- `spy/SpyBridge` — mirrors the node's DataBus traffic to `dmq-spy` over UDP (needs stringifiers via `DataBus::RegisterStringifier`)
+- `spy/SpyBridge` — mirrors the node's DataBus traffic to `dmq-spy` over UDP (needs stringifiers via `DataBus::RegisterStringifier`); `SpyBridge::GetReporter()` for `SpyLogSink::Attach()`
 - `node/NodeBridge` — heartbeats and thread stats to `dmq-monitor` / `dmq-thread`
 - `common/JsonTopics` — shared JSON bridge layer: declare once which topics to expose (`Expose<T>(topic, toJson, {latched, reliable})`) and which commands to accept (`Accept<T>(topic, fromJson)`); every JSON bridge serves that set
 - `mqtt/MqttBridge` — MQTT gateway for JsonTopics: `<prefix>/<topic>` JSON payloads, commands on `<prefix>/<topic>/set`, retained latched state, `<prefix>/online` Last Will. Standard MQTT for any MQTT client; built with `dmq_add_mqtt_bridge(target)` from `tools/bridge/mqtt/MqttBridge.cmake` (Paho MQTT C)

@@ -23,6 +23,7 @@
 #include "selftest/SelfTest.h"
 #include "util/Constants.h"
 #include "SpyBridge.h"
+#include "extras/databus/SpyLogSink.h"
 #include "NodeBridge.h"
 #if defined(PUMPTRON_HAVE_MQTT)
 #include "system/MqttGateway.h"
@@ -152,6 +153,14 @@ static void OnWatchdog()
     }
 }
 
+/// Stop sending to dmq-spy: log lines first (SpyBridge::Stop() destroys the
+/// reporter they go to), then the bridge
+static void StopSpy()
+{
+    dmq::databus::SpyLogSink::Detach();
+    SpyBridge::Stop();
+}
+
 int main(int argc, char* argv[])
 {
     System::Options options;
@@ -181,14 +190,19 @@ int main(int argc, char* argv[])
     // including every message received from the controller, which the link
     // re-publishes locally. Started before the full-screen UI, since it logs
     // a line to stdout.
-    if (spy.enabled)
+    if (spy.enabled) {
         SpyBridge::Start(spy.host, static_cast<uint16_t>(spy.port), "GUI");
+        // DMQ_LOG_* lines (the link, the library) to dmq-spy as "log/<level>/<tag>";
+        // not to the console, which the full-screen UI owns
+        if (auto* reporter = SpyBridge::GetReporter())
+            dmq::databus::SpyLogSink::Attach(*reporter);
+    }
 
     std::string error;
     if (!System::GetInstance().Initialize(options, error)) {
         fprintf(stderr, "Pumptron GUI: %s\n", error.c_str());
         if (spy.enabled)
-            SpyBridge::Stop();
+            StopSpy();
         System::GetInstance().Shutdown();
         return 1;
     }
@@ -225,7 +239,7 @@ int main(int argc, char* argv[])
         if (!StartMqttGateway(gatewayOptions)) {
             fprintf(stderr, "Pumptron GUI: could not start the MQTT gateway for %s\n", mqtt.brokerUri.c_str());
             if (spy.enabled)
-                SpyBridge::Stop();
+                StopSpy();
             System::GetInstance().Shutdown();
             return 1;
         }
@@ -251,7 +265,7 @@ int main(int argc, char* argv[])
     mqttEventConn.Disconnect();
 #endif
     if (spy.enabled)
-        SpyBridge::Stop();
+        StopSpy();
     if (monitor) {
         dmq::util::ThreadMonitor::Disable();
         NodeBridge::Stop();

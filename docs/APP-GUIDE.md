@@ -318,6 +318,7 @@ Details: [extras/rpc](../src/delegate-mq/extras/rpc/README.md), [DETAILS: Remote
 ## Diagnostics and Interop
 
 - **Watch the bus:** link `SpyBridge` (`tools/bridge/spy`) and register a stringifier per topic with `DataBus::RegisterStringifier<T>(topic, func)`, then run `dmq-spy` (build with `DMQ_TOOLS=ON`). `NodeBridge` feeds `dmq-monitor` and `dmq-thread`. These are desktop tools; the bridges send UDP from the node.
+- **Log:** write `DMQ_LOG_ERR/WRN/INF/DBG("Tag", "fmt", ...)` instead of `printf()`, and pick where lines go once at startup with `dmq::SetLogHandler()`: `dmq::log::StdioSink`, `EspLogSink`, `ZephyrSink` or `NuttXSink` (`extras/util/LogSinks.h`), or your own function. The library's own messages use the same handler. `dmq::databus::SpyLogSink::Attach(spy, &dmq::log::StdioSink)` also sends every line to `dmq-spy` (topic `log/<level>/<tag>`), where `--log` captures it to disk. Not from an interrupt. See [Logging](DETAILS.md#logging).
 - **MQTT and JSON:** declare topics once with `JsonTopics::Expose<T>()` / `Accept<T>()` and link `MqttBridge`. Don't write per-topic bridge code. See `databus/mqtt-gateway`.
 - **Python and C#:** peers use `interop/python` or `interop/csharp` over the `DmqInterop` C API. Messages crossing languages use MessagePack (`MSGPACK_DEFINE` on the C++ type), with the same topic names and remote IDs on both sides.
 

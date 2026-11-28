@@ -7,6 +7,8 @@
 #include "Constants.h"
 #include "extras/util/ThreadMonitor.h"
 #include "SpyBridge.h"
+#include "extras/databus/SpyLogSink.h"
+#include "extras/util/LogSinks.h"
 #include "NodeBridge.h"
 #include <cstdio>
 
@@ -23,7 +25,7 @@ System::System()
 }
 
 void System::Initialize() {
-    printf("Controller: System initializing...\n");
+    DMQ_LOG_INF("Controller", "System initializing...");
 
     cellutron::RegisterSerializers();
     cellutron::RegisterStringifiers();
@@ -45,7 +47,7 @@ void System::Initialize() {
     actuators::Actuators::GetInstance().GetThread().SetStartGate(&m_startGate);
     sensors::Sensors::GetInstance().GetThread().SetStartGate(&m_startGate);
     if (!m_thread.CreateThread(WATCHDOG_TIMEOUT)) {
-        printf("Controller: ERROR - Failed to create system thread!\n");
+        DMQ_LOG_ERR("Controller", "Failed to create system thread!");
         return;
     }
 
@@ -68,7 +70,7 @@ void System::Initialize() {
     // 6. All threads created and wired: start them together
     m_startGate.Open();
 
-    printf("Controller: System ready.\n");
+    DMQ_LOG_INF("Controller", "System ready.");
 }
 
 void System::Shutdown() {
@@ -88,14 +90,14 @@ void System::SetupLocalSubscriptions() {
 
 void System::OnStart(StartProcessMsg msg) {
     if (m_startGuard.IsNewer(msg.seq)) {
-        printf("Controller: >>>> RECEIVED START COMMAND <<<<\n");
+        DMQ_LOG_INF("Controller", ">>>> RECEIVED START COMMAND <<<<");
         process::Process::GetInstance().Start();
     }
 }
 
 void System::OnStop(StopProcessMsg msg) {
     if (m_stopGuard.IsNewer(msg.seq)) {
-        printf("Controller: >>>> RECEIVED ABORT COMMAND <<<<\n");
+        DMQ_LOG_INF("Controller", ">>>> RECEIVED ABORT COMMAND <<<<");
         process::Process::GetInstance().Abort();
     }
 }
@@ -105,26 +107,26 @@ void System::OnFault(FaultMsg msg) {
     // over ordering; a "nuisance trip" from an old fault is safer than missing 
     // a trip due to a sequencing race.
     if (process::Process::GetInstance().GetCellProcess().GetCurrentState() != process::CellProcess::ST_FAULT) {
-        printf("Controller: >>>> CRITICAL FAULT RECEIVED (Code: %d) <<<<\n", msg.faultCode);
+        DMQ_LOG_ERR("Controller", ">>>> CRITICAL FAULT RECEIVED (Code: %d) <<<<", msg.faultCode);
         process::Process::GetInstance().Fault();
     }
 }
 
 void System::OnDataBusError(const dmq::xstring& topic, dmq::DelegateError error) {
-    printf("Controller: DataBus ERROR - topic=%s error=%d\n", topic.c_str(), static_cast<int>(error));
+    DMQ_LOG_ERR("Controller", "DataBus ERROR - topic=%s error=%d", topic.c_str(), static_cast<int>(error));
 }
 
 void System::OnDeliveryFailed(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum) {
-    printf("Controller: CRITICAL - delivery to %s failed (id=%u seq=%u, retries exhausted)\n",
+    DMQ_LOG_ERR("Controller", "delivery to %s failed (id=%u seq=%u, retries exhausted)",
            peerName.c_str(), id, seqNum);
 }
 
 void System::OnPeerCapExceeded(const dmq::xstring& peerName, size_t count) {
-    printf("Controller: WARNING - unacked-message cap exceeded for %s (%zu messages)\n", peerName.c_str(), count);
+    DMQ_LOG_WRN("Controller", "unacked-message cap exceeded for %s (%zu messages)", peerName.c_str(), count);
 }
 
 void System::OnPeerPendingExceeded(const dmq::xstring& peerName, size_t remaining) {
-    printf("Controller: WARNING - retry backlog not draining fast enough for %s (%zu remaining)\n", peerName.c_str(), remaining);
+    DMQ_LOG_WRN("Controller", "retry backlog not draining fast enough for %s (%zu remaining)", peerName.c_str(), remaining);
 }
 
 void System::OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteId id, uint16_t seqNum,
@@ -133,13 +135,17 @@ void System::OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteI
     // fires once, only after the retry budget is exhausted. SUCCESS (every acked
     // RELIABLE message) is intentionally not logged here to avoid flooding output.
     if (status == dmq::util::TransportMonitor::Status::TIMEOUT) {
-        printf("Controller: NOTICE - still retrying delivery to %s (id=%u seq=%u)\n",
+        DMQ_LOG_INF("Controller", "still retrying delivery to %s (id=%u seq=%u)",
                peerName.c_str(), id, seqNum);
     }
 }
 
 void System::SetupNetwork() {
     SpyBridge::Start("127.0.0.1", 9999, "Controller");
+    // DMQ_LOG_* lines (this app's and the library's) to the console, and to
+    // dmq-spy as "log/<level>/<tag>", next to this node's DataBus traffic
+    if (auto* reporter = SpyBridge::GetReporter())
+        dmq::databus::SpyLogSink::Attach(*reporter, &dmq::log::StdioSink);
     NodeBridge::StartMulticast("Controller", "239.1.1.1", 9998);
     NodeBridge::Watch(m_network);   // link health in dmq-monitor's Health column
 

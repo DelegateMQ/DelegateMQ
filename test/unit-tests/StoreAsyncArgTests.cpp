@@ -10,7 +10,7 @@ using namespace dmq;
 // heapArgs frees later.
 void StoreAsyncArgTests()
 {
-    LOG_INFO("StoreAsyncArgTests Begin");
+    DMQ_LOG_INF("UnitTests", "StoreAsyncArgTests Begin");
 
     // Test 1: By-value parameter, r-value argument: no heap allocation
     {
@@ -101,5 +101,5 @@ void StoreAsyncArgTests()
     }
 
     std::cout << "StoreAsyncArgTests() complete!" << std::endl;
-    LOG_INFO("StoreAsyncArgTests End");
+    DMQ_LOG_INF("UnitTests", "StoreAsyncArgTests End");
 }

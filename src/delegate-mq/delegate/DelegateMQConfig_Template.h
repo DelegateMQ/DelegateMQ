@@ -78,6 +78,17 @@
 #define DMQ_ZEPHYR_THREAD_PRIORITY      5
 #define DMQ_NUTTX_THREAD_PRIORITY       100
 
+/// dmq::Log() and DMQ_LOG_ERR/WRN/INF/DBG (extras/util/Log.h): the most detailed
+/// level compiled in: 0 none, 1 errors, 2 adds warnings, 3 info, 4 debug. Lines
+/// above it cost no code or flash. Nothing is printed until the app sets a
+/// handler with dmq::SetLogHandler().
+#define DMQ_LOG_LEVEL                   3
+
+/// Longest log line, in bytes with the terminating NUL. It is formatted on the
+/// calling thread's stack; a longer line is truncated and counted
+/// (dmq::GetLogTruncatedCount()).
+#define DMQ_LOG_LINE_SIZE               128
+
 /// Native priority of each dmq::os::ThreadPriority band (Thread::SetPriority()) on
 /// the RTOS ports. Left undefined, the port spreads the seven bands across its
 /// own range (FreeRTOS: 0 to configMAX_PRIORITIES-1; ThreadX: TX_MAX_PRIORITIES-1

@@ -108,6 +108,7 @@ You may occasionally see negative values in the Delta columns (e.g., `-0.015` ms
 *   **Intelligent Color-Coding**: Values are highlighted based on content (Green for OK/Running, Red for Error/Fault, Yellow for Warn).
 *   **Unicast & Multicast Support**: Monitor point-to-point traffic or join a multicast group for one-to-many monitoring.
 *   **Log to Disk**: High-performance background logging to a file for later historical analysis.
+*   **Target Log Lines**: A node that attaches `dmq::databus::SpyLogSink` (`extras/databus/SpyLogSink.h`) sends its log lines (`DMQ_LOG_ERR/WRN/INF/DBG`, the library's own included) as messages on topic `log/<level>/<tag>`, e.g. `log/ERR/RetryMonitor`, in time order with its DataBus traffic. Filter with `log`, `log/ERR` or a tag; `--echo log` prints only them, and `--log` captures them to disk with everything else.
 *   **High-Resolution Timestamps**: Every packet is timestamped at the source with microsecond precision using monotonic clocks.
 *   **Pause & Resume**: Press `Ctrl-P` to freeze the display for inspection. Data continues to be gathered in the background circular buffer (2,000 entries).
 *   **Zero-Impact Architecture**: The Spy Bridge uses an asynchronous internal queue and a dedicated background thread to ensure monitoring never blocks or slows down your main application.

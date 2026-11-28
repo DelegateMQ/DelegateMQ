@@ -155,11 +155,11 @@ void DispatchAsync(std::shared_ptr<IThreadInvoker> invoker, IThread* thread, Pri
 
     if (thread) {
         // Dispatch message onto the callback destination thread. Invoke()
-        // will be called by the destintation thread.
-        bool success = thread->DispatchDelegate(msg);
-        if (!success) {
-            LOG_ERROR("DelegateAsync dispatch failed");
-        }
+        // will be called by the destintation thread. A rejected message
+        // (FullPolicy::DROP, a thread that has exited) is reported by the
+        // thread (SetDroppedHandler()), not logged here: a log handler that
+        // dispatches (SpyLogSink) would recurse on a full queue.
+        (void)thread->DispatchDelegate(msg);
     }
 }
 

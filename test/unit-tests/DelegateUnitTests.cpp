@@ -1312,6 +1312,7 @@ extern void IsrDelegateTests();
 extern void ShmRingTransportTests();
 extern void ShmOsTransportTests();
 extern void FramedStreamTransportTests();
+extern void LogTests();
 #ifdef DMQ_ALLOCATOR
 extern void AllocatorTests();
 #endif
@@ -1319,7 +1320,7 @@ extern void StoreAsyncArgTests();
 
 void RunDelegateUnitTests()
 {
-	LOG_INFO("DelegateUnitTests Begin");
+	DMQ_LOG_INF("UnitTests", "DelegateUnitTests Begin");
 
 	try
 	{
@@ -1342,6 +1343,7 @@ void RunDelegateUnitTests()
 		ShmRingTransportTests();
 		ShmOsTransportTests();
 		FramedStreamTransportTests();
+		LogTests();
 #ifdef DMQ_ALLOCATOR
 		AllocatorTests();
 #endif
@@ -1349,13 +1351,13 @@ void RunDelegateUnitTests()
 	}
 	catch (const std::exception& e)
 	{
-		LOG_ERROR("Unit Tests Failed: {}", e.what());
+		DMQ_LOG_ERR("UnitTests", "failed: %s", e.what());
 		std::cout << "Unit Tests Failed: " << e.what() << std::endl;
 		DMQ_ASSERT_TRUE(false);
 	}
 	catch (...)
 	{
-		LOG_ERROR("Unit Tests Failed!");
+		DMQ_LOG_ERR("UnitTests", "failed");
 		std::cout << "Unit Tests Failed!" << std::endl;
 		DMQ_ASSERT_TRUE(false);
 	}
@@ -1388,13 +1390,13 @@ void RunDelegateUnitTests()
 	}
 	catch(const std::exception& e)
 	{
-		LOG_ERROR("Unit Tests Failed: {}", e.what());
+		DMQ_LOG_ERR("UnitTests", "failed: %s", e.what());
 		std::cout << "Unit Tests Failed: " << e.what() << std::endl;
 		DMQ_ASSERT_TRUE(false);
 	}
 	catch (...)
 	{
-		LOG_ERROR("Unit Tests Failed!");
+		DMQ_LOG_ERR("UnitTests", "failed");
 		std::cout << "Unit Tests Failed!" << std::endl;
 		DMQ_ASSERT_TRUE(false);
 	}
@@ -1409,6 +1411,6 @@ void RunDelegateUnitTests()
 
 	testThread.ExitThread();
 
-	LOG_INFO("DelegateUnitTests End");
+	DMQ_LOG_INF("UnitTests", "DelegateUnitTests End");
 }
 

@@ -213,7 +213,7 @@ DMQ_NORETURN void FaultHandler(const char* file, unsigned short line)
     RunFaultHook(file, line);
 
 #if defined(_WIN32) || defined(__linux__)
-    LOG_ERROR("FaultHandler File={} Line={}", file, line);
+    DMQ_LOG_ERR("Fault", "FaultHandler File=%s Line=%u", file, static_cast<unsigned>(line));
 #endif
 
     // 2. PRINT STACK TRACES

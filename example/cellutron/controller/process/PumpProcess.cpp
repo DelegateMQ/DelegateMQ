@@ -132,20 +132,20 @@ void PumpProcess::TimerDone()
 
 STATE_DEFINE(cellutron::process::PumpProcess, Idle, NoEventData)
 {
-    printf("PumpProcess: ST_IDLE\n");
+    DMQ_LOG_INF("PumpProcess", "ST_IDLE");
     m_data = nullptr;
 }
 
 STATE_DEFINE(cellutron::process::PumpProcess, ValveOpen, cellutron::process::PumpData)
 {
     m_data = data;
-    printf("PumpProcess: ST_VALVE_OPEN (ID: %d)\n", data->valveId);
+    DMQ_LOG_INF("PumpProcess", "ST_VALVE_OPEN (ID: %d)", data->valveId);
     actuators::Actuators::GetInstance().SetValve(data->valveId, true);
 }
 
 STATE_DEFINE(cellutron::process::PumpProcess, PumpOn, cellutron::process::PumpData)
 {
-    printf("PumpProcess: ST_PUMP_ON (Speed: %d%%, Reverse: %s)\n", 
+    DMQ_LOG_INF("PumpProcess", "ST_PUMP_ON (Speed: %d%%, Reverse: %s)",
         data->speed, data->reverse ? "YES" : "NO");
     // Use fixed Pump ID 1. Apply negative speed for reverse direction.
     int targetSpeed = data->reverse ? -static_cast<int>(data->speed) : static_cast<int>(data->speed);
@@ -154,26 +154,26 @@ STATE_DEFINE(cellutron::process::PumpProcess, PumpOn, cellutron::process::PumpDa
 
 STATE_DEFINE(cellutron::process::PumpProcess, Waiting, cellutron::process::PumpData)
 {
-    printf("PumpProcess: ST_WAITING (%lld ms)\n", (long long)data->duration.count());
+    DMQ_LOG_INF("PumpProcess", "ST_WAITING (%lld ms)", (long long)data->duration.count());
     m_timer.Start(data->duration, true);
 }
 
 STATE_DEFINE(cellutron::process::PumpProcess, PumpOff, cellutron::process::PumpData)
 {
-    printf("PumpProcess: ST_PUMP_OFF\n");
+    DMQ_LOG_INF("PumpProcess", "ST_PUMP_OFF");
     // Use fixed Pump ID 1
     actuators::Actuators::GetInstance().SetPump(1, 0);
 }
 
 STATE_DEFINE(cellutron::process::PumpProcess, ValveClose, cellutron::process::PumpData)
 {
-    printf("PumpProcess: ST_VALVE_CLOSE (ID: %d)\n", data->valveId);
+    DMQ_LOG_INF("PumpProcess", "ST_VALVE_CLOSE (ID: %d)", data->valveId);
     actuators::Actuators::GetInstance().SetValve(data->valveId, false);
 }
 
 STATE_DEFINE(cellutron::process::PumpProcess, Complete, NoEventData)
 {
-    printf("PumpProcess: ST_COMPLETE\n");
+    DMQ_LOG_INF("PumpProcess", "ST_COMPLETE");
     OnComplete();
     InternalEvent(ST_IDLE);
 }

@@ -32,6 +32,8 @@
 #include "DelegateMQ.h"
 #include "extras/databus/NetworkNode.h"
 #include "extras/databus/SpyReporter.h"
+#include "extras/databus/SpyLogSink.h"
+#include "extras/util/LogSinks.h"
 #include "extras/databus/NodeReporter.h"
 #include "extras/util/ThreadMonitor.h"
 #include "pump/PumpController.h"
@@ -119,6 +121,8 @@ dmq::os::Thread* StartSpy()
     // hung thread (WatchdogCheckAll() in the platform loop)
     if (!spy.Start(transport, "Controller", WATCHDOG_TIMEOUT))
         return nullptr;
+    // Log lines to dmq-spy too ("log/<level>/<tag>"), and still to the console
+    dmq::databus::SpyLogSink::Attach(spy, &dmq::log::EspLogSink);
     printf("SpyReporter: DataBus traffic to dmq-spy at %s:%d\n", CONFIG_APP_GUI_ADDRESS, CONFIG_APP_SPY_PORT);
     return &spy.GetThread();
 }
@@ -169,6 +173,9 @@ void StartMonitor(ControllerLink& link, pump::PumpController& pumpController, dm
 
 extern "C" void app_main()
 {
+    // DMQ_LOG_* lines (the pump, the link, the library) to ESP-IDF's log; with
+    // CONFIG_APP_SPY, StartSpy() adds dmq-spy
+    dmq::SetLogHandler(&dmq::log::EspLogSink);
     printf("\nPumptron controller starting (ESP32-S3)...\n");
     if (!esp32s3::StartWifi(WIFI_TIMEOUT_MS)) {
         printf("Wi-Fi: not connected. Check the SSID and password in menuconfig.\n");

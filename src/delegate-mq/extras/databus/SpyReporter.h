@@ -106,9 +106,41 @@ public:
         dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
         if (!m_running)
             return;
+        // First, so a Report() after this point drops instead of dispatching
+        // to a thread that is exiting (Report() takes m_mutex too)
+        m_running = false;
         m_monitorConn.Disconnect();
         m_thread.ExitThread();
-        m_running = false;
+    }
+
+    /// @brief Send one message that isn't DataBus traffic, e.g. a log line
+    ///        (SpyLogSink): shown in dmq-spy like any message, on topic, from
+    ///        this node. Any thread (not an interrupt). Queued to the bridge's
+    ///        thread like DataBus traffic, and dropped and counted if the queue
+    ///        is full, the bridge isn't running, or it comes from the bridge's
+    ///        own thread.
+    /// @param topic e.g. "log/ERR/Pump"
+    /// @param value the text shown in dmq-spy's value column
+    /// @param timestampUs when it happened, microseconds of dmq::Clock (as
+    ///        DataBus stamps its messages, so the two sort together)
+    void Report(const char* topic, const char* value, uint64_t timestampUs)
+    {
+        // From the bridge's own thread (a log line from inside Send()): dropped.
+        // Sending it would loop, and taking m_mutex could deadlock with a Stop()
+        // that holds it while waiting for this thread to exit.
+        if (m_thread.IsCurrentThread()) {
+            Drop();
+            return;
+        }
+        // Held across the check and the dispatch, so Stop() can't exit the
+        // thread in between. The dispatch never blocks (FullPolicy::DROP).
+        dmq::LockGuard<dmq::RecursiveMutex> lock(m_mutex);
+        if (!m_running.load()) {
+            Drop();
+            return;
+        }
+        dmq::MakeDelegate(this, &SpyReporter::OnPacket, m_thread)(
+            SpyPacket(topic ? topic : "", value ? value : "", timestampUs));
     }
 
     /// @brief Packets sent so far.
@@ -161,7 +193,7 @@ private:
     uint16_t m_seqNum = 0;           // bridge thread only
     std::atomic<uint32_t> m_sent{0};
     std::atomic<uint32_t> m_dropped{0};
-    bool m_running = false;
+    std::atomic<bool> m_running{false};    // under m_mutex; also read by Report()
     dmq::RecursiveMutex m_mutex;
 };
 

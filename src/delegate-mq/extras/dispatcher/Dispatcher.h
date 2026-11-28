@@ -56,7 +56,7 @@ public:
             // Empty the buffer for the next message, keeping its capacity
             os.reset();
 
-            LOG_INFO("Dispatcher::Dispatch id={} seqNum={} err={}", header.GetId(), header.GetSeqNum(), err);
+            DMQ_LOG_DBG("Dispatcher", "sent id=%u seq=%u err=%d", static_cast<unsigned>(header.GetId()), static_cast<unsigned>(header.GetSeqNum()), err);
             return err;
         }
         return -1;

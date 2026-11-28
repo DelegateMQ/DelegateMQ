@@ -359,6 +359,14 @@ namespace dmq
     inline constexpr int ZEPHYR_THREAD_PRIORITY = DMQ_ZEPHYR_THREAD_PRIORITY;
     inline constexpr int NUTTX_THREAD_PRIORITY = DMQ_NUTTX_THREAD_PRIORITY;
 
+    /// @brief The most detailed log level compiled in (0 none, 1 errors,
+    /// 2 warnings, 3 info, 4 debug) and the longest log line in bytes with the
+    /// NUL (extras/util/Log.h).
+    /// Override via DMQ_LOG_LEVEL and DMQ_LOG_LINE_SIZE in delegatemqconfig.h.
+    inline constexpr int LOG_LEVEL = DMQ_LOG_LEVEL;
+    inline constexpr size_t LOG_LINE_SIZE = DMQ_LOG_LINE_SIZE;
+    static_assert(DMQ_LOG_LINE_SIZE >= 2, "DMQ_LOG_LINE_SIZE must be at least 2 (one character and the NUL)");
+
     /// @brief Native priority of each dmq::os::ThreadPriority band on the RTOS
     /// ports, least urgent first (IDLE ... TIME_CRITICAL); PRIORITY_BAND_AUTO
     /// lets the port place that band itself. Desktop ports ignore these.
@@ -742,18 +750,10 @@ namespace dmq
     }
 #endif
 
-// @TODO: Select the desired logging (see Port.cmake).
-#ifdef DMQ_LOG
-    #include <spdlog/spdlog.h>
-    #define LOG_INFO(...)    spdlog::info(__VA_ARGS__)
-    #define LOG_DEBUG(...)   spdlog::debug(__VA_ARGS__)
-    #define LOG_ERROR(...)   spdlog::error(__VA_ARGS__)
-#else
-    // No-op macros when logging disabled
-    #define LOG_INFO(...)    do {} while(0)
-    #define LOG_DEBUG(...)   do {} while(0)
-    #define LOG_ERROR(...)   do {} while(0)
-#endif
+// Logging: dmq::Log(), DMQ_LOG_ERR/WRN/INF/DBG and dmq::SetLogHandler(), on
+// every port (extras/util/Log.h). With DMQ_LOG (spdlog, desktop) the handler
+// starts as spdlog.
+#include "extras/util/Log.h"
 
 // @TODO: Select the desired template optimization level.
 // Enable DMQ_FORCE_OPTIMIZE_DEBUG in your build system (e.g. CMake) to force

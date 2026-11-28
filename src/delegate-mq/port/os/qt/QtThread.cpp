@@ -528,7 +528,7 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
                     {
                         size_t depth = m_queueSize.load();
                         m_mutex.unlock();
-                        printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", m_threadName.c_str());
+                        DMQ_LOG_WRN("Thread", "queue post timed out on \'%s\' (possible deadlock): message dropped", m_threadName.c_str());
                         if (m_droppedHandler)
                             m_droppedHandler(depth);
                         return false;

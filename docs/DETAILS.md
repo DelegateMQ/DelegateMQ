@@ -31,7 +31,7 @@ The DelegateMQ C++ library enables function invocations on any callable, either 
     - [Message Priority](#message-priority)
   - [Remote Delegates](#remote-delegates)
   - [Error Handling](#error-handling)
-  - [Debug Logging](#debug-logging)
+  - [Logging](#logging)
   - [Object Lifetime and Async Delegates](#object-lifetime-and-async-delegates)
     - [The Risk: Raw Pointers](#the-risk-raw-pointers)
     - [The Solution: Shared Pointers](#the-solution-shared-pointers)
@@ -702,21 +702,21 @@ The DelegateMQ library uses dynamic memory to send asynchronous delegate message
 
 Remote delegate error handling is captured by registering a callback with  `SetErrorHandler()`. A transport monitor (`dmq::transport::ITransportMonitor`) is optional and provides message timeout callbacks using message sequence numbers and acknowledgments.
 
-## Debug Logging 
+## Logging
 
-Optionally enable debug log output using [spdlog](https://github.com/gabime/spdlog) C++ logging library. Enabled within CMake:
-
-```text
-set(DMQ_LOG "ON")
-```
-
-Runtime log macro output:
+Library and application code log through one handler, on every port (`extras/util/Log.h`), so portable code needs no `printf()`, `ESP_LOGI()` or `printk()` of its own:
 
 ```cpp
-LOG_INFO("Dispatcher::Dispatch id={} seqNum={} err={}", header.GetId(), header.GetSeqNum(), err);
+#include "extras/util/LogSinks.h"
+
+dmq::SetLogHandler(&dmq::log::StdioSink);        // or EspLogSink, ZephyrSink, NuttXSink, your own
+DMQ_LOG_INF("Pump", "speed %d rpm", rpm);         // printf-style; also DMQ_LOG_ERR, _WRN, _DBG
 ```
 
-Log output can be directed to multiple sinks, such as files, consoles, or custom handlers.
+- Until a handler is set, each line goes to `printf()` as `[INF] Pump: speed 1200 rpm`; with `DMQ_LOG` (spdlog, desktop) to spdlog. `SetLogHandler(nullptr)` silences it.
+- `DMQ_LOG_LEVEL` (default 3: errors, warnings, info) compiles out the levels above it. A line is formatted into a `DMQ_LOG_LINE_SIZE` (128) byte buffer on the caller's stack, no heap; longer lines are truncated and counted.
+- `dmq::databus::SpyLogSink` (`extras/databus/SpyLogSink.h`) also sends each line to `dmq-spy` through a `SpyReporter`, as topic `log/<level>/<tag>`, so a target's log appears next to its DataBus traffic and `dmq-spy --log` captures it to disk.
+- The library's own messages (`RetryMonitor`, `TransportMonitor`, `NetworkNode`, `Timer`, the thread ports' queue warnings) use the same handler.
 
 ## Object Lifetime and Async Delegates
 

@@ -44,7 +44,7 @@ void Actuators::Initialize() {
     m_pumpConns[1] = m_pumps.at(1).OnSpeedChanged.Connect(
         dmq::MakeDelegate(this, &Actuators::HandlePumpChanged, m_thread));
 
-    printf("Actuators: Subsystem initialized.\n");
+    DMQ_LOG_INF("Actuators", "Subsystem initialized.");
 }
 
 void Actuators::HandleValveChanged(int id, bool open) {
@@ -58,7 +58,7 @@ void Actuators::HandlePumpChanged(int id, int speed) {
 void Actuators::OnMessageDropped(size_t queueDepth) {
     // A dropped actuator command (valve/pump set) under FullPolicy::TIMEOUT is
     // safety-relevant: the hardware never received the requested state change.
-    printf("Actuators: WARNING - command dropped, queue timed out full (depth=%zu)\n", queueDepth);
+    DMQ_LOG_WRN("Actuators", "command dropped, queue timed out full (depth=%zu)", queueDepth);
 }
 
 void Actuators::Shutdown() {
@@ -77,7 +77,7 @@ void Actuators::InternalSetValve(int id, bool open) {
     try {
         m_valves.at(id).SetState(open);
     } catch (const std::out_of_range&) {
-        printf("Actuators: ERROR - Valve ID %d not found!\n", id);
+        DMQ_LOG_ERR("Actuators", "Valve ID %d not found!", id);
         return;
     }
     
@@ -88,7 +88,7 @@ void Actuators::InternalSetPump(int id, int speed) {
     try {
         m_pumps.at(id).SetSpeed(speed);
     } catch (const std::out_of_range&) {
-        printf("Actuators: ERROR - Pump ID %d not found!\n", id);
+        DMQ_LOG_ERR("Actuators", "Pump ID %d not found!", id);
         return;
     }
     

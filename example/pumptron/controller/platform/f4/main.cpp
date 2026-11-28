@@ -28,6 +28,7 @@
 #include "timers.h"
 
 #include "DelegateMQ.h"
+#include "extras/util/LogSinks.h"
 #include "pump/PumpController.h"
 #include "pump/LinkErrorReporter.h"
 #include "util/SerialLink.h"
@@ -217,6 +218,8 @@ int main()
         BlinkCrashLed();
 
     Logger_Init();
+    // DMQ_LOG_* lines (the pump, the link, the library) to printf(): SWV ITM
+    dmq::SetLogHandler(&dmq::log::StdioSink);
 
     printf("Pumptron controller starting (STM32F4 Discovery)...\n");
     if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST))

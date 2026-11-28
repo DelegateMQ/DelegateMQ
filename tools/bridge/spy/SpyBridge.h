@@ -39,6 +39,11 @@ public:
     /// @brief Messages dropped so far (queue full or send failed); 0 if not started.
     static uint32_t GetDropped();
 
+    /// @brief The SpyReporter behind the bridge, e.g. for
+    ///        dmq::databus::SpyLogSink::Attach(); nullptr before Start().
+    ///        Stop() destroys it: call SpyLogSink::Detach() first.
+    static dmq::databus::SpyReporter* GetReporter();
+
 private:
     SpyBridge() = default;
     ~SpyBridge() = default;

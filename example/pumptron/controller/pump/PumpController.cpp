@@ -25,7 +25,7 @@ PumpController::~PumpController()
 bool PumpController::Start(std::optional<dmq::Duration> watchdog)
 {
     if (!m_thread.CreateThread(watchdog)) {
-        printf("PumpController: ERROR - failed to create thread\n");
+        DMQ_LOG_ERR("Pump", "failed to create thread");
         return false;
     }
 
@@ -78,7 +78,7 @@ void PumpController::Init()
 
     EnterState(PumpState::IDLE);
     m_ready = true;
-    printf("PumpController: ready on %s board\n", m_board.Name());
+    DMQ_LOG_INF("Pump", "ready on %s board", m_board.Name());
 }
 
 // ---------------------------------------------------------------------------
@@ -90,20 +90,20 @@ void PumpController::OnCommand(const PumpCommandMsg& msg)
     switch (msg.command) {
     case PumpCommand::START:
         if (m_state == PumpState::IDLE) {
-            printf("PumpController: START\n");
+            DMQ_LOG_INF("Pump", "START");
             EnterState(PumpState::PRIMING);
         }
         break;
 
     case PumpCommand::STOP:
         if (m_state == PumpState::PRIMING || m_state == PumpState::RUNNING) {
-            printf("PumpController: STOP\n");
+            DMQ_LOG_INF("Pump", "STOP");
             EnterState(PumpState::STOPPING);
         }
         break;
 
     case PumpCommand::ESTOP:
-        printf("PumpController: E-STOP (remote)\n");
+        DMQ_LOG_WRN("Pump", "E-STOP (remote)");
         Trip(AlarmCode::ESTOP_REMOTE);
         break;
 
@@ -145,7 +145,7 @@ void PumpController::OnControlTick()
     // Local stop button (edge-triggered)
     const bool pressed = m_board.IsLocalStopPressed();
     if (pressed && !m_localStopWasPressed) {
-        printf("PumpController: E-STOP (board button)\n");
+        DMQ_LOG_WRN("Pump", "E-STOP (board button)");
         Trip(AlarmCode::ESTOP_LOCAL);
     }
     m_localStopWasPressed = pressed;
@@ -239,7 +239,7 @@ void PumpController::EnterState(PumpState state, AlarmCode fault)
     m_board.SetIndicator(Indicator::RUNNING, state == PumpState::PRIMING || state == PumpState::RUNNING);
     m_board.SetIndicator(Indicator::FAULT, state == PumpState::FAULT);
 
-    printf("PumpController: -> %s\n", ToString(state));
+    DMQ_LOG_INF("Pump", "-> %s", ToString(state));
     PublishStatus();
 }
 
@@ -266,12 +266,12 @@ void PumpController::TryReset()
         refusal = "board stop button held";
 
     if (refusal) {
-        printf("PumpController: RESET refused (%s)\n", refusal);
+        DMQ_LOG_WRN("Pump", "RESET refused (%s)", refusal);
         PublishStatus();   // resync the GUI's view of the latched fault
         return;
     }
 
-    printf("PumpController: RESET\n");
+    DMQ_LOG_INF("Pump", "RESET");
     SetAlarm(m_fault, AlarmSeverity::FAULT, false);
     EnterState(PumpState::IDLE);
 }
@@ -302,7 +302,7 @@ void PumpController::OnHeartbeatTick()
 
 void PumpController::ReportLinkError(const char* what)
 {
-    printf("PumpController: link error: %s\n", what);
+    DMQ_LOG_WRN("Pump", "link error: %s", what);
     if (!m_ready)
         return;     // before Init(): nothing to raise yet, log only
     if (!m_linkErrorPending.exchange(true))
@@ -324,7 +324,7 @@ void PumpController::HandleLinkError()
     // No GUI, or one that just connected: the failure is a message sent while
     // nobody was listening, already superseded by the reconnect resync.
     if (!m_guiOnline || now - m_guiOnlineSince < LINK_UP_GRACE) {
-        printf("PumpController: link error while GUI offline or just connected, not raised\n");
+        DMQ_LOG_WRN("Pump", "link error while GUI offline or just connected, not raised");
         return;
     }
     m_lastLinkError = now;
@@ -339,7 +339,7 @@ void PumpController::HandleResync()
     if (!m_guiOnline || now - m_lastResync < RESYNC_MIN_INTERVAL)
         return;
     m_lastResync = now;
-    printf("PumpController: resyncing status/alarms after delivery failure\n");
+    DMQ_LOG_WRN("Pump", "resyncing status/alarms after delivery failure");
     PublishStatus();
     RepublishActiveAlarms();
 }
@@ -349,7 +349,7 @@ void PumpController::OnGuiHeartbeat(const HeartbeatMsg&)
     if (!m_guiOnline) {
         m_guiOnline = true;
         m_guiOnlineSince = Clock::now();
-        printf("PumpController: GUI link up\n");
+        DMQ_LOG_INF("Pump", "GUI link up");
         SetAlarm(AlarmCode::GUI_LINK_LOST, AlarmSeverity::WARNING, false);
         // Bring a (re)connected GUI up to date without waiting for a change.
         PublishStatus();
@@ -361,7 +361,7 @@ void PumpController::OnGuiLinkLost()
 {
     // Fires every HEARTBEAT_TIMEOUT while the GUI stays silent; log the transition only.
     if (m_guiOnline)
-        printf("PumpController: GUI link lost\n");
+        DMQ_LOG_WRN("Pump", "GUI link lost");
     m_guiOnline = false;
 
     // No operator watching -> never keep the pump running unattended.
@@ -402,7 +402,7 @@ void PumpController::SetAlarm(AlarmCode code, AlarmSeverity severity, bool activ
 
     m_alarmActive[idx] = active;
     m_alarmSeverity[idx] = severity;
-    printf("PumpController: alarm %s %s\n", ToString(code), active ? "RAISED" : "cleared");
+    DMQ_LOG_WRN("Pump", "alarm %s %s", ToString(code), active ? "RAISED" : "cleared");
     DataBus::Publish<AlarmMsg>(topics::ALARM, AlarmMsg(code, severity, active));
 }
 

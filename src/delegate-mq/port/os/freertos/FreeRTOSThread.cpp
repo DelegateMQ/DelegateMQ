@@ -117,7 +117,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
     // We must do this BEFORE creating the task so it's ready for immediate use.
     if (!m_queue.IsCreated()) {
         if (!m_queue.Create(m_queueSize)) {
-            printf("Error: Thread '%s' failed to create queue.\n", THREAD_NAME.c_str());
+            DMQ_LOG_ERR("Thread", "\'%s\' failed to create its queue", THREAD_NAME.c_str());
             m_startGate.OnCreateFailed();
             return false;
         }
@@ -226,7 +226,7 @@ bool FreeRTOSThread::CreateThread(std::optional<dmq::Duration> watchdogTimeout)
 #endif
 
         if (xReturn != pdPASS) {
-            printf("Error: Failed to create task '%s'. OOM?\n", THREAD_NAME.c_str());
+            DMQ_LOG_ERR("Thread", "failed to create task \'%s\' (out of memory?)", THREAD_NAME.c_str());
             m_watchdogTimeout.store(0);     // no task to refresh the heartbeat
             m_startGate.OnCreateFailed();
             return false;
@@ -346,7 +346,7 @@ bool FreeRTOSThread::SetPriority(ThreadPriority band, int step) {
 bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 {
     if (!m_queue.IsCreated()) {
-        printf("[Thread] Error: Dispatch called but queue is null (%s)\n", THREAD_NAME.c_str());
+        DMQ_LOG_ERR("Thread", "dispatch to \'%s\' before its queue exists", THREAD_NAME.c_str());
         return false;
     }
 
@@ -376,7 +376,7 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
             printf("[Thread] CRITICAL: Queue full on thread '%s'! TRIGGERING FAULT.\n", THREAD_NAME.c_str());
             DMQ_ASSERT_TRUE(sent);
         } else if (FULL_POLICY == FullPolicy::TIMEOUT) {
-            printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+            DMQ_LOG_WRN("Thread", "queue post timed out on \'%s\' (possible deadlock): message dropped", THREAD_NAME.c_str());
             if (m_droppedHandler)
                 m_droppedHandler(GetQueueSize());
         } else { // DROP

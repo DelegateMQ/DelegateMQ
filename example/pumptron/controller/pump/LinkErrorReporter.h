@@ -53,18 +53,18 @@ public:
 private:
     void OnBusError(const dmq::xstring& topic, dmq::DelegateError error)
     {
-        printf("Controller: DataBus error topic=%s error=%d\n", topic.c_str(), static_cast<int>(error));
+        DMQ_LOG_ERR("Link", "DataBus error topic=%s error=%d", topic.c_str(), static_cast<int>(error));
         m_pump.ReportLinkError("DataBus error");
     }
 
     void OnUnhandled(const dmq::xstring& topic)
     {
-        printf("Controller: WARNING - published with no subscriber: %s\n", topic.c_str());
+        DMQ_LOG_WRN("Link", "published with no subscriber: %s", topic.c_str());
     }
 
     void OnDeliveryFailed(const dmq::xstring& peer, dmq::DelegateRemoteId id, uint16_t seq)
     {
-        printf("Controller: delivery to %s failed (id=%u seq=%u)\n", peer.c_str(), id, seq);
+        DMQ_LOG_WRN("Link", "delivery to %s failed (id=%u seq=%u)", peer.c_str(), id, seq);
         m_pump.ReportLinkError("delivery failed");
         if (id == RID_STATUS || id == RID_ALARM)
             m_pump.RequestResync();

@@ -63,6 +63,16 @@
     #define DMQ_NUTTX_THREAD_PRIORITY       100     // SCHED_FIFO
 #endif
 
+// dmq::Log() (extras/util/Log.h): the most detailed level compiled in (0 none,
+// 1 errors, 2 + warnings, 3 + info, 4 + debug), and the longest line, in bytes
+// with the terminating NUL; a longer line is truncated and counted.
+#ifndef DMQ_LOG_LEVEL
+    #define DMQ_LOG_LEVEL                   3
+#endif
+#ifndef DMQ_LOG_LINE_SIZE
+    #define DMQ_LOG_LINE_SIZE               128
+#endif
+
 // Native priority of each dmq::os::ThreadPriority band on the RTOS ports
 // (Thread::SetPriority()). DMQ_PRIORITY_BAND_AUTO: the port spreads the bands
 // across its own range (see port/os/common/ThreadPriority.h). The desktop ports

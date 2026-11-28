@@ -8,6 +8,8 @@
 #include "extras/util/ThreadMonitor.h"
 #include "extras/util/ThreadMonitorSer.h"
 #include "SpyBridge.h"
+#include "extras/databus/SpyLogSink.h"
+#include "extras/util/LogSinks.h"
 #include "NodeBridge.h"
 #include <cstdio>
 
@@ -100,6 +102,10 @@ void System::OnPeerSendStatus(const dmq::xstring& peerName, dmq::DelegateRemoteI
 
 void System::SetupNetwork() {
     SpyBridge::Start("127.0.0.1", 9999, "GUI");
+    // DMQ_LOG_* lines (this app's and the library's) to the console, and to
+    // dmq-spy as "log/<level>/<tag>", next to this node's DataBus traffic
+    if (auto* reporter = SpyBridge::GetReporter())
+        dmq::databus::SpyLogSink::Attach(*reporter, &dmq::log::StdioSink);
     NodeBridge::StartMulticast("GUI", "239.1.1.1", 9998);
     NodeBridge::Watch(m_network);   // link health in dmq-monitor's Health column
 

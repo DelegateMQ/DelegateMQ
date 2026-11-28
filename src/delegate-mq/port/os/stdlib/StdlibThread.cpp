@@ -333,7 +333,7 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
                 return (m_highQueue.size() + m_normalQueue.size()) < MAX_QUEUE_SIZE || m_exit.load();
             });
             if (!hasSpace) {
-                printf("[Thread] WARNING: Queue post timed out on '%s' — possible deadlock. Message dropped.\n", THREAD_NAME.c_str());
+                DMQ_LOG_WRN("Thread", "queue post timed out on \'%s\' (possible deadlock): message dropped", THREAD_NAME.c_str());
                 size_t depth = m_highQueue.size() + m_normalQueue.size();
                 lk.unlock();
                 if (m_droppedHandler)

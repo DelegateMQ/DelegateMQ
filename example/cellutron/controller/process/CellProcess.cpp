@@ -84,7 +84,7 @@ void CellProcess::AbortProcess()
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_processStartTime).count();
 
     if (elapsed < 1000) {
-        printf("CellProcess: ABORT IGNORED (Debounce Active, Elapsed: %lld ms)\n", (long long)elapsed);
+        DMQ_LOG_WRN("CellProcess", "ABORT IGNORED (Debounce Active, Elapsed: %lld ms)", (long long)elapsed);
         return;
     }
 
@@ -228,7 +228,7 @@ void CellProcess::CentrifugeStopped()
 
 STATE_DEFINE(cellutron::process::CellProcess, Idle, NoEventData)
 {
-    printf("CellProcess: ST_IDLE\n");
+    DMQ_LOG_INF("CellProcess", "ST_IDLE");
     dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::IDLE });
     m_timer.Stop();
 }
@@ -236,7 +236,7 @@ STATE_DEFINE(cellutron::process::CellProcess, Idle, NoEventData)
 STATE_DEFINE(cellutron::process::CellProcess, FillSolutionA, NoEventData)
 {
     m_processStartTime = std::chrono::steady_clock::now();
-    printf("CellProcess: ST_FILL_SOLUTION_A\n");
+    DMQ_LOG_INF("CellProcess", "ST_FILL_SOLUTION_A");
     dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::PROCESSING });
     // Use Pump ID 1, Valve 1, Forward
     m_pumpProcess.Start(dmq::xmake_shared<PumpData>(1, 50, std::chrono::seconds(2), false));
@@ -244,47 +244,47 @@ STATE_DEFINE(cellutron::process::CellProcess, FillSolutionA, NoEventData)
 
 STATE_DEFINE(cellutron::process::CellProcess, FillSolutionB, NoEventData)
 {
-    printf("CellProcess: ST_FILL_SOLUTION_B\n");
+    DMQ_LOG_INF("CellProcess", "ST_FILL_SOLUTION_B");
     // Use Pump ID 1, Valve 2, Forward
     m_pumpProcess.Start(dmq::xmake_shared<PumpData>(2, 50, std::chrono::seconds(2), false));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, FillCells, NoEventData)
 {
-    printf("CellProcess: ST_FILL_CELLS\n");
+    DMQ_LOG_INF("CellProcess", "ST_FILL_CELLS");
     // Use Pump ID 1, Valve 3, Forward
     m_pumpProcess.Start(dmq::xmake_shared<PumpData>(3, 25, std::chrono::seconds(2), false));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, SpinUp, NoEventData)
 {
-    printf("CellProcess: ST_SPIN_UP (Starting Centrifuge Ramp)\n");
+    DMQ_LOG_INF("CellProcess", "ST_SPIN_UP (Starting Centrifuge Ramp)");
     m_centrifuge.StartRamp(dmq::xmake_shared<actuators::Centrifuge::RampData>(MAX_CENTRIFUGE_RPM, std::chrono::milliseconds(5000)));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, SpinDown, NoEventData)
 {
-    printf("CellProcess: ST_SPIN_DOWN (Decelerating Centrifuge)\n");
+    DMQ_LOG_INF("CellProcess", "ST_SPIN_DOWN (Decelerating Centrifuge)");
     m_centrifuge.StopRamp(dmq::xmake_shared<actuators::Centrifuge::RampData>(0, std::chrono::milliseconds(5000)));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, Drain, NoEventData)
 {
-    printf("CellProcess: ST_DRAIN\n");
+    DMQ_LOG_INF("CellProcess", "ST_DRAIN");
     // Use Pump ID 1, Valve 4, Reverse
     m_pumpProcess.Start(dmq::xmake_shared<PumpData>(4, 100, std::chrono::seconds(3), true));
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, Complete, NoEventData)
 {
-    printf("CellProcess: ST_COMPLETE (Waiting 100ms to Auto-Restart)\n");
+    DMQ_LOG_INF("CellProcess", "ST_COMPLETE (Waiting 100ms to Auto-Restart)");
     dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::IDLE });
     m_timer.Start(std::chrono::milliseconds(100), true);
 }
 
 STATE_DEFINE(cellutron::process::CellProcess, Aborting, NoEventData)
 {
-    printf("CellProcess: ST_ABORTING (Shutting down hardware)\n");
+    DMQ_LOG_INF("CellProcess", "ST_ABORTING (Shutting down hardware)");
     dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::ABORTING });
 
     // Stop single pump immediately
@@ -299,7 +299,7 @@ STATE_DEFINE(cellutron::process::CellProcess, Aborting, NoEventData)
 
 STATE_DEFINE(cellutron::process::CellProcess, Fault, NoEventData)
 {
-    printf("CellProcess: ST_FAULT\n");
+    DMQ_LOG_INF("CellProcess", "ST_FAULT");
     dmq::databus::DataBus::Publish<RunStatusMsg>(topics::STATUS_RUN, { RunStatus::FAULT });
     
     // Stop single pump

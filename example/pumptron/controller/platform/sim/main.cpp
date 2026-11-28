@@ -12,6 +12,7 @@
  */
 
 #include "DelegateMQ.h"
+#include "extras/util/LogSinks.h"
 #include "extras/util/NetworkConnect.h"
 #include "extras/databus/NetworkNode.h"
 #include "pump/PumpController.h"
@@ -157,6 +158,8 @@ int main()
     ::InstallCrashHandlers();
     InitialiseHeap();
     Logger_Init();
+    // DMQ_LOG_* lines (the pump, the link, the library) to the console
+    dmq::SetLogHandler(&dmq::log::StdioSink);
     static dmq::util::NetworkContext networkContext;
     printf("Pumptron controller starting (FreeRTOS simulator)...\n");
 

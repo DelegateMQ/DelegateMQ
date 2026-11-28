@@ -49,6 +49,10 @@ void SpyBridge::Stop() {
     instance.transport.Close();
 }
 
+dmq::databus::SpyReporter* SpyBridge::GetReporter() {
+    return GetInstance().bridge.get();
+}
+
 uint32_t SpyBridge::GetDropped() {
     auto& instance = GetInstance();
     return instance.bridge ? instance.bridge->GetDropped() : 0;

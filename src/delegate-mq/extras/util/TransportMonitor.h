@@ -70,6 +70,7 @@ public:
     virtual bool Add(uint16_t seqNum, dmq::DelegateRemoteId remoteId) override
     {
         size_t capSize = 0;
+        bool collision = false;
         uint32_t key = (static_cast<uint32_t>(remoteId) << 16) | seqNum;
         {
             const dmq::LockGuard<dmq::RecursiveMutex> lock(m_lock);
@@ -79,8 +80,8 @@ public:
             } else if (m_pending.find(key) != m_pending.end()) {
                 // Collision: 16-bit sequence wrapped before the old message timed out.
                 // Reject the send rather than silently clobbering the old message's tracking.
-                LOG_ERROR("TransportMonitor: SeqNum wraparound collision for seq {}", seqNum);
-                return false;
+                // Logged below, outside the lock: a log handler may block or lock.
+                collision = true;
             } else {
                 TimeoutData d;
                 d.timeStamp = dmq::Clock::now();
@@ -90,8 +91,12 @@ public:
             }
         }
 
+        if (collision) {
+            DMQ_LOG_ERR("TransportMonitor", "seq number wraparound collision for seq %u", static_cast<unsigned>(seqNum));
+            return false;
+        }
         if (capSize > 0) {
-            LOG_ERROR("TransportMonitor: Pending map full ({} entries). Check ACK logic or comm link.", capSize);
+            DMQ_LOG_ERR("TransportMonitor", "pending map full (%lu entries): check ACK logic or the link", static_cast<unsigned long>(capSize));
             OnCapExceeded(capSize);
             return false;
         }
@@ -218,7 +223,7 @@ public:
 
             // Notify app if a full pass still left entries; loop to drain them
             if (remaining > 0) {
-                LOG_ERROR("TransportMonitor: Cleanup bottleneck — {} entries remain after pass. Continuing drain.", remaining);
+                DMQ_LOG_WRN("TransportMonitor", "cleanup cap reached, %lu entries remain: continuing", static_cast<unsigned long>(remaining));
                 OnPendingExceeded(remaining);
             }
 
