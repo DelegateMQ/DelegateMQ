@@ -112,6 +112,7 @@ struct BlockHeader {
 	#define MAX_ALLOCATORS  DMQ_XALLOCATOR_MAX_ALLOCATORS
 	static Allocator* _allocators[MAX_ALLOCATORS];
 #endif	// DMQ_XALLOCATOR_STATIC_POOLS
+	static_assert(MAX_ALLOCATORS == dmq::XALLOC_MAX_POOLS, "dmq::XALLOC_MAX_POOLS (DelegateOpt.h) must match");
 
 // For C++ applications, must define AUTOMATIC_XALLOCATOR_INIT_DESTROY to 
 // correctly ensure allocators are initialized before any static user C++ 
@@ -523,6 +524,11 @@ extern "C" size_t xalloc_get_pool_stats(XallocPoolStats* stats, size_t maxPools)
 	if (stats == NULL || maxPools == 0)
 		return 0;
 	dmq::get_mutex().lock();
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+	// As xallocator_get_allocator() does: report the pools even before the
+	// first allocation, or after xalloc_destroy(), in a manual-init build
+	dmq::init_static_pools();
+#endif
 	size_t largest = 0;
 	for (int i=0; i<MAX_ALLOCATORS && dmq::_allocators[i]; i++)
 	{
@@ -537,7 +543,9 @@ extern "C" size_t xalloc_get_pool_stats(XallocPoolStats* stats, size_t maxPools)
 		dmq::Allocator* allocator = dmq::find_allocator(size);
 		if (allocator == NULL)
 			continue;
-		stats[n].blockSize = static_cast<uint32_t>(allocator->GetBlockSize());
+		// A block over 4 GB (only a direct xmalloc() can ask for one) reads as UINT32_MAX
+		const size_t blockSize = allocator->GetBlockSize();
+		stats[n].blockSize = static_cast<uint64_t>(blockSize) > 0xFFFFFFFFu ? 0xFFFFFFFFu : static_cast<uint32_t>(blockSize);
 		stats[n].blocksInUse = allocator->GetBlocksInUse();
 		stats[n].peakBlocks = allocator->GetBlockCount();
 		stats[n].capacity = allocator->GetMaxBlocks();

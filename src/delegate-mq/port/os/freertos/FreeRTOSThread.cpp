@@ -348,7 +348,7 @@ bool FreeRTOSThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     if (threadMsg == nullptr)
         BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
-    threadMsg->SetEnqueueTime(Timer::GetNow());
+    threadMsg->SetEnqueueTime(dmq::HighResClock::now());
 #endif
 
     // Compute send timeout based on policy.
@@ -563,7 +563,7 @@ void FreeRTOSThread::Run()
             {
 #if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking
-                dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
+                const dmq::HighResClock::duration latency = dmq::HighResClock::now() - msg->GetEnqueueTime();
                 int64_t latNs = std::chrono::duration_cast<std::chrono::nanoseconds>(latency).count();
                 
                 {
@@ -582,7 +582,7 @@ void FreeRTOSThread::Run()
                 DMQ_ASSERT_TRUE(invoker);
 
 #if defined(DMQ_DATABUS_TOOLS)
-                dmq::TimePoint start = Timer::GetNow();
+                const dmq::HighResClock::time_point start = dmq::HighResClock::now();
 #endif
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
                 bool success = false;
@@ -620,7 +620,7 @@ void FreeRTOSThread::Run()
                 }
 
 #if defined(DMQ_DATABUS_TOOLS)
-                dmq::Duration invokeTime = Timer::GetNow() - start;
+                const dmq::HighResClock::duration invokeTime = dmq::HighResClock::now() - start;
                 int64_t invokeNs = std::chrono::duration_cast<std::chrono::nanoseconds>(invokeTime).count();
                 {
                     const dmq::LockGuard<dmq::RecursiveMutex> lock(m_statsLock);

@@ -71,6 +71,69 @@
 
 namespace dmq::databus {
 
+#if defined(DMQ_ALLOCATOR)
+namespace detail {
+    /// @brief A static pool's blocks left at its peak
+    inline uint32_t PoolBlocksLeft(const XallocPoolStats& p) {
+        return p.capacity > p.peakBlocks ? p.capacity - p.peakBlocks : 0;
+    }
+
+    /// @brief A static pool dmq-monitor warns about (its PoolWarn()): 90% or
+    /// more of its blocks at its peak, or one block or none left
+    inline bool PoolNearFull(const XallocPoolStats& p) {
+        if (p.capacity == 0)
+            return false;
+        return static_cast<uint64_t>(p.peakBlocks) * 10u >= static_cast<uint64_t>(p.capacity) * 9u ||
+               (p.peakBlocks > 0 && PoolBlocksLeft(p) <= 1);
+    }
+
+    /// @brief Fill a health packet's pool fields from xalloc_get_pool_stats()
+    /// entries: the peak bytes in all block sizes (clamped to 32 bits), and the
+    /// static pool closest to faulting (a full pool faults on the next
+    /// allocation): one dmq-monitor warns about (PoolNearFull()) first, then
+    /// the highest peak against its size, then the fewest blocks left.
+    /// Heap-backed entries (capacity 0) count toward the total only. No
+    /// entries: the packet is left unchanged.
+    inline void SelectPoolHealth(const XallocPoolStats* pools, size_t n, NodeHealthPacket& health)
+    {
+        if (pools == nullptr || n == 0)
+            return;
+        health.sources |= NodeHealthPacket::SRC_ALLOCATOR;
+        uint64_t peakBytes = 0;
+        const XallocPoolStats* fullest = nullptr;
+        for (size_t i = 0; i < n; i++) {
+            const XallocPoolStats& p = pools[i];
+            peakBytes += static_cast<uint64_t>(p.peakBlocks) * p.blockSize;
+            if (p.capacity == 0)
+                continue;
+            if (fullest == nullptr) {
+                fullest = &p;
+                continue;
+            }
+            // A pool dmq-monitor warns about comes first, then the higher
+            // peak/capacity (compared without division: 32-bit values, no
+            // overflow), then fewer blocks left
+            const bool myWarn = PoolNearFull(p);
+            const bool bestWarn = PoolNearFull(*fullest);
+            const uint64_t mine = static_cast<uint64_t>(p.peakBlocks) * fullest->capacity;
+            const uint64_t best = static_cast<uint64_t>(fullest->peakBlocks) * p.capacity;
+            if (myWarn != bestWarn) {
+                if (myWarn)
+                    fullest = &p;
+            } else if (mine > best || (mine == best && PoolBlocksLeft(p) < PoolBlocksLeft(*fullest))) {
+                fullest = &p;
+            }
+        }
+        health.poolPeakBytes = peakBytes > 0xFFFFFFFFu ? 0xFFFFFFFFu : static_cast<uint32_t>(peakBytes);
+        if (fullest == nullptr)
+            return;   // heap-backed: no fixed limit, the total only
+        health.poolBlockSize = fullest->blockSize;
+        health.poolPeak = fullest->peakBlocks;
+        health.poolCapacity = fullest->capacity;
+    }
+} // namespace detail
+#endif
+
 class NodeReporter {
 public:
     /// Signal connections Watch() can hold: a NetworkNode takes 4, a
@@ -287,29 +350,9 @@ private:
     /// (a full pool faults on the next allocation)
     static void FillPoolHealth(NodeHealthPacket& health)
     {
-        XallocPoolStats pools[16];
-        const size_t n = xalloc_get_pool_stats(pools, sizeof(pools) / sizeof(pools[0]));
-        if (n == 0)
-            return;
-        health.sources |= NodeHealthPacket::SRC_ALLOCATOR;
-        uint64_t peakBytes = 0;
-        const XallocPoolStats* fullest = nullptr;
-        for (size_t i = 0; i < n; i++) {
-            peakBytes += static_cast<uint64_t>(pools[i].peakBlocks) * pools[i].blockSize;
-            if (pools[i].capacity == 0)
-                continue;
-            // peak/capacity > best peak/best capacity, without division
-            if (fullest == nullptr ||
-                static_cast<uint64_t>(pools[i].peakBlocks) * fullest->capacity >
-                static_cast<uint64_t>(fullest->peakBlocks) * pools[i].capacity)
-                fullest = &pools[i];
-        }
-        health.poolPeakBytes = peakBytes > 0xFFFFFFFFu ? 0xFFFFFFFFu : static_cast<uint32_t>(peakBytes);
-        if (fullest == nullptr)
-            return;   // heap-backed: no fixed limit, the total only
-        health.poolBlockSize = fullest->blockSize;
-        health.poolPeak = fullest->peakBlocks;
-        health.poolCapacity = fullest->capacity;
+        XallocPoolStats pools[dmq::XALLOC_MAX_POOLS];
+        const size_t n = xalloc_get_pool_stats(pools, dmq::XALLOC_MAX_POOLS);
+        detail::SelectPoolHealth(pools, n, health);
     }
 #endif
 

@@ -64,6 +64,12 @@
 #define DMQ_CMSIS_RTOS2_STACK_BYTES     2048
 #define DMQ_NUTTX_STACK_BYTES           8192
 
+/// dmq::HighResClock on FreeRTOS and ThreadX on ARM Cortex-M adds SysTick's
+/// progress through the current tick to the tick count, assuming SysTick is the
+/// kernel tick (the default). If the kernel ticks from another timer, define
+/// this: HighResClock then has tick resolution. See SysTickInterpolation.h.
+// #define DMQ_NO_SYSTICK_INTERPOLATION
+
 /// Default dmq::os::Thread priority on the RTOS ports whose default is a plain
 /// number. SetThreadPriority() overrides it per thread. ThreadX: 0 is highest.
 /// Zephyr: passed to K_PRIO_PREEMPT(). NuttX: SCHED_FIFO priority. (FreeRTOS and

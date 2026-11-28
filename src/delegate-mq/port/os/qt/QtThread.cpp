@@ -58,7 +58,7 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
         auto invoker = msg->GetInvoker();
         if (invoker) {
 #if defined(DMQ_DATABUS_TOOLS)
-            dmq::TimePoint start = Timer::GetNow();
+            const dmq::HighResClock::time_point start = dmq::HighResClock::now();
 #endif
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
             try {
@@ -91,7 +91,7 @@ void Worker::OnDispatch(std::shared_ptr<dmq::DelegateMsg> msg) {
 #endif
 #if defined(DMQ_DATABUS_TOOLS)
             if (m_thread) {
-                dmq::Duration invokeTime = Timer::GetNow() - start;
+                const dmq::HighResClock::duration invokeTime = dmq::HighResClock::now() - start;
                 m_thread->UpdateInvokeStats(invokeTime);
             }
 #endif
@@ -557,7 +557,7 @@ bool QtThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
 //----------------------------------------------------------------------------
 // UpdateInvokeStats
 //----------------------------------------------------------------------------
-void QtThread::UpdateInvokeStats(dmq::Duration invokeTime)
+void QtThread::UpdateInvokeStats(dmq::HighResClock::duration invokeTime)
 {
     m_mutex.lock();
     m_invokeTotalWindow += invokeTime;
@@ -601,13 +601,13 @@ QtThread::ThreadStats QtThread::SnapshotStats()
 
     // Reset windowed stats
     m_queueDepthMaxWindow = 0;
-    m_latencyTotalWindow = Duration(0);
+    m_latencyTotalWindow = dmq::HighResClock::duration::zero();
     m_latencyCountWindow = 0;
-    m_latencyMaxWindow = Duration(0);
+    m_latencyMaxWindow = dmq::HighResClock::duration::zero();
 
-    m_invokeTotalWindow = Duration(0);
+    m_invokeTotalWindow = dmq::HighResClock::duration::zero();
     m_invokeCountWindow = 0;
-    m_invokeMaxWindow = Duration(0);
+    m_invokeMaxWindow = dmq::HighResClock::duration::zero();
 
     m_mutex.unlock();
     return stats;

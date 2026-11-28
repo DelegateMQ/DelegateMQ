@@ -45,15 +45,15 @@ public:
     }
 
 #if defined(DMQ_DATABUS_TOOLS)
-    void SetEnqueueTime(dmq::TimePoint time) { m_enqueueTime = time; }
-    dmq::TimePoint GetEnqueueTime() const { return m_enqueueTime; }
+    void SetEnqueueTime(dmq::HighResClock::time_point time) { m_enqueueTime = time; }
+    dmq::HighResClock::time_point GetEnqueueTime() const { return m_enqueueTime; }
 #endif
 
 private:
     int m_id;
     std::shared_ptr<dmq::DelegateMsg> m_data;
 #if defined(DMQ_DATABUS_TOOLS)
-    dmq::TimePoint m_enqueueTime;
+    dmq::HighResClock::time_point m_enqueueTime;   // dmq::HighResClock: latency below 1 ms isn't 0
 #endif
 
     // Use fixed-block memory allocator if DMQ_ALLOCATOR set

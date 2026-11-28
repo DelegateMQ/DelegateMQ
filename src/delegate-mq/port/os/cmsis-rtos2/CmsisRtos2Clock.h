@@ -17,6 +17,11 @@ namespace dmq::os {
         static const bool is_steady = true;
 
         static time_point now() noexcept {
+            return time_point(duration(static_cast<rep>(CmsisRtos2TicksToMs(NowTicks()))));
+        }
+
+        /// @brief osKernelGetTickCount() extended to 64 bits (no wrap)
+        static uint64_t NowTicks() noexcept {
             // Static state to track the 32-bit rollover.
             // osKernelGetTickCount() wraps after 2^32 ticks (~49.7 days at 1 kHz).
 
@@ -61,8 +66,43 @@ namespace dmq::os {
             uint64_t ticks = high + cur;
 
             lock.unlock();
+            return ticks;
+        }
+    };
 
-            return time_point(duration(static_cast<rep>(CmsisRtos2TicksToMs(ticks))));
+    /// @brief dmq::HighResClock for CMSIS-RTOS2: microseconds from the
+    /// kernel's system timer (osKernelGetSysTimerCount(), typically the CPU
+    /// clock or SysTick's input), for timing short spans (ThreadStats dispatch
+    /// latency and run time). ISR-safe.
+    /// @note The system timer count is 32 bits and wraps (every 43 s at
+    /// 100 MHz). A wrap is seen only if now() is called at least once per wrap
+    /// period, so a span measured across an unseen wrap is short by a wrap
+    /// period. Spans shorter than one period are exact.
+    struct CmsisRtos2HighResClock {
+        using rep = int64_t;
+        using period = std::micro;
+        using duration = std::chrono::duration<rep, period>;
+        using time_point = std::chrono::time_point<CmsisRtos2HighResClock>;
+        static const bool is_steady = true;
+
+        static time_point now() noexcept {
+            static uint32_t last = 0;
+            static uint64_t high = 0;
+
+            CmsisRtos2CriticalSection lock;
+            lock.lock();
+            const uint32_t cur = osKernelGetSysTimerCount();
+            if (cur < last)
+                high += 0x100000000ULL;
+            last = cur;
+            const uint64_t count = high + cur;
+            lock.unlock();
+
+            uint64_t freq = osKernelGetSysTimerFreq();
+            if (freq == 0)
+                freq = 1000000u;
+            const uint64_t us = (count / freq) * 1000000u + ((count % freq) * 1000000u) / freq;
+            return time_point(duration(static_cast<rep>(us)));
         }
     };
 } // namespace dmq::os

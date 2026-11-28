@@ -20,6 +20,7 @@
 #include "CmsisRtos2Mutex.h"
 #include "CmsisRtos2CriticalSection.h"
 #include "CmsisRtos2Ticks.h"
+#include "CmsisRtos2Clock.h"
 #include "port/os/common/CurrentThreadStorage.h"
 #include <chrono>
 
@@ -42,6 +43,43 @@ namespace dmq::os {
         template<typename Rep, typename Period>
         static void sleep_for(std::chrono::duration<Rep, Period> d) {
             osDelay(CmsisRtos2ToTicks(d));  // kernel ticks, rounded up
+        }
+
+        /// @brief Sleep until dmq::Clock reaches t; returns at once if it
+        /// already has. For drift-free periodic loops: next += period;
+        /// sleep_until(next). osDelayUntil() takes an absolute tick, so a
+        /// preemption before the call doesn't delay the wake.
+        template<typename Duration>
+        static void sleep_until(const std::chrono::time_point<CmsisRtos2Clock, Duration>& t) {
+            // Target in kernel ticks, rounded up so the wake is never early
+            const int64_t raw = static_cast<int64_t>(
+                std::chrono::ceil<std::chrono::milliseconds>(t.time_since_epoch()).count());
+            if (raw <= 0)
+                return;     // before the clock's start: already past
+            const uint64_t ms = static_cast<uint64_t>(raw);
+            const uint64_t freq = CmsisRtos2TickFreq();
+            const uint64_t target = (ms / 1000u) * freq + ((ms % 1000u) * freq + 999u) / 1000u;
+            // osDelayUntil() rejects a target more than half the 32-bit tick
+            // range ahead: a longer wait goes in steps
+            constexpr uint64_t MAX_STEP = 0x7FFFFFFFu;
+            for (;;) {
+                const uint64_t now = CmsisRtos2Clock::NowTicks();
+                if (now >= target)
+                    return;
+                const uint64_t step = (target - now > MAX_STEP) ? now + MAX_STEP : target;
+                // One tick left: a relative delay. An absolute one could see
+                // the tick pass before the call, and not every layer rejects
+                // a past target (Zephyr's sleeps for the wrapped difference)
+                // A target that passes before the call returns at once
+                // (osErrorParameter on RTX and FreeRTOS); the loop then sees
+                // it reached. Any other error (called from an ISR, kernel not
+                // running) can't sleep at all: return rather than spin
+                const osStatus_t status = (target - now <= 1u)
+                    ? osDelay(1u)
+                    : osDelayUntil(static_cast<uint32_t>(step));
+                if (status != osOK && status != osErrorParameter)
+                    return;
+            }
         }
 
         static void yield() noexcept {

@@ -367,7 +367,7 @@ bool PosixThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // If using XALLOCATOR explicit operator new required. See xallocator.h.
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_DISPATCH_DELEGATE, msg);
 #if defined(DMQ_DATABUS_TOOLS)
-    threadMsg->SetEnqueueTime(Timer::GetNow());
+    threadMsg->SetEnqueueTime(dmq::HighResClock::now());
 #endif
 
     // If we woke up because of exit (or exit happened while waiting), abort
@@ -523,7 +523,7 @@ void PosixThread::Process()
             {
 #if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking
-                dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
+                const dmq::HighResClock::duration latency = dmq::HighResClock::now() - msg->GetEnqueueTime();
                 {
                     pthread_mutex_lock(&m_mutex);
                     m_latencyTotalWindow += latency;
@@ -541,7 +541,7 @@ void PosixThread::Process()
                 DMQ_ASSERT_TRUE(invoker);
 
 #if defined(DMQ_DATABUS_TOOLS)
-                dmq::TimePoint start = Timer::GetNow();
+                const dmq::HighResClock::time_point start = dmq::HighResClock::now();
 #endif
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
                 try {
@@ -577,7 +577,7 @@ void PosixThread::Process()
                     return;
                 }
 #if defined(DMQ_DATABUS_TOOLS)
-                dmq::Duration invokeTime = Timer::GetNow() - start;
+                const dmq::HighResClock::duration invokeTime = dmq::HighResClock::now() - start;
                 if (!selfExit) {
                     pthread_mutex_lock(&m_mutex);
                     m_invokeTotalWindow += invokeTime;
@@ -722,13 +722,13 @@ PosixThread::ThreadStats PosixThread::SnapshotStats()
 
     // Reset windowed stats
     m_queueDepthMaxWindow = 0;
-    m_latencyTotalWindow = dmq::Duration(0);
+    m_latencyTotalWindow = dmq::HighResClock::duration::zero();
     m_latencyCountWindow = 0;
-    m_latencyMaxWindow = dmq::Duration(0);
+    m_latencyMaxWindow = dmq::HighResClock::duration::zero();
 
-    m_invokeTotalWindow = dmq::Duration(0);
+    m_invokeTotalWindow = dmq::HighResClock::duration::zero();
     m_invokeCountWindow = 0;
-    m_invokeMaxWindow = dmq::Duration(0);
+    m_invokeMaxWindow = dmq::HighResClock::duration::zero();
 
     pthread_mutex_unlock(&m_mutex);
     return stats;

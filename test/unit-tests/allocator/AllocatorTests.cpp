@@ -181,7 +181,35 @@ void AllocatorTests()
         DMQ_ASSERT_TRUE(found);
         DMQ_ASSERT_TRUE(xalloc_get_pool_stats(stats, 0) == 0);
         DMQ_ASSERT_TRUE(xalloc_get_pool_stats(NULL, 32) == 0);
+        DMQ_ASSERT_TRUE(n <= dmq::XALLOC_MAX_POOLS);
+
+        // Fewer entries than pools: fills only those, never past maxPools
+        XallocPoolStats one[2] = {};
+        one[1].blockSize = 0xA5A5A5A5u;
+        DMQ_ASSERT_TRUE(xalloc_get_pool_stats(one, 1) == 1);
+        DMQ_ASSERT_TRUE(one[0].blockSize == stats[0].blockSize);
+        DMQ_ASSERT_TRUE(one[1].blockSize == 0xA5A5A5A5u);
+
+        // Freed: in use drops, the peak stays
+        auto entry = [&](uint32_t size) {
+            XallocPoolStats all[dmq::XALLOC_MAX_POOLS];
+            const size_t count = xalloc_get_pool_stats(all, dmq::XALLOC_MAX_POOLS);
+            for (size_t i = 0; i < count; i++)
+                if (all[i].blockSize == size) return all[i];
+            return XallocPoolStats{};
+        };
+        const XallocPoolStats before = entry(blockSize);
         xfree(p);
+        const XallocPoolStats after = entry(blockSize);
+        DMQ_ASSERT_TRUE(after.blockSize == blockSize);
+        DMQ_ASSERT_TRUE(after.blocksInUse == before.blocksInUse - 1);
+        DMQ_ASSERT_TRUE(after.peakBlocks == before.peakBlocks);
+    }
+
+    // A heap-backed Allocator has no block limit
+    {
+        Allocator heapBacked(32, 0);
+        DMQ_ASSERT_TRUE(heapBacked.GetMaxBlocks() == 0);
     }
 
     // Test stl_allocator with list

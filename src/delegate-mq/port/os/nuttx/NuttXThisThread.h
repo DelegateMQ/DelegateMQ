@@ -19,6 +19,8 @@
 #include <time.h>
 #include <sched.h>
 #include "NuttXMutex.h"
+#include "NuttXClock.h"
+#include <errno.h>
 #include <nuttx/arch.h>
 #include <pthread.h>
 #include "port/os/common/CurrentThreadStorage.h"
@@ -42,6 +44,28 @@ namespace dmq::os {
             ts.tv_sec = static_cast<time_t>(ms.count() / 1000);
             ts.tv_nsec = static_cast<long>((ms.count() % 1000) * 1000000L);
             nanosleep(&ts, nullptr);
+        }
+
+        /// @brief Sleep until dmq::Clock (CLOCK_MONOTONIC) reaches t; returns
+        /// at once if it already has. For drift-free periodic loops: next +=
+        /// period; sleep_until(next). clock_nanosleep(TIMER_ABSTIME), so a
+        /// preemption before the call doesn't delay the wake.
+        template<typename Duration>
+        static void sleep_until(const std::chrono::time_point<NuttXClock, Duration>& t) {
+            const int64_t ns = static_cast<int64_t>(
+                std::chrono::ceil<std::chrono::nanoseconds>(t.time_since_epoch()).count());
+            if (ns <= 0)
+                return;
+            struct timespec ts;
+            ts.tv_sec = static_cast<time_t>(ns / 1000000000LL);
+            ts.tv_nsec = static_cast<long>(ns % 1000000000LL);
+            // Restart after a signal (EINTR): the target is absolute. POSIX
+            // returns the error; older NuttX returned -1 and set errno
+            for (;;) {
+                const int r = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, nullptr);
+                if (!(r == EINTR || (r < 0 && errno == EINTR)))
+                    break;
+            }
         }
 
         static void yield() noexcept {

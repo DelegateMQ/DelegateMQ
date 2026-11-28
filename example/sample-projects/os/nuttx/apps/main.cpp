@@ -41,6 +41,9 @@ static PortableTests::Options TestOptions()
 {
     PortableTests::Options options;
     options.lowerPriority = [](dmq::os::Thread& t) { t.SetThreadPriority(50); };
+    // NuttX sim: CLOCK_MONOTONIC has tick resolution, and time stands still
+    // while a thread spins
+    options.highResClock = false;
     return options;
 }
 

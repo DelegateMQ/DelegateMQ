@@ -2,6 +2,7 @@
 #include "UnitTestCommon.h"
 #include "StartGatePortableTest.h"
 #include "StackPortableTest.h"
+#include "ClockPortableTest.h"
 #include "port/os/common/CoreAffinity.h"
 #include <iostream>
 #include <random>
@@ -1211,4 +1212,5 @@ void DelegateThreadsTests()
     StartGatePortableTest::Run();
 #endif
     StackPortableTest::Run(/*realStacks=*/false);   // desktop: both values unknown
+    ClockPortableTest::Run();
 }

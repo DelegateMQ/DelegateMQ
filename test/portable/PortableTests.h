@@ -17,6 +17,7 @@
 /// | TimerDelegatePortableTests.cpp | PacedDispatch, TimerDelegate, Timer::ProcessTimers() draining |
 /// | StartGatePortableTest.h | dmq::os::StartGate (also run by the desktop unit tests) |
 /// | StackPortableTest.h | Thread::GetStackSize() and GetStackFreeMin() (run by DelegateThreadsPortableTests.cpp) |
+/// | ClockPortableTest.h | dmq::HighResClock and ThisThread::sleep_until() (run by DelegateThreadsPortableTests.cpp) |
 ///
 /// Requirements on the sample:
 /// - Call from a thread the port knows (an RTOS task, not a raw host thread),
@@ -52,6 +53,13 @@ struct Options
     /// GetStackFreeMin(). false on the desktop ports and the RTOS simulators,
     /// whose threads run on host stacks.
     bool realStacks = false;
+
+    /// true: dmq::HighResClock has a sub-millisecond source and time advances
+    /// while a thread spins, so ClockPortableTest checks that it resolves a
+    /// span under 1 ms. false for a tick-based HighResClock (see DelegateOpt.h)
+    /// and for the simulators whose time stands still while a thread spins
+    /// (Zephyr native_sim, NuttX sim).
+    bool highResClock = true;
 };
 
 /// Cross-thread dispatch, FullPolicy and StartGate tests.

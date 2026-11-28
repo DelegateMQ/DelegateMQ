@@ -115,6 +115,11 @@ struct NodeHealthPacket : public serialize::I {
         ms.read(is, capExceeded);
         ms.read(is, pendingExceeded);
         ms.read(is, lastEvent);
+        // A node built before the pool fields sends none: read them as 0 (and
+        // its sources has no SRC_ALLOCATOR), so a newer dmq-monitor still shows it
+        poolBlockSize = poolPeak = poolCapacity = poolPeakBytes = 0;
+        if (!is.good() || is.remaining() == 0)
+            return is;
         ms.read(is, poolBlockSize);
         ms.read(is, poolPeak);
         ms.read(is, poolCapacity);

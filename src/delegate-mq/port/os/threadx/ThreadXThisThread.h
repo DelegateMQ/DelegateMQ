@@ -18,6 +18,7 @@
 
 #include <tx_api.h>
 #include "ThreadXMutex.h"
+#include "ThreadXClock.h"
 #include "port/os/common/CurrentThreadStorage.h"
 #include <chrono>
 
@@ -42,6 +43,34 @@ namespace dmq::os {
             ULONG ticks = static_cast<ULONG>((count * TX_TIMER_TICKS_PER_SECOND) / 1000);
             if (ticks == 0 && count > 0) ticks = 1;
             tx_thread_sleep(ticks);
+        }
+
+        /// @brief Sleep until dmq::Clock reaches t; returns at once if it
+        /// already has. For drift-free periodic loops: next += period;
+        /// sleep_until(next).
+        /// @note ThreadX has no absolute sleep: this computes the ticks left
+        /// and calls tx_thread_sleep(), so a preemption between the two delays
+        /// the wake by as long as it lasts. The next period still starts from
+        /// the absolute target, so the delay doesn't accumulate.
+        template<typename Duration>
+        static void sleep_until(const std::chrono::time_point<ThreadXClock, Duration>& t) {
+            // Target in ticks, rounded up so the wake is never early
+            const int64_t raw = static_cast<int64_t>(
+                std::chrono::ceil<std::chrono::milliseconds>(t.time_since_epoch()).count());
+            if (raw <= 0)
+                return;     // before the clock's start: already past
+            const uint64_t ms = static_cast<uint64_t>(raw);
+            // Split so a far-future time point can't overflow
+            const uint64_t tps = TX_TIMER_TICKS_PER_SECOND;
+            const uint64_t target = (ms / 1000u) * tps + ((ms % 1000u) * tps + 999u) / 1000u;
+            constexpr uint64_t MAX_STEP = 0x7FFFFFFFu;
+            for (;;) {
+                const uint64_t now = ThreadXClock::NowTicks();
+                if (now >= target)
+                    return;
+                const uint64_t remaining = target - now;
+                tx_thread_sleep(static_cast<ULONG>(remaining > MAX_STEP ? MAX_STEP : remaining));
+            }
         }
 
         static void yield() noexcept {

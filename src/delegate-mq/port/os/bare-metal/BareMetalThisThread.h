@@ -32,6 +32,15 @@ namespace dmq::os {
             }
         }
 
+        /// @brief Busy-wait until dmq::Clock (g_ticks) reaches t; returns at
+        /// once if it already has. For drift-free periodic loops: next +=
+        /// period; sleep_until(next).
+        template<typename Duration>
+        static void sleep_until(const std::chrono::time_point<BareMetalClock, Duration>& t) {
+            while (BareMetalClock::now() < t) {
+            }
+        }
+
         static void yield() noexcept {
             // No-op: single thread of control on bare metal.
         }

@@ -335,7 +335,7 @@ bool StdlibThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     // If using XALLOCATOR explicit operator new required. See xallocator.h.
     auto threadMsg = xmake_shared<ThreadMsg>(MSG_DISPATCH_DELEGATE, msg);
 #if defined(DMQ_DATABUS_TOOLS)
-    threadMsg->SetEnqueueTime(Timer::GetNow());
+    threadMsg->SetEnqueueTime(dmq::HighResClock::now());
 #endif
 
     // If we woke up because of exit (or exit happened while waiting), abort
@@ -558,7 +558,7 @@ void StdlibThread::Process()
             {
 #if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking
-                dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
+                const dmq::HighResClock::duration latency = dmq::HighResClock::now() - msg->GetEnqueueTime();
                 {
                     std::lock_guard<std::mutex> lock(m_statsMutex);
                     m_latencyTotalWindow += latency;
@@ -574,7 +574,7 @@ void StdlibThread::Process()
                     auto invoker = delegateMsg->GetInvoker();
                     if (invoker) {
 #if defined(DMQ_DATABUS_TOOLS)
-                        dmq::TimePoint start = Timer::GetNow();
+                        const dmq::HighResClock::time_point start = dmq::HighResClock::now();
 #endif
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
                         try {
@@ -610,7 +610,7 @@ void StdlibThread::Process()
                             return;
                         }
 #if defined(DMQ_DATABUS_TOOLS)
-                        dmq::Duration invokeTime = Timer::GetNow() - start;
+                        const dmq::HighResClock::duration invokeTime = dmq::HighResClock::now() - start;
                         if (!selfExit) {
                             std::lock_guard<std::mutex> lock(m_statsMutex);
                             m_invokeTotalWindow += invokeTime;
@@ -686,13 +686,13 @@ StdlibThread::ThreadStats StdlibThread::SnapshotStats()
 
     // Reset windowed stats
     m_queueDepthMaxWindow = 0;
-    m_latencyTotalWindow = dmq::Duration(0);
+    m_latencyTotalWindow = dmq::HighResClock::duration::zero();
     m_latencyCountWindow = 0;
-    m_latencyMaxWindow = dmq::Duration(0);
+    m_latencyMaxWindow = dmq::HighResClock::duration::zero();
 
-    m_invokeTotalWindow = dmq::Duration(0);
+    m_invokeTotalWindow = dmq::HighResClock::duration::zero();
     m_invokeCountWindow = 0;
-    m_invokeMaxWindow = dmq::Duration(0);
+    m_invokeMaxWindow = dmq::HighResClock::duration::zero();
 
     return stats;
 }

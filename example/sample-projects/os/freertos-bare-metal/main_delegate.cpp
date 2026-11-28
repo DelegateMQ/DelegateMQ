@@ -5,6 +5,7 @@
 #include "DelegateMQ.h" 
 #include "../../../../test/portable/StartGatePortableTest.h"
 #include "../../../../test/portable/StackPortableTest.h"
+#include "../../../../test/portable/ClockPortableTest.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -717,8 +718,8 @@ void ExecuteAllTests() {
         // The same numbers as a node reports them (xalloc_get_pool_stats(),
         // NodeReporter -> dmq-monitor): every static pool has a capacity, and
         // no peak reached past it
-        XallocPoolStats pools[16];
-        const size_t poolCount = xalloc_get_pool_stats(pools, 16);
+        XallocPoolStats pools[dmq::XALLOC_MAX_POOLS];
+        const size_t poolCount = xalloc_get_pool_stats(pools, dmq::XALLOC_MAX_POOLS);
         DMQ_ASSERT_TRUE(poolCount > 0);
         for (size_t i = 0; i < poolCount; i++) {
             printf("  -> pool %4lu B: peak %lu of %lu blocks\n",
@@ -741,6 +742,13 @@ void ExecuteAllTests() {
     printf("\n[Test 15] Stack high-water mark (GetStackSize(), GetStackFreeMin()):\n");
     StackPortableTest::Run(/*realStacks=*/true);
     printf("  -> stack high-water mark tracked\n");
+
+    // --- TEST 15b: HighResClock and sleep_until() ---
+    // On Cortex-M, HighResClock is the tick plus SysTick's progress: it must
+    // resolve a span under 1 ms (the tick is 1 ms)
+    printf("\n[Test 15b] HighResClock (tick + SysTick) and ThisThread::sleep_until():\n");
+    ClockPortableTest::Run(/*highRes=*/true);
+    printf("  -> sub-millisecond time and drift-free periodic sleep\n");
 
     // --- TEST 16: Watchdog hook (last: a watchdog expiry ends the run) ---
     printf("\n[Test 16] Watchdog hook: two hung threads reported, then one fault:\n");

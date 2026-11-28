@@ -30,6 +30,7 @@
 #include "PortableTests.h"
 #include "StartGatePortableTest.h"
 #include "StackPortableTest.h"
+#include "ClockPortableTest.h"
 #include <iostream>
 #include <random>
 #include <chrono>
@@ -488,6 +489,9 @@ void DelegateThreadsTests(const Options& options)
 
     std::cout << "Stack high-water mark:" << std::endl;
     StackPortableTest::Run(options.realStacks);
+
+    std::cout << "HighResClock and sleep_until():" << std::endl;
+    ClockPortableTest::Run(options.highResClock);
 }
 
 } // namespace PortableTests

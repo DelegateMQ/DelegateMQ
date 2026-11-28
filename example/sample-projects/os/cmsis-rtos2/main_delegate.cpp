@@ -49,6 +49,9 @@ static PortableTests::Options TestOptions()
     // QEMU) runs them on the stacks the kernel reports
 #if !defined(CONFIG_ARCH_POSIX)
     options.realStacks = true;
+#else
+    // native_sim's time advances only while the CPU idles
+    options.highResClock = false;
 #endif
     return options;
 }

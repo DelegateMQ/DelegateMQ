@@ -150,6 +150,7 @@ The samples bind async delegates with a raw `this` (`MakeDelegate(this, &X::F, m
 - `void Stop()` — stop the timer; removal from the list is deferred to the next `ProcessTimers()` call
 - `bool Enabled()` — returns whether the timer is currently active
 - `static dmq::TimePoint GetNow()` — current time from `dmq::Clock` (the port's monotonic clock)
+- Related, outside `Timer`: `dmq::ThisThread::sleep_until(dmq::TimePoint)` wakes at an absolute time (`next += period; sleep_until(next)` doesn't drift; kernel absolute wake where there is one), and `dmq::HighResClock` (microseconds or better on every port with a source, ISR-safe, its own time point type) times short spans that the tick-based `dmq::Clock` shows as 0
 - `static dmq::Duration GetNextExpiry()` — time until the earliest running timer expires: `Duration(0)` if one is due, `Duration::max()` if none runs. Takes only `GetLock()`, so an idle hook or ISR may call it
 - `static void SetScheduleChangedHandler(void (*handler)())` — a plain function `Start()` calls after scheduling a timer (outside the lock, in the caller's context: make it ISR-safe if timers start from ISRs), so a driver sleeping on `GetNextExpiry()` wakes and recomputes; `nullptr` removes it
 

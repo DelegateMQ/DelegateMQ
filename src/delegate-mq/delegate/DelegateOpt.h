@@ -201,9 +201,47 @@ namespace dmq
     using Duration = typename Clock::duration;
     using TimePoint = typename Clock::time_point;
 
-    // --- THIS_THREAD (sleep_for / yield / GetCurrent) SELECTION ---
-    // Portable equivalents of std::this_thread::sleep_for()/yield() for the
-    // calling thread, plus GetCurrent(): the dmq::IThread whose worker is the
+    // --- HIGH-RESOLUTION CLOCK SELECTION ---
+    /// @brief A monotonic clock for timing short spans: microseconds or better
+    /// where the platform has a source, where dmq::Clock (an RTOS tick, often
+    /// 1 ms) shows a sub-millisecond span as 0. The threads time ThreadStats'
+    /// dispatch latency and run time with it. Its time points are a separate
+    /// type from dmq::TimePoint (a different epoch): use it for durations
+    /// (now() - start), not deadlines or timers. ISR-safe on every port. Source:
+    /// | Port | Source |
+    /// |---|---|
+    /// | Desktop (stdlib, Win32, Qt, POSIX) | std::chrono::steady_clock |
+    /// | FreeRTOS | ESP-IDF: esp_timer_get_time(); Win32/POSIX simulators: steady_clock; Cortex-M: tick + SysTick progress (port/os/common/SysTickInterpolation.h); else tick resolution |
+    /// | ThreadX | Linux/Win32 simulation: steady_clock; Cortex-M: tick + SysTick progress; else tick resolution |
+    /// | Zephyr | the hardware cycle counter (k_cycle_get_64/32) |
+    /// | CMSIS-RTOS2 | the kernel system timer (osKernelGetSysTimerCount()) |
+    /// | NuttX | CLOCK_MONOTONIC (dmq::Clock itself) |
+    /// | Bare metal | dmq::Clock (g_ticks) |
+#if defined(DMQ_THREAD_STDLIB) || defined(DMQ_THREAD_WIN32) || defined(DMQ_THREAD_QT) || defined(DMQ_THREAD_POSIX)
+    using HighResClock = std::chrono::steady_clock;
+#elif defined(DMQ_THREAD_FREERTOS)
+    using HighResClock = dmq::os::FreeRTOSHighResClock;
+#elif defined(DMQ_THREAD_THREADX)
+    using HighResClock = dmq::os::ThreadXHighResClock;
+#elif defined(DMQ_THREAD_ZEPHYR)
+    using HighResClock = dmq::os::ZephyrHighResClock;
+#elif defined(DMQ_THREAD_CMSIS_RTOS2)
+    using HighResClock = dmq::os::CmsisRtos2HighResClock;
+#elif defined(DMQ_THREAD_NUTTX)
+    using HighResClock = dmq::os::NuttXClock;
+#else
+    using HighResClock = dmq::os::BareMetalClock;
+#endif
+
+    // --- THIS_THREAD (sleep_for / sleep_until / yield / GetCurrent) SELECTION ---
+    // Portable equivalents of std::this_thread::sleep_for()/sleep_until()/yield()
+    // for the calling thread. sleep_until() takes a dmq::TimePoint (a time
+    // point of another clock doesn't compile) and wakes at that absolute time,
+    // so a periodic loop (next += period; sleep_until(next)) doesn't drift by
+    // its own run time; it uses the kernel's absolute wake where there is one
+    // (FreeRTOS xTaskDelayUntil, CMSIS-RTOS2 osDelayUntil, Zephyr
+    // K_TIMEOUT_ABS_MS, NuttX clock_nanosleep TIMER_ABSTIME). Plus
+    // GetCurrent(): the dmq::IThread whose worker is the
     // calling thread, or nullptr (registered by dmq::CurrentThreadScope in
     // IThread.h). Exists so library internals that need to delay or yield
     // (e.g. RetryMonitor backoff) aren't forced to pull in a full
@@ -347,6 +385,15 @@ namespace dmq
     /// @brief Max number of remote Participants the DataBus can hold without heap allocation.
     /// Override via DMQ_MAX_PARTICIPANTS in delegatemqconfig.h.
     inline constexpr size_t MAX_PARTICIPANTS = DMQ_MAX_PARTICIPANTS;
+
+    /// @brief Most entries xalloc_get_pool_stats() can fill: the fixed-block
+    /// allocator's block sizes (11 static pools with DMQ_XALLOCATOR_STATIC_POOLS,
+    /// else DMQ_XALLOCATOR_MAX_ALLOCATORS). Size an XallocPoolStats array with it.
+#if defined(DMQ_XALLOCATOR_STATIC_POOLS)
+    inline constexpr size_t XALLOC_MAX_POOLS = 11;
+#else
+    inline constexpr size_t XALLOC_MAX_POOLS = DMQ_XALLOCATOR_MAX_ALLOCATORS;
+#endif
 
     /// @brief serialize (msg_serialize.h) limits: max string length, max container
     /// element count and max nesting depth of serialize::I objects.

@@ -382,7 +382,7 @@ The Health column summarizes each node's last 10 seconds:
 | Health | Meaning |
 |---|---|
 | **OK** (green) | No problems reported. |
-| **WARN** (yellow) | Reliable messages needed retries (ACK timeouts), or expired messages are piling up faster than they're processed. Also any DataBus error since the last reset: DataBus errors are reported once per topic and error, so they stay visible until you press `r`. Also a fixed-block memory pool at 90% or more of its size at its peak: a full pool faults. |
+| **WARN** (yellow) | Reliable messages needed retries (ACK timeouts), or expired messages are piling up faster than they're processed. Also any DataBus error since the last reset: DataBus errors are reported once per topic and error, so they stay visible until you press `r`. Also a fixed-block memory pool at 90% or more of its size at its peak, or with one block or none left (a small pool's 90% would be its last block): a full pool faults. |
 | **FAIL** (red) | Reliable messages were abandoned after all retries, or sends were rejected because too many messages were unacknowledged. |
 | **-** (gray) | The node sends no health data (its NodeBridge predates health reporting). |
 

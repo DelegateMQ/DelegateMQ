@@ -387,7 +387,7 @@ bool ZephyrThread::DispatchDelegate(std::shared_ptr<dmq::DelegateMsg> msg)
     if (!threadMsg)
         BAD_ALLOC();
 #if defined(DMQ_DATABUS_TOOLS)
-    threadMsg->SetEnqueueTime(Timer::GetNow());
+    threadMsg->SetEnqueueTime(dmq::HighResClock::now());
 #endif
 
     // 2. Send pointer to queue
@@ -620,7 +620,7 @@ void ZephyrThread::Run()
             {
 #if defined(DMQ_DATABUS_TOOLS)
                 // Update latency stats before invoking
-                dmq::Duration latency = Timer::GetNow() - msg->GetEnqueueTime();
+                const dmq::HighResClock::duration latency = dmq::HighResClock::now() - msg->GetEnqueueTime();
                 {
                     k_mutex_lock(&m_statMutex, K_FOREVER);
                     m_latencyTotalWindow += latency;
@@ -638,7 +638,7 @@ void ZephyrThread::Run()
                 DMQ_ASSERT_TRUE(invoker);
 
 #if defined(DMQ_DATABUS_TOOLS)
-                dmq::TimePoint start = Timer::GetNow();
+                const dmq::HighResClock::time_point start = dmq::HighResClock::now();
 #endif
 #if defined(__cpp_exceptions) && !defined(DMQ_ASSERTS)
                 bool success = false;
@@ -676,7 +676,7 @@ void ZephyrThread::Run()
                 }
 
 #if defined(DMQ_DATABUS_TOOLS)
-                dmq::Duration invokeTime = Timer::GetNow() - start;
+                const dmq::HighResClock::duration invokeTime = dmq::HighResClock::now() - start;
                 {
                     k_mutex_lock(&m_statMutex, K_FOREVER);
                     m_invokeTotalWindow += invokeTime;
@@ -748,13 +748,13 @@ ZephyrThread::ThreadStats ZephyrThread::SnapshotStats()
 
     // Reset windowed stats
     m_queueDepthMaxWindow = 0;
-    m_latencyTotalWindow = Duration(0);
+    m_latencyTotalWindow = dmq::HighResClock::duration::zero();
     m_latencyCountWindow = 0;
-    m_latencyMaxWindow = Duration(0);
+    m_latencyMaxWindow = dmq::HighResClock::duration::zero();
 
-    m_invokeTotalWindow = Duration(0);
+    m_invokeTotalWindow = dmq::HighResClock::duration::zero();
     m_invokeCountWindow = 0;
-    m_invokeMaxWindow = Duration(0);
+    m_invokeMaxWindow = dmq::HighResClock::duration::zero();
 
     k_mutex_unlock(&m_statMutex);
     return stats;

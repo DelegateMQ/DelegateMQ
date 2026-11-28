@@ -158,27 +158,40 @@ static HealthCounts RecentCounts(const HealthRecord& h) {
 }
 
 /// The node's fullest fixed-block pool at its peak, as a percentage of its
-/// size; -1 when the node doesn't report pools (no static pools)
+/// size; -1 when the node doesn't report pools (no static pools). Capped at
+/// 999: a malformed packet (peak above capacity) shows as over 100%, never
+/// as a wrapped negative number
 static int PoolPeakPercent(const dmq::NodeHealthPacket& p) {
     if ((p.sources & dmq::NodeHealthPacket::SRC_ALLOCATOR) == 0 || p.poolCapacity == 0) return -1;
-    return static_cast<int>((static_cast<uint64_t>(p.poolPeak) * 100) / p.poolCapacity);
+    const uint64_t percent = (static_cast<uint64_t>(p.poolPeak) * 100) / p.poolCapacity;
+    return static_cast<int>(percent > 999 ? 999 : percent);
 }
 
 /// A pool this full at its peak warns: the next burst may exhaust it, and a
 /// full pool faults
 static constexpr int POOL_WARN_PERCENT = 90;
 
+/// The fullest pool warns at POOL_WARN_PERCENT, or with one block or none left
+/// at its peak: a small pool (8 blocks) is at 87% with one left, so the
+/// percentage alone would wait until it is full
+static bool PoolWarn(const dmq::NodeHealthPacket& p) {
+    const int percent = PoolPeakPercent(p);
+    if (percent < 0) return false;
+    const uint32_t left = p.poolPeak < p.poolCapacity ? p.poolCapacity - p.poolPeak : 0;
+    return percent >= POOL_WARN_PERCENT || (p.poolPeak > 0 && left <= 1);
+}
+
 /// FAIL: messages lost or rejected recently. WARN: retries or a growing backlog
 /// recently, any DataBus error since the last reset (DataBus errors are
 /// usually reported once per topic and error, so they stay visible), or a
-/// memory pool at POOL_WARN_PERCENT or more at its peak. OK: none.
+/// memory pool near full at its peak (PoolWarn()). OK: none.
 static HealthLevel GetHealth(const HealthRecord* h) {
     if (h == nullptr) return HealthLevel::NONE;
     HealthCounts recent = RecentCounts(*h);
     HealthCounts sinceReset = HealthCounts::From(h->latest) - h->baseline;
     if (recent.deliveryFailures > 0 || recent.capExceeded > 0) return HealthLevel::FAIL;
     if (recent.sendTimeouts > 0 || recent.pendingExceeded > 0 || sinceReset.dataBusErrors > 0 ||
-        PoolPeakPercent(h->latest) >= POOL_WARN_PERCENT)
+        PoolWarn(h->latest))
         return HealthLevel::WARN;
     return HealthLevel::OK;
 }
@@ -332,7 +345,7 @@ static Element HealthPanel(const NodeRecord& rec, const std::optional<HealthReco
         } else {
             pool += " (heap-backed, no fixed limit)";
         }
-        lines.push_back(text(pool) | color(poolPercent >= POOL_WARN_PERCENT ? Color::Yellow : Color::White));
+        lines.push_back(text(pool) | color(PoolWarn(h.latest) ? Color::Yellow : Color::White));
     }
     const std::string& last = h.latest.lastEvent;
     if (!last.empty() && total.Any()) {

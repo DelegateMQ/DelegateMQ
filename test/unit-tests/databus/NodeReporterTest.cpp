@@ -110,6 +110,9 @@ int NodeReporterTestMain() {
         DMQ_ASSERT_TRUE(health.poolPeakBytes > 0);   // the reporter's own allocations, at least
 #if !defined(DMQ_XALLOCATOR_STATIC_POOLS)
         DMQ_ASSERT_TRUE(health.poolCapacity == 0);
+#else
+        DMQ_ASSERT_TRUE(health.poolCapacity > 0 && health.poolBlockSize > 0);
+        DMQ_ASSERT_TRUE(health.poolPeak <= health.poolCapacity);
 #endif
 #else
         DMQ_ASSERT_TRUE(health.sources == NodeHealthPacket::SRC_DATABUS);
@@ -212,7 +215,80 @@ int NodeReporterTestMain() {
         DMQ_ASSERT_TRUE(in.nodeId == "Pools" && in.lastEvent == "x" && in.sources == out.sources);
         DMQ_ASSERT_TRUE(in.poolBlockSize == 64 && in.poolPeak == 37 && in.poolCapacity == 48 &&
                         in.poolPeakBytes == 5120);
+
+        // A node built before the pool fields: its packet ends after lastEvent.
+        // It still decodes, with the pool fields 0
+        dmq::ByteWriter oldOs;
+        ms.write(oldOs, out.nodeId);
+        ms.write(oldOs, out.ipAddress);
+        ms.write(oldOs, out.sources);
+        ms.write(oldOs, out.dataBusErrors);
+        ms.write(oldOs, out.sendTimeouts);
+        ms.write(oldOs, out.deliveryFailures);
+        ms.write(oldOs, out.capExceeded);
+        ms.write(oldOs, out.pendingExceeded);
+        ms.write(oldOs, out.lastEvent);
+        dmq::ByteReader oldIs(oldOs);
+        NodeHealthPacket old;
+        old.poolPeak = 99;      // overwritten with 0
+        old.read(ms, oldIs);
+        DMQ_ASSERT_TRUE(!oldIs.fail() && oldIs.remaining() == 0);
+        DMQ_ASSERT_TRUE(old.nodeId == "Pools" && old.lastEvent == "x");
+        DMQ_ASSERT_TRUE(old.poolPeak == 0 && old.poolCapacity == 0 && old.poolPeakBytes == 0);
     }
+
+#if defined(DMQ_ALLOCATOR)
+    // 3c. Pool selection (detail::SelectPoolHealth(), what NodeReporter sends):
+    //     the fullest static pool by peak/capacity, ties to fewer blocks left,
+    //     heap-backed entries in the total only, the total clamped to 32 bits
+    {
+        using dmq::databus::detail::SelectPoolHealth;
+        NodeHealthPacket none;
+        SelectPoolHealth(nullptr, 0, none);
+        DMQ_ASSERT_TRUE(none.sources == 0 && none.poolPeakBytes == 0);
+
+        const XallocPoolStats mixed[] = {
+            {16,  1,  3, 0},      // heap-backed: total only
+            {32,  2, 10, 20},     // 50%
+            {64,  0,  7, 8},      // 87%, one block left: the fullest
+            {128, 0,  1, 4},      // 25%
+        };
+        NodeHealthPacket h;
+        SelectPoolHealth(mixed, 4, h);
+        DMQ_ASSERT_TRUE((h.sources & NodeHealthPacket::SRC_ALLOCATOR) != 0);
+        DMQ_ASSERT_TRUE(h.poolBlockSize == 64 && h.poolPeak == 7 && h.poolCapacity == 8);
+        DMQ_ASSERT_TRUE(h.poolPeakBytes == 16u * 3 + 32u * 10 + 64u * 7 + 128u * 1);
+
+        // Equally full (90%): the pool with fewer blocks left, whichever comes first
+        const XallocPoolStats tieA[] = { {32, 0, 18, 20}, {64, 0, 9, 10} };
+        const XallocPoolStats tieB[] = { {32, 0, 9, 10}, {64, 0, 18, 20} };
+        NodeHealthPacket ta, tb;
+        SelectPoolHealth(tieA, 2, ta);
+        SelectPoolHealth(tieB, 2, tb);
+        DMQ_ASSERT_TRUE(ta.poolBlockSize == 64 && ta.poolPeak == 9);
+        DMQ_ASSERT_TRUE(tb.poolBlockSize == 32 && tb.poolPeak == 9);
+
+        // A small pool with one block left (75%) beats a larger one at 80% with
+        // two left: dmq-monitor warns about the first, not the second
+        const XallocPoolStats small[] = { {32, 0, 3, 4}, {64, 0, 8, 10} };
+        NodeHealthPacket hs;
+        SelectPoolHealth(small, 2, hs);
+        DMQ_ASSERT_TRUE(hs.poolBlockSize == 32 && hs.poolPeak == 3 && hs.poolCapacity == 4);
+
+        // Heap-backed only: a total, no fullest pool
+        const XallocPoolStats heap[] = { {16, 0, 4, 0}, {32, 1, 2, 0} };
+        NodeHealthPacket hh;
+        SelectPoolHealth(heap, 2, hh);
+        DMQ_ASSERT_TRUE(hh.poolPeakBytes == 16u * 4 + 32u * 2 && hh.poolCapacity == 0 && hh.poolBlockSize == 0);
+
+        // A total past 4 GB reads as UINT32_MAX; full 32-bit counters don't overflow
+        const XallocPoolStats huge[] = { {0xFFFFFFFFu, 0, 0xFFFFFFFFu, 0xFFFFFFFFu}, {16, 0, 1, 0xFFFFFFFFu} };
+        NodeHealthPacket hg;
+        SelectPoolHealth(huge, 2, hg);
+        DMQ_ASSERT_TRUE(hg.poolPeakBytes == 0xFFFFFFFFu);
+        DMQ_ASSERT_TRUE(hg.poolBlockSize == 0xFFFFFFFFu && hg.poolPeak == 0xFFFFFFFFu);
+    }
+#endif
 
     // 4. A failed send is a drop: counted and reported
     {

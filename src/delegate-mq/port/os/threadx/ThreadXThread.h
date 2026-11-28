@@ -342,15 +342,15 @@ private:
     size_t m_queueDepthMaxWindow = 0;
     size_t m_queueDepthMaxAll = 0;
 
-    dmq::Duration m_latencyTotalWindow = dmq::Duration(0);
+    dmq::HighResClock::duration m_latencyTotalWindow = dmq::HighResClock::duration::zero();
     uint32_t m_latencyCountWindow = 0;
-    dmq::Duration m_latencyMaxWindow = dmq::Duration(0);
-    dmq::Duration m_latencyMaxAll = dmq::Duration(0);
+    dmq::HighResClock::duration m_latencyMaxWindow = dmq::HighResClock::duration::zero();
+    dmq::HighResClock::duration m_latencyMaxAll = dmq::HighResClock::duration::zero();
 
-    dmq::Duration m_invokeTotalWindow = dmq::Duration(0);
+    dmq::HighResClock::duration m_invokeTotalWindow = dmq::HighResClock::duration::zero();
     uint32_t m_invokeCountWindow = 0;
-    dmq::Duration m_invokeMaxWindow = dmq::Duration(0);
-    dmq::Duration m_invokeMaxAll = dmq::Duration(0);
+    dmq::HighResClock::duration m_invokeMaxWindow = dmq::HighResClock::duration::zero();
+    dmq::HighResClock::duration m_invokeMaxAll = dmq::HighResClock::duration::zero();
 
     uint64_t m_dispatchCountAll = 0;
 #endif

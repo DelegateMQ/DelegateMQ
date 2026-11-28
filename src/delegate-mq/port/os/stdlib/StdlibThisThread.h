@@ -21,6 +21,14 @@ namespace dmq::os {
         template<typename Rep, typename Period>
         static void sleep_for(std::chrono::duration<Rep, Period> d) { std::this_thread::sleep_for(d); }
 
+        /// @brief Sleep until dmq::Clock (std::chrono::steady_clock) reaches t;
+        /// returns at once if it already has. For drift-free periodic loops:
+        /// next += period; sleep_until(next).
+        template<typename Duration>
+        static void sleep_until(const std::chrono::time_point<std::chrono::steady_clock, Duration>& t) {
+            std::this_thread::sleep_until(t);
+        }
+
         static void yield() noexcept { std::this_thread::yield(); }
     };
 
